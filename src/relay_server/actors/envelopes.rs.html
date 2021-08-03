@@ -2667,14 +2667,141 @@
 <span id="2667">2667</span>
 <span id="2668">2668</span>
 <span id="2669">2669</span>
+<span id="2670">2670</span>
+<span id="2671">2671</span>
+<span id="2672">2672</span>
+<span id="2673">2673</span>
+<span id="2674">2674</span>
+<span id="2675">2675</span>
+<span id="2676">2676</span>
+<span id="2677">2677</span>
+<span id="2678">2678</span>
+<span id="2679">2679</span>
+<span id="2680">2680</span>
+<span id="2681">2681</span>
+<span id="2682">2682</span>
+<span id="2683">2683</span>
+<span id="2684">2684</span>
+<span id="2685">2685</span>
+<span id="2686">2686</span>
+<span id="2687">2687</span>
+<span id="2688">2688</span>
+<span id="2689">2689</span>
+<span id="2690">2690</span>
+<span id="2691">2691</span>
+<span id="2692">2692</span>
+<span id="2693">2693</span>
+<span id="2694">2694</span>
+<span id="2695">2695</span>
+<span id="2696">2696</span>
+<span id="2697">2697</span>
+<span id="2698">2698</span>
+<span id="2699">2699</span>
+<span id="2700">2700</span>
+<span id="2701">2701</span>
+<span id="2702">2702</span>
+<span id="2703">2703</span>
+<span id="2704">2704</span>
+<span id="2705">2705</span>
+<span id="2706">2706</span>
+<span id="2707">2707</span>
+<span id="2708">2708</span>
+<span id="2709">2709</span>
+<span id="2710">2710</span>
+<span id="2711">2711</span>
+<span id="2712">2712</span>
+<span id="2713">2713</span>
+<span id="2714">2714</span>
+<span id="2715">2715</span>
+<span id="2716">2716</span>
+<span id="2717">2717</span>
+<span id="2718">2718</span>
+<span id="2719">2719</span>
+<span id="2720">2720</span>
+<span id="2721">2721</span>
+<span id="2722">2722</span>
+<span id="2723">2723</span>
+<span id="2724">2724</span>
+<span id="2725">2725</span>
+<span id="2726">2726</span>
+<span id="2727">2727</span>
+<span id="2728">2728</span>
+<span id="2729">2729</span>
+<span id="2730">2730</span>
+<span id="2731">2731</span>
+<span id="2732">2732</span>
+<span id="2733">2733</span>
+<span id="2734">2734</span>
+<span id="2735">2735</span>
+<span id="2736">2736</span>
+<span id="2737">2737</span>
+<span id="2738">2738</span>
+<span id="2739">2739</span>
+<span id="2740">2740</span>
+<span id="2741">2741</span>
+<span id="2742">2742</span>
+<span id="2743">2743</span>
+<span id="2744">2744</span>
+<span id="2745">2745</span>
+<span id="2746">2746</span>
+<span id="2747">2747</span>
+<span id="2748">2748</span>
+<span id="2749">2749</span>
+<span id="2750">2750</span>
+<span id="2751">2751</span>
+<span id="2752">2752</span>
+<span id="2753">2753</span>
+<span id="2754">2754</span>
+<span id="2755">2755</span>
+<span id="2756">2756</span>
+<span id="2757">2757</span>
+<span id="2758">2758</span>
+<span id="2759">2759</span>
+<span id="2760">2760</span>
+<span id="2761">2761</span>
+<span id="2762">2762</span>
+<span id="2763">2763</span>
+<span id="2764">2764</span>
+<span id="2765">2765</span>
+<span id="2766">2766</span>
+<span id="2767">2767</span>
+<span id="2768">2768</span>
+<span id="2769">2769</span>
+<span id="2770">2770</span>
+<span id="2771">2771</span>
+<span id="2772">2772</span>
+<span id="2773">2773</span>
+<span id="2774">2774</span>
+<span id="2775">2775</span>
+<span id="2776">2776</span>
+<span id="2777">2777</span>
+<span id="2778">2778</span>
+<span id="2779">2779</span>
+<span id="2780">2780</span>
+<span id="2781">2781</span>
+<span id="2782">2782</span>
+<span id="2783">2783</span>
+<span id="2784">2784</span>
+<span id="2785">2785</span>
+<span id="2786">2786</span>
+<span id="2787">2787</span>
+<span id="2788">2788</span>
+<span id="2789">2789</span>
+<span id="2790">2790</span>
+<span id="2791">2791</span>
+<span id="2792">2792</span>
+<span id="2793">2793</span>
+<span id="2794">2794</span>
+<span id="2795">2795</span>
+<span id="2796">2796</span>
+<span id="2797">2797</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
-<span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::rc::Rc</span>;
-<span class="kw">use</span> <span class="ident">std::sync::atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">Ordering</span>};
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">fmt</span>, <span class="ident">net</span>};
 
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Duration</span> <span class="kw">as</span> <span class="ident">SignedDuration</span>, <span class="ident">Utc</span>};
@@ -2710,7 +2837,9 @@
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::http</span>::{<span class="ident">HttpError</span>, <span class="ident">RequestBuilder</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service::ServerError</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">EnvelopeSummary</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{
+    <span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">EnvelopeSummary</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>, <span class="ident">SendWithOutcome</span>,
+};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">use</span> {
@@ -2761,7 +2890,7 @@
     <span class="ident">NoEventPayload</span>,
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not schedule project fetch&quot;</span>)]</span>
-    <span class="ident">ScheduleFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">MailboxError</span>),
+    <span class="ident">ScheduleFailed</span>,
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to resolve project information&quot;</span>)]</span>
     <span class="ident">ProjectFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">ProjectError</span>),
@@ -2816,7 +2945,6 @@
             <span class="self">Self</span><span class="ident">::PayloadTooLarge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::TooLarge</span>)),
             <span class="self">Self</span><span class="ident">::InvalidJson</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidJson</span>)),
             <span class="self">Self</span><span class="ident">::InvalidMsgpack</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidMsgpack</span>)),
-            <span class="self">Self</span><span class="ident">::Rejected</span>(<span class="ident">reason</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">reason</span>)),
             <span class="self">Self</span><span class="ident">::InvalidSecurityType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::SecurityReportType</span>)),
             <span class="self">Self</span><span class="ident">::InvalidSecurityReport</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::SecurityReport</span>)),
             <span class="self">Self</span><span class="ident">::InvalidTransaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidTransaction</span>)),
@@ -2826,28 +2954,119 @@
             <span class="comment">// Processing-only outcomes (Sentry-internal Relays)</span>
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="self">Self</span><span class="ident">::InvalidUnrealReport</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessUnreal</span>)),
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="self">Self</span><span class="ident">::EventFiltered</span>(<span class="kw-2">ref</span> <span class="ident">filter_stat_key</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Filtered</span>(<span class="kw-2">*</span><span class="ident">filter_stat_key</span>)),
-            <span class="self">Self</span><span class="ident">::TraceSampled</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>)),
-            <span class="self">Self</span><span class="ident">::EventSampled</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>)),
 
             <span class="comment">// Internal errors</span>
             <span class="self">Self</span><span class="ident">::SerializeFailed</span>(<span class="kw">_</span>)
-            <span class="op">|</span> <span class="self">Self</span><span class="ident">::ScheduleFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="self">Self</span><span class="ident">::ProjectFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="self">Self</span><span class="ident">::Timeout</span>
             <span class="op">|</span> <span class="self">Self</span><span class="ident">::ProcessingFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="self">Self</span><span class="ident">::MissingProjectId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="self">Self</span><span class="ident">::StoreFailed</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="self">Self</span><span class="ident">::QuotasFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>))
-            }
+            <span class="self">Self</span><span class="ident">::QuotasFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
 
-            <span class="comment">// Rate limiting outcomes are emitted at the source.</span>
+            <span class="comment">// These outcomes are emitted at the source.</span>
+            <span class="self">Self</span><span class="ident">::ScheduleFailed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="self">Self</span><span class="ident">::Rejected</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="self">Self</span><span class="ident">::EventFiltered</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="self">Self</span><span class="ident">::TraceSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="self">Self</span><span class="ident">::EventSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
             <span class="self">Self</span><span class="ident">::RateLimited</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="self">Self</span><span class="ident">::StoreFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
 
             <span class="comment">// If we send to an upstream, we don&#39;t emit outcomes.</span>
             <span class="self">Self</span><span class="ident">::SendFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+        }
+    }
+}
+
+<span class="doccomment">/// Contains the required envelope related information to create an outcome.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EnvelopeContext</span> {
+    <span class="ident">summary</span>: <span class="ident">EnvelopeSummary</span>,
+    <span class="ident">received_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
+    <span class="ident">event_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
+    <span class="ident">remote_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">net::IpAddr</span><span class="op">&gt;</span>,
+    <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">EnvelopeContext</span> {
+    <span class="doccomment">/// Creates an envelope context from the given request meta data.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This context contains partial scoping and no envelope summary. There will be no outcomes</span>
+    <span class="doccomment">/// logged without updating this context.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_request</span>(<span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">summary</span>: <span class="ident">EnvelopeSummary::empty</span>(),
+            <span class="ident">received_at</span>: <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">meta</span>.<span class="ident">start_time</span>()),
+            <span class="ident">event_id</span>: <span class="prelude-val">None</span>,
+            <span class="ident">remote_addr</span>: <span class="ident">meta</span>.<span class="ident">client_addr</span>(),
+            <span class="ident">scoping</span>: <span class="ident">meta</span>.<span class="ident">get_partial_scoping</span>(),
+        }
+    }
+
+    <span class="doccomment">/// Computes an envelope context from the given envelope.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// To provide additional scoping, use [`EnvelopeContext::scope`].</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_envelope</span>(<span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="self">Self</span><span class="ident">::from_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>());
+        <span class="ident">context</span>.<span class="ident">update</span>(<span class="ident">envelope</span>);
+        <span class="ident">context</span>
+    }
+
+    <span class="doccomment">/// Update the context with new envelope information.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This updates the item summary as well as the event id.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+        <span class="self">self</span>.<span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
+        <span class="self">self</span>.<span class="ident">summary</span> <span class="op">=</span> <span class="ident">EnvelopeSummary::compute</span>(<span class="ident">envelope</span>);
+        <span class="self">self</span>
+    }
+
+    <span class="doccomment">/// Re-scopes this context to the given scoping.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">scoping</span>: <span class="ident">Scoping</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+        <span class="self">self</span>.<span class="ident">scoping</span> <span class="op">=</span> <span class="ident">scoping</span>;
+        <span class="self">self</span>
+    }
+
+    <span class="doccomment">/// Returns scoping stored in this context.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scoping</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Scoping</span> {
+        <span class="self">self</span>.<span class="ident">scoping</span>
+    }
+
+    <span class="doccomment">/// Returns the event id of this context, if any.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">event_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">event_id</span>
+    }
+
+    <span class="doccomment">/// Records outcomes for all items stored in this context.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This does not send outcomes for empty envelopes or request-only contexts.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">send_outcomes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">outcome</span>: <span class="ident">Outcome</span>) {
+        <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="ident">OutcomeProducer::from_registry</span>();
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">category</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">summary</span>.<span class="ident">event_category</span> {
+            <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
+                <span class="ident">timestamp</span>: <span class="self">self</span>.<span class="ident">received_at</span>,
+                <span class="ident">scoping</span>: <span class="self">self</span>.<span class="ident">scoping</span>,
+                <span class="ident">outcome</span>: <span class="ident">outcome</span>.<span class="ident">clone</span>(),
+                <span class="ident">event_id</span>: <span class="self">self</span>.<span class="ident">event_id</span>,
+                <span class="ident">remote_addr</span>: <span class="self">self</span>.<span class="ident">remote_addr</span>,
+                <span class="ident">category</span>,
+                <span class="ident">quantity</span>: <span class="number">1</span>,
+            });
+        }
+
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">summary</span>.<span class="ident">attachment_quantity</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
+                <span class="ident">timestamp</span>: <span class="self">self</span>.<span class="ident">received_at</span>,
+                <span class="ident">scoping</span>: <span class="self">self</span>.<span class="ident">scoping</span>,
+                <span class="ident">outcome</span>,
+                <span class="ident">event_id</span>: <span class="self">self</span>.<span class="ident">event_id</span>,
+                <span class="ident">remote_addr</span>: <span class="self">self</span>.<span class="ident">remote_addr</span>,
+                <span class="ident">category</span>: <span class="ident">DataCategory::Attachment</span>,
+                <span class="ident">quantity</span>: <span class="self">self</span>.<span class="ident">summary</span>.<span class="ident">attachment_quantity</span>,
+            });
         }
     }
 }
@@ -2906,8 +3125,8 @@
     <span class="doccomment">/// ID.</span>
     <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
 
-    <span class="doccomment">/// UTC date time converted from the `start_time` instant.</span>
-    <span class="ident">received_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The envelope context before processing.</span>
+    <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ProcessEnvelopeState</span> {
@@ -3195,7 +3414,7 @@
     <span class="doccomment">/// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps</span>
     <span class="doccomment">/// are out of range after clock drift correction.</span>
     <span class="kw">fn</span> <span class="ident">process_sessions</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) {
-        <span class="kw">let</span> <span class="ident">received</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">received_at</span>;
+        <span class="kw">let</span> <span class="ident">received</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">received_at</span>;
         <span class="kw">let</span> <span class="ident">extract_metrics</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>()
             <span class="op">&amp;&amp;</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">has_feature</span>(<span class="ident">Feature::MetricsExtraction</span>);
         <span class="kw">let</span> <span class="ident">_extracted_metrics</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">extracted_metrics</span>;
@@ -3348,7 +3567,8 @@
         <span class="kw">let</span> <span class="ident">ProcessEnvelope</span> {
             <span class="kw-2">mut</span> <span class="ident">envelope</span>,
             <span class="ident">project_state</span>,
-            <span class="ident">start_time</span>,
+            <span class="ident">start_time</span>: <span class="kw">_</span>,
+            <span class="ident">scoping</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
 
         <span class="comment">// Set the event retention. Effectively, this value will only be available in processing</span>
@@ -3373,6 +3593,8 @@
         <span class="comment">//  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.</span>
         <span class="comment">//  2. The DSN was moved and the envelope sent to the old project ID.</span>
         <span class="ident">envelope</span>.<span class="ident">meta_mut</span>().<span class="ident">set_project_id</span>(<span class="ident">project_id</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope_context</span> <span class="op">=</span> <span class="ident">EnvelopeContext::from_envelope</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
+        <span class="ident">envelope_context</span>.<span class="ident">scope</span>(<span class="ident">scoping</span>);
 
         <span class="prelude-val">Ok</span>(<span class="ident">ProcessEnvelopeState</span> {
             <span class="ident">envelope</span>,
@@ -3383,7 +3605,7 @@
             <span class="ident">extracted_metrics</span>: <span class="ident">Vec::new</span>(),
             <span class="ident">project_state</span>,
             <span class="ident">project_id</span>,
-            <span class="ident">received_at</span>: <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">start_time</span>),
+            <span class="ident">envelope_context</span>,
         })
     }
 
@@ -3808,8 +4030,8 @@
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
         };
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span>
-            <span class="ident">ClockDriftProcessor::new</span>(<span class="ident">sent_at</span>, <span class="ident">state</span>.<span class="ident">received_at</span>).<span class="ident">at_least</span>(<span class="ident">MINIMUM_CLOCK_DRIFT</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">ClockDriftProcessor::new</span>(<span class="ident">sent_at</span>, <span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">received_at</span>)
+            .<span class="ident">at_least</span>(<span class="ident">MINIMUM_CLOCK_DRIFT</span>);
         <span class="ident">process_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>())
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProcessingError::InvalidTransaction</span>)<span class="question-mark">?</span>;
 
@@ -3817,7 +4039,7 @@
         <span class="comment">// store processing, which could modify the timestamp if it exceeds a threshold. We are</span>
         <span class="comment">// interested in the actual delay before this correction.</span>
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">timestamp</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>()) {
-            <span class="kw">let</span> <span class="ident">event_delay</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">received_at</span> <span class="op">-</span> <span class="ident">timestamp</span>.<span class="ident">into_inner</span>();
+            <span class="kw">let</span> <span class="ident">event_delay</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">received_at</span> <span class="op">-</span> <span class="ident">timestamp</span>.<span class="ident">into_inner</span>();
             <span class="kw">if</span> <span class="ident">event_delay</span> <span class="op">&gt;</span> <span class="ident">SignedDuration::minutes</span>(<span class="number">1</span>) {
                 <span class="kw">let</span> <span class="ident">category</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event_category</span>().<span class="ident">unwrap_or</span>(<span class="ident">DataCategory::Unknown</span>);
                 <span class="macro">metric!</span>(
@@ -3836,7 +4058,7 @@
             <span class="kw-2">ref</span> <span class="ident">envelope</span>,
             <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">event</span>,
             <span class="kw-2">ref</span> <span class="ident">project_state</span>,
-            <span class="ident">received_at</span>,
+            <span class="kw-2">ref</span> <span class="ident">envelope_context</span>,
             ..
         } <span class="op">=</span> <span class="kw-2">*</span><span class="ident">state</span>;
 
@@ -3866,7 +4088,7 @@
             <span class="ident">remove_other</span>: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
             <span class="ident">normalize_user_agent</span>: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
             <span class="ident">sent_at</span>: <span class="ident">envelope</span>.<span class="ident">sent_at</span>(),
-            <span class="ident">received_at</span>: <span class="prelude-val">Some</span>(<span class="ident">received_at</span>),
+            <span class="ident">received_at</span>: <span class="prelude-val">Some</span>(<span class="ident">envelope_context</span>.<span class="ident">received_at</span>),
             <span class="ident">breakdowns</span>: <span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">breakdowns_v2</span>.<span class="ident">clone</span>(),
         };
 
@@ -3893,8 +4115,11 @@
         <span class="kw">let</span> <span class="ident">filter_settings</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">filter_settings</span>;
 
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EventProcessingFiltering</span>), {
-            <span class="ident">relay_filter::should_filter</span>(<span class="ident">event</span>, <span class="ident">client_ip</span>, <span class="ident">filter_settings</span>)
-                .<span class="ident">map_err</span>(<span class="ident">ProcessingError::EventFiltered</span>)
+            <span class="ident">relay_filter::should_filter</span>(<span class="ident">event</span>, <span class="ident">client_ip</span>, <span class="ident">filter_settings</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
+                <span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">Outcome::Filtered</span>(<span class="ident">err</span>));
+
+                <span class="ident">ProcessingError::EventFiltered</span>(<span class="ident">err</span>)
+            })
         })
     }
 
@@ -3928,18 +4153,14 @@
             <span class="ident">envelope_limiter</span>.<span class="ident">assume_event</span>(<span class="ident">category</span>);
         }
 
-        <span class="comment">// Fetch scoping again from the project state. This is a rather cheap operation at this</span>
-        <span class="comment">// point and it is easier than passing scoping through all layers of `process_envelope`.</span>
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">project_state</span>.<span class="ident">scope_request</span>(<span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>());
-
         <span class="kw">let</span> (<span class="ident">enforcement</span>, <span class="ident">limits</span>) <span class="op">=</span> <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EventProcessingRateLimiting</span>), {
             <span class="ident">envelope_limiter</span>
-                .<span class="ident">enforce</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="ident">scoping</span>)
+                .<span class="ident">enforce</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">scoping</span>)
                 .<span class="ident">map_err</span>(<span class="ident">ProcessingError::QuotasFailed</span>)<span class="question-mark">?</span>
         });
 
         <span class="ident">state</span>.<span class="ident">rate_limits</span> <span class="op">=</span> <span class="ident">limits</span>;
-        <span class="ident">enforcement</span>.<span class="ident">track_outcomes</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="ident">scoping</span>);
+        <span class="ident">enforcement</span>.<span class="ident">track_outcomes</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">scoping</span>);
 
         <span class="kw">if</span> <span class="ident">remove_event</span> {
             <span class="ident">state</span>.<span class="ident">remove_event</span>();
@@ -4080,7 +4301,13 @@
             <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">project_state</span>,
             <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>(),
         ) {
-            <span class="ident">SamplingResult::Drop</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::EventSampled</span>(<span class="ident">rule_id</span>)),
+            <span class="ident">SamplingResult::Drop</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="ident">state</span>
+                    .<span class="ident">envelope_context</span>
+                    .<span class="ident">send_outcomes</span>(<span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>));
+
+                <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::EventSampled</span>(<span class="ident">rule_id</span>))
+            }
             <span class="ident">SamplingResult::Keep</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
             <span class="comment">// Not enough info to make a definite evaluation, keep the event</span>
             <span class="ident">SamplingResult::NoDecision</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
@@ -4158,7 +4385,16 @@
                     <span class="ident">scope</span>.<span class="ident">set_extra</span>(<span class="string">&quot;user_agent&quot;</span>, <span class="ident">user_agent</span>.<span class="ident">into</span>());
                 }
             },
-            <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">process_state</span>(<span class="ident">state</span>),
+            <span class="op">|</span><span class="op">|</span> {
+                <span class="kw">let</span> <span class="ident">envelope_context</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope_context</span>;
+
+                <span class="self">self</span>.<span class="ident">process_state</span>(<span class="ident">state</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">outcome</span>) <span class="op">=</span> <span class="ident">err</span>.<span class="ident">to_outcome</span>() {
+                        <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
+                    }
+                    <span class="ident">err</span>
+                })
+            },
         )
     }
 }
@@ -4178,6 +4414,7 @@
     <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
     <span class="kw">pub</span> <span class="ident">project_state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">start_time</span>: <span class="ident">Instant</span>,
+    <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
 }
 
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>), <span class="ident">allow</span>(<span class="ident">dead_code</span>))]</span>
@@ -4294,7 +4531,7 @@
 <span class="doccomment">/// Error returned from [`EnvelopeManager::send_envelope`].</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">enum</span> <span class="ident">SendEnvelopeError</span> {
-    <span class="ident">ScheduleFailed</span>(<span class="ident">MailboxError</span>),
+    <span class="ident">ScheduleFailed</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">StoreFailed</span>(<span class="ident">StoreError</span>),
     <span class="ident">SendFailed</span>(<span class="ident">UpstreamRequestError</span>),
@@ -4354,7 +4591,7 @@
                         <span class="ident">start_time</span>,
                         <span class="ident">scoping</span>,
                     })
-                    .<span class="ident">map_err</span>(<span class="ident">SendEnvelopeError::ScheduleFailed</span>)
+                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SendEnvelopeError::ScheduleFailed</span>)
                     .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">SendEnvelopeError::StoreFailed</span>));
 
                 <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future</span>);
@@ -4412,7 +4649,7 @@
 
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">UpstreamRelay::from_registry</span>()
             .<span class="ident">send</span>(<span class="ident">request</span>)
-            .<span class="ident">map_err</span>(<span class="ident">SendEnvelopeError::ScheduleFailed</span>)
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SendEnvelopeError::ScheduleFailed</span>)
             .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span><span class="op">|</span> {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::RateLimited</span>(<span class="ident">upstream_limits</span>)) <span class="op">=</span> <span class="ident">result</span> {
                     <span class="kw">let</span> <span class="ident">limits</span> <span class="op">=</span> <span class="ident">upstream_limits</span>.<span class="ident">scope</span>(<span class="kw-2">&amp;</span><span class="ident">scoping</span>);
@@ -4616,57 +4853,91 @@
         } <span class="op">=</span> <span class="ident">message</span>;
 
         <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
-        <span class="kw">let</span> <span class="ident">remote_addr</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
-
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">get_partial_scoping</span>()));
-        <span class="kw">let</span> <span class="ident">is_received</span> <span class="op">=</span> <span class="ident">Rc::new</span>(<span class="ident">AtomicBool::from</span>(<span class="bool-val">false</span>));
-        <span class="kw">let</span> <span class="ident">envelope_summary</span> <span class="op">=</span> <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">EnvelopeSummary::compute</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>)));
+        <span class="kw">let</span> <span class="ident">envelope_context</span> <span class="op">=</span> <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">EnvelopeContext::from_envelope</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>)));
 
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">ProjectCache::from_registry</span>()
-            .<span class="ident">send</span>(<span class="ident">CheckEnvelope::fetched</span>(<span class="ident">project_key</span>, <span class="ident">envelope</span>))
-            .<span class="ident">map_err</span>(<span class="ident">ProcessingError::ScheduleFailed</span>)
+            .<span class="ident">send_tracked</span>(
+                <span class="ident">CheckEnvelope::fetched</span>(<span class="ident">project_key</span>, <span class="ident">envelope</span>),
+                <span class="kw-2">*</span><span class="ident">envelope_context</span>.<span class="ident">clone</span>().<span class="ident">borrow</span>(),
+            )
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProcessingError::ScheduleFailed</span>)
             .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">ProcessingError::ProjectFailed</span>))
-            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">scoping</span>, <span class="ident">envelope_summary</span>, <span class="op">|</span><span class="ident">response</span><span class="op">|</span> {
+            .<span class="ident">map_err</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">outcome</span>) <span class="op">=</span> <span class="ident">err</span>.<span class="ident">to_outcome</span>() {
+                    <span class="comment">// TODO: Move this into CheckEnvelope</span>
+                    <span class="ident">envelope_context</span>.<span class="ident">borrow</span>().<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
+                }
+                <span class="ident">err</span>
+            }))
+            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">response</span><span class="op">|</span> {
                 <span class="comment">// Use the project id from the loaded project state to account for redirects.</span>
                 <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">scoping</span>.<span class="ident">project_id</span>.<span class="ident">value</span>();
                 <span class="macro">metric!</span>(<span class="ident">set</span>(<span class="ident">RelaySets::UniqueProjects</span>) <span class="op">=</span> <span class="ident">project_id</span> <span class="kw">as</span> <span class="ident">i64</span>);
 
-                <span class="ident">scoping</span>.<span class="ident">replace</span>(<span class="ident">response</span>.<span class="ident">scoping</span>);
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope_context</span> <span class="op">=</span> <span class="ident">envelope_context</span>.<span class="ident">borrow_mut</span>();
+                <span class="ident">envelope_context</span>.<span class="ident">scope</span>(<span class="ident">response</span>.<span class="ident">scoping</span>);
 
-                <span class="kw">let</span> <span class="ident">checked</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">ProcessingError::Rejected</span>)<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="ident">checked</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">result</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">reason</span><span class="op">|</span> {
+                    <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">reason</span>));
+                    <span class="ident">ProcessingError::Rejected</span>(<span class="ident">reason</span>)
+                })<span class="question-mark">?</span>;
+
                 <span class="kw">match</span> <span class="ident">checked</span>.<span class="ident">envelope</span> {
                     <span class="prelude-val">Some</span>(<span class="ident">envelope</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="ident">envelope_summary</span>.<span class="ident">replace</span>(<span class="ident">EnvelopeSummary::compute</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>));
+                        <span class="ident">envelope_context</span>.<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
                         <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>)
                     }
+                    <span class="comment">// errors from rate limiting already produced outcomes nothing more to do</span>
                     <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::RateLimited</span>(<span class="ident">checked</span>.<span class="ident">rate_limits</span>)),
                 }
             }))
-            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">envelope</span><span class="op">|</span> {
-                <span class="ident">utils::sample_trace</span>(<span class="ident">envelope</span>, <span class="ident">sampling_project_key</span>, <span class="bool-val">false</span>, <span class="ident">processing_enabled</span>)
-                    .<span class="ident">map_err</span>(<span class="ident">ProcessingError::TraceSampled</span>)
-            })
-            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">envelope</span><span class="op">|</span> {
+            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">envelope</span><span class="op">|</span> {
+                <span class="ident">utils::sample_trace</span>(
+                    <span class="ident">envelope</span>,
+                    <span class="ident">sampling_project_key</span>,
+                    <span class="bool-val">false</span>,
+                    <span class="ident">processing_enabled</span>,
+                    <span class="kw-2">*</span><span class="ident">envelope_context</span>.<span class="ident">borrow</span>(),
+                )
+                <span class="comment">// outcomes already handled</span>
+                .<span class="ident">map_err</span>(<span class="ident">ProcessingError::TraceSampled</span>)
+            }))
+            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">envelope</span><span class="op">|</span> {
+                <span class="comment">// update the context since sample_tracing might have dropped parts of the envelope</span>
+                <span class="ident">envelope_context</span>.<span class="ident">borrow_mut</span>().<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
+
                 <span class="comment">// get the state for the current project. we can always fetch the cached version</span>
                 <span class="comment">// even if the no_cache flag was passed, as the cache was updated prior in</span>
                 <span class="comment">// `CheckEnvelope`.</span>
                 <span class="ident">ProjectCache::from_registry</span>()
-                    .<span class="ident">send</span>(<span class="ident">GetProjectState::new</span>(<span class="ident">project_key</span>))
-                    .<span class="ident">map_err</span>(<span class="ident">ProcessingError::ScheduleFailed</span>)
+                    .<span class="ident">send_tracked</span>(
+                        <span class="ident">GetProjectState::new</span>(<span class="ident">project_key</span>),
+                        <span class="kw-2">*</span><span class="ident">envelope_context</span>.<span class="ident">borrow</span>(),
+                    )
+                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProcessingError::ScheduleFailed</span>)
                     .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">ProcessingError::ProjectFailed</span>))
+                    .<span class="ident">map_err</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">outcome</span>) <span class="op">=</span> <span class="ident">err</span>.<span class="ident">to_outcome</span>() {
+                            <span class="ident">envelope_context</span>.<span class="ident">borrow</span>().<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
+                        }
+                        <span class="ident">err</span>
+                    }))
                     .<span class="ident">map</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> (<span class="ident">envelope</span>, <span class="ident">state</span>))
-            })
-            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">project_state</span>)<span class="op">|</span> {
+            }))
+            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">project_state</span>)<span class="op">|</span> {
+                <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">ProcessEnvelope</span> {
+                    <span class="ident">envelope</span>,
+                    <span class="ident">project_state</span>,
+                    <span class="ident">start_time</span>,
+                    <span class="ident">scoping</span>: <span class="ident">envelope_context</span>.<span class="ident">borrow</span>().<span class="ident">scoping</span>(),
+                };
+
                 <span class="ident">processor</span>
-                    .<span class="ident">send</span>(<span class="ident">ProcessEnvelope</span> {
-                        <span class="ident">envelope</span>,
-                        <span class="ident">project_state</span>,
-                        <span class="ident">start_time</span>,
-                    })
-                    .<span class="ident">map_err</span>(<span class="ident">ProcessingError::ScheduleFailed</span>)
+                    .<span class="ident">send_tracked</span>(<span class="ident">message</span>, <span class="kw-2">*</span><span class="ident">envelope_context</span>.<span class="ident">borrow</span>())
+                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">_err</span><span class="op">|</span> <span class="ident">ProcessingError::ScheduleFailed</span>)
                     .<span class="ident">flatten</span>()
-            })
-            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_summary</span>, <span class="op">|</span><span class="ident">processed</span><span class="op">|</span> {
+            }))
+            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">processed</span><span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">ProjectCache::from_registry</span>();
                 <span class="kw">let</span> <span class="ident">rate_limits</span> <span class="op">=</span> <span class="ident">processed</span>.<span class="ident">rate_limits</span>;
 
@@ -4684,37 +4955,46 @@
 
                 <span class="kw">match</span> <span class="ident">processed</span>.<span class="ident">envelope</span> {
                     <span class="prelude-val">Some</span>(<span class="ident">envelope</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="ident">envelope_summary</span>.<span class="ident">replace</span>(<span class="ident">EnvelopeSummary::compute</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>));
+                        <span class="ident">envelope_context</span>.<span class="ident">borrow_mut</span>().<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
                         <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>)
                     }
                     <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::RateLimited</span>(<span class="ident">rate_limits</span>)),
                 }
             }))
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
-            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">scoping</span>, <span class="ident">is_received</span>, <span class="op">|</span><span class="ident">envelope</span>, <span class="ident">slf</span>, <span class="kw">_</span><span class="op">|</span> {
-                <span class="ident">slf</span>.<span class="ident">send_envelope</span>(<span class="ident">project_key</span>, <span class="ident">envelope</span>, <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(), <span class="ident">start_time</span>)
-                    .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span><span class="op">|</span> {
-                        <span class="kw">let</span> <span class="ident">received</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">result</span> {
-                            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-                            <span class="prelude-val">Err</span>(<span class="ident">SendEnvelopeError::RateLimited</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-                            <span class="prelude-val">Err</span>(<span class="ident">SendEnvelopeError::SendFailed</span>(<span class="kw-2">ref</span> <span class="ident">e</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">e</span>.<span class="ident">is_received</span>(),
-                            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-                        };
+            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">envelope</span>, <span class="ident">slf</span>, <span class="kw">_</span><span class="op">|</span> {
+                <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">envelope_context</span>.<span class="ident">borrow</span>().<span class="ident">scoping</span>();
+                <span class="ident">slf</span>.<span class="ident">send_envelope</span>(<span class="ident">project_key</span>, <span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="ident">start_time</span>)
+                    .<span class="ident">then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">result</span><span class="op">|</span> {
+                        <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> {
+                            <span class="kw">let</span> <span class="ident">envelope_context</span> <span class="op">=</span> <span class="ident">envelope_context</span>.<span class="ident">borrow</span>();
+                            <span class="kw">let</span> <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>);
 
-                        <span class="comment">// Flag that upstream has received the request, which will skip outcome</span>
-                        <span class="comment">// generation below.</span>
-                        <span class="ident">is_received</span>.<span class="ident">store</span>(<span class="ident">received</span>, <span class="ident">Ordering::SeqCst</span>);
+                            <span class="kw">match</span> <span class="ident">error</span> {
+                                <span class="ident">SendEnvelopeError::ScheduleFailed</span> <span class="op">=</span><span class="op">&gt;</span> {
+                                    <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
+                                    <span class="ident">ProcessingError::ScheduleFailed</span>
+                                }
 
-                        <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">error</span> {
-                            <span class="ident">SendEnvelopeError::ScheduleFailed</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                                <span class="ident">ProcessingError::ScheduleFailed</span>(<span class="ident">e</span>)
+                                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+                                <span class="ident">SendEnvelopeError::StoreFailed</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                                    <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
+                                    <span class="ident">ProcessingError::StoreFailed</span>(<span class="ident">e</span>)
+                                }
+                                <span class="ident">SendEnvelopeError::SendFailed</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                                    <span class="kw">if</span> <span class="op">!</span><span class="ident">e</span>.<span class="ident">is_received</span>() {
+                                        <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
+                                    }
+
+                                    <span class="ident">ProcessingError::SendFailed</span>(<span class="ident">e</span>)
+                                }
+                                <span class="ident">SendEnvelopeError::RateLimited</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                                    <span class="comment">// outcome emitted at the source</span>
+                                    <span class="ident">ProcessingError::RateLimited</span>(<span class="ident">e</span>)
+                                }
                             }
-                            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-                            <span class="ident">SendEnvelopeError::StoreFailed</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ProcessingError::StoreFailed</span>(<span class="ident">e</span>),
-                            <span class="ident">SendEnvelopeError::SendFailed</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ProcessingError::SendFailed</span>(<span class="ident">e</span>),
-                            <span class="ident">SendEnvelopeError::RateLimited</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ProcessingError::RateLimited</span>(<span class="ident">e</span>),
                         })
-                    })
+                    }))
                     .<span class="ident">into_actor</span>(<span class="ident">slf</span>)
             }))
             .<span class="ident">timeout</span>(
@@ -4736,7 +5016,6 @@
                         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping failed envelope without event&quot;</span>);
                     }
                 }
-
                 <span class="kw">let</span> <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">error</span>.<span class="ident">to_outcome</span>();
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)) <span class="op">=</span> <span class="ident">outcome</span> {
                     <span class="comment">// Errors are only logged for what we consider an internal discard reason. These</span>
@@ -4747,39 +5026,10 @@
                     <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropped envelope: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
                 }
 
-                <span class="comment">// Do not emit outcomes for requests that have been accepted by the upstream. In</span>
-                <span class="comment">// such a case, the upstream assumes ownership and logs the outcome, instead. This</span>
-                <span class="comment">// is irrelevant to processing Relays, since they never send to the upstream.</span>
-                <span class="kw">if</span> <span class="ident">is_received</span>.<span class="ident">load</span>(<span class="ident">Ordering::SeqCst</span>) {
-                    <span class="kw">return</span>;
-                }
-
-                <span class="kw">let</span> <span class="ident">envelope_summary</span> <span class="op">=</span> <span class="ident">envelope_summary</span>.<span class="ident">borrow</span>();
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">outcome</span>) <span class="op">=</span> <span class="ident">outcome</span> {
-                    <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="ident">OutcomeProducer::from_registry</span>();
-                    <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">start_time</span>);
-                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">category</span>) <span class="op">=</span> <span class="ident">envelope_summary</span>.<span class="ident">event_category</span> {
-                        <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
-                            <span class="ident">timestamp</span>,
-                            <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(),
-                            <span class="ident">outcome</span>: <span class="ident">outcome</span>.<span class="ident">clone</span>(),
-                            <span class="ident">event_id</span>,
-                            <span class="ident">remote_addr</span>,
-                            <span class="ident">category</span>,
-                            <span class="ident">quantity</span>: <span class="number">1</span>,
-                        });
-                    }
-
-                    <span class="kw">if</span> <span class="ident">envelope_summary</span>.<span class="ident">attachment_quantity</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                        <span class="ident">outcome_producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
-                            <span class="ident">timestamp</span>,
-                            <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>.<span class="ident">borrow</span>(),
-                            <span class="ident">outcome</span>,
-                            <span class="ident">event_id</span>,
-                            <span class="ident">remote_addr</span>,
-                            <span class="ident">category</span>: <span class="ident">DataCategory::Attachment</span>,
-                            <span class="ident">quantity</span>: <span class="ident">envelope_summary</span>.<span class="ident">attachment_quantity</span>,
-                        });
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">ProcessingError::Timeout</span> <span class="op">=</span> <span class="ident">error</span> {
+                    <span class="comment">// handle the last failure (the timeout)</span>
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">outcome</span>) <span class="op">=</span> <span class="ident">outcome</span> {
+                        <span class="ident">envelope_context</span>.<span class="ident">borrow</span>().<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
                     }
                 }
             })
@@ -5075,6 +5325,12 @@
                 <span class="ident">envelope</span>,
                 <span class="ident">project_state</span>: <span class="ident">Arc::new</span>(<span class="ident">ProjectState::allowed</span>()),
                 <span class="ident">start_time</span>: <span class="ident">Instant::now</span>(),
+                <span class="ident">scoping</span>: <span class="ident">Scoping</span> {
+                    <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
+                    <span class="ident">organization_id</span>: <span class="number">1</span>,
+                    <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">1</span>),
+                    <span class="ident">key_id</span>: <span class="prelude-val">None</span>,
+                },
             })
             .<span class="ident">unwrap</span>();
 

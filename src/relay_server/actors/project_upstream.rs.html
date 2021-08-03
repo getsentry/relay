@@ -583,7 +583,7 @@
 
                 <span class="ident">UpstreamRelay::from_registry</span>()
                     .<span class="ident">send</span>(<span class="ident">SendQuery</span>(<span class="ident">query</span>))
-                    .<span class="ident">map_err</span>(<span class="ident">ProjectError::ScheduleFailed</span>)
+                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProjectError::ScheduleFailed</span>)
                     .<span class="ident">map</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">response</span><span class="op">|</span> (<span class="ident">channels_batch</span>, <span class="ident">response</span>))
             })
             .<span class="ident">collect</span>();

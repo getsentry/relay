@@ -637,7 +637,7 @@
     <span class="ident">FetchFailed</span>,
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;could not schedule project fetching&quot;</span>)]</span>
-    <span class="ident">ScheduleFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">MailboxError</span>),
+    <span class="ident">ScheduleFailed</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ResponseError</span> <span class="kw">for</span> <span class="ident">ProjectError</span> {}
@@ -1043,7 +1043,7 @@
                 .<span class="ident">into_actor</span>()
                 .<span class="ident">map</span>(<span class="self">self</span>, <span class="ident">context</span>, <span class="kw">move</span> <span class="op">|</span><span class="kw">_</span>, <span class="ident">slf</span>, <span class="ident">_context</span><span class="op">|</span> {
                     <span class="comment">// TODO RaduW can we do better that this ????</span>
-                    <span class="comment">// (need to retrieve project again to get around borwoing problems)</span>
+                    <span class="comment">// (need to retrieve project again to get around borrowing problems)</span>
                     <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
                     <span class="ident">project</span>.<span class="ident">check_envelope</span>(<span class="ident">message</span>.<span class="ident">envelope</span>)
                 })

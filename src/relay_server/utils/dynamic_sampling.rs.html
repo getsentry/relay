@@ -354,6 +354,18 @@
 <span id="354">354</span>
 <span id="355">355</span>
 <span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
 </pre><pre class="rust">
 <span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.</span>
 <span class="doccomment">//!</span>
@@ -368,6 +380,8 @@
     <span class="ident">get_matching_event_rule</span>, <span class="ident">pseudo_random_from_uuid</span>, <span class="ident">rule_type_for_event</span>, <span class="ident">RuleId</span>, <span class="ident">SamplingResult</span>,
 };
 
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::envelopes::EnvelopeContext</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome::Outcome::FilteredSampling</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project::ProjectState</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_cache</span>::{<span class="ident">GetCachedProjectState</span>, <span class="ident">GetProjectState</span>, <span class="ident">ProjectCache</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope</span>::{<span class="ident">Envelope</span>, <span class="ident">ItemType</span>};
@@ -482,6 +496,7 @@
     <span class="ident">project_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectKey</span><span class="op">&gt;</span>,
     <span class="ident">fast_processing</span>: <span class="ident">bool</span>,
     <span class="ident">processing_enabled</span>: <span class="ident">bool</span>,
+    <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
 ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">RuleId</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project_key</span> {
         <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(<span class="ident">envelope</span>)),
@@ -494,8 +509,9 @@
     <span class="kw">if</span> <span class="ident">trace_context</span>.<span class="ident">is_none</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">transaction_item</span>.<span class="ident">is_none</span>() {
         <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(<span class="ident">envelope</span>));
     }
-    <span class="comment">//we have a trace_context and we have a transaction_item see if we can sample them</span>
-    <span class="kw">if</span> <span class="ident">fast_processing</span> {
+
+    <span class="comment">// we have a trace_context and we have a transaction_item see if we can sample them</span>
+    <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">fast_processing</span> {
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">ProjectCache::from_registry</span>()
             .<span class="ident">send</span>(<span class="ident">GetCachedProjectState::new</span>(<span class="ident">project_key</span>))
             .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">project_state</span><span class="op">|</span> {
@@ -506,7 +522,8 @@
                 };
                 <span class="ident">sample_transaction_internal</span>(<span class="ident">envelope</span>, <span class="ident">project_state</span>.<span class="ident">as_deref</span>(), <span class="ident">processing_enabled</span>)
             });
-        <span class="ident">Box::new</span>(<span class="ident">future</span>)
+
+        <span class="ident">Box::new</span>(<span class="ident">future</span>) <span class="kw">as</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>
     } <span class="kw">else</span> {
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">ProjectCache::from_registry</span>()
             .<span class="ident">send</span>(<span class="ident">GetProjectState::new</span>(<span class="ident">project_key</span>))
@@ -522,8 +539,15 @@
                     <span class="ident">processing_enabled</span>,
                 )
             });
+
         <span class="ident">Box::new</span>(<span class="ident">future</span>)
-    }
+    };
+
+    <span class="ident">Box::new</span>(<span class="ident">future</span>.<span class="ident">map_err</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">rule_id</span><span class="op">|</span> {
+        <span class="comment">// if the envelope is sampled, send outcomes</span>
+        <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">FilteredSampling</span>(<span class="ident">rule_id</span>));
+        <span class="ident">rule_id</span>
+    }))
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
