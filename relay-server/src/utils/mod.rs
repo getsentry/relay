@@ -9,6 +9,7 @@ mod request;
 mod shutdown;
 mod timer;
 mod tracked_future;
+mod with_outcome;
 
 #[cfg(feature = "processing")]
 mod kafka;
@@ -28,6 +29,7 @@ pub use self::request::*;
 pub use self::shutdown::*;
 pub use self::timer::*;
 pub use self::tracked_future::*;
+pub use self::with_outcome::*;
 
 #[cfg(feature = "processing")]
 pub use self::kafka::*;

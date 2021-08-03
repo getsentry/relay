@@ -31,7 +31,7 @@ pub enum ProjectError {
     FetchFailed,
 
     #[fail(display = "could not schedule project fetching")]
-    ScheduleFailed(#[cause] MailboxError),
+    ScheduleFailed,
 }
 
 impl ResponseError for ProjectError {}
@@ -437,7 +437,7 @@ impl Handler<CheckEnvelope> for ProjectCache {
                 .into_actor()
                 .map(self, context, move |_, slf, _context| {
                     // TODO RaduW can we do better that this ????
-                    // (need to retrieve project again to get around borwoing problems)
+                    // (need to retrieve project again to get around borrowing problems)
                     let project = slf.get_or_create_project(message.project_key);
                     project.check_envelope(message.envelope)
                 })

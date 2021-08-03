@@ -11,6 +11,8 @@ use relay_sampling::{
     get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId, SamplingResult,
 };
 
+use crate::actors::envelopes::EnvelopeContext;
+use crate::actors::outcome::Outcome::FilteredSampling;
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::envelope::{Envelope, ItemType};
@@ -125,6 +127,7 @@ pub fn sample_trace(
     project_key: Option<ProjectKey>,
     fast_processing: bool,
     processing_enabled: bool,
+    envelope_context: EnvelopeContext,
 ) -> ResponseFuture<Envelope, RuleId> {
     let project_key = match project_key {
         None => return Box::new(future::ok(envelope)),
@@ -137,8 +140,9 @@ pub fn sample_trace(
     if trace_context.is_none() || transaction_item.is_none() {
         return Box::new(future::ok(envelope));
     }
-    //we have a trace_context and we have a transaction_item see if we can sample them
-    if fast_processing {
+
+    // we have a trace_context and we have a transaction_item see if we can sample them
+    let future = if fast_processing {
         let future = ProjectCache::from_registry()
             .send(GetCachedProjectState::new(project_key))
             .then(move |project_state| {
@@ -149,7 +153,8 @@ pub fn sample_trace(
                 };
                 sample_transaction_internal(envelope, project_state.as_deref(), processing_enabled)
             });
-        Box::new(future)
+
+        Box::new(future) as ResponseFuture<_, _>
     } else {
         let future = ProjectCache::from_registry()
             .send(GetProjectState::new(project_key))
@@ -165,8 +170,15 @@ pub fn sample_trace(
                     processing_enabled,
                 )
             });
+
         Box::new(future)
-    }
+    };
+
+    Box::new(future.map_err(move |rule_id| {
+        // if the envelope is sampled, send outcomes
+        envelope_context.send_outcomes(FilteredSampling(rule_id));
+        rule_id
+    }))
 }
 
 #[cfg(test)]
