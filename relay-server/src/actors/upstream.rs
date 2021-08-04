@@ -503,7 +503,11 @@ impl UpstreamRelay {
             "Network outage, scheduling another check in {:?}",
             next_backoff
         );
-        ctx.notify_later(CheckUpstreamConnection::new(), next_backoff);
+
+        ctx.run_later(next_backoff, |slf, ctx| {
+            let request = EnqueuedRequest::new(GetHealthcheck);
+            slf.enqueue(request, ctx, EnqueuePosition::Front);
+        });
     }
 
     /// Records an occurrence of a network error.
@@ -945,24 +949,24 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
     }
 }
 
+struct ScheduleConnectionCheck;
+
+impl Message for ScheduleConnectionCheck {
+    type Result = ();
+}
+
+impl Handler<ScheduleConnectionCheck> for UpstreamRelay {
+    type Result = ();
+
+    fn handle(&mut self, _msg: ScheduleConnectionCheck, ctx: &mut Self::Context) -> Self::Result {
+        self.schedule_connection_check(ctx);
+    }
+}
+
 /// Checks the status of the network connection with the upstream server
-struct CheckUpstreamConnection {
-    sender: Option<oneshot::Sender<Result<Response, UpstreamRequestError>>>,
-}
+struct GetHealthcheck;
 
-impl CheckUpstreamConnection {
-    fn new() -> Self {
-        CheckUpstreamConnection { sender: None }
-    }
-
-    fn from_sender(sender: oneshot::Sender<Result<Response, UpstreamRequestError>>) -> Self {
-        CheckUpstreamConnection {
-            sender: Some(sender),
-        }
-    }
-}
-
-impl UpstreamRequest for CheckUpstreamConnection {
+impl UpstreamRequest for GetHealthcheck {
     fn method(&self) -> Method {
         Method::GET
     }
@@ -995,68 +999,22 @@ impl UpstreamRequest for CheckUpstreamConnection {
         &mut self,
         result: Result<Response, UpstreamRequestError>,
     ) -> ResponseFuture<(), ()> {
-        let sender = self.sender.take();
-        match result {
-            Ok(response) => {
-                let future =
-                    response
-                        .consume()
-                        .map_err(UpstreamRequestError::Http)
-                        .then(move |resp| {
-                            sender.map(|sender| sender.send(resp).ok());
-                            Ok(())
-                        });
-                Box::new(future)
+        let future: ResponseFuture<_, _> = match result {
+            Ok(response) => Box::new(response.consume().map_err(UpstreamRequestError::Http)),
+            Err(err) => Box::new(future::err(err)),
+        };
+
+        Box::new(future.then(|result| {
+            if matches!(result, Err(err) if err.is_network_error()) {
+                // still network error, schedule another attempt
+                UpstreamRelay::from_registry().do_send(ScheduleConnectionCheck);
+            } else {
+                // resume normal messages
+                UpstreamRelay::from_registry().do_send(PumpHttpMessageQueue);
             }
-            Err(err) => {
-                sender.map(|sender| sender.send(Err(err)));
-                Box::new(future::err(()))
-            }
-        }
-    }
-}
 
-impl Message for CheckUpstreamConnection {
-    type Result = ();
-}
-
-impl Handler<CheckUpstreamConnection> for UpstreamRelay {
-    type Result = ();
-
-    fn handle(&mut self, _msg: CheckUpstreamConnection, ctx: &mut Self::Context) -> Self::Result {
-        let (tx, rx) = oneshot::channel();
-
-        //create a request with sender (so we can send back termination info)
-        let request = Box::new(CheckUpstreamConnection::from_sender(tx));
-
-        self.enqueue(
-            EnqueuedRequest {
-                request,
-                previous_retries: 0,
-            },
-            ctx,
-            EnqueuePosition::Front,
-        );
-
-        let future = rx
-            // map errors caused by the oneshot channel being closed (unlikely)
-            .map_err(|_| UpstreamRequestError::ChannelClosed)
-            // unwrap the result (this is how we transport the http failure through the channel)
-            .and_then(|result| result);
-
-        future
-            .into_actor(self)
-            .then(|result, slf, ctx| {
-                if matches!(result, Err(err) if err.is_network_error()) {
-                    // still network error, schedule another attempt
-                    slf.schedule_connection_check(ctx);
-                } else {
-                    // resume normal messages
-                    ctx.notify(PumpHttpMessageQueue);
-                }
-                fut::ok(())
-            })
-            .spawn(ctx);
+            Ok(())
+        }))
     }
 }
 
