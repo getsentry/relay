@@ -431,12 +431,6 @@ pub enum RelayCounters {
     ///    be used to ingest events. Once the grace period expires, the cache is evicted and new
     ///    requests wait for an update.
     EvictingStaleProjectCaches,
-    /// An event has been produced to Kafka for one of the configured "internal" projects.
-    #[cfg(feature = "processing")]
-    InternalCapturedEventStoreActor,
-    /// An event has been preliminarily accepted in the store endpoint for one of the configured
-    /// "internal" projects.
-    InternalCapturedEventEndpoint,
 }
 
 impl CounterMetric for RelayCounters {
@@ -462,9 +456,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
-            #[cfg(feature = "processing")]
-            RelayCounters::InternalCapturedEventStoreActor => "internal.captured.event.store_actor",
-            RelayCounters::InternalCapturedEventEndpoint => "internal.captured.event.endpoint",
         }
     }
 }

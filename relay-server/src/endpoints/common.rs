@@ -11,7 +11,7 @@ use failure::Fail;
 use futures::prelude::*;
 use serde::Deserialize;
 
-use relay_common::{clone, metric, tryf, DataCategory, ProjectId};
+use relay_common::{clone, metric, tryf};
 use relay_config::Config;
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
@@ -28,9 +28,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::{
-    self, ApiErrorResponse, EnvelopeSummary, FormDataIter, MultipartError, SendWithOutcome,
-};
+use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError, SendWithOutcome};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -398,26 +396,14 @@ where
 
     let project_key = meta.public_key();
     let start_time = meta.start_time();
-    let project_id = meta.project_id().unwrap_or_else(|| ProjectId::new(0));
-
     let config = request.state().config();
     let processing_enabled = config.processing_enabled();
-    let is_internal = config.processing_internal_projects().contains(&project_id);
 
     let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_request(&meta)));
 
     let future = extract_envelope(&request, meta)
         .into_future()
         .and_then(clone!(envelope_context, |envelope| {
-            let summary = EnvelopeSummary::compute(&envelope);
-
-            if is_internal && summary.event_category == Some(DataCategory::Transaction) {
-                metric!(
-                    counter(RelayCounters::InternalCapturedEventEndpoint) += 1,
-                    project = &project_id.to_string()
-                );
-            }
-
             envelope_context.borrow_mut().update(&envelope);
             if envelope.is_empty() {
                 // envelope is empty, cannot send outcomes
