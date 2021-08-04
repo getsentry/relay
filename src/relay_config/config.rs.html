@@ -1603,15 +1603,6 @@
 <span id="1603">1603</span>
 <span id="1604">1604</span>
 <span id="1605">1605</span>
-<span id="1606">1606</span>
-<span id="1607">1607</span>
-<span id="1608">1608</span>
-<span id="1609">1609</span>
-<span id="1610">1610</span>
-<span id="1611">1611</span>
-<span id="1612">1612</span>
-<span id="1613">1613</span>
-<span id="1614">1614</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
@@ -1627,7 +1618,7 @@
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de::DeserializeOwned</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::{<span class="ident">generate_key_pair</span>, <span class="ident">generate_relay_id</span>, <span class="ident">PublicKey</span>, <span class="ident">RelayId</span>, <span class="ident">SecretKey</span>};
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">Uuid</span>};
+<span class="kw">use</span> <span class="ident">relay_common::Uuid</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics::AggregatorConfig</span>;
 <span class="kw">use</span> <span class="ident">relay_redis::RedisConfig</span>;
 
@@ -2386,9 +2377,6 @@
     <span class="doccomment">/// Maximum rate limit to report to clients.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;default_max_rate_limit&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">max_rate_limit</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Projects for which to emit extra (high-noise) metrics.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">_internal_projects</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Processing</span> {
@@ -2406,7 +2394,6 @@
             <span class="ident">attachment_chunk_size</span>: <span class="ident">default_chunk_size</span>(),
             <span class="ident">projectconfig_cache_prefix</span>: <span class="ident">default_projectconfig_cache_prefix</span>(),
             <span class="ident">max_rate_limit</span>: <span class="ident">default_max_rate_limit</span>(),
-            <span class="ident">_internal_projects</span>: <span class="ident">Vec::new</span>(),
         }
     }
 }
@@ -3120,11 +3107,6 @@
     <span class="doccomment">/// True if the Relay should do processing.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">processing_enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">enabled</span>
-    }
-
-    <span class="doccomment">/// Set of internal project IDs for which to emit extra metrics.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">processing_internal_projects</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">ProjectId</span>] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">_internal_projects</span>
     }
 
     <span class="doccomment">/// The path to the GeoIp database required for event processing.</span>
