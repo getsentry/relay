@@ -103,6 +103,23 @@ impl RequestBuilder {
         self
     }
 
+    /// Add an optional header, not replacing existing ones.
+    ///
+    /// If the value is `Some`, the header is added. If the value is `None`, headers are not
+    /// changed.
+    pub fn header_opt(
+        &mut self,
+        key: impl AsRef<str>,
+        value: Option<impl AsRef<[u8]>>,
+    ) -> &mut Self {
+        if let Some(value) = value {
+            take_mut::take(&mut self.builder, |b| {
+                b.header(key.as_ref(), value.as_ref())
+            });
+        }
+        self
+    }
+
     pub fn body<B>(mut self, body: B) -> Result<Request, HttpError>
     where
         B: AsRef<[u8]>,

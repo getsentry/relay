@@ -14,7 +14,7 @@ use actix_web::http::{HeaderMap, Method};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use failure::Fail;
-use futures::{prelude::*, sync::oneshot};
+use futures::{future, prelude::*, sync::oneshot};
 
 use lazy_static::lazy_static;
 
@@ -126,14 +126,17 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
     }
 }
 
-//#[derive(Debug)]
+type Headers = Vec<(String, Vec<u8>)>;
+type ForwardResponse = (StatusCode, Headers, Vec<u8>);
+
 struct ForwardRequest {
     method: Method,
     path: String,
     headers: HeaderMap<HeaderValue>,
     forwarded_for: ForwardedFor,
     data: Bytes,
-    response_channel: Option<oneshot::Sender<Result<Response, UpstreamRequestError>>>,
+    max_response_size: usize,
+    sender: Option<oneshot::Sender<Result<ForwardResponse, UpstreamRequestError>>>,
 }
 
 impl fmt::Debug for ForwardRequest {
@@ -186,15 +189,31 @@ impl UpstreamRequest for ForwardRequest {
 
     fn respond(
         &mut self,
-        response: Result<Response, UpstreamRequestError>,
+        result: Result<Response, UpstreamRequestError>,
     ) -> ResponseFuture<(), ()> {
-        let result = if response.is_ok() {
-            futures::future::ok(())
-        } else {
-            futures::future::err(())
-        };
-        self.response_channel.take().unwrap().send(response).ok();
-        Box::new(result)
+        let sender = self.sender.take();
+
+        match result {
+            Ok(response) => {
+                let status = StatusCode::from_u16(response.status().as_u16()).unwrap();
+                let headers = response.clone_headers();
+
+                let future = response
+                    .bytes(self.max_response_size)
+                    .and_then(move |body| Ok((status, headers, body)))
+                    .map_err(UpstreamRequestError::Http)
+                    .then(|result| {
+                        sender.map(|sender| sender.send(result));
+                        Ok(())
+                    });
+
+                Box::new(future)
+            }
+            Err(e) => {
+                sender.map(|sender| sender.send(Err(e)));
+                Box::new(future::err(()))
+            }
+        }
     }
 }
 
@@ -223,7 +242,7 @@ pub fn forward_upstream(
 
     ForwardBody::new(request, limit)
         .map_err(Error::from)
-        .and_then(|data| {
+        .and_then(move |data| {
             let (tx, rx) = oneshot::channel();
 
             let forward_request = ForwardRequest {
@@ -232,33 +251,18 @@ pub fn forward_upstream(
                 headers,
                 forwarded_for,
                 data,
-                response_channel: Some(tx),
+                max_response_size,
+                sender: Some(tx),
             };
 
             UpstreamRelay::from_registry().do_send(SendRequest(forward_request));
-            rx.map_err(|_| {
-                Error::from(ForwardedUpstreamRequestError(
-                    UpstreamRequestError::ChannelClosed,
-                ))
-            })
-        })
-        .and_then(|response| {
-            response.map_err(|e| Error::from(ForwardedUpstreamRequestError::from(e)))
-        })
-        .and_then(move |response| {
-            let status = response.status();
-            let headers = response.clone_headers();
-            response
-                .bytes(max_response_size)
-                .and_then(move |body| Ok((status, headers, body)))
-                .map_err(|e| {
-                    Error::from(ForwardedUpstreamRequestError(UpstreamRequestError::Http(e)))
-                })
+
+            rx.map_err(|_| UpstreamRequestError::ChannelClosed)
+                .flatten()
+                .map_err(|e| Error::from(ForwardedUpstreamRequestError::from(e)))
         })
         .and_then(move |(status, headers, body)| {
-            let actix_code = StatusCode::from_u16(status.as_u16()).unwrap();
-            let mut forwarded_response = HttpResponse::build(actix_code);
-
+            let mut forwarded_response = HttpResponse::build(status);
             let mut has_content_type = false;
 
             for (key, value) in headers {

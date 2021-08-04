@@ -35,17 +35,15 @@ use crate::actors::project_cache::{
     CheckEnvelope, GetProjectState, InsertMetrics, MergeBuckets, ProjectCache, ProjectError,
     UpdateRateLimits,
 };
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
+use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::http::{HttpError, RequestBuilder, Response};
+use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, SendWithOutcome,
 };
-
-use super::upstream::UpstreamRequest;
 
 #[cfg(feature = "processing")]
 use {
@@ -331,7 +329,7 @@ struct ProcessEnvelopeState {
     /// ID.
     project_id: ProjectId,
 
-    /// The envelope context before processing
+    /// The envelope context before processing.
     envelope_context: EnvelopeContext,
 }
 
@@ -1753,7 +1751,7 @@ struct SendEnvelope {
     envelope: Envelope,
     scoping: Scoping,
     http_encoding: HttpEncoding,
-    response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
+    response_sender: Option<oneshot::Sender<Result<(), UpstreamRequestError>>>,
     project_key: ProjectKey,
 }
 
@@ -1766,7 +1764,7 @@ impl UpstreamRequest for SendEnvelope {
         format!("/api/{}/envelope/", self.scoping.project_id).into()
     }
 
-    fn build(&mut self, mut builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
+    fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
         // Override the `sent_at` timestamp. Since the envelope went through basic
         // normalization, all timestamps have been corrected. We propagate the new
         // `sent_at` to allow the next Relay to double-check this timestamp and
@@ -1776,16 +1774,10 @@ impl UpstreamRequest for SendEnvelope {
 
         let meta = self.envelope.meta();
 
-        if let Some(origin) = meta.origin() {
-            builder.header("Origin", origin.as_str());
-        }
-
-        if let Some(user_agent) = meta.user_agent() {
-            builder.header("User-Agent", user_agent);
-        }
-
         builder
             .content_encoding(self.http_encoding)
+            .header_opt("Origin", meta.origin().map(|url| url.as_str()))
+            .header_opt("User-Agent", meta.user_agent())
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE);
@@ -1798,40 +1790,24 @@ impl UpstreamRequest for SendEnvelope {
         &mut self,
         result: Result<Response, UpstreamRequestError>,
     ) -> ResponseFuture<(), ()> {
+        let sender = self.response_sender.take();
+
         match result {
             Ok(response) => {
-                let sender = self.response_sender.take();
-                Box::new(response.consume().then(move |result| {
-                    sender.map(|sender| match result {
-                        Err(e) => {
-                            sender
-                                .send(Err(SendEnvelopeError::SendFailed(
-                                    UpstreamRequestError::Http(e),
-                                )))
-                                .ok();
-                            Err(())
-                        }
-                        Ok(_) => {
-                            sender.send(Ok(())).ok();
-                            Ok(())
-                        }
+                let future = response
+                    .consume()
+                    .map_err(UpstreamRequestError::Http)
+                    .map(|_| ())
+                    .then(move |body_result| {
+                        sender.map(|sender| sender.send(body_result).ok());
+                        Ok(())
                     });
-                    Err(())
-                }))
+
+                Box::new(future)
             }
             Err(error) => {
-                if let Some(sender) = self.response_sender.take() {
-                    let err = if let UpstreamRequestError::RateLimited(upstream_limits) = error {
-                        let limits = upstream_limits.scope(&self.scoping);
-                        ProjectCache::from_registry()
-                            .do_send(UpdateRateLimits::new(self.project_key, limits.clone()));
-                        Err(SendEnvelopeError::RateLimited(limits))
-                    } else {
-                        Err(SendEnvelopeError::SendFailed(error))
-                    };
-                    sender.send(err).ok();
-                }
-                Box::new(futures::future::err(()))
+                sender.map(|sender| sender.send(Err(error)));
+                Box::new(future::err(()))
             }
         }
     }
@@ -1909,20 +1885,29 @@ impl EnvelopeManager {
         }
 
         relay_log::trace!("sending envelope to sentry endpoint");
-        let http_encoding = self.config.http_encoding();
         let (tx, rx) = oneshot::channel();
         let request = SendEnvelope {
             envelope,
             scoping,
-            http_encoding,
+            http_encoding: self.config.http_encoding(),
             response_sender: Some(tx),
             project_key,
         };
 
         UpstreamRelay::from_registry().do_send(SendRequest(request));
+
         let future = rx
             .map_err(|_| SendEnvelopeError::SendFailed(UpstreamRequestError::ChannelClosed))
-            .and_then(|result| result);
+            .and_then(move |result| {
+                if let Err(UpstreamRequestError::RateLimited(upstream_limits)) = result {
+                    let limits = upstream_limits.scope(&scoping);
+                    ProjectCache::from_registry()
+                        .do_send(UpdateRateLimits::new(project_key, limits.clone()));
+                    Err(SendEnvelopeError::RateLimited(limits))
+                } else {
+                    result.map_err(SendEnvelopeError::SendFailed)
+                }
+            });
 
         Box::new(future)
     }

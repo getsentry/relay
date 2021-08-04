@@ -254,6 +254,58 @@ where
     }
 }
 
+/// Request objects queued inside the [`Upstream`] actor.
+///
+/// The objects are transformed into HTTP requests, and sent to upstream as HTTP connections
+/// become available.
+struct EnqueuedRequest {
+    /// The request's trait object to create and handle the HTTP request.
+    request: Box<dyn UpstreamRequest>,
+    /// Number of times this request was already sent
+    previous_retries: u32,
+}
+
+impl EnqueuedRequest {
+    fn new(request: impl UpstreamRequest + 'static) -> Self {
+        Self {
+            request: Box::new(request),
+            previous_retries: 0,
+        }
+    }
+
+    fn route_name(&self) -> &'static str {
+        if self.request.path().contains("/outcomes/") {
+            "outcomes"
+        } else if self.request.path().contains("/envelope/") {
+            "envelope"
+        } else if self.request.path().contains("/projectids/") {
+            "project_ids"
+        } else if self.request.path().contains("/projectconfigs/") {
+            "project_configs"
+        } else if self.request.path().contains("/publickeys/") {
+            "public_keys"
+        } else if self.request.path().contains("/challenge/") {
+            "challenge"
+        } else if self.request.path().contains("/response/") {
+            "response"
+        } else if self.request.path().contains("/live/") {
+            "check_live"
+        } else {
+            "unknown"
+        }
+    }
+
+    fn retries_bucket(&self) -> &'static str {
+        match self.previous_retries {
+            0 => "0",
+            1 => "1",
+            2 => "2",
+            3..=10 => "few",
+            _ => "many",
+        }
+    }
+}
+
 /// Handles a response returned from the upstream.
 ///
 /// If the response indicates success via 2XX status codes, `Ok(response)` is returned. Otherwise,
@@ -445,7 +497,7 @@ impl UpstreamRelay {
         self.outage_backoff.reset();
     }
 
-    fn upstream_connection_check(&mut self, ctx: &mut Context<Self>) {
+    fn schedule_connection_check(&mut self, ctx: &mut Context<Self>) {
         let next_backoff = self.outage_backoff.next_backoff();
         relay_log::warn!(
             "Network outage, scheduling another check in {:?}",
@@ -468,7 +520,7 @@ impl UpstreamRelay {
         }
 
         if !self.outage_backoff.started() {
-            self.upstream_connection_check(ctx);
+            self.schedule_connection_check(ctx);
         }
     }
 
@@ -493,7 +545,7 @@ impl UpstreamRelay {
 
         if request.request.set_relay_id() {
             if let Some(credentials) = self.config.credentials() {
-                builder.header("X-Sentry-Relay-Id", credentials.id.to_string().as_bytes());
+                builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
             }
         }
 
@@ -505,6 +557,7 @@ impl UpstreamRelay {
                     .respond(Err(UpstreamRequestError::Http(e)))
                     .into_actor(self)
                     .spawn(ctx);
+
                 return;
             }
             Ok(client_request) => client_request,
@@ -514,10 +567,9 @@ impl UpstreamRelay {
         self.num_inflight_requests += 1;
 
         let intercept_status_errors = request.request.intercept_status_errors();
-
         let send_start = Instant::now();
-
         let client = self.reqwest_client.clone();
+        let max_response_size = self.config.max_api_payload_size();
 
         let (tx, rx) = oneshot::channel();
 
@@ -533,8 +585,6 @@ impl UpstreamRelay {
             .map_err(|_| UpstreamRequestError::ChannelClosed)
             .flatten()
             .map(Response);
-
-        let max_response_size = self.config.max_api_payload_size();
 
         future
             .track(ctx.address().recipient())
@@ -677,36 +727,21 @@ impl UpstreamRelay {
             .credentials()
             .ok_or(UpstreamRequestError::NoCredentials));
 
-        let (body, signature) = credentials.secret_key.pack(&query);
-
-        let max_response_size = self.config.max_api_payload_size();
-
+        let (json, signature) = credentials.secret_key.pack(&query);
         let (tx, rx) = oneshot::channel();
 
-        let upstream_request = UpstreamQueryRequest {
+        let request = EnqueuedRequest::new(UpstreamQueryRequest {
             query,
-            body,
+            body: json,
             signature,
-            response_sender: Some(tx),
-        };
+            max_response_size: self.config.max_api_payload_size(),
+            sender: Some(tx),
+        });
 
-        self.enqueue(
-            EnqueuedRequest {
-                request: Box::new(upstream_request),
-                previous_retries: 0,
-            },
-            ctx,
-            EnqueuePosition::Front,
-        );
-
+        self.enqueue(request, ctx, EnqueuePosition::Front);
         let future = rx
             .map_err(|_| UpstreamRequestError::ChannelClosed)
-            .and_then(|result| result);
-
-        let future = future.and_then(move |r| {
-            r.json(max_response_size)
-                .map_err(UpstreamRequestError::Http)
-        });
+            .flatten();
 
         Box::new(future)
     }
@@ -912,18 +947,17 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
 
 /// Checks the status of the network connection with the upstream server
 struct CheckUpstreamConnection {
-    response_sender: Option<oneshot::Sender<Result<Response, UpstreamRequestError>>>,
+    sender: Option<oneshot::Sender<Result<Response, UpstreamRequestError>>>,
 }
 
 impl CheckUpstreamConnection {
     fn new() -> Self {
-        CheckUpstreamConnection {
-            response_sender: None,
-        }
+        CheckUpstreamConnection { sender: None }
     }
+
     fn from_sender(sender: oneshot::Sender<Result<Response, UpstreamRequestError>>) -> Self {
         CheckUpstreamConnection {
-            response_sender: Some(sender),
+            sender: Some(sender),
         }
     }
 }
@@ -944,6 +978,7 @@ impl UpstreamRequest for CheckUpstreamConnection {
     fn priority(&self) -> RequestPriority {
         RequestPriority::Immediate
     }
+
     fn set_relay_id(&self) -> bool {
         true
     }
@@ -958,12 +993,12 @@ impl UpstreamRequest for CheckUpstreamConnection {
 
     fn respond(
         &mut self,
-        response: Result<Response, UpstreamRequestError>,
+        result: Result<Response, UpstreamRequestError>,
     ) -> ResponseFuture<(), ()> {
-        let sender = self.response_sender.take();
-        match response {
+        let sender = self.sender.take();
+        match result {
             Ok(response) => {
-                let fut =
+                let future =
                     response
                         .consume()
                         .map_err(UpstreamRequestError::Http)
@@ -971,7 +1006,7 @@ impl UpstreamRequest for CheckUpstreamConnection {
                             sender.map(|sender| sender.send(resp).ok());
                             Ok(())
                         });
-                Box::new(fut)
+                Box::new(future)
             }
             Err(err) => {
                 sender.map(|sender| sender.send(Err(err)));
@@ -1014,7 +1049,7 @@ impl Handler<CheckUpstreamConnection> for UpstreamRelay {
             .then(|result, slf, ctx| {
                 if matches!(result, Err(err) if err.is_network_error()) {
                     // still network error, schedule another attempt
-                    slf.upstream_connection_check(ctx);
+                    slf.schedule_connection_check(ctx);
                 } else {
                     // resume normal messages
                     ctx.notify(PumpHttpMessageQueue);
@@ -1058,8 +1093,6 @@ where
 
 /// Represents an HTTP request to be sent by the Upstream actor.
 pub trait UpstreamRequest: Send {
-    ///type Response: Send + 'static;
-
     /// The HTTP method of the request.
     fn method(&self) -> Method;
 
@@ -1084,7 +1117,7 @@ pub trait UpstreamRequest: Send {
     }
 
     /// If set to True it will add the X-Sentry-Relay-Id header to the request
-    ///     
+    ///
     /// This should be done (only) for calls to endpoints that use Relay authentication.
     fn set_relay_id(&self) -> bool {
         true
@@ -1095,57 +1128,8 @@ pub trait UpstreamRequest: Send {
 
     /// Called when the HTTP request completes, either with success or an error that will not
     /// be retried.
-    fn respond(
-        &mut self,
-        response: Result<Response, UpstreamRequestError>,
-    ) -> ResponseFuture<(), ()> {
-        //just consumes the response in case it is not needed
-        match response {
-            Ok(response) => Box::new(response.consume().map(|_| ()).map_err(|e| {
-                relay_log::error!("failed to consume response: {}", LogError(&e));
-            })),
-            Err(_) => Box::new(futures::future::err(())),
-        }
-    }
-}
-
-struct EnqueuedRequest {
-    request: Box<dyn UpstreamRequest>,
-    previous_retries: u32,
-}
-
-impl EnqueuedRequest {
-    fn route_name(&self) -> &'static str {
-        if self.request.path().contains("/outcomes/") {
-            "outcomes"
-        } else if self.request.path().contains("/envelope/") {
-            "envelope"
-        } else if self.request.path().contains("/projectids/") {
-            "project_ids"
-        } else if self.request.path().contains("/projectconfigs/") {
-            "project_configs"
-        } else if self.request.path().contains("/publickeys/") {
-            "public_keys"
-        } else if self.request.path().contains("/challenge/") {
-            "challenge"
-        } else if self.request.path().contains("/response/") {
-            "response"
-        } else if self.request.path().contains("/live/") {
-            "check_live"
-        } else {
-            "unknown"
-        }
-    }
-
-    fn retries_bucket(&self) -> &'static str {
-        match self.previous_retries {
-            0 => "0",
-            1 => "1",
-            2 => "2",
-            3..=10 => "few",
-            _ => "many",
-        }
-    }
+    fn respond(&mut self, result: Result<Response, UpstreamRequestError>)
+        -> ResponseFuture<(), ()>;
 }
 
 pub struct SendRequest<T: UpstreamRequest>(pub T);
@@ -1162,15 +1146,9 @@ where
     T: UpstreamRequest + 'static,
 {
     type Result = ();
+
     fn handle(&mut self, msg: SendRequest<T>, ctx: &mut Self::Context) -> Self::Result {
-        self.enqueue(
-            EnqueuedRequest {
-                request: Box::new(msg.0),
-                previous_retries: 0,
-            },
-            ctx,
-            EnqueuePosition::Front,
-        );
+        self.enqueue(EnqueuedRequest::new(msg.0), ctx, EnqueuePosition::Front);
     }
 }
 
@@ -1227,23 +1205,8 @@ struct UpstreamQueryRequest<T: UpstreamQuery> {
     query: T,
     body: Vec<u8>,
     signature: String,
-    response_sender: Option<oneshot::Sender<Result<Response, UpstreamRequestError>>>,
-}
-
-impl<T: UpstreamQuery> UpstreamQueryRequest<T> {
-    /// Helper function to use the response sender
-    fn send_response(&mut self, response: Result<Response, UpstreamRequestError>) {
-        if let Some(response_sender) = self.response_sender.take() {
-            response_sender
-                .send(response)
-                .map_err(|_| {
-                    relay_log::error!("failed to send response through oneshot channel");
-                })
-                .ok();
-        } else {
-            relay_log::error!("response_sender already used");
-        }
-    }
+    max_response_size: usize,
+    sender: Option<oneshot::Sender<Result<T::Response, UpstreamRequestError>>>,
 }
 
 impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
@@ -1274,15 +1237,27 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
 
     fn respond(
         &mut self,
-        response: Result<Response, UpstreamRequestError>,
+        result: Result<Response, UpstreamRequestError>,
     ) -> ResponseFuture<(), ()> {
-        let result = if response.is_ok() {
-            future::ok(())
-        } else {
-            future::err(())
-        };
-        self.send_response(response);
-        Box::new(result)
+        let sender = self.sender.take();
+
+        match result {
+            Ok(response) => {
+                let future = response
+                    .json(self.max_response_size)
+                    .map_err(UpstreamRequestError::Http)
+                    .then(|result| {
+                        sender.map(|sender| sender.send(result));
+                        Ok(())
+                    });
+
+                Box::new(future)
+            }
+            Err(error) => {
+                sender.map(|sender| sender.send(Err(error)));
+                Box::new(future::err(()))
+            }
+        }
     }
 }
 
