@@ -103,18 +103,27 @@ impl RequestBuilder {
         self
     }
 
+    /// Add an optional header, not replacing existing ones.
+    ///
+    /// If the value is `Some`, the header is added. If the value is `None`, headers are not
+    /// changed.
+    pub fn header_opt(
+        &mut self,
+        key: impl AsRef<str>,
+        value: Option<impl AsRef<[u8]>>,
+    ) -> &mut Self {
+        if let Some(value) = value {
+            take_mut::take(&mut self.builder, |b| {
+                b.header(key.as_ref(), value.as_ref())
+            });
+        }
+        self
+    }
+
     pub fn body<B>(mut self, body: B) -> Result<Request, HttpError>
     where
         B: AsRef<[u8]>,
     {
-        // actix-web's Binary is used as argument here because the type can be constructed from
-        // almost anything and then the actix-web codepath is minimally affected.
-        //
-        // Still it's not perfect as in the identity-encoding path we have some unnecessary copying
-        // that is just to get around type conflicts. We cannot use Bytes here because we have a
-        // version split between actix-web's Bytes dependency and reqwest's Bytes dependency. A
-        // real zero-copy abstraction over both would force us to downgrade reqwest to a version
-        // that uses Bytes 0.4.
         self.builder = match self.http_encoding {
             HttpEncoding::Identity => self.builder.body(body.as_ref().to_vec()),
             HttpEncoding::Deflate => {

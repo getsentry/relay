@@ -1,6 +1,7 @@
 use actix_web::http::header;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
 
+#[derive(Debug)]
 pub struct ForwardedFor(String);
 
 impl ForwardedFor {
