@@ -68,10 +68,12 @@
 <span id="68">68</span>
 <span id="69">69</span>
 <span id="70">70</span>
+<span id="71">71</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">actix_web::http::header</span>;
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">Error</span>, <span class="ident">FromRequest</span>, <span class="ident">HttpMessage</span>, <span class="ident">HttpRequest</span>};
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ForwardedFor</span>(<span class="ident">String</span>);
 
 <span class="kw">impl</span> <span class="ident">ForwardedFor</span> {

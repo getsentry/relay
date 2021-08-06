@@ -2795,7 +2795,55 @@
 <span id="2795">2795</span>
 <span id="2796">2796</span>
 <span id="2797">2797</span>
+<span id="2798">2798</span>
+<span id="2799">2799</span>
+<span id="2800">2800</span>
+<span id="2801">2801</span>
+<span id="2802">2802</span>
+<span id="2803">2803</span>
+<span id="2804">2804</span>
+<span id="2805">2805</span>
+<span id="2806">2806</span>
+<span id="2807">2807</span>
+<span id="2808">2808</span>
+<span id="2809">2809</span>
+<span id="2810">2810</span>
+<span id="2811">2811</span>
+<span id="2812">2812</span>
+<span id="2813">2813</span>
+<span id="2814">2814</span>
+<span id="2815">2815</span>
+<span id="2816">2816</span>
+<span id="2817">2817</span>
+<span id="2818">2818</span>
+<span id="2819">2819</span>
+<span id="2820">2820</span>
+<span id="2821">2821</span>
+<span id="2822">2822</span>
+<span id="2823">2823</span>
+<span id="2824">2824</span>
+<span id="2825">2825</span>
+<span id="2826">2826</span>
+<span id="2827">2827</span>
+<span id="2828">2828</span>
+<span id="2829">2829</span>
+<span id="2830">2830</span>
+<span id="2831">2831</span>
+<span id="2832">2832</span>
+<span id="2833">2833</span>
+<span id="2834">2834</span>
+<span id="2835">2835</span>
+<span id="2836">2836</span>
+<span id="2837">2837</span>
+<span id="2838">2838</span>
+<span id="2839">2839</span>
+<span id="2840">2840</span>
+<span id="2841">2841</span>
+<span id="2842">2842</span>
+<span id="2843">2843</span>
+<span id="2844">2844</span>
 </pre><pre class="rust">
+<span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::rc::Rc</span>;
@@ -2804,13 +2852,14 @@
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">fmt</span>, <span class="ident">net</span>};
 
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">actix_web::http::Method</span>;
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Duration</span> <span class="kw">as</span> <span class="ident">SignedDuration</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
-<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">prelude</span>::<span class="kw-2">*</span>};
+<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">prelude</span>::<span class="kw-2">*</span>, <span class="ident">sync::oneshot</span>};
 <span class="kw">use</span> <span class="ident">serde_json::Value</span> <span class="kw">as</span> <span class="ident">SerdeValue</span>;
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">metric</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
+<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">PiiProcessor</span>};
 <span class="kw">use</span> <span class="ident">relay_general::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
@@ -2831,10 +2880,10 @@
     <span class="ident">CheckEnvelope</span>, <span class="ident">GetProjectState</span>, <span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>,
     <span class="ident">UpdateRateLimits</span>,
 };
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::upstream</span>::{<span class="ident">SendRequest</span>, <span class="ident">UpstreamRelay</span>, <span class="ident">UpstreamRequestError</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::upstream</span>::{<span class="ident">SendRequest</span>, <span class="ident">UpstreamRelay</span>, <span class="ident">UpstreamRequest</span>, <span class="ident">UpstreamRequestError</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope</span>::{<span class="self">self</span>, <span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::extractors</span>::{<span class="ident">PartialDsn</span>, <span class="ident">RequestMeta</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::http</span>::{<span class="ident">HttpError</span>, <span class="ident">RequestBuilder</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service::ServerError</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{
@@ -4531,6 +4580,7 @@
 <span class="doccomment">/// Error returned from [`EnvelopeManager::send_envelope`].</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">enum</span> <span class="ident">SendEnvelopeError</span> {
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">ScheduleFailed</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">StoreFailed</span>(<span class="ident">StoreError</span>),
@@ -4540,6 +4590,73 @@
 
 <span class="doccomment">/// Either a captured envelope or an error that occured during processing.</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">CapturedEnvelope</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">String</span><span class="op">&gt;</span>;
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">struct</span> <span class="ident">SendEnvelope</span> {
+    <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
+    <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
+    <span class="ident">http_encoding</span>: <span class="ident">HttpEncoding</span>,
+    <span class="ident">response_sender</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">UpstreamRequest</span> <span class="kw">for</span> <span class="ident">SendEnvelope</span> {
+    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Method</span> {
+        <span class="ident">Method::POST</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">str</span><span class="op">&gt;</span> {
+        <span class="macro">format!</span>(<span class="string">&quot;/api/{}/envelope/&quot;</span>, <span class="self">self</span>.<span class="ident">scoping</span>.<span class="ident">project_id</span>).<span class="ident">into</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">build</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">builder</span>: <span class="ident">RequestBuilder</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
+        <span class="comment">// Override the `sent_at` timestamp. Since the envelope went through basic</span>
+        <span class="comment">// normalization, all timestamps have been corrected. We propagate the new</span>
+        <span class="comment">// `sent_at` to allow the next Relay to double-check this timestamp and</span>
+        <span class="comment">// potentially apply correction again. This is done as close to sending as</span>
+        <span class="comment">// possible so that we avoid internal delays.</span>
+        <span class="self">self</span>.<span class="ident">envelope</span>.<span class="ident">set_sent_at</span>(<span class="ident">Utc::now</span>());
+
+        <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>();
+
+        <span class="ident">builder</span>
+            .<span class="ident">content_encoding</span>(<span class="self">self</span>.<span class="ident">http_encoding</span>)
+            .<span class="ident">header_opt</span>(<span class="string">&quot;Origin&quot;</span>, <span class="ident">meta</span>.<span class="ident">origin</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">url</span><span class="op">|</span> <span class="ident">url</span>.<span class="ident">as_str</span>()))
+            .<span class="ident">header_opt</span>(<span class="string">&quot;User-Agent&quot;</span>, <span class="ident">meta</span>.<span class="ident">user_agent</span>())
+            .<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Auth&quot;</span>, <span class="ident">meta</span>.<span class="ident">auth_header</span>())
+            .<span class="ident">header</span>(<span class="string">&quot;X-Forwarded-For&quot;</span>, <span class="ident">meta</span>.<span class="ident">forwarded_for</span>())
+            .<span class="ident">header</span>(<span class="string">&quot;Content-Type&quot;</span>, <span class="ident">envelope::CONTENT_TYPE</span>);
+
+        <span class="kw">let</span> <span class="ident">body</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">envelope</span>.<span class="ident">to_vec</span>().<span class="ident">map_err</span>(<span class="ident">HttpError::custom</span>)<span class="question-mark">?</span>;
+        <span class="ident">builder</span>.<span class="ident">body</span>(<span class="ident">body</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">respond</span>(
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">sender</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">response_sender</span>.<span class="ident">take</span>();
+
+        <span class="kw">match</span> <span class="ident">result</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">response</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">response</span>
+                    .<span class="ident">consume</span>()
+                    .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
+                    .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+                    .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">body_result</span><span class="op">|</span> {
+                        <span class="ident">sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">body_result</span>).<span class="ident">ok</span>());
+                        <span class="prelude-val">Ok</span>(())
+                    });
+
+                <span class="ident">Box::new</span>(<span class="ident">future</span>)
+            }
+            <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="ident">sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">error</span>)));
+                <span class="ident">Box::new</span>(<span class="ident">future::err</span>(()))
+            }
+        }
+    }
+}
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EnvelopeManager</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
@@ -4577,7 +4694,7 @@
     <span class="kw">fn</span> <span class="ident">send_envelope</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-        <span class="kw-2">mut</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
+        <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
         <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
         <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_variables</span>)]</span> <span class="ident">start_time</span>: <span class="ident">Instant</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">SendEnvelopeError</span><span class="op">&gt;</span> {
@@ -4613,43 +4730,19 @@
         }
 
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;sending envelope to sentry endpoint&quot;</span>);
-        <span class="kw">let</span> <span class="ident">http_encoding</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">http_encoding</span>();
-        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">SendRequest::post</span>(<span class="macro">format!</span>(<span class="string">&quot;/api/{}/envelope/&quot;</span>, <span class="ident">scoping</span>.<span class="ident">project_id</span>)).<span class="ident">build</span>(
-            <span class="kw">move</span> <span class="op">|</span><span class="kw-2">mut</span> <span class="ident">builder</span>: <span class="ident">RequestBuilder</span><span class="op">|</span> {
-                <span class="comment">// Override the `sent_at` timestamp. Since the envelope went through basic</span>
-                <span class="comment">// normalization, all timestamps have been corrected. We propagate the new</span>
-                <span class="comment">// `sent_at` to allow the next Relay to double-check this timestamp and</span>
-                <span class="comment">// potentially apply correction again. This is done as close to sending as</span>
-                <span class="comment">// possible so that we avoid internal delays.</span>
-                <span class="ident">envelope</span>.<span class="ident">set_sent_at</span>(<span class="ident">Utc::now</span>());
+        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
+        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">SendEnvelope</span> {
+            <span class="ident">envelope</span>,
+            <span class="ident">scoping</span>,
+            <span class="ident">http_encoding</span>: <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">http_encoding</span>(),
+            <span class="ident">response_sender</span>: <span class="prelude-val">Some</span>(<span class="ident">tx</span>),
+            <span class="ident">project_key</span>,
+        };
 
-                <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>();
+        <span class="ident">UpstreamRelay::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">SendRequest</span>(<span class="ident">request</span>));
 
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">origin</span>) <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">origin</span>() {
-                    <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;Origin&quot;</span>, <span class="ident">origin</span>.<span class="ident">as_str</span>());
-                }
-
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user_agent</span>) <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">user_agent</span>() {
-                    <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;User-Agent&quot;</span>, <span class="ident">user_agent</span>);
-                }
-
-                <span class="ident">builder</span>
-                    .<span class="ident">content_encoding</span>(<span class="ident">http_encoding</span>)
-                    .<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Auth&quot;</span>, <span class="ident">meta</span>.<span class="ident">auth_header</span>())
-                    .<span class="ident">header</span>(<span class="string">&quot;X-Forwarded-For&quot;</span>, <span class="ident">meta</span>.<span class="ident">forwarded_for</span>())
-                    .<span class="ident">header</span>(<span class="string">&quot;Content-Type&quot;</span>, <span class="ident">envelope::CONTENT_TYPE</span>);
-
-                <span class="kw">let</span> <span class="ident">body</span> <span class="op">=</span> <span class="ident">envelope</span>
-                    .<span class="ident">to_vec</span>()
-                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::custom</span>(<span class="ident">e</span>)))<span class="question-mark">?</span>;
-
-                <span class="ident">builder</span>.<span class="ident">body</span>(<span class="ident">body</span>).<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
-            },
-        );
-
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">UpstreamRelay::from_registry</span>()
-            .<span class="ident">send</span>(<span class="ident">request</span>)
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SendEnvelopeError::ScheduleFailed</span>)
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">rx</span>
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SendEnvelopeError::SendFailed</span>(<span class="ident">UpstreamRequestError::ChannelClosed</span>))
             .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span><span class="op">|</span> {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::RateLimited</span>(<span class="ident">upstream_limits</span>)) <span class="op">=</span> <span class="ident">result</span> {
                     <span class="kw">let</span> <span class="ident">limits</span> <span class="op">=</span> <span class="ident">upstream_limits</span>.<span class="ident">scope</span>(<span class="kw-2">&amp;</span><span class="ident">scoping</span>);
@@ -4971,6 +5064,7 @@
                             <span class="kw">let</span> <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>);
 
                             <span class="kw">match</span> <span class="ident">error</span> {
+                                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
                                 <span class="ident">SendEnvelopeError::ScheduleFailed</span> <span class="op">=</span><span class="op">&gt;</span> {
                                     <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
                                     <span class="ident">ProcessingError::ScheduleFailed</span>

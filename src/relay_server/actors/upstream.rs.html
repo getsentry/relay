@@ -1271,34 +1271,6 @@
 <span id="1271">1271</span>
 <span id="1272">1272</span>
 <span id="1273">1273</span>
-<span id="1274">1274</span>
-<span id="1275">1275</span>
-<span id="1276">1276</span>
-<span id="1277">1277</span>
-<span id="1278">1278</span>
-<span id="1279">1279</span>
-<span id="1280">1280</span>
-<span id="1281">1281</span>
-<span id="1282">1282</span>
-<span id="1283">1283</span>
-<span id="1284">1284</span>
-<span id="1285">1285</span>
-<span id="1286">1286</span>
-<span id="1287">1287</span>
-<span id="1288">1288</span>
-<span id="1289">1289</span>
-<span id="1290">1290</span>
-<span id="1291">1291</span>
-<span id="1292">1292</span>
-<span id="1293">1293</span>
-<span id="1294">1294</span>
-<span id="1295">1295</span>
-<span id="1296">1296</span>
-<span id="1297">1297</span>
-<span id="1298">1298</span>
-<span id="1299">1299</span>
-<span id="1300">1300</span>
-<span id="1301">1301</span>
 </pre><pre class="rust">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1338,7 +1310,7 @@
 <span class="kw">use</span> <span class="ident">relay_auth</span>::{<span class="ident">RegisterChallenge</span>, <span class="ident">RegisterRequest</span>, <span class="ident">RegisterResponse</span>, <span class="ident">Registration</span>};
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">tryf</span>, <span class="ident">RetryBackoff</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
-<span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
+<span class="kw">use</span> <span class="ident">relay_log</span>::{<span class="self">self</span>, <span class="ident">LogError</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{
     <span class="ident">DataCategories</span>, <span class="ident">QuotaScope</span>, <span class="ident">RateLimit</span>, <span class="ident">RateLimitScope</span>, <span class="ident">RateLimits</span>, <span class="ident">RetryAfter</span>, <span class="ident">Scoping</span>,
 };
@@ -1556,51 +1528,48 @@
     }
 }
 
-<span class="doccomment">/// Upstream request objects queued inside the `Upstream` actor.</span>
+<span class="doccomment">/// Request objects queued inside the [`Upstream`] actor.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// The objects are transformed int HTTP requests, and sent to upstream as HTTP connections</span>
+<span class="doccomment">/// The objects are transformed into HTTP requests, and sent to upstream as HTTP connections</span>
 <span class="doccomment">/// become available.</span>
-<span class="kw">struct</span> <span class="ident">UpstreamRequest</span> {
-    <span class="ident">config</span>: <span class="ident">UpstreamRequestConfig</span>,
-    <span class="doccomment">/// One-shot channel to be notified when the request is done.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The request is either successful or it has failed but we are not going to retry it.</span>
-    <span class="ident">response_sender</span>: <span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Http method.</span>
-    <span class="ident">method</span>: <span class="ident">Method</span>,
-    <span class="doccomment">/// Request URL.</span>
-    <span class="ident">path</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// Request build function.</span>
-    <span class="ident">build</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">RequestBuilderTransformer</span><span class="op">&gt;</span>,
+<span class="kw">struct</span> <span class="ident">EnqueuedRequest</span> {
+    <span class="doccomment">/// The request&#39;s trait object to create and handle the HTTP request.</span>
+    <span class="ident">request</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">UpstreamRequest</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Number of times this request was already sent</span>
     <span class="ident">previous_retries</span>: <span class="ident">u32</span>,
-    <span class="doccomment">/// When the last sending attempt started</span>
-    <span class="ident">send_start</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Instant</span><span class="op">&gt;</span>,
 }
-<span class="kw">impl</span> <span class="ident">UpstreamRequest</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">route_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/outcomes/&quot;</span>) {
+
+<span class="kw">impl</span> <span class="ident">EnqueuedRequest</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">request</span>: <span class="kw">impl</span> <span class="ident">UpstreamRequest</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">request</span>: <span class="ident">Box::new</span>(<span class="ident">request</span>),
+            <span class="ident">previous_retries</span>: <span class="number">0</span>,
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">route_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">request</span>.<span class="ident">path</span>().<span class="ident">contains</span>(<span class="string">&quot;/outcomes/&quot;</span>) {
             <span class="string">&quot;outcomes&quot;</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/envelope/&quot;</span>) {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">request</span>.<span class="ident">path</span>().<span class="ident">contains</span>(<span class="string">&quot;/envelope/&quot;</span>) {
             <span class="string">&quot;envelope&quot;</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/projectids/&quot;</span>) {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">request</span>.<span class="ident">path</span>().<span class="ident">contains</span>(<span class="string">&quot;/projectids/&quot;</span>) {
             <span class="string">&quot;project_ids&quot;</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/projectconfigs/&quot;</span>) {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">request</span>.<span class="ident">path</span>().<span class="ident">contains</span>(<span class="string">&quot;/projectconfigs/&quot;</span>) {
             <span class="string">&quot;project_configs&quot;</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/publickeys/&quot;</span>) {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">request</span>.<span class="ident">path</span>().<span class="ident">contains</span>(<span class="string">&quot;/publickeys/&quot;</span>) {
             <span class="string">&quot;public_keys&quot;</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/challenge/&quot;</span>) {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">request</span>.<span class="ident">path</span>().<span class="ident">contains</span>(<span class="string">&quot;/challenge/&quot;</span>) {
             <span class="string">&quot;challenge&quot;</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/response/&quot;</span>) {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">request</span>.<span class="ident">path</span>().<span class="ident">contains</span>(<span class="string">&quot;/response/&quot;</span>) {
             <span class="string">&quot;response&quot;</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">contains</span>(<span class="string">&quot;/live/&quot;</span>) {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">request</span>.<span class="ident">path</span>().<span class="ident">contains</span>(<span class="string">&quot;/live/&quot;</span>) {
             <span class="string">&quot;check_live&quot;</span>
         } <span class="kw">else</span> {
             <span class="string">&quot;unknown&quot;</span>
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">retries_bucket</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">retries_bucket</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">previous_retries</span> {
             <span class="number">0</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;0&quot;</span>,
             <span class="number">1</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;1&quot;</span>,
@@ -1680,8 +1649,8 @@
     <span class="ident">first_error</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Instant</span><span class="op">&gt;</span>,
     <span class="ident">max_inflight_requests</span>: <span class="ident">usize</span>,
     <span class="ident">num_inflight_requests</span>: <span class="ident">usize</span>,
-    <span class="ident">high_prio_requests</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">UpstreamRequest</span><span class="op">&gt;</span>,
-    <span class="ident">low_prio_requests</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">UpstreamRequest</span><span class="op">&gt;</span>,
+    <span class="ident">high_prio_requests</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">EnqueuedRequest</span><span class="op">&gt;</span>,
+    <span class="ident">low_prio_requests</span>: <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">EnqueuedRequest</span><span class="op">&gt;</span>,
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
     <span class="ident">reqwest_client</span>: <span class="ident">reqwest::Client</span>,
     <span class="doccomment">/// &quot;reqwest runtime&quot; as this tokio runtime is currently only spawned such that reqwest can</span>
@@ -1802,13 +1771,17 @@
         <span class="self">self</span>.<span class="ident">outage_backoff</span>.<span class="ident">reset</span>();
     }
 
-    <span class="kw">fn</span> <span class="ident">upstream_connection_check</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
+    <span class="kw">fn</span> <span class="ident">schedule_connection_check</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
         <span class="kw">let</span> <span class="ident">next_backoff</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">outage_backoff</span>.<span class="ident">next_backoff</span>();
         <span class="macro">relay_log::warn!</span>(
             <span class="string">&quot;Network outage, scheduling another check in {:?}&quot;</span>,
             <span class="ident">next_backoff</span>
         );
-        <span class="ident">ctx</span>.<span class="ident">notify_later</span>(<span class="ident">CheckUpstreamConnection</span>, <span class="ident">next_backoff</span>);
+
+        <span class="ident">ctx</span>.<span class="ident">run_later</span>(<span class="ident">next_backoff</span>, <span class="op">|</span><span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
+            <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">EnqueuedRequest::new</span>(<span class="ident">GetHealthcheck</span>);
+            <span class="ident">slf</span>.<span class="ident">enqueue</span>(<span class="ident">request</span>, <span class="ident">ctx</span>, <span class="ident">EnqueuePosition::Front</span>);
+        });
     }
 
     <span class="doccomment">/// Records an occurrence of a network error.</span>
@@ -1825,37 +1798,44 @@
         }
 
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">outage_backoff</span>.<span class="ident">started</span>() {
-            <span class="self">self</span>.<span class="ident">upstream_connection_check</span>(<span class="ident">ctx</span>);
+            <span class="self">self</span>.<span class="ident">schedule_connection_check</span>(<span class="ident">ctx</span>);
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">send_request</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">request</span>: <span class="ident">UpstreamRequest</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
+    <span class="kw">fn</span> <span class="ident">send_request</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">request</span>: <span class="ident">EnqueuedRequest</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
         <span class="kw">let</span> <span class="ident">uri</span> <span class="op">=</span> <span class="self">self</span>
             .<span class="ident">config</span>
             .<span class="ident">upstream_descriptor</span>()
-            .<span class="ident">get_url</span>(<span class="ident">request</span>.<span class="ident">path</span>.<span class="ident">as_ref</span>());
+            .<span class="ident">get_url</span>(<span class="ident">request</span>.<span class="ident">request</span>.<span class="ident">path</span>().<span class="ident">as_ref</span>());
 
         <span class="kw">let</span> <span class="ident">host_header</span> <span class="op">=</span> <span class="self">self</span>
             .<span class="ident">config</span>
             .<span class="ident">http_host_header</span>()
             .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">upstream_descriptor</span>().<span class="ident">host</span>());
 
-        <span class="kw">let</span> <span class="ident">method</span> <span class="op">=</span> <span class="ident">reqwest::Method::from_bytes</span>(<span class="ident">request</span>.<span class="ident">method</span>.<span class="ident">as_ref</span>().<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">method</span> <span class="op">=</span>
+            <span class="ident">reqwest::Method::from_bytes</span>(<span class="ident">request</span>.<span class="ident">request</span>.<span class="ident">method</span>().<span class="ident">as_ref</span>().<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> <span class="ident">builder</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reqwest_client</span>.<span class="ident">request</span>(<span class="ident">method</span>, <span class="ident">uri</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">RequestBuilder::reqwest</span>(<span class="ident">builder</span>);
 
         <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;Host&quot;</span>, <span class="ident">host_header</span>.<span class="ident">as_bytes</span>());
 
-        <span class="kw">if</span> <span class="ident">request</span>.<span class="ident">config</span>.<span class="ident">set_relay_id</span> {
+        <span class="kw">if</span> <span class="ident">request</span>.<span class="ident">request</span>.<span class="ident">set_relay_id</span>() {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">credentials</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">credentials</span>() {
-                <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Relay-Id&quot;</span>, <span class="ident">credentials</span>.<span class="ident">id</span>.<span class="ident">to_string</span>().<span class="ident">as_bytes</span>());
+                <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Relay-Id&quot;</span>, <span class="ident">credentials</span>.<span class="ident">id</span>.<span class="ident">to_string</span>());
             }
         }
 
         <span class="comment">//try to build a ClientRequest</span>
-        <span class="kw">let</span> <span class="ident">client_request</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">request</span>.<span class="ident">build</span>.<span class="ident">build_request</span>(<span class="ident">builder</span>) {
+        <span class="kw">let</span> <span class="ident">client_request</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">request</span>.<span class="ident">request</span>.<span class="ident">build</span>(<span class="ident">builder</span>) {
             <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">request</span>.<span class="ident">response_sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">e</span>)).<span class="ident">ok</span>();
+                <span class="ident">request</span>
+                    .<span class="ident">request</span>
+                    .<span class="ident">respond</span>(<span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">e</span>)))
+                    .<span class="ident">into_actor</span>(<span class="self">self</span>)
+                    .<span class="ident">spawn</span>(<span class="ident">ctx</span>);
+
                 <span class="kw">return</span>;
             }
             <span class="prelude-val">Ok</span>(<span class="ident">client_request</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">client_request</span>,
@@ -1864,13 +1844,13 @@
         <span class="comment">// we are about to send a HTTP message keep track of requests in flight</span>
         <span class="self">self</span>.<span class="ident">num_inflight_requests</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
 
-        <span class="kw">let</span> <span class="ident">intercept_status_errors</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">config</span>.<span class="ident">intercept_status_errors</span>;
-
-        <span class="ident">request</span>.<span class="ident">send_start</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Instant::now</span>());
-
+        <span class="kw">let</span> <span class="ident">intercept_status_errors</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">request</span>.<span class="ident">intercept_status_errors</span>();
+        <span class="kw">let</span> <span class="ident">send_start</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reqwest_client</span>.<span class="ident">clone</span>();
+        <span class="kw">let</span> <span class="ident">max_response_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_api_payload_size</span>();
 
         <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
+
         <span class="self">self</span>.<span class="ident">reqwest_runtime</span>.<span class="ident">spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
             <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">client</span>
                 .<span class="ident">execute</span>(<span class="ident">client_request</span>.<span class="number">0</span>)
@@ -1884,16 +1864,14 @@
             .<span class="ident">flatten</span>()
             .<span class="ident">map</span>(<span class="ident">Response</span>);
 
-        <span class="kw">let</span> <span class="ident">max_response_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_api_payload_size</span>();
-
         <span class="ident">future</span>
             .<span class="ident">track</span>(<span class="ident">ctx</span>.<span class="ident">address</span>().<span class="ident">recipient</span>())
             .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">response</span><span class="op">|</span> {
                 <span class="ident">handle_response</span>(<span class="ident">response</span>, <span class="ident">intercept_status_errors</span>, <span class="ident">max_response_size</span>)
             })
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
-            .<span class="ident">then</span>(<span class="op">|</span><span class="ident">send_result</span>, <span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
-                <span class="ident">slf</span>.<span class="ident">handle_http_response</span>(<span class="ident">request</span>, <span class="ident">send_result</span>, <span class="ident">ctx</span>);
+            .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">send_result</span>, <span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
+                <span class="ident">slf</span>.<span class="ident">handle_http_response</span>(<span class="ident">send_start</span>, <span class="ident">request</span>, <span class="ident">send_result</span>, <span class="ident">ctx</span>);
                 <span class="ident">fut::ok</span>(())
             })
             .<span class="ident">spawn</span>(<span class="ident">ctx</span>);
@@ -1901,7 +1879,8 @@
 
     <span class="doccomment">/// Adds a metric for the upstream request.</span>
     <span class="kw">fn</span> <span class="ident">meter_result</span>(
-        <span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">UpstreamRequest</span>,
+        <span class="ident">send_start</span>: <span class="ident">Instant</span>,
+        <span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">EnqueuedRequest</span>,
         <span class="ident">send_result</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>,
     ) {
         <span class="kw">let</span> <span class="ident">sc</span>;
@@ -1937,15 +1916,13 @@
             }
         };
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">send_start</span>) <span class="op">=</span> <span class="ident">request</span>.<span class="ident">send_start</span> {
-            <span class="macro">metric!</span>(
-                <span class="ident">timer</span>(<span class="ident">RelayTimers::UpstreamRequestsDuration</span>) <span class="op">=</span> <span class="ident">send_start</span>.<span class="ident">elapsed</span>(),
-                <span class="ident">result</span> <span class="op">=</span> <span class="ident">result</span>,
-                <span class="ident">status_code</span> <span class="op">=</span> <span class="ident">status_code</span>,
-                <span class="ident">route</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">route_name</span>(),
-                <span class="ident">retries</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">retries_bucket</span>(),
-            )
-        }
+        <span class="macro">metric!</span>(
+            <span class="ident">timer</span>(<span class="ident">RelayTimers::UpstreamRequestsDuration</span>) <span class="op">=</span> <span class="ident">send_start</span>.<span class="ident">elapsed</span>(),
+            <span class="ident">result</span> <span class="op">=</span> <span class="ident">result</span>,
+            <span class="ident">status_code</span> <span class="op">=</span> <span class="ident">status_code</span>,
+            <span class="ident">route</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">route_name</span>(),
+            <span class="ident">retries</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">retries_bucket</span>(),
+        );
 
         <span class="macro">metric!</span>(
             <span class="ident">histogram</span>(<span class="ident">RelayHistograms::UpstreamRetries</span>) <span class="op">=</span> <span class="ident">request</span>.<span class="ident">previous_retries</span>.<span class="ident">into</span>(),
@@ -1963,15 +1940,16 @@
     <span class="doccomment">/// 4. Otherwise, ensure an authentication request is scheduled.</span>
     <span class="kw">fn</span> <span class="ident">handle_http_response</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="kw-2">mut</span> <span class="ident">request</span>: <span class="ident">UpstreamRequest</span>,
+        <span class="ident">send_start</span>: <span class="ident">Instant</span>,
+        <span class="kw-2">mut</span> <span class="ident">request</span>: <span class="ident">EnqueuedRequest</span>,
         <span class="ident">send_result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>,
         <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
     ) {
-        <span class="ident">UpstreamRelay::meter_result</span>(<span class="kw-2">&amp;</span><span class="ident">request</span>, <span class="kw-2">&amp;</span><span class="ident">send_result</span>);
+        <span class="ident">UpstreamRelay::meter_result</span>(<span class="ident">send_start</span>, <span class="kw-2">&amp;</span><span class="ident">request</span>, <span class="kw-2">&amp;</span><span class="ident">send_result</span>);
         <span class="kw">if</span> <span class="macro">matches!</span>(<span class="ident">send_result</span>, <span class="prelude-val">Err</span>(<span class="kw-2">ref</span> <span class="ident">err</span>) <span class="kw">if</span> <span class="ident">err</span>.<span class="ident">is_network_error</span>()) {
             <span class="self">self</span>.<span class="ident">handle_network_error</span>(<span class="ident">ctx</span>);
 
-            <span class="kw">if</span> <span class="ident">request</span>.<span class="ident">config</span>.<span class="ident">retry</span> {
+            <span class="kw">if</span> <span class="ident">request</span>.<span class="ident">request</span>.<span class="ident">retry</span>() {
                 <span class="ident">request</span>.<span class="ident">previous_retries</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
                 <span class="kw">return</span> <span class="self">self</span>.<span class="ident">enqueue</span>(<span class="ident">request</span>, <span class="ident">ctx</span>, <span class="ident">EnqueuePosition::Back</span>);
             }
@@ -1981,18 +1959,22 @@
             <span class="self">self</span>.<span class="ident">reset_network_error</span>();
         }
 
-        <span class="ident">request</span>.<span class="ident">response_sender</span>.<span class="ident">send</span>(<span class="ident">send_result</span>).<span class="ident">ok</span>();
+        <span class="ident">request</span>
+            .<span class="ident">request</span>
+            .<span class="ident">respond</span>(<span class="ident">send_result</span>)
+            .<span class="ident">into_actor</span>(<span class="self">self</span>)
+            .<span class="ident">spawn</span>(<span class="ident">ctx</span>);
     }
 
     <span class="doccomment">/// Enqueues a request and ensures that the message queue advances.</span>
     <span class="kw">fn</span> <span class="ident">enqueue</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="ident">request</span>: <span class="ident">UpstreamRequest</span>,
+        <span class="ident">request</span>: <span class="ident">EnqueuedRequest</span>,
         <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
         <span class="ident">position</span>: <span class="ident">EnqueuePosition</span>,
     ) {
-        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">config</span>.<span class="ident">priority</span>.<span class="ident">name</span>();
-        <span class="kw">let</span> <span class="ident">queue</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">request</span>.<span class="ident">config</span>.<span class="ident">priority</span> {
+        <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">request</span>.<span class="ident">priority</span>().<span class="ident">name</span>();
+        <span class="kw">let</span> <span class="ident">queue</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">request</span>.<span class="ident">request</span>.<span class="ident">priority</span>() {
             <span class="comment">// Immediate is special and bypasses the queue. Directly send the request and return</span>
             <span class="comment">// the response channel rather than waiting for `PumpHttpMessageQueue`.</span>
             <span class="ident">RequestPriority::Immediate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="self">self</span>.<span class="ident">send_request</span>(<span class="ident">request</span>, <span class="ident">ctx</span>),
@@ -2013,81 +1995,31 @@
         <span class="ident">ctx</span>.<span class="ident">notify</span>(<span class="ident">PumpHttpMessageQueue</span>);
     }
 
-    <span class="kw">fn</span> <span class="ident">enqueue_request</span><span class="op">&lt;</span><span class="ident">P</span>, <span class="ident">F</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="ident">config</span>: <span class="ident">UpstreamRequestConfig</span>,
-        <span class="ident">method</span>: <span class="ident">Method</span>,
-        <span class="ident">path</span>: <span class="ident">P</span>,
-        <span class="ident">build</span>: <span class="ident">F</span>,
-        <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">RequestBuilderTransformer</span>,
-        <span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>,
-    {
-        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>::<span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span><span class="op">&gt;</span>();
-
-        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">UpstreamRequest</span> {
-            <span class="ident">config</span>,
-            <span class="ident">method</span>,
-            <span class="ident">path</span>: <span class="ident">path</span>.<span class="ident">as_ref</span>().<span class="ident">to_owned</span>(),
-            <span class="ident">response_sender</span>: <span class="ident">tx</span>,
-            <span class="ident">build</span>: <span class="ident">Box::new</span>(<span class="ident">build</span>),
-            <span class="ident">previous_retries</span>: <span class="number">0</span>,
-            <span class="ident">send_start</span>: <span class="prelude-val">None</span>,
-        };
-
-        <span class="self">self</span>.<span class="ident">enqueue</span>(<span class="ident">request</span>, <span class="ident">ctx</span>, <span class="ident">EnqueuePosition::Front</span>);
-
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">rx</span>
-            <span class="comment">// map errors caused by the oneshot channel being closed (unlikely)</span>
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">UpstreamRequestError::ChannelClosed</span>)
-            <span class="comment">// unwrap the result (this is how we transport the http failure through the channel)</span>
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>);
-
-        <span class="ident">Box::new</span>(<span class="ident">future</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">enqueue_query</span><span class="op">&lt;</span><span class="ident">Q</span>: <span class="ident">UpstreamQuery</span><span class="op">&gt;</span>(
+    <span class="kw">fn</span> <span class="ident">enqueue_query</span><span class="op">&lt;</span><span class="ident">Q</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">UpstreamQuery</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">query</span>: <span class="ident">Q</span>,
         <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Q::Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">method</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">method</span>();
-        <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">path</span>();
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">UpstreamRequestConfig</span> {
-            <span class="ident">retry</span>: <span class="ident">Q::retry</span>(),
-            <span class="ident">priority</span>: <span class="ident">Q::priority</span>(),
-            <span class="ident">intercept_status_errors</span>: <span class="bool-val">true</span>,
-            <span class="ident">set_relay_id</span>: <span class="bool-val">true</span>,
-        };
-
         <span class="kw">let</span> <span class="ident">credentials</span> <span class="op">=</span> <span class="macro">tryf!</span>(<span class="self">self</span>
             .<span class="ident">config</span>
             .<span class="ident">credentials</span>()
             .<span class="ident">ok_or</span>(<span class="ident">UpstreamRequestError::NoCredentials</span>));
 
-        <span class="kw">let</span> (<span class="ident">json</span>, <span class="ident">signature</span>) <span class="op">=</span> <span class="ident">credentials</span>.<span class="ident">secret_key</span>.<span class="ident">pack</span>(<span class="ident">query</span>);
-        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="ident">json</span>);
+        <span class="kw">let</span> (<span class="ident">json</span>, <span class="ident">signature</span>) <span class="op">=</span> <span class="ident">credentials</span>.<span class="ident">secret_key</span>.<span class="ident">pack</span>(<span class="kw-2">&amp;</span><span class="ident">query</span>);
+        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
 
-        <span class="kw">let</span> <span class="ident">max_response_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_api_payload_size</span>();
+        <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">EnqueuedRequest::new</span>(<span class="ident">UpstreamQueryRequest</span> {
+            <span class="ident">query</span>,
+            <span class="ident">body</span>: <span class="ident">json</span>,
+            <span class="ident">signature</span>,
+            <span class="ident">max_response_size</span>: <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_api_payload_size</span>(),
+            <span class="ident">sender</span>: <span class="prelude-val">Some</span>(<span class="ident">tx</span>),
+        });
 
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">enqueue_request</span>(
-                <span class="ident">config</span>,
-                <span class="ident">method</span>,
-                <span class="ident">path</span>,
-                <span class="kw">move</span> <span class="op">|</span><span class="kw-2">mut</span> <span class="ident">builder</span>: <span class="ident">RequestBuilder</span><span class="op">|</span> {
-                    <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Relay-Signature&quot;</span>, <span class="ident">signature</span>.<span class="ident">as_str</span>().<span class="ident">as_bytes</span>());
-                    <span class="ident">builder</span>.<span class="ident">header</span>(<span class="ident">header::CONTENT_TYPE</span>, <span class="string">b&quot;application/json&quot;</span>);
-                    <span class="ident">builder</span>.<span class="ident">body</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">json</span>).<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
-                },
-                <span class="ident">ctx</span>,
-            )
-            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
-                <span class="ident">r</span>.<span class="ident">json</span>(<span class="ident">max_response_size</span>)
-                    .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
-            });
+        <span class="self">self</span>.<span class="ident">enqueue</span>(<span class="ident">request</span>, <span class="ident">ctx</span>, <span class="ident">EnqueuePosition::Front</span>);
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">rx</span>
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">UpstreamRequestError::ChannelClosed</span>)
+            .<span class="ident">flatten</span>();
 
         <span class="ident">Box::new</span>(<span class="ident">future</span>)
     }
@@ -2291,47 +2223,72 @@
     }
 }
 
-<span class="doccomment">/// Checks the status of the network connection with the upstream server</span>
-<span class="kw">struct</span> <span class="ident">CheckUpstreamConnection</span>;
+<span class="kw">struct</span> <span class="ident">ScheduleConnectionCheck</span>;
 
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">CheckUpstreamConnection</span> {
+<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">ScheduleConnectionCheck</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 }
 
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">CheckUpstreamConnection</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRelay</span> {
+<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">ScheduleConnectionCheck</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRelay</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_msg</span>: <span class="ident">CheckUpstreamConnection</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
-        <span class="self">self</span>.<span class="ident">enqueue_request</span>(
-            <span class="ident">UpstreamRequestConfig</span> {
-                <span class="ident">priority</span>: <span class="ident">RequestPriority::Immediate</span>,
-                <span class="ident">retry</span>: <span class="bool-val">false</span>,
-                <span class="ident">intercept_status_errors</span>: <span class="bool-val">true</span>,
-                <span class="ident">set_relay_id</span>: <span class="bool-val">true</span>,
-            },
-            <span class="ident">Method::GET</span>,
-            <span class="string">&quot;/api/0/relays/live/&quot;</span>,
-            <span class="op">|</span><span class="ident">builder</span>: <span class="ident">RequestBuilder</span><span class="op">|</span> <span class="ident">builder</span>.<span class="ident">finish</span>().<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>),
-            <span class="ident">ctx</span>,
-        )
-        .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">client_response</span><span class="op">|</span> {
-            <span class="comment">// consume response bodies to ensure the connection remains usable.</span>
-            <span class="ident">client_response</span>
-                .<span class="ident">consume</span>()
-                .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
-        })
-        .<span class="ident">into_actor</span>(<span class="self">self</span>)
-        .<span class="ident">then</span>(<span class="op">|</span><span class="ident">result</span>, <span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_msg</span>: <span class="ident">ScheduleConnectionCheck</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+        <span class="self">self</span>.<span class="ident">schedule_connection_check</span>(<span class="ident">ctx</span>);
+    }
+}
+
+<span class="doccomment">/// Checks the status of the network connection with the upstream server</span>
+<span class="kw">struct</span> <span class="ident">GetHealthcheck</span>;
+
+<span class="kw">impl</span> <span class="ident">UpstreamRequest</span> <span class="kw">for</span> <span class="ident">GetHealthcheck</span> {
+    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Method</span> {
+        <span class="ident">Method::GET</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">str</span><span class="op">&gt;</span> {
+        <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;/api/0/relays/live/&quot;</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">retry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="bool-val">false</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">priority</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestPriority</span> {
+        <span class="ident">RequestPriority::Immediate</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">set_relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="bool-val">true</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">intercept_status_errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="bool-val">true</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">build</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">builder</span>: <span class="ident">RequestBuilder</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
+        <span class="ident">builder</span>.<span class="ident">finish</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">respond</span>(
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">future</span>: <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">result</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">response</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Box::new</span>(<span class="ident">response</span>.<span class="ident">consume</span>().<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)),
+            <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">err</span>)),
+        };
+
+        <span class="ident">Box::new</span>(<span class="ident">future</span>.<span class="ident">then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> {
             <span class="kw">if</span> <span class="macro">matches!</span>(<span class="ident">result</span>, <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="kw">if</span> <span class="ident">err</span>.<span class="ident">is_network_error</span>()) {
                 <span class="comment">// still network error, schedule another attempt</span>
-                <span class="ident">slf</span>.<span class="ident">upstream_connection_check</span>(<span class="ident">ctx</span>);
+                <span class="ident">UpstreamRelay::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">ScheduleConnectionCheck</span>);
             } <span class="kw">else</span> {
                 <span class="comment">// resume normal messages</span>
-                <span class="ident">ctx</span>.<span class="ident">notify</span>(<span class="ident">PumpHttpMessageQueue</span>);
+                <span class="ident">UpstreamRelay::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">PumpHttpMessageQueue</span>);
             }
-            <span class="ident">fut::ok</span>(())
-        })
-        .<span class="ident">spawn</span>(<span class="ident">ctx</span>);
+
+            <span class="prelude-val">Ok</span>(())
+        }))
     }
 }
 
@@ -2366,137 +2323,64 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>: <span class="ident">RequestBuilderTransformer</span> <span class="op">=</span> (), <span class="ident">R</span>: <span class="ident">ResponseTransformer</span> <span class="op">=</span> ()<span class="op">&gt;</span> {
-    <span class="ident">method</span>: <span class="ident">Method</span>,
-    <span class="ident">path</span>: <span class="ident">String</span>,
-    <span class="ident">builder</span>: <span class="ident">B</span>,
-    <span class="ident">transformer</span>: <span class="ident">R</span>,
-    <span class="ident">config</span>: <span class="ident">UpstreamRequestConfig</span>,
-}
+<span class="doccomment">/// Represents an HTTP request to be sent by the Upstream actor.</span>
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">UpstreamRequest</span>: <span class="ident">Send</span> {
+    <span class="doccomment">/// The HTTP method of the request.</span>
+    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Method</span>;
 
-<span class="kw">struct</span> <span class="ident">UpstreamRequestConfig</span> {
-    <span class="doccomment">/// Queueing priority for the request.</span>
-    <span class="ident">priority</span>: <span class="ident">RequestPriority</span>,
-    <span class="doccomment">/// Should the request be retried in case of network error.</span>
-    <span class="ident">retry</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// Should 429s be honored within the upstream.</span>
-    <span class="ident">intercept_status_errors</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// Should the x-sentry-relay-id header be added.</span>
-    <span class="ident">set_relay_id</span>: <span class="ident">bool</span>,
-}
+    <span class="doccomment">/// The path relative to the upstream.</span>
+    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">str</span><span class="op">&gt;</span>;
 
-<span class="kw">impl</span> <span class="ident">SendRequest</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">method</span>: <span class="ident">Method</span>, <span class="ident">path</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="ident">SendRequest</span> {
-            <span class="ident">method</span>,
-            <span class="ident">path</span>: <span class="ident">path</span>.<span class="ident">into</span>(),
-            <span class="ident">builder</span>: (),
-            <span class="ident">transformer</span>: (),
-            <span class="ident">config</span>: <span class="ident">UpstreamRequestConfig</span> {
-                <span class="ident">priority</span>: <span class="ident">RequestPriority::Low</span>,
-                <span class="ident">retry</span>: <span class="bool-val">true</span>,
-                <span class="ident">intercept_status_errors</span>: <span class="bool-val">true</span>,
-                <span class="ident">set_relay_id</span>: <span class="bool-val">true</span>,
-            },
-        }
+    <span class="doccomment">/// Whether this request should retry on network errors.</span>
+    <span class="kw">fn</span> <span class="ident">retry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="bool-val">true</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">post</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">path</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="self">Self</span><span class="ident">::new</span>(<span class="ident">Method::POST</span>, <span class="ident">path</span>)
+    <span class="doccomment">/// The queueing priority of the request. Defaults to `Low`.</span>
+    <span class="kw">fn</span> <span class="ident">priority</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestPriority</span> {
+        <span class="ident">RequestPriority::Low</span>
     }
+
+    <span class="doccomment">/// True if normal error processing should occur, false if</span>
+    <span class="doccomment">/// errors from the upstream should not be processed and returned as is</span>
+    <span class="doccomment">/// in the response.</span>
+    <span class="kw">fn</span> <span class="ident">intercept_status_errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="bool-val">true</span>
+    }
+
+    <span class="doccomment">/// If set to True it will add the X-Sentry-Relay-Id header to the request</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This should be done (only) for calls to endpoints that use Relay authentication.</span>
+    <span class="kw">fn</span> <span class="ident">set_relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="bool-val">true</span>
+    }
+
+    <span class="doccomment">/// Called whenever the request will be send over HTTP (possible multiple times)</span>
+    <span class="kw">fn</span> <span class="ident">build</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">builder</span>: <span class="ident">RequestBuilder</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span>;
+
+    <span class="doccomment">/// Called when the HTTP request completes, either with success or an error that will not</span>
+    <span class="doccomment">/// be retried.</span>
+    <span class="kw">fn</span> <span class="ident">respond</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>)
+        <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span>;
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">T</span><span class="op">&gt;</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">UpstreamRequest</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="ident">T</span>);
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
 <span class="kw">where</span>
-    <span class="ident">B</span>: <span class="ident">RequestBuilderTransformer</span>,
-    <span class="ident">T</span>: <span class="ident">ResponseTransformer</span>,
+    <span class="ident">T</span>: <span class="ident">UpstreamRequest</span>,
 {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">builder</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">RequestBuilderTransformer</span>,
-    {
-        <span class="ident">SendRequest</span> {
-            <span class="ident">method</span>: <span class="self">self</span>.<span class="ident">method</span>,
-            <span class="ident">path</span>: <span class="self">self</span>.<span class="ident">path</span>,
-            <span class="ident">builder</span>,
-            <span class="ident">transformer</span>: <span class="self">self</span>.<span class="ident">transformer</span>,
-            <span class="ident">config</span>: <span class="self">self</span>.<span class="ident">config</span>,
-        }
-    }
-
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">retry</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">should_retry</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">retry</span> <span class="op">=</span> <span class="ident">should_retry</span>;
-        <span class="self">self</span>
-    }
-
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">intercept_status_errors</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">should_intercept_status_errors</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">intercept_status_errors</span> <span class="op">=</span> <span class="ident">should_intercept_status_errors</span>;
-        <span class="self">self</span>
-    }
-
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_relay_id</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">should_set_relay_id</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">set_relay_id</span> <span class="op">=</span> <span class="ident">should_set_relay_id</span>;
-        <span class="self">self</span>
-    }
-
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">transform</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">callback</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">F</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">ResponseTransformer</span>,
-    {
-        <span class="ident">SendRequest</span> {
-            <span class="ident">method</span>: <span class="self">self</span>.<span class="ident">method</span>,
-            <span class="ident">path</span>: <span class="self">self</span>.<span class="ident">path</span>,
-            <span class="ident">builder</span>: <span class="self">self</span>.<span class="ident">builder</span>,
-            <span class="ident">transformer</span>: <span class="ident">callback</span>,
-            <span class="ident">config</span>: <span class="self">self</span>.<span class="ident">config</span>,
-        }
-    }
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">R</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRelay</span>
 <span class="kw">where</span>
-    <span class="ident">B</span>: <span class="ident">RequestBuilderTransformer</span>,
-    <span class="ident">R</span>: <span class="ident">ResponseTransformer</span>,
+    <span class="ident">T</span>: <span class="ident">UpstreamRequest</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
 {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="op">&lt;</span><span class="ident">R::Result</span> <span class="kw">as</span> <span class="ident">IntoFuture</span><span class="op">&gt;</span><span class="ident">::Item</span>, <span class="op">&lt;</span><span class="ident">R::Result</span> <span class="kw">as</span> <span class="ident">IntoFuture</span><span class="op">&gt;</span><span class="ident">::Error</span><span class="op">&gt;</span>;
-}
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-<span class="comment">// impl&lt;B&gt; Message for SendRequest&lt;B&gt; {</span>
-<span class="comment">//     type Result = Result&lt;(), UpstreamRequestError&gt;;</span>
-<span class="comment">// }</span>
-
-<span class="doccomment">/// SendRequest&lt;B&gt; messages represent external messages that need to be sent to the upstream server</span>
-<span class="doccomment">/// and do not use Relay authentication.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The handler adds the message to one of the message queues.</span>
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">R</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UpstreamRelay</span>
-<span class="kw">where</span>
-    <span class="ident">B</span>: <span class="ident">RequestBuilderTransformer</span>,
-    <span class="ident">R</span>: <span class="ident">ResponseTransformer</span>,
-    <span class="op">&lt;</span><span class="ident">R::Result</span> <span class="kw">as</span> <span class="ident">IntoFuture</span><span class="op">&gt;</span><span class="ident">::Item</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
-    <span class="op">&lt;</span><span class="ident">R::Result</span> <span class="kw">as</span> <span class="ident">IntoFuture</span><span class="op">&gt;</span><span class="ident">::Error</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">UpstreamRequestError</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,
-{
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="op">&lt;</span><span class="ident">R::Result</span> <span class="kw">as</span> <span class="ident">IntoFuture</span><span class="op">&gt;</span><span class="ident">::Item</span>, <span class="op">&lt;</span><span class="ident">R::Result</span> <span class="kw">as</span> <span class="ident">IntoFuture</span><span class="op">&gt;</span><span class="ident">::Error</span><span class="op">&gt;</span>;
-
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">B</span>, <span class="ident">R</span><span class="op">&gt;</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
-        <span class="kw">let</span> <span class="ident">SendRequest</span> {
-            <span class="ident">method</span>,
-            <span class="ident">path</span>,
-            <span class="ident">builder</span>,
-            <span class="ident">transformer</span>,
-            <span class="ident">config</span>,
-        } <span class="op">=</span> <span class="ident">message</span>;
-
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">enqueue_request</span>(<span class="ident">config</span>, <span class="ident">method</span>, <span class="ident">path</span>, <span class="ident">builder</span>, <span class="ident">ctx</span>)
-            .<span class="ident">from_err</span>()
-            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">transformer</span>.<span class="ident">transform_response</span>(<span class="ident">r</span>));
-
-        <span class="ident">Box::new</span>(<span class="ident">future</span>)
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">SendRequest</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+        <span class="self">self</span>.<span class="ident">enqueue</span>(<span class="ident">EnqueuedRequest::new</span>(<span class="ident">msg</span>.<span class="number">0</span>), <span class="ident">ctx</span>, <span class="ident">EnqueuePosition::Front</span>);
     }
 }
 
@@ -2525,7 +2409,7 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">UpstreamQuery</span>: <span class="ident">Serialize</span> {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">UpstreamQuery</span>: <span class="ident">Serialize</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span> {
     <span class="kw">type</span> <span class="ident">Response</span>: <span class="ident">DeserializeOwned</span> <span class="op">+</span> <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">Send</span>;
 
     <span class="doccomment">/// The HTTP method of the request.</span>
@@ -2547,6 +2431,66 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">UpstreamQuery</span><span class="op">&gt;</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">SendQuery</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T::Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>;
+}
+
+<span class="kw">struct</span> <span class="ident">UpstreamQueryRequest</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">UpstreamQuery</span><span class="op">&gt;</span> {
+    <span class="ident">query</span>: <span class="ident">T</span>,
+    <span class="ident">body</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+    <span class="ident">signature</span>: <span class="ident">String</span>,
+    <span class="ident">max_response_size</span>: <span class="ident">usize</span>,
+    <span class="ident">sender</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T::Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">UpstreamQuery</span><span class="op">&gt;</span> <span class="ident">UpstreamRequest</span> <span class="kw">for</span> <span class="ident">UpstreamQueryRequest</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Method</span> {
+        <span class="self">self</span>.<span class="ident">query</span>.<span class="ident">method</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">str</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">query</span>.<span class="ident">path</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">build</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">builder</span>: <span class="ident">RequestBuilder</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
+        <span class="ident">builder</span>.<span class="ident">header</span>(
+            <span class="string">&quot;X-Sentry-Relay-Signature&quot;</span>,
+            <span class="self">self</span>.<span class="ident">signature</span>.<span class="ident">as_str</span>().<span class="ident">as_bytes</span>(),
+        );
+        <span class="ident">builder</span>.<span class="ident">header</span>(<span class="ident">header::CONTENT_TYPE</span>, <span class="string">b&quot;application/json&quot;</span>);
+        <span class="ident">builder</span>.<span class="ident">body</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">body</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">retry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="ident">T::retry</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">priority</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestPriority</span> {
+        <span class="ident">T::priority</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">respond</span>(
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">sender</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">sender</span>.<span class="ident">take</span>();
+
+        <span class="kw">match</span> <span class="ident">result</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">response</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">response</span>
+                    .<span class="ident">json</span>(<span class="self">self</span>.<span class="ident">max_response_size</span>)
+                    .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
+                    .<span class="ident">then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> {
+                        <span class="ident">sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">result</span>));
+                        <span class="prelude-val">Ok</span>(())
+                    });
+
+                <span class="ident">Box::new</span>(<span class="ident">future</span>)
+            }
+            <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="ident">sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">error</span>)));
+                <span class="ident">Box::new</span>(<span class="ident">future::err</span>(()))
+            }
+        }
+    }
 }
 
 <span class="doccomment">/// SendQuery&lt;T&gt; messages represent messages that need to be sent to the upstream server</span>

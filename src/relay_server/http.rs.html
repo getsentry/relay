@@ -229,6 +229,15 @@
 <span id="229">229</span>
 <span id="230">230</span>
 <span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
 </pre><pre class="rust">
 <span class="doccomment">///! Abstractions for dealing with either actix-web client structs or reqwest structs.</span>
 <span class="doccomment">///!</span>
@@ -335,18 +344,27 @@
         <span class="self">self</span>
     }
 
+    <span class="doccomment">/// Add an optional header, not replacing existing ones.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the value is `Some`, the header is added. If the value is `None`, headers are not</span>
+    <span class="doccomment">/// changed.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">header_opt</span>(
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="ident">key</span>: <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>,
+        <span class="ident">value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span><span class="op">&gt;</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">value</span> {
+            <span class="ident">take_mut::take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">builder</span>, <span class="op">|</span><span class="ident">b</span><span class="op">|</span> {
+                <span class="ident">b</span>.<span class="ident">header</span>(<span class="ident">key</span>.<span class="ident">as_ref</span>(), <span class="ident">value</span>.<span class="ident">as_ref</span>())
+            });
+        }
+        <span class="self">self</span>
+    }
+
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">body</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">body</span>: <span class="ident">B</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">B</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
     {
-        <span class="comment">// actix-web&#39;s Binary is used as argument here because the type can be constructed from</span>
-        <span class="comment">// almost anything and then the actix-web codepath is minimally affected.</span>
-        <span class="comment">//</span>
-        <span class="comment">// Still it&#39;s not perfect as in the identity-encoding path we have some unnecessary copying</span>
-        <span class="comment">// that is just to get around type conflicts. We cannot use Bytes here because we have a</span>
-        <span class="comment">// version split between actix-web&#39;s Bytes dependency and reqwest&#39;s Bytes dependency. A</span>
-        <span class="comment">// real zero-copy abstraction over both would force us to downgrade reqwest to a version</span>
-        <span class="comment">// that uses Bytes 0.4.</span>
         <span class="self">self</span>.<span class="ident">builder</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">http_encoding</span> {
             <span class="ident">HttpEncoding::Identity</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">builder</span>.<span class="ident">body</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>().<span class="ident">to_vec</span>()),
             <span class="ident">HttpEncoding::Deflate</span> <span class="op">=</span><span class="op">&gt;</span> {
