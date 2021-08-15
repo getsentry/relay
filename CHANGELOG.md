@@ -1,5 +1,9 @@
 # Changelog
 
+## 21.8.0
+
+- No documented changes.
+
 ## 21.7.0
 
 - No documented changes.
