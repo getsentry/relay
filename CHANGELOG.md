@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Support running Relay without config directory. ([#1055](https://github.com/getsentry/relay/pull/1055))
+
 ## 21.8.0
 
 - No documented changes.
