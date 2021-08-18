@@ -1806,7 +1806,24 @@ impl UpstreamRequest for SendEnvelope {
                 Box::new(future)
             }
             Err(error) => {
-                sender.map(|sender| sender.send(Err(error)));
+                match error {
+                    UpstreamRequestError::RateLimited(upstream_limits) => {
+                        ProjectCache::from_registry().do_send(UpdateRateLimits::new(
+                            self.project_key,
+                            upstream_limits.clone().scope(&self.scoping),
+                        ));
+                        sender.map(|sender| {
+                            sender
+                                .send(Err(UpstreamRequestError::RateLimited(upstream_limits)))
+                                .ok();
+                        });
+                    }
+                    error => {
+                        sender.map(|sender| {
+                            sender.send(Err(error)).ok();
+                        });
+                    }
+                };
                 Box::new(future::err(()))
             }
         }
@@ -1899,14 +1916,13 @@ impl EnvelopeManager {
         let future = rx
             .map_err(|_| SendEnvelopeError::SendFailed(UpstreamRequestError::ChannelClosed))
             .and_then(move |result| {
-                if let Err(UpstreamRequestError::RateLimited(upstream_limits)) = result {
-                    let limits = upstream_limits.scope(&scoping);
-                    ProjectCache::from_registry()
-                        .do_send(UpdateRateLimits::new(project_key, limits.clone()));
-                    Err(SendEnvelopeError::RateLimited(limits))
-                } else {
-                    result.map_err(SendEnvelopeError::SendFailed)
-                }
+                result.map_err(|err| {
+                    if let UpstreamRequestError::RateLimited(upstream_limits) = err {
+                        SendEnvelopeError::RateLimited(upstream_limits.scope(&scoping))
+                    } else {
+                        SendEnvelopeError::SendFailed(err)
+                    }
+                })
             });
 
         Box::new(future)

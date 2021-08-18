@@ -151,7 +151,7 @@ enum EnqueuePosition {
 ///
 /// These limits do not carry scope information. Use `UpstreamRateLimits::scope` to attach scope
 /// identifiers and return a fully populated `RateLimits` instance.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UpstreamRateLimits {
     retry_after: RetryAfter,
     rate_limits: String,
