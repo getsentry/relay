@@ -1812,16 +1812,16 @@ impl UpstreamRequest for SendEnvelope {
                             self.project_key,
                             upstream_limits.clone().scope(&self.scoping),
                         ));
-                        sender.map(|sender| {
+                        if let Some(sender) = sender {
                             sender
                                 .send(Err(UpstreamRequestError::RateLimited(upstream_limits)))
                                 .ok();
-                        });
+                        }
                     }
                     error => {
-                        sender.map(|sender| {
+                        if let Some(sender) = sender {
                             sender.send(Err(error)).ok();
-                        });
+                        }
                     }
                 };
                 Box::new(future::err(()))
