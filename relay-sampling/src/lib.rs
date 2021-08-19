@@ -482,7 +482,7 @@ impl FieldValueProvider for TraceContext {
                     Value::String(user.segment.clone())
                 }
             }),
-            "trace.transaction" => match self.transaction_name {
+            "trace.transaction" => match self.transaction {
                 None => Value::Null,
                 Some(ref s) => Value::String(s.into()),
             },
@@ -548,9 +548,9 @@ pub struct TraceContext {
     pub environment: Option<String>,
     /// the name of the transaction extracted from the `transaction` field in the starting transaction
     ///
-    /// set on transaction start, or via `scope.transaction.name`
+    /// set on transaction start, or via `scope.transaction`
     #[serde(default)]
-    pub transaction_name: Option<String>,
+    pub transaction: Option<String>,
 }
 
 impl TraceContext {
@@ -778,7 +778,7 @@ mod tests {
                 id: "user-id".into(),
             }),
             environment: Some("prod".into()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         assert_eq!(Value::String("1.1.1".into()), tc.get_value("trace.release"));
@@ -808,7 +808,7 @@ mod tests {
             release: None,
             user: None,
             environment: None,
-            transaction_name: None,
+            transaction: None,
         };
         assert_eq!(Value::Null, tc.get_value("trace.release"));
         assert_eq!(Value::Null, tc.get_value("trace.environment"));
@@ -822,7 +822,7 @@ mod tests {
             release: None,
             user: Some(TraceUserContext::default()),
             environment: None,
-            transaction_name: None,
+            transaction: None,
         };
         assert_eq!(Value::Null, tc.get_value("trace.user.id"));
         assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
@@ -927,7 +927,7 @@ mod tests {
                 id: "user-id".into(),
             }),
             environment: Some("debug".into()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
@@ -1100,7 +1100,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1160,7 +1160,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1197,7 +1197,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1257,7 +1257,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
@@ -1472,7 +1472,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         assert!(
@@ -1490,7 +1490,7 @@ mod tests {
             release: Some("1.1.1".to_string()),
             user: None,
             environment: Some("debug".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         assert!(
@@ -1511,7 +1511,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: None,
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         assert!(
@@ -1532,7 +1532,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
-            transaction_name: None,
+            transaction: None,
         };
 
         assert!(
@@ -1546,7 +1546,7 @@ mod tests {
             release: None,
             user: None,
             environment: None,
-            transaction_name: None,
+            transaction: None,
         };
 
         assert!(
@@ -1626,7 +1626,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1646,7 +1646,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1666,7 +1666,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1686,7 +1686,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("production".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1706,7 +1706,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
-            transaction_name: Some("transaction1".into()),
+            transaction: Some("transaction1".into()),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
