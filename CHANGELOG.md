@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add sampling based on transaction name. ([#1058](https://github.com/getsentry/relay/pull/1058))
+
 ## 21.8.0
 
 - No documented changes.
