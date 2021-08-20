@@ -18,7 +18,7 @@ use relay_common::{metric, ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_log::LogError;
-use relay_metrics::{Bucket, BucketValue, MetricUnit};
+use relay_metrics::{Bucket, BucketValue, MetricSymbol, MetricUnit};
 use relay_quotas::Scoping;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
@@ -324,15 +324,15 @@ impl StoreForwarder {
         let payload = item.payload();
 
         for bucket in Bucket::parse_all(&payload).unwrap_or_default() {
-            self.send_metric_message(MetricKafkaMessage {
+            self.send_metric_message(MetricKafkaMessage::new(
                 org_id,
                 project_id,
-                name: bucket.name,
-                unit: bucket.unit,
-                value: bucket.value,
-                timestamp: bucket.timestamp,
-                tags: bucket.tags,
-            })?;
+                bucket.name,
+                bucket.unit,
+                bucket.value,
+                bucket.timestamp,
+                bucket.tags,
+            ))?;
         }
 
         Ok(())
@@ -504,13 +504,45 @@ struct SessionKafkaMessage {
 struct MetricKafkaMessage {
     org_id: u64,
     project_id: ProjectId,
-    name: String,
+    metric_id: MetricSymbol,
     unit: MetricUnit,
     #[serde(flatten)]
     value: BucketValue,
     timestamp: UnixTimestamp,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    tags: BTreeMap<String, String>,
+    tags: BTreeMap<MetricSymbol, MetricSymbol>,
+    retention_days: u64,
+}
+
+impl MetricKafkaMessage {
+    pub fn new(
+        org_id: u64,
+        project_id: ProjectId,
+        name: String,
+        unit: MetricUnit,
+        value: BucketValue,
+        timestamp: UnixTimestamp,
+        tags: BTreeMap<String, String>,
+    ) -> Self {
+        MetricKafkaMessage {
+            org_id,
+            project_id,
+            metric_id: MetricSymbol::from(name.as_str()),
+            unit,
+            value,
+            timestamp,
+            tags: tags
+                .iter()
+                .map(|(key, value)| {
+                    (
+                        MetricSymbol::from(key.as_str()),
+                        MetricSymbol::from(value.as_str()),
+                    )
+                })
+                .collect(),
+            retention_days: 90, // TODO: parametrize
+        }
+    }
 }
 
 /// An enum over all possible ingest messages.

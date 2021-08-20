@@ -17,6 +17,7 @@ use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
 /// Contains the numeric value corresponding to a metrics tag name, tag key or tag value.
 /// Currently implemented as a FNV-64 hash
+#[derive(Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MetricSymbol(u64);
 
 impl MetricSymbol {
