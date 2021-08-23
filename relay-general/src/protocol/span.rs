@@ -13,6 +13,8 @@ pub struct Span {
     #[metastructure(required = "true")]
     pub start_timestamp: Annotated<Timestamp>,
 
+    pub exclusive_time: Annotated<f64>,
+
     /// Human readable description of a span (e.g. method URL).
     #[metastructure(pii = "maybe")]
     pub description: Annotated<String>,
@@ -59,6 +61,7 @@ mod tests {
         let json = r#"{
   "timestamp": 0.0,
   "start_timestamp": -63158400.0,
+  "exclusive_time": 1.23,
   "description": "desc",
   "op": "operation",
   "span_id": "fa90fdead5f74052",
@@ -69,6 +72,7 @@ mod tests {
         let span = Annotated::new(Span {
             timestamp: Annotated::new(Utc.ymd(1970, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
             start_timestamp: Annotated::new(Utc.ymd(1968, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
+            exclusive_time: Annotated::new(1.23),
             description: Annotated::new("desc".to_owned()),
             op: Annotated::new("operation".to_owned()),
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),

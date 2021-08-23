@@ -1,4 +1,5 @@
 //! Utility code for sentry's internal store.
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -53,6 +54,8 @@ pub struct StoreConfig {
 
     /// Emit breakdowns based on given configuration.
     pub breakdowns: Option<normalize::breakdowns::BreakdownsConfig>,
+
+    pub span_attributes: BTreeSet<String>,
 }
 
 /// The processor that normalizes events for store.
