@@ -1205,14 +1205,18 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
                     .json(self.max_response_size)
                     .map_err(UpstreamRequestError::Http)
                     .then(|result| {
-                        sender.map(|sender| sender.send(result));
+                        if let Some(sender) = sender {
+                            sender.send(result).ok();
+                        }
                         Ok(())
                     });
 
                 Box::new(future)
             }
             Err(error) => {
-                sender.map(|sender| sender.send(Err(error)));
+                if let Some(sender) = sender {
+                    sender.send(Err(error)).ok();
+                }
                 Box::new(future::err(()))
             }
         }
