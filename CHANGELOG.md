@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Support running Relay without config directory. ([#1055](https://github.com/getsentry/relay/pull/1055))
+- Support running Relay without config directory. The most important configuration, including Relay mode and credentials, can now be provided through commandline arguments or environment variables alone. ([#1055](https://github.com/getsentry/relay/pull/1055))
 
 ## 21.8.0
 
