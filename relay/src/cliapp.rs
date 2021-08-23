@@ -34,6 +34,13 @@ pub fn make_app() -> App<'static, 'static> {
              to the port and network interface configured in the config file.",
                 )
                 .arg(
+                    Arg::with_name("mode")
+                        .long("mode")
+                        .help("The relay mode to set")
+                        .value_name("MODE")
+                        .possible_values(&["managed", "proxy", "static"]),
+                )
+                .arg(
                     Arg::with_name("secret_key")
                         .long("secret-key")
                         .short("s")
@@ -180,6 +187,13 @@ pub fn make_app() -> App<'static, 'static> {
                              provided that part of the credentials are overwritten.  If \
                              no credentials are stored yet at all and no parameters are \
                              supplied the command will prompt for the appropriate values.",
+                        )
+                        .arg(
+                            Arg::with_name("mode")
+                                .long("mode")
+                                .help("The relay mode to set")
+                                .value_name("MODE")
+                                .possible_values(&["managed", "proxy", "static"]),
                         )
                         .arg(
                             Arg::with_name("secret_key")
