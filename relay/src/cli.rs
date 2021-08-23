@@ -72,6 +72,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
     };
 
     OverridableConfig {
+        mode: matches.value_of("mode").map(str::to_owned),
         upstream: matches.value_of("upstream").map(str::to_owned),
         host: matches.value_of("host").map(str::to_owned),
         port: matches.value_of("redis_url").map(str::to_owned),
@@ -88,6 +89,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
 /// Extract config arguments from environment variables
 pub fn extract_config_env_vars() -> OverridableConfig {
     OverridableConfig {
+        mode: env::var("RELAY_MODE").ok(),
         upstream: env::var("RELAY_UPSTREAM_URL").ok(),
         host: env::var("RELAY_HOST").ok(),
         port: env::var("RELAY_PORT").ok(),
