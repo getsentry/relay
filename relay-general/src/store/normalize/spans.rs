@@ -18,10 +18,7 @@ impl TimeInterval {
                 end: start,
             }
         } else {
-            TimeInterval {
-                start: start,
-                end: end,
-            }
+            TimeInterval { start, end }
         }
     }
 
@@ -32,16 +29,15 @@ impl TimeInterval {
     }
 }
 
-fn merge_non_overlapping_intervals(intervals: &mut Vec<TimeInterval>) -> Vec<TimeInterval> {
+/// Merge a list of intervals into a list of non overlapping intervals.
+/// Assumes that the input intervals are sorted by start time.
+fn merge_non_overlapping_intervals(intervals: &mut [TimeInterval]) -> Vec<TimeInterval> {
     let mut non_overlapping_intervals = Vec::new();
 
     // Make sure that there is at least 1 interval present.
     if intervals.is_empty() {
         return non_overlapping_intervals;
     }
-
-    // Make sure that the intervals are sorted by start time.
-    intervals.sort_unstable_by_key(|interval| interval.start);
 
     let mut previous = intervals[0].clone();
 
@@ -70,10 +66,12 @@ fn merge_non_overlapping_intervals(intervals: &mut Vec<TimeInterval>) -> Vec<Tim
     non_overlapping_intervals
 }
 
-fn interval_exclusive_time(source: &TimeInterval, intervals: &Vec<TimeInterval>) -> f64 {
+/// Computes the exclusive time of the source interval after subtracting the
+/// list of intervals.
+/// Assumes that the input intervals are sorted by start time.
+fn interval_exclusive_time(source: &TimeInterval, intervals: &[TimeInterval]) -> f64 {
     let mut exclusive_time = 0.0;
 
-    let mut use_remaining = true;
     let mut remaining = source.clone();
 
     for interval in intervals {
@@ -108,25 +106,22 @@ fn interval_exclusive_time(source: &TimeInterval, intervals: &Vec<TimeInterval>)
             } else {
                 // The interval ends to the right of the remaining interval, so
                 // the interval intersects with the entirety of the remaining
-                // interval.
-                //
+                // interval. So zero out the interval.
+                remaining.start = remaining.end;
+
                 // There is nothing remaining to be checked.
-                use_remaining = false;
                 break;
             }
         }
     }
 
-    if use_remaining {
-        exclusive_time += remaining.get_duration();
-    }
-
-    exclusive_time
+    // make sure to add the remaining interval
+    exclusive_time + remaining.get_duration()
 }
 
 fn get_span_interval(span: &Span) -> Option<TimeInterval> {
-    let start_timestamp = span.start_timestamp.value()?.clone();
-    let end_timestamp = span.timestamp.value()?.clone();
+    let start_timestamp = *span.start_timestamp.value()?;
+    let end_timestamp = *span.timestamp.value()?;
     Some(TimeInterval::new(start_timestamp, end_timestamp))
 }
 
@@ -174,8 +169,12 @@ pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<String>) {
                 Some(interval) => interval,
             };
 
-            let child_intervals = match span_map.get_mut(&span_id) {
-                Some(intervals) => merge_non_overlapping_intervals(intervals),
+            let child_intervals = match span_map.get_mut(span_id) {
+                Some(intervals) => {
+                    // Make sure that the intervals are sorted by start time.
+                    intervals.sort_unstable_by_key(|interval| interval.start);
+                    merge_non_overlapping_intervals(intervals)
+                }
                 None => Vec::new(),
             };
 
@@ -190,7 +189,6 @@ mod tests {
     use super::*;
     use crate::protocol::{Event, EventType, Span, SpanId, TraceId};
     use chrono::{TimeZone, Utc};
-    use serde_json::json;
 
     fn make_span(
         op: &str,
@@ -212,14 +210,14 @@ mod tests {
         })
     }
 
-    fn extract_exclusive_time<'a>(span: Span) -> (SpanId, f64) {
+    fn extract_exclusive_time(span: Span) -> (SpanId, f64) {
         (
             span.span_id.into_value().unwrap(),
             span.exclusive_time.into_value().unwrap(),
         )
     }
 
-    fn extract_span_exclusive_times<'a>(event: Event) -> HashMap<SpanId, f64> {
+    fn extract_span_exclusive_times(event: Event) -> HashMap<SpanId, f64> {
         event
             .spans
             .into_value()
@@ -267,7 +265,8 @@ mod tests {
             ..Default::default()
         };
 
-        let config = json!(null);
+        let mut config = BTreeSet::new();
+        config.insert("exclusive-time".to_string());
 
         normalize_spans(&mut event, &config);
 
@@ -328,7 +327,8 @@ mod tests {
             ..Default::default()
         };
 
-        let config = json!(null);
+        let mut config = BTreeSet::new();
+        config.insert("exclusive-time".to_string());
 
         normalize_spans(&mut event, &config);
 
@@ -389,7 +389,8 @@ mod tests {
             ..Default::default()
         };
 
-        let config = json!(null);
+        let mut config = BTreeSet::new();
+        config.insert("exclusive-time".to_string());
 
         normalize_spans(&mut event, &config);
 
@@ -450,7 +451,8 @@ mod tests {
             ..Default::default()
         };
 
-        let config = json!(null);
+        let mut config = BTreeSet::new();
+        config.insert("exclusive-time".to_string());
 
         normalize_spans(&mut event, &config);
 
@@ -511,7 +513,8 @@ mod tests {
             ..Default::default()
         };
 
-        let config = json!(null);
+        let mut config = BTreeSet::new();
+        config.insert("exclusive-time".to_string());
 
         normalize_spans(&mut event, &config);
 
@@ -572,7 +575,8 @@ mod tests {
             ..Default::default()
         };
 
-        let config = json!(null);
+        let mut config = BTreeSet::new();
+        config.insert("exclusive-time".to_string());
 
         normalize_spans(&mut event, &config);
 
@@ -635,7 +639,8 @@ mod tests {
             ..Default::default()
         };
 
-        let config = json!(null);
+        let mut config = BTreeSet::new();
+        config.insert("exclusive-time".to_string());
 
         normalize_spans(&mut event, &config);
 
