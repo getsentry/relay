@@ -336,11 +336,11 @@ impl FieldValueProvider for Event {
         match field_name {
             "event.release" => match self.release.value() {
                 None => Value::Null,
-                Some(ref s) => s.as_str().into(),
+                Some(s) => s.as_str().into(),
             },
             "event.environment" => match self.environment.value() {
                 None => Value::Null,
-                Some(ref s) => s.as_str().into(),
+                Some(s) => s.as_str().into(),
             },
             "event.user.id" => self.user.value().map_or(Value::Null, |user| {
                 user.id.value().map_or(Value::Null, |id| {
@@ -367,7 +367,7 @@ impl FieldValueProvider for Event {
             "event.web_crawlers" => Value::Bool(relay_filter::web_crawlers::matches(self)),
             "event.transaction" => match self.transaction.value() {
                 None => Value::Null,
-                Some(ref s) => s.as_str().into(),
+                Some(s) => s.as_str().into(),
             },
             _ => Value::Null,
         }
