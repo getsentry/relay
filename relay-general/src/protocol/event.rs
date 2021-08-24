@@ -12,7 +12,7 @@ use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
     ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
-    Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
+    RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -446,6 +446,11 @@ pub struct Event {
     #[metastructure(field = "sdk")]
     #[metastructure(skip_serialization = "empty")]
     pub client_sdk: Annotated<ClientSdkInfo>,
+
+    /// Information about the Relays that processed this event during ingest.
+    #[metastructure(bag_size = "medium")]
+    #[metastructure(skip_serialization = "empty")]
+    pub ingest_path: Annotated<Array<RelayInfo>>,
 
     /// Errors encountered during processing. Intended to be phased out in favor of
     /// annotation/metadata system.
