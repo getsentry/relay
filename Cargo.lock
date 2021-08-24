@@ -3103,6 +3103,7 @@ dependencies = [
  "relay-common",
  "relay-ffi",
  "relay-general",
+ "relay-metrics",
  "relay-sampling",
  "sentry-release-parser",
  "serde",
@@ -3255,6 +3256,7 @@ version = "21.8.0"
 dependencies = [
  "actix",
  "float-ord",
+ "fnv",
  "futures 0.1.29",
  "hash32",
  "insta",

@@ -6,6 +6,10 @@
 
 - Add sampling based on transaction name. ([#1058](https://github.com/getsentry/relay/pull/1058))
 
+**Bug Fixes**:
+
+- Use correct commandline argument name for setting Relay port. ([#1059](https://github.com/getsentry/relay/pull/1059))
+
 ## 21.8.0
 
 - No documented changes.

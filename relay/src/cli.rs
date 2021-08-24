@@ -63,7 +63,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
     OverridableConfig {
         upstream: matches.value_of("upstream").map(str::to_owned),
         host: matches.value_of("host").map(str::to_owned),
-        port: matches.value_of("redis_url").map(str::to_owned),
+        port: matches.value_of("port").map(str::to_owned),
         processing,
         kafka_url: matches.value_of("kafka_broker_url").map(str::to_owned),
         redis_url: matches.value_of("redis_url").map(str::to_owned),
