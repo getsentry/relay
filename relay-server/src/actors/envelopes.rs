@@ -1734,6 +1734,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 
 /// Error returned from [`EnvelopeManager::send_envelope`].
 #[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
 enum SendEnvelopeError {
     #[cfg(feature = "processing")]
     ScheduleFailed,
