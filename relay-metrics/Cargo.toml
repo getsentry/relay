@@ -12,6 +12,7 @@ publish = false
 [dependencies]
 actix = "0.7.9"
 float-ord = "0.3.1"
+fnv = "1.0.7"
 hash32 = "0.1.1"
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log" }

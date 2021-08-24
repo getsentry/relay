@@ -6,6 +6,10 @@
 
 - Support running Relay without config directory. The most important configuration, including Relay mode and credentials, can now be provided through commandline arguments or environment variables alone. ([#1055](https://github.com/getsentry/relay/pull/1055))
 
+**Bug Fixes**:
+
+- Use correct commandline argument name for setting Relay port. ([#1059](https://github.com/getsentry/relay/pull/1059))
+
 ## 21.8.0
 
 - No documented changes.
