@@ -126,9 +126,9 @@ fn get_span_interval(span: &Span) -> Option<TimeInterval> {
 }
 
 pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<String>) {
-    let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
-
     if attributes.contains("exclusive-time") {
+        let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
+
         let mut span_map = HashMap::new();
 
         for span in spans.iter() {
@@ -225,6 +225,60 @@ mod tests {
             .into_iter()
             .map(|span| extract_exclusive_time(span.into_value().unwrap()))
             .collect()
+    }
+
+    #[test]
+    fn test_skip_exclusive_time() {
+        let mut event = Event {
+            ty: EventType::Transaction.into(),
+            spans: vec![
+                make_span(
+                    "db",
+                    "SELECT * FROM table;",
+                    Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 1, 0).into(),
+                    Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 4, 0).into(),
+                    "bbbbbbbbbbbbbbbb",
+                    "aaaaaaaaaaaaaaaa",
+                ),
+                make_span(
+                    "db",
+                    "SELECT * FROM table;",
+                    Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 1, 0).into(),
+                    Utc.ymd(2021, 1, 1)
+                        .and_hms_nano(0, 0, 3, 500_000_000)
+                        .into(),
+                    "cccccccccccccccc",
+                    "aaaaaaaaaaaaaaaa",
+                ),
+                make_span(
+                    "db",
+                    "SELECT * FROM table;",
+                    Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 3, 0).into(),
+                    Utc.ymd(2021, 1, 1)
+                        .and_hms_nano(0, 0, 4, 877_000_000)
+                        .into(),
+                    "dddddddddddddddd",
+                    "aaaaaaaaaaaaaaaa",
+                ),
+            ]
+            .into(),
+            ..Default::default()
+        };
+
+        // do not insert `exclusive-time`
+        let config = BTreeSet::new();
+
+        normalize_spans(&mut event, &config);
+
+        let has_exclusive_times: Vec<bool> = event
+            .spans
+            .into_value()
+            .unwrap()
+            .into_iter()
+            .map(|span| span.into_value().unwrap().exclusive_time.value().is_none())
+            .collect();
+
+        assert_eq!(has_exclusive_times, vec![true, true, true]);
     }
 
     #[test]
