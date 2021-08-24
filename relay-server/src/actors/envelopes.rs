@@ -126,7 +126,7 @@ enum ProcessingError {
     StoreFailed(#[cause] StoreError),
 
     #[fail(display = "envelope items were rate limited")]
-    RateLimited(RateLimits),
+    RateLimited,
 
     #[cfg(feature = "processing")]
     #[fail(display = "failed to apply quotas")]
@@ -175,7 +175,7 @@ impl ProcessingError {
             Self::EventFiltered(_) => None,
             Self::TraceSampled(_) => None,
             Self::EventSampled(_) => None,
-            Self::RateLimited(_) => None,
+            Self::RateLimited => None,
             #[cfg(feature = "processing")]
             Self::StoreFailed(_) => None,
 
@@ -1740,7 +1740,6 @@ enum SendEnvelopeError {
     #[cfg(feature = "processing")]
     StoreFailed(StoreError),
     SendFailed(UpstreamRequestError),
-    RateLimited(RateLimits),
 }
 
 /// Either a captured envelope or an error that occured during processing.
@@ -1914,16 +1913,9 @@ impl EnvelopeManager {
         UpstreamRelay::from_registry().do_send(SendRequest(request));
 
         let future = rx
-            .map_err(|_| SendEnvelopeError::SendFailed(UpstreamRequestError::ChannelClosed))
-            .and_then(move |result| {
-                result.map_err(|err| {
-                    if let UpstreamRequestError::RateLimited(upstream_limits) = err {
-                        SendEnvelopeError::RateLimited(upstream_limits.scope(&scoping))
-                    } else {
-                        SendEnvelopeError::SendFailed(err)
-                    }
-                })
-            });
+            .map_err(|_| UpstreamRequestError::ChannelClosed)
+            .flatten()
+            .map_err(SendEnvelopeError::SendFailed);
 
         Box::new(future)
     }
@@ -2152,7 +2144,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         Ok(envelope)
                     }
                     // errors from rate limiting already produced outcomes nothing more to do
-                    None => Err(ProcessingError::RateLimited(checked.rate_limits)),
+                    None => Err(ProcessingError::RateLimited),
                 }
             }))
             .and_then(clone!(envelope_context, |envelope| {
@@ -2208,7 +2200,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 // Processing returned new rate limits. Cache them on the project to avoid expensive
                 // processing while the limit is active.
                 if rate_limits.is_limited() {
-                    project_cache.do_send(UpdateRateLimits::new(project_key, rate_limits.clone()));
+                    project_cache.do_send(UpdateRateLimits::new(project_key, rate_limits));
                 }
 
                 if !processed.metrics.is_empty() {
@@ -2222,7 +2214,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         envelope_context.borrow_mut().update(&envelope);
                         Ok(envelope)
                     }
-                    None => Err(ProcessingError::RateLimited(rate_limits)),
+                    None => Err(ProcessingError::RateLimited),
                 }
             }))
             .into_actor(self)
@@ -2252,10 +2244,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                                     }
 
                                     ProcessingError::SendFailed(e)
-                                }
-                                SendEnvelopeError::RateLimited(e) => {
-                                    // outcome emitted at the source
-                                    ProcessingError::RateLimited(e)
                                 }
                             }
                         })
