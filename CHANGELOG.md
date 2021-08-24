@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Use correct commandline argument name for setting Relay port. ([#1059](https://github.com/getsentry/relay/pull/1059))
+- Update kafka protocol for metrics to match current snuba implementation. ([#1060](https://github.com/getsentry/relay/pull/1060))
 
 ## 21.8.0
 
