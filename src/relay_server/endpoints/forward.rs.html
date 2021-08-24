@@ -307,6 +307,10 @@
 <span id="307">307</span>
 <span id="308">308</span>
 <span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
 </pre><pre class="rust">
 <span class="doccomment">//! Server endpoint that proxies any request to the upstream.</span>
 <span class="doccomment">//!</span>
@@ -513,14 +517,18 @@
                     .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">body</span><span class="op">|</span> <span class="prelude-val">Ok</span>((<span class="ident">status</span>, <span class="ident">headers</span>, <span class="ident">body</span>)))
                     .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
                     .<span class="ident">then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> {
-                        <span class="ident">sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">result</span>));
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
+                            <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">result</span>).<span class="ident">ok</span>();
+                        }
                         <span class="prelude-val">Ok</span>(())
                     });
 
                 <span class="ident">Box::new</span>(<span class="ident">future</span>)
             }
             <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">e</span>)));
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
+                    <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">e</span>)).<span class="ident">ok</span>();
+                }
                 <span class="ident">Box::new</span>(<span class="ident">future::err</span>(()))
             }
         }

@@ -1271,6 +1271,10 @@
 <span id="1271">1271</span>
 <span id="1272">1272</span>
 <span id="1273">1273</span>
+<span id="1274">1274</span>
+<span id="1275">1275</span>
+<span id="1276">1276</span>
+<span id="1277">1277</span>
 </pre><pre class="rust">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1425,7 +1429,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// These limits do not carry scope information. Use `UpstreamRateLimits::scope` to attach scope</span>
 <span class="doccomment">/// identifiers and return a fully populated `RateLimits` instance.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UpstreamRateLimits</span> {
     <span class="ident">retry_after</span>: <span class="ident">RetryAfter</span>,
     <span class="ident">rate_limits</span>: <span class="ident">String</span>,
@@ -2479,14 +2483,18 @@
                     .<span class="ident">json</span>(<span class="self">self</span>.<span class="ident">max_response_size</span>)
                     .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
                     .<span class="ident">then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> {
-                        <span class="ident">sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">result</span>));
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
+                            <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">result</span>).<span class="ident">ok</span>();
+                        }
                         <span class="prelude-val">Ok</span>(())
                     });
 
                 <span class="ident">Box::new</span>(<span class="ident">future</span>)
             }
             <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">error</span>)));
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
+                    <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">error</span>)).<span class="ident">ok</span>();
+                }
                 <span class="ident">Box::new</span>(<span class="ident">future::err</span>(()))
             }
         }

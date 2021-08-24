@@ -2842,6 +2842,11 @@
 <span id="2842">2842</span>
 <span id="2843">2843</span>
 <span id="2844">2844</span>
+<span id="2845">2845</span>
+<span id="2846">2846</span>
+<span id="2847">2847</span>
+<span id="2848">2848</span>
+<span id="2849">2849</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
@@ -2971,7 +2976,7 @@
     <span class="ident">StoreFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">StoreError</span>),
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;envelope items were rate limited&quot;</span>)]</span>
-    <span class="ident">RateLimited</span>(<span class="ident">RateLimits</span>),
+    <span class="ident">RateLimited</span>,
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to apply quotas&quot;</span>)]</span>
@@ -3020,7 +3025,7 @@
             <span class="self">Self</span><span class="ident">::EventFiltered</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
             <span class="self">Self</span><span class="ident">::TraceSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
             <span class="self">Self</span><span class="ident">::EventSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="self">Self</span><span class="ident">::RateLimited</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="self">Self</span><span class="ident">::RateLimited</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="self">Self</span><span class="ident">::StoreFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
 
@@ -4579,13 +4584,13 @@
 
 <span class="doccomment">/// Error returned from [`EnvelopeManager::send_envelope`].</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::enum_variant_names</span>)]</span>
 <span class="kw">enum</span> <span class="ident">SendEnvelopeError</span> {
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">ScheduleFailed</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">StoreFailed</span>(<span class="ident">StoreError</span>),
     <span class="ident">SendFailed</span>(<span class="ident">UpstreamRequestError</span>),
-    <span class="ident">RateLimited</span>(<span class="ident">RateLimits</span>),
 }
 
 <span class="doccomment">/// Either a captured envelope or an error that occured during processing.</span>
@@ -4651,7 +4656,24 @@
                 <span class="ident">Box::new</span>(<span class="ident">future</span>)
             }
             <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">error</span>)));
+                <span class="kw">match</span> <span class="ident">error</span> {
+                    <span class="ident">UpstreamRequestError::RateLimited</span>(<span class="ident">upstream_limits</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                        <span class="ident">ProjectCache::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">UpdateRateLimits::new</span>(
+                            <span class="self">self</span>.<span class="ident">project_key</span>,
+                            <span class="ident">upstream_limits</span>.<span class="ident">clone</span>().<span class="ident">scope</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scoping</span>),
+                        ));
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
+                            <span class="ident">sender</span>
+                                .<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::RateLimited</span>(<span class="ident">upstream_limits</span>)))
+                                .<span class="ident">ok</span>();
+                        }
+                    }
+                    <span class="ident">error</span> <span class="op">=</span><span class="op">&gt;</span> {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
+                            <span class="ident">sender</span>.<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">error</span>)).<span class="ident">ok</span>();
+                        }
+                    }
+                };
                 <span class="ident">Box::new</span>(<span class="ident">future::err</span>(()))
             }
         }
@@ -4742,17 +4764,9 @@
         <span class="ident">UpstreamRelay::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">SendRequest</span>(<span class="ident">request</span>));
 
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">rx</span>
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SendEnvelopeError::SendFailed</span>(<span class="ident">UpstreamRequestError::ChannelClosed</span>))
-            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span><span class="op">|</span> {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::RateLimited</span>(<span class="ident">upstream_limits</span>)) <span class="op">=</span> <span class="ident">result</span> {
-                    <span class="kw">let</span> <span class="ident">limits</span> <span class="op">=</span> <span class="ident">upstream_limits</span>.<span class="ident">scope</span>(<span class="kw-2">&amp;</span><span class="ident">scoping</span>);
-                    <span class="ident">ProjectCache::from_registry</span>()
-                        .<span class="ident">do_send</span>(<span class="ident">UpdateRateLimits::new</span>(<span class="ident">project_key</span>, <span class="ident">limits</span>.<span class="ident">clone</span>()));
-                    <span class="prelude-val">Err</span>(<span class="ident">SendEnvelopeError::RateLimited</span>(<span class="ident">limits</span>))
-                } <span class="kw">else</span> {
-                    <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">SendEnvelopeError::SendFailed</span>)
-                }
-            });
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">UpstreamRequestError::ChannelClosed</span>)
+            .<span class="ident">flatten</span>()
+            .<span class="ident">map_err</span>(<span class="ident">SendEnvelopeError::SendFailed</span>);
 
         <span class="ident">Box::new</span>(<span class="ident">future</span>)
     }
@@ -4981,7 +4995,7 @@
                         <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>)
                     }
                     <span class="comment">// errors from rate limiting already produced outcomes nothing more to do</span>
-                    <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::RateLimited</span>(<span class="ident">checked</span>.<span class="ident">rate_limits</span>)),
+                    <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::RateLimited</span>),
                 }
             }))
             .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">envelope</span><span class="op">|</span> {
@@ -5037,7 +5051,7 @@
                 <span class="comment">// Processing returned new rate limits. Cache them on the project to avoid expensive</span>
                 <span class="comment">// processing while the limit is active.</span>
                 <span class="kw">if</span> <span class="ident">rate_limits</span>.<span class="ident">is_limited</span>() {
-                    <span class="ident">project_cache</span>.<span class="ident">do_send</span>(<span class="ident">UpdateRateLimits::new</span>(<span class="ident">project_key</span>, <span class="ident">rate_limits</span>.<span class="ident">clone</span>()));
+                    <span class="ident">project_cache</span>.<span class="ident">do_send</span>(<span class="ident">UpdateRateLimits::new</span>(<span class="ident">project_key</span>, <span class="ident">rate_limits</span>));
                 }
 
                 <span class="kw">if</span> <span class="op">!</span><span class="ident">processed</span>.<span class="ident">metrics</span>.<span class="ident">is_empty</span>() {
@@ -5051,7 +5065,7 @@
                         <span class="ident">envelope_context</span>.<span class="ident">borrow_mut</span>().<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
                         <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>)
                     }
-                    <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::RateLimited</span>(<span class="ident">rate_limits</span>)),
+                    <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::RateLimited</span>),
                 }
             }))
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
@@ -5081,10 +5095,6 @@
                                     }
 
                                     <span class="ident">ProcessingError::SendFailed</span>(<span class="ident">e</span>)
-                                }
-                                <span class="ident">SendEnvelopeError::RateLimited</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                                    <span class="comment">// outcome emitted at the source</span>
-                                    <span class="ident">ProcessingError::RateLimited</span>(<span class="ident">e</span>)
                                 }
                             }
                         })
