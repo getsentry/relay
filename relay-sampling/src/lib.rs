@@ -334,20 +334,20 @@ fn no_match<T>(_condition: &CustomCondition, _slf: &T, _ip_addr: Option<IpAddr>)
 impl FieldValueProvider for Event {
     fn get_value(&self, field_name: &str) -> Value {
         match field_name {
-            "event.release" => match self.release.0 {
+            "event.release" => match self.release.value() {
                 None => Value::Null,
-                Some(ref s) => Value::String(s.to_string()),
+                Some(ref s) => s.as_str().into(),
             },
-            "event.environment" => match self.environment.0 {
+            "event.environment" => match self.environment.value() {
                 None => Value::Null,
-                Some(ref s) => Value::String(s.into()),
+                Some(ref s) => s.as_str().into(),
             },
             "event.user.id" => self.user.value().map_or(Value::Null, |user| {
                 user.id.value().map_or(Value::Null, |id| {
                     if id.is_empty() {
                         Value::Null // we don't serialize empty values but check it anyway
                     } else {
-                        Value::String(id.as_str().into())
+                        id.as_str().into()
                     }
                 })
             }),
@@ -356,7 +356,7 @@ impl FieldValueProvider for Event {
                     if segment.is_empty() {
                         Value::Null
                     } else {
-                        Value::String(segment.into())
+                        segment.as_str().into()
                     }
                 })
             }),
@@ -365,9 +365,9 @@ impl FieldValueProvider for Event {
                 Value::Bool(relay_filter::browser_extensions::matches(self))
             }
             "event.web_crawlers" => Value::Bool(relay_filter::web_crawlers::matches(self)),
-            "event.transaction" => match self.transaction.0 {
+            "event.transaction" => match self.transaction.value() {
                 None => Value::Null,
-                Some(ref s) => Value::String(s.into()),
+                Some(ref s) => s.as_str().into(),
             },
             _ => Value::Null,
         }
@@ -462,29 +462,29 @@ impl FieldValueProvider for TraceContext {
         match field_name {
             "trace.release" => match self.release {
                 None => Value::Null,
-                Some(ref s) => Value::String(s.into()),
+                Some(ref s) => s.as_str().into(),
             },
             "trace.environment" => match self.environment {
                 None => Value::Null,
-                Some(ref s) => Value::String(s.into()),
+                Some(ref s) => s.as_str().into(),
             },
             "trace.user.id" => self.user.as_ref().map_or(Value::Null, |user| {
                 if user.id.is_empty() {
                     Value::Null
                 } else {
-                    Value::String(user.id.clone())
+                    user.id.as_str().into()
                 }
             }),
             "trace.user.segment" => self.user.as_ref().map_or(Value::Null, |user| {
                 if user.segment.is_empty() {
                     Value::Null
                 } else {
-                    Value::String(user.segment.clone())
+                    user.segment.as_str().into()
                 }
             }),
             "trace.transaction" => match self.transaction {
                 None => Value::Null,
-                Some(ref s) => Value::String(s.into()),
+                Some(ref s) => s.as_str().into(),
             },
             _ => Value::Null,
         }
