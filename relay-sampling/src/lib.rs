@@ -334,20 +334,20 @@ fn no_match<T>(_condition: &CustomCondition, _slf: &T, _ip_addr: Option<IpAddr>)
 impl FieldValueProvider for Event {
     fn get_value(&self, field_name: &str) -> Value {
         match field_name {
-            "event.release" => match self.release.0 {
+            "event.release" => match self.release.value() {
                 None => Value::Null,
-                Some(ref s) => Value::String(s.to_string()),
+                Some(s) => s.as_str().into(),
             },
-            "event.environment" => match self.environment.0 {
+            "event.environment" => match self.environment.value() {
                 None => Value::Null,
-                Some(ref s) => Value::String(s.into()),
+                Some(s) => s.as_str().into(),
             },
             "event.user.id" => self.user.value().map_or(Value::Null, |user| {
                 user.id.value().map_or(Value::Null, |id| {
                     if id.is_empty() {
                         Value::Null // we don't serialize empty values but check it anyway
                     } else {
-                        Value::String(id.as_str().into())
+                        id.as_str().into()
                     }
                 })
             }),
@@ -356,7 +356,7 @@ impl FieldValueProvider for Event {
                     if segment.is_empty() {
                         Value::Null
                     } else {
-                        Value::String(segment.into())
+                        segment.as_str().into()
                     }
                 })
             }),
@@ -365,6 +365,10 @@ impl FieldValueProvider for Event {
                 Value::Bool(relay_filter::browser_extensions::matches(self))
             }
             "event.web_crawlers" => Value::Bool(relay_filter::web_crawlers::matches(self)),
+            "event.transaction" => match self.transaction.value() {
+                None => Value::Null,
+                Some(s) => s.as_str().into(),
+            },
             _ => Value::Null,
         }
     }
@@ -458,26 +462,30 @@ impl FieldValueProvider for TraceContext {
         match field_name {
             "trace.release" => match self.release {
                 None => Value::Null,
-                Some(ref s) => Value::String(s.into()),
+                Some(ref s) => s.as_str().into(),
             },
             "trace.environment" => match self.environment {
                 None => Value::Null,
-                Some(ref s) => Value::String(s.into()),
+                Some(ref s) => s.as_str().into(),
             },
             "trace.user.id" => self.user.as_ref().map_or(Value::Null, |user| {
                 if user.id.is_empty() {
                     Value::Null
                 } else {
-                    Value::String(user.id.clone())
+                    user.id.as_str().into()
                 }
             }),
             "trace.user.segment" => self.user.as_ref().map_or(Value::Null, |user| {
                 if user.segment.is_empty() {
                     Value::Null
                 } else {
-                    Value::String(user.segment.clone())
+                    user.segment.as_str().into()
                 }
             }),
+            "trace.transaction" => match self.transaction {
+                None => Value::Null,
+                Some(ref s) => s.as_str().into(),
+            },
             _ => Value::Null,
         }
     }
@@ -538,6 +546,11 @@ pub struct TraceContext {
     /// the environment
     #[serde(default)]
     pub environment: Option<String>,
+    /// the name of the transaction extracted from the `transaction` field in the starting transaction
+    ///
+    /// set on transaction start, or via `scope.transaction`
+    #[serde(default)]
+    pub transaction: Option<String>,
 }
 
 impl TraceContext {
@@ -693,6 +706,7 @@ mod tests {
                 ))]))),
                 ..Default::default()
             }),
+            transaction: Annotated::new("some-transaction".into()),
             ..Default::default()
         };
 
@@ -718,6 +732,10 @@ mod tests {
             event.get_value("event.has_bad_browser_extensions")
         );
         assert_eq!(Value::Bool(true), event.get_value("event.web_crawlers"));
+        assert_eq!(
+            Value::String("some-transaction".into()),
+            event.get_value("event.transaction")
+        );
     }
 
     #[test]
@@ -746,6 +764,7 @@ mod tests {
 
         assert_eq!(Value::Null, event.get_value("event.user.id"));
         assert_eq!(Value::Null, event.get_value("event.user.segment"));
+        assert_eq!(Value::Null, event.get_value("event.transaction"));
     }
 
     #[test]
@@ -753,12 +772,13 @@ mod tests {
         let tc = TraceContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
+            release: Some("1.1.1".into()),
             user: Some(TraceUserContext {
-                segment: "user-seg".to_owned(),
-                id: "user-id".to_owned(),
+                segment: "user-seg".into(),
+                id: "user-id".into(),
             }),
-            environment: Some("prod".to_string()),
+            environment: Some("prod".into()),
+            transaction: Some("transaction1".into()),
         };
 
         assert_eq!(Value::String("1.1.1".into()), tc.get_value("trace.release"));
@@ -774,6 +794,10 @@ mod tests {
             Value::String("user-seg".into()),
             tc.get_value("trace.user.segment")
         );
+        assert_eq!(
+            Value::String("transaction1".into()),
+            tc.get_value("trace.transaction")
+        )
     }
 
     #[test]
@@ -784,11 +808,13 @@ mod tests {
             release: None,
             user: None,
             environment: None,
+            transaction: None,
         };
-        assert_eq!(Value::Null, tc.get_value("event.release"));
-        assert_eq!(Value::Null, tc.get_value("event.environment"));
-        assert_eq!(Value::Null, tc.get_value("event.user.id"));
-        assert_eq!(Value::Null, tc.get_value("event.user.segment"));
+        assert_eq!(Value::Null, tc.get_value("trace.release"));
+        assert_eq!(Value::Null, tc.get_value("trace.environment"));
+        assert_eq!(Value::Null, tc.get_value("trace.user.id"));
+        assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
+        assert_eq!(Value::Null, tc.get_value("trace.user.transaction"));
 
         let tc = TraceContext {
             trace_id: Uuid::new_v4(),
@@ -796,9 +822,10 @@ mod tests {
             release: None,
             user: Some(TraceUserContext::default()),
             environment: None,
+            transaction: None,
         };
-        assert_eq!(Value::Null, tc.get_value("event.user.id"));
-        assert_eq!(Value::Null, tc.get_value("event.user.segment"));
+        assert_eq!(Value::Null, tc.get_value("trace.user.id"));
+        assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
     }
 
     #[test]
@@ -811,6 +838,7 @@ mod tests {
                     glob("trace.release", &["1.1.1"]),
                     eq("trace.environment", &["debug"], true),
                     eq("trace.user.segment", &["vip"], true),
+                    eq("trace.transaction", &["transaction1"], true),
                 ]),
             ),
             (
@@ -820,6 +848,10 @@ mod tests {
                     eq("trace.environment", &["debug"], true),
                     eq("trace.user.segment", &["vip"], true),
                 ]),
+            ),
+            (
+                "glob transaction",
+                and(vec![glob("trace.transaction", &["trans*"])]),
             ),
             (
                 "multiple releases",
@@ -836,6 +868,10 @@ mod tests {
                     eq("trace.environment", &["debug"], true),
                     eq("trace.user.segment", &["paid", "vip", "free"], true),
                 ]),
+            ),
+            (
+                "multiple transactions",
+                and(vec![glob("trace.transaction", &["t22", "trans*", "t33"])]),
             ),
             (
                 "case insensitive user segments",
@@ -885,12 +921,13 @@ mod tests {
         let tc = TraceContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
+            release: Some("1.1.1".into()),
             user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
+                segment: "vip".into(),
+                id: "user-id".into(),
             }),
-            environment: Some("debug".to_string()),
+            environment: Some("debug".into()),
+            transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
@@ -904,6 +941,10 @@ mod tests {
     fn test_matches_events() {
         let conditions = [
             ("release", and(vec![glob("event.release", &["1.1.1"])])),
+            (
+                "transaction",
+                and(vec![glob("event.transaction", &["trans*"])]),
+            ),
             (
                 "environment",
                 or(vec![eq("event.environment", &["prod"], true)]),
@@ -962,6 +1003,7 @@ mod tests {
                 formatted: Annotated::new("abc".to_owned().into()),
                 ..Default::default()
             }),
+            transaction: Annotated::new("transaction1".into()),
             ..Default::default()
         };
 
@@ -1058,6 +1100,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1117,6 +1160,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1153,6 +1197,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1193,6 +1238,14 @@ mod tests {
                     eq("trace.user", &["vip"], true),
                 ]),
             ),
+            (
+                "transaction",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    glob("trace.transaction", &["t22"]),
+                    eq("trace.user", &["vip"], true),
+                ]),
+            ),
         ];
 
         let tc = TraceContext {
@@ -1204,6 +1257,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
@@ -1418,6 +1472,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         assert!(
@@ -1435,6 +1490,7 @@ mod tests {
             release: Some("1.1.1".to_string()),
             user: None,
             environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         assert!(
@@ -1455,6 +1511,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: None,
+            transaction: Some("transaction1".into()),
         };
 
         assert!(
@@ -1462,6 +1519,26 @@ mod tests {
             "did not match with missing environment"
         );
 
+        let condition = and(vec![
+            glob("trace.release", &["1.1.1"]),
+            eq("trace.user.segment", &["vip"], true),
+        ]);
+        let tc = TraceContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Some(TraceUserContext {
+                segment: "vip".to_owned(),
+                id: "user-id".to_owned(),
+            }),
+            environment: Some("debug".to_string()),
+            transaction: None,
+        };
+
+        assert!(
+            condition.matches_trace(&tc, None),
+            "did not match with missing transaction"
+        );
         let condition = and(vec![]);
         let tc = TraceContext {
             trace_id: Uuid::new_v4(),
@@ -1469,11 +1546,12 @@ mod tests {
             release: None,
             user: None,
             environment: None,
+            transaction: None,
         };
 
         assert!(
             condition.matches_trace(&tc, None),
-            "did not match with missing release, user segment and environment"
+            "did not match with missing release, user segment, environment and transaction"
         );
     }
 
@@ -1548,6 +1626,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1567,6 +1646,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1586,6 +1666,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1605,6 +1686,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("production".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1624,6 +1706,7 @@ mod tests {
                 id: "user-id".to_owned(),
             }),
             environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
