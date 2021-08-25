@@ -170,11 +170,12 @@ def mini_sentry(request):
     authenticated_relays = {}
 
     def is_trusted(relay_id, project_config):
-        if authenticated_relays[relay_id].get("internal", False):
+        relay_info = authenticated_relays[relay_id]
+        if relay_info.get("internal", False):
             return True
         if not project_config:
             return False
-        return relay_id in project_config["config"]["trustedRelays"]
+        return relay_info["publicKey"] in project_config["config"]["trustedRelays"]
 
     def get_error_message(data):
         exceptions = data.get("exception", {}).get("values", [])
