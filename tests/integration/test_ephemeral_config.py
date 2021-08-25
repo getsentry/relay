@@ -49,21 +49,15 @@ def test_store_via_ephemeral_relay(
     if config_method == "arg":
         args += [
             "--no-processing",
-            "--upstream",
-            upstream,
-            "--port",
-            str(port),
-            "--mode",
-            mode,
+            "--upstream={}".format(upstream),
+            "--port={}".format(port),
+            "--mode={}".format(mode),
         ]
         if mode == "managed":
             args += [
-                "--id",
-                relay_id,
-                "--public-key",
-                public_key,
-                "--secret-key",
-                secret_key,
+                "--id={}".format(relay_id),
+                "--public-key={}".format(public_key),
+                "--secret-key={}".format(secret_key),
             ]
     if config_method == "env":
         env["RELAY_PROCESSING_ENABLED"] = "false"
