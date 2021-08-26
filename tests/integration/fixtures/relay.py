@@ -174,3 +174,12 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         return relay
 
     return inner
+
+
+@pytest.fixture
+def latest_relay_version(get_relay_binary):
+    version_str = subprocess.check_output(
+        get_relay_binary() + ["--version"], universal_newlines=True
+    ).strip()
+    _the_word_relay, version = version_str.split(" ", 1)
+    return version
