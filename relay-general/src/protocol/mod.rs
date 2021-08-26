@@ -13,7 +13,7 @@ mod logentry;
 mod measurements;
 mod mechanism;
 mod metrics;
-mod relayinfo;
+mod relay_info;
 mod request;
 #[cfg(feature = "jsonschema")]
 mod schema;

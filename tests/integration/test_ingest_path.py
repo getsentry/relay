@@ -1,5 +1,6 @@
-def test_ingest_path(mini_sentry, relay, latest_relay_version):
-    internal_keys = list(mini_sentry.iter_public_keys())
+def test_ingest_path(mini_sentry, relay, relay_with_processing, latest_relay_version):
+    internal_relay = relay_with_processing()
+    internal_keys = list(internal_relay.iter_public_keys())
     relay = relay(relay(relay(mini_sentry)))
     project_id = 42
     project_config = mini_sentry.add_basic_project_config(project_id)

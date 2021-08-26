@@ -449,7 +449,7 @@ pub struct Event {
 
     /// Information about the Relays that processed this event during ingest.
     #[metastructure(bag_size = "medium")]
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "empty", omit_from_schema)]
     pub ingest_path: Annotated<Array<RelayInfo>>,
 
     /// Errors encountered during processing. Intended to be phased out in favor of

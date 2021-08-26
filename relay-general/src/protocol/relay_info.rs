@@ -4,13 +4,12 @@ use crate::types::{Annotated, Object, Value};
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct RelayInfo {
-    /// The version of the Relay. Required.
-    /// TODO
+    /// Version of the Relay. Required.
     #[metastructure(required = "true", max_chars = "symbol")]
     pub version: Annotated<String>,
 
-    /// TODO
-    #[metastructure()]
+    /// Public key of the Relay. Required.
+    #[metastructure(required = "true", max_chars = "symbol")]
     pub public_key: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
