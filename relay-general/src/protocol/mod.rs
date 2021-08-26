@@ -52,7 +52,7 @@ pub use self::logentry::{LogEntry, Message};
 pub use self::measurements::{Measurement, Measurements};
 pub use self::mechanism::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
 pub use self::metrics::{Metrics, SampleRate};
-pub use self::relayinfo::RelayInfo;
+pub use self::relay_info::RelayInfo;
 pub use self::request::{Cookies, HeaderName, HeaderValue, Headers, Query, Request};
 #[cfg(feature = "jsonschema")]
 pub use self::schema::event_json_schema;
