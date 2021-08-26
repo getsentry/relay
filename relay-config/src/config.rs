@@ -6,6 +6,7 @@ use std::io;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
@@ -216,6 +217,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
 /// CLI parameters or environment variables
 #[derive(Debug, Default)]
 pub struct OverridableConfig {
+    /// The operation mode of this relay.
+    pub mode: Option<String>,
     /// The upstream relay or sentry instance.
     pub upstream: Option<String>,
     /// The host the relay should bind to (network interface).
@@ -336,6 +339,22 @@ impl fmt::Display for RelayMode {
             RelayMode::Static => write!(f, "static"),
             RelayMode::Managed => write!(f, "managed"),
             RelayMode::Capture => write!(f, "capture"),
+        }
+    }
+}
+
+impl FromStr for RelayMode {
+    type Err = Context<&'static str>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "proxy" => Ok(RelayMode::Proxy),
+            "static" => Ok(RelayMode::Static),
+            "managed" => Ok(RelayMode::Managed),
+            "capture" => Ok(RelayMode::Capture),
+            _ => Err(Context::new(
+                "Relay mode must be one of: managed, static, proxy, capture",
+            )),
         }
     }
 }
@@ -999,6 +1018,12 @@ impl Config {
         mut overrides: OverridableConfig,
     ) -> Result<&mut Self, ConfigError> {
         let relay = &mut self.values.relay;
+
+        if let Some(mode) = overrides.mode {
+            relay.mode = mode
+                .parse::<RelayMode>()
+                .map_err(|err| ConfigError::for_field(err, "mode"))?;
+        }
 
         if let Some(upstream) = overrides.upstream {
             relay.upstream = upstream

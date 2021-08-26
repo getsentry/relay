@@ -10,7 +10,7 @@ import pytest
 
 from . import SentryLike
 
-RELAY_BIN = [os.environ.get("RELAY_BIN") or "target/debug/relay"]
+RELAY_BIN = [os.path.abspath(os.environ.get("RELAY_BIN") or "target/debug/relay")]
 
 if os.environ.get("RELAY_AS_CARGO", "false") == "true":
     RELAY_BIN = ["cargo", "run", "--"]

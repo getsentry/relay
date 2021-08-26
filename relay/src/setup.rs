@@ -16,10 +16,14 @@ pub fn check_config(config: &Config) -> Result<(), Error> {
 
 /// Print spawn infos to the log.
 pub fn dump_spawn_infos(config: &Config) {
-    relay_log::info!(
-        "launching relay from config folder {}",
-        config.path().display()
-    );
+    if config.path().as_os_str().is_empty() {
+        relay_log::info!("launching relay without config folder");
+    } else {
+        relay_log::info!(
+            "launching relay from config folder {}",
+            config.path().display()
+        );
+    }
     relay_log::info!("  relay mode: {}", config.relay_mode());
 
     match config.relay_id() {
