@@ -1,8 +1,20 @@
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::protocol::{Event, Span, Timestamp};
 use crate::types::Annotated;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum SpanAttribute {
+    #[serde(rename = "exclusive-time")]
+    ExclusiveTime,
+
+    /// forward compatibility
+    #[serde(other)]
+    Unknown,
+}
 
 #[derive(Clone, Debug)]
 struct TimeInterval {
@@ -125,8 +137,8 @@ fn get_span_interval(span: &Span) -> Option<TimeInterval> {
     Some(TimeInterval::new(start_timestamp, end_timestamp))
 }
 
-pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<String>) {
-    if attributes.contains("exclusive-time") {
+pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<SpanAttribute>) {
+    if attributes.contains(&SpanAttribute::ExclusiveTime) {
         let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
         let mut span_map = HashMap::new();
@@ -320,7 +332,7 @@ mod tests {
         };
 
         let mut config = BTreeSet::new();
-        config.insert("exclusive-time".to_string());
+        config.insert(SpanAttribute::ExclusiveTime);
 
         normalize_spans(&mut event, &config);
 
@@ -382,7 +394,7 @@ mod tests {
         };
 
         let mut config = BTreeSet::new();
-        config.insert("exclusive-time".to_string());
+        config.insert(SpanAttribute::ExclusiveTime);
 
         normalize_spans(&mut event, &config);
 
@@ -444,7 +456,7 @@ mod tests {
         };
 
         let mut config = BTreeSet::new();
-        config.insert("exclusive-time".to_string());
+        config.insert(SpanAttribute::ExclusiveTime);
 
         normalize_spans(&mut event, &config);
 
@@ -506,7 +518,7 @@ mod tests {
         };
 
         let mut config = BTreeSet::new();
-        config.insert("exclusive-time".to_string());
+        config.insert(SpanAttribute::ExclusiveTime);
 
         normalize_spans(&mut event, &config);
 
@@ -568,7 +580,7 @@ mod tests {
         };
 
         let mut config = BTreeSet::new();
-        config.insert("exclusive-time".to_string());
+        config.insert(SpanAttribute::ExclusiveTime);
 
         normalize_spans(&mut event, &config);
 
@@ -630,7 +642,7 @@ mod tests {
         };
 
         let mut config = BTreeSet::new();
-        config.insert("exclusive-time".to_string());
+        config.insert(SpanAttribute::ExclusiveTime);
 
         normalize_spans(&mut event, &config);
 
@@ -694,7 +706,7 @@ mod tests {
         };
 
         let mut config = BTreeSet::new();
-        config.insert("exclusive-time".to_string());
+        config.insert(SpanAttribute::ExclusiveTime);
 
         normalize_spans(&mut event, &config);
 

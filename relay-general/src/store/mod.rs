@@ -23,6 +23,7 @@ mod trimming;
 pub use self::clock_drift::ClockDriftProcessor;
 pub use self::geo::{GeoIpError, GeoIpLookup};
 pub use normalize::breakdowns::BreakdownsConfig;
+pub use normalize::spans::SpanAttribute;
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -55,7 +56,7 @@ pub struct StoreConfig {
     /// Emit breakdowns based on given configuration.
     pub breakdowns: Option<normalize::breakdowns::BreakdownsConfig>,
 
-    pub span_attributes: BTreeSet<String>,
+    pub span_attributes: BTreeSet<SpanAttribute>,
 }
 
 /// The processor that normalizes events for store.
