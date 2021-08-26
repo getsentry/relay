@@ -203,14 +203,18 @@ impl UpstreamRequest for ForwardRequest {
                     .and_then(move |body| Ok((status, headers, body)))
                     .map_err(UpstreamRequestError::Http)
                     .then(|result| {
-                        sender.map(|sender| sender.send(result));
+                        if let Some(sender) = sender {
+                            sender.send(result).ok();
+                        }
                         Ok(())
                     });
 
                 Box::new(future)
             }
             Err(e) => {
-                sender.map(|sender| sender.send(Err(e)));
+                if let Some(sender) = sender {
+                    sender.send(Err(e)).ok();
+                }
                 Box::new(future::err(()))
             }
         }
