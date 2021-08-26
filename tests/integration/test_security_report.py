@@ -5,6 +5,7 @@ CSP_IGNORED_FIELDS = (
     "event_id",
     "timestamp",
     "received",
+    "ingest_path",
 )
 EXPECT_CT_IGNORED_FIELDS = ("event_id", "ingest_path")
 EXPECT_STAPLE_IGNORED_FIELDS = ("event_id", "ingest_path")
