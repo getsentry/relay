@@ -341,6 +341,19 @@
 <span id="341">341</span>
 <span id="342">342</span>
 <span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::io</span>;
@@ -351,7 +364,9 @@
 <span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">err_msg</span>, <span class="ident">Error</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common::Uuid</span>;
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">Credentials</span>, <span class="ident">MinimalConfig</span>, <span class="ident">OverridableConfig</span>, <span class="ident">RelayMode</span>};
+<span class="kw">use</span> <span class="ident">relay_config</span>::{
+    <span class="ident">Config</span>, <span class="ident">ConfigErrorKind</span>, <span class="ident">Credentials</span>, <span class="ident">MinimalConfig</span>, <span class="ident">OverridableConfig</span>, <span class="ident">RelayMode</span>,
+};
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::cliapp::make_app</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::setup</span>;
@@ -374,7 +389,16 @@
     }
 
     <span class="comment">// Commands that need a loaded config:</span>
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">Config::from_path</span>(<span class="kw-2">&amp;</span><span class="ident">config_path</span>)<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">Config::from_path</span>(<span class="kw-2">&amp;</span><span class="ident">config_path</span>) {
+        <span class="prelude-val">Ok</span>(<span class="ident">config</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>,
+        <span class="prelude-val">Err</span>(<span class="ident">e</span>)
+            <span class="kw">if</span> <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;config&quot;</span>).<span class="ident">is_none</span>()
+                <span class="op">&amp;&amp;</span> <span class="ident">e</span>.<span class="ident">kind</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ConfigErrorKind::CouldNotOpenFile</span> <span class="op">=</span><span class="op">&gt;</span>
+        {
+            <span class="ident">Config::default</span>()
+        }
+        <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>.<span class="ident">into</span>()),
+    };
     <span class="comment">// override file config with environment variables</span>
     <span class="kw">let</span> <span class="ident">env_config</span> <span class="op">=</span> <span class="ident">extract_config_env_vars</span>();
     <span class="ident">config</span>.<span class="ident">apply_override</span>(<span class="ident">env_config</span>)<span class="question-mark">?</span>;
@@ -405,6 +429,7 @@
     };
 
     <span class="ident">OverridableConfig</span> {
+        <span class="ident">mode</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;mode&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
         <span class="ident">upstream</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;upstream&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
         <span class="ident">host</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;host&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
         <span class="ident">port</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;port&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
@@ -421,6 +446,7 @@
 <span class="doccomment">/// Extract config arguments from environment variables</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">extract_config_env_vars</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">OverridableConfig</span> {
     <span class="ident">OverridableConfig</span> {
+        <span class="ident">mode</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_MODE&quot;</span>).<span class="ident">ok</span>(),
         <span class="ident">upstream</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_UPSTREAM_URL&quot;</span>).<span class="ident">ok</span>(),
         <span class="ident">host</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_HOST&quot;</span>).<span class="ident">ok</span>(),
         <span class="ident">port</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_PORT&quot;</span>).<span class="ident">ok</span>(),
