@@ -27,7 +27,6 @@ def test_store_via_ephemeral_relay(
     secret_key = ""
     relay_id = ""
     if mode == "managed":
-        # TODO(michal): should not need config dir
         credentials = json.loads(
             subprocess.check_output(
                 relay_bin + ["credentials", "generate", "--stdout"],
