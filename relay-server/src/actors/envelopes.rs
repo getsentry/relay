@@ -1711,7 +1711,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
                     Some(metric)
                 });
 
-                relay_log::trace!("inserting metrics into project aggregator");
+                relay_log::trace!("inserting metrics into project cache");
                 project_cache.do_send(InsertMetrics::new(public_key, metrics));
             } else if item.ty() == ItemType::MetricBuckets {
                 if let Ok(mut buckets) = Bucket::parse_all(&payload) {
@@ -1719,7 +1719,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
                         clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                     }
 
-                    relay_log::trace!("merging metric buckets into project aggregator");
+                    relay_log::trace!("merging metric buckets into project cache");
                     project_cache.do_send(MergeBuckets::new(public_key, buckets));
                 }
             } else {
