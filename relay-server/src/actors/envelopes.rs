@@ -11,15 +11,18 @@ use actix_web::http::Method;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
+use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
 
+use relay_auth::RelayVersion;
 use relay_common::{clone, metric, ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, SecurityReportType, SessionUpdate, Timestamp, UserReport, Values,
+    LenientString, Metrics, RelayInfo, SecurityReportType, SessionUpdate, Timestamp, UserReport,
+    Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -1185,6 +1188,23 @@ impl EnvelopeProcessor {
             None if !self.config.processing_enabled() => return Ok(()),
             None => return Err(ProcessingError::NoEventPayload),
         };
+
+        if !self.config.processing_enabled() {
+            lazy_static! {
+                static ref MY_VERSION_STRING: String = format!("{}", RelayVersion::current());
+            }
+            event
+                .ingest_path
+                .get_or_insert_with(Default::default)
+                .push(Annotated::new(RelayInfo {
+                    version: Annotated::new(MY_VERSION_STRING.clone()),
+                    public_key: self
+                        .config
+                        .public_key()
+                        .map_or(Annotated::empty(), |pk| Annotated::new(pk.to_string())),
+                    other: Default::default(),
+                }));
+        }
 
         // Event id is set statically in the ingest path.
         let event_id = envelope.event_id().unwrap_or_default();
