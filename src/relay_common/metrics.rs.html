@@ -1095,7 +1095,7 @@
         <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
             <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::_pred</span>::<span class="kw-2">*</span>;
             <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">time_duration_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
+                <span class="ident">client</span>.<span class="ident">time_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>)
                     $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
             )
         })
@@ -1108,7 +1108,7 @@
         <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::with_client</span>(<span class="op">|</span><span class="ident">client</span><span class="op">|</span> {
             <span class="kw">use</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::_pred</span>::<span class="kw-2">*</span>;
             <span class="ident">client</span>.<span class="ident">send_metric</span>(
-                <span class="ident">client</span>.<span class="ident">time_duration_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="ident">now</span>.<span class="ident">elapsed</span>())
+                <span class="ident">client</span>.<span class="ident">time_with_tags</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span><span class="macro-nonterminal">::metrics::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>), <span class="ident">now</span>.<span class="ident">elapsed</span>())
                     $(.<span class="ident">with_tag</span>(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">k</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>))<span class="op">*</span>
             )
         });

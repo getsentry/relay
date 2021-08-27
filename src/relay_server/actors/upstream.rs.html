@@ -1929,7 +1929,7 @@
         );
 
         <span class="macro">metric!</span>(
-            <span class="ident">histogram</span>(<span class="ident">RelayHistograms::UpstreamRetries</span>) <span class="op">=</span> <span class="ident">request</span>.<span class="ident">previous_retries</span>.<span class="ident">into</span>(),
+            <span class="ident">histogram</span>(<span class="ident">RelayHistograms::UpstreamRetries</span>) <span class="op">=</span> <span class="ident">request</span>.<span class="ident">previous_retries</span> <span class="kw">as</span> <span class="ident">u64</span>,
             <span class="ident">result</span> <span class="op">=</span> <span class="ident">result</span>,
             <span class="ident">status_code</span> <span class="op">=</span> <span class="ident">status_code</span>,
             <span class="ident">route</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">route_name</span>(),
