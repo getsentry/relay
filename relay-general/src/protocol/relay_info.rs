@@ -8,8 +8,8 @@ pub struct RelayInfo {
     #[metastructure(required = "true", max_chars = "symbol")]
     pub version: Annotated<String>,
 
-    /// Public key of the Relay. Required.
-    #[metastructure(required = "true", max_chars = "symbol")]
+    /// Public key of the Relay.
+    #[metastructure(required = "false", max_chars = "symbol")]
     pub public_key: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
