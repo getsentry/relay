@@ -2847,6 +2847,26 @@
 <span id="2847">2847</span>
 <span id="2848">2848</span>
 <span id="2849">2849</span>
+<span id="2850">2850</span>
+<span id="2851">2851</span>
+<span id="2852">2852</span>
+<span id="2853">2853</span>
+<span id="2854">2854</span>
+<span id="2855">2855</span>
+<span id="2856">2856</span>
+<span id="2857">2857</span>
+<span id="2858">2858</span>
+<span id="2859">2859</span>
+<span id="2860">2860</span>
+<span id="2861">2861</span>
+<span id="2862">2862</span>
+<span id="2863">2863</span>
+<span id="2864">2864</span>
+<span id="2865">2865</span>
+<span id="2866">2866</span>
+<span id="2867">2867</span>
+<span id="2868">2868</span>
+<span id="2869">2869</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
@@ -2861,15 +2881,18 @@
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Duration</span> <span class="kw">as</span> <span class="ident">SignedDuration</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">prelude</span>::<span class="kw-2">*</span>, <span class="ident">sync::oneshot</span>};
+<span class="kw">use</span> <span class="ident">lazy_static::lazy_static</span>;
 <span class="kw">use</span> <span class="ident">serde_json::Value</span> <span class="kw">as</span> <span class="ident">SerdeValue</span>;
 
+<span class="kw">use</span> <span class="ident">relay_auth::RelayVersion</span>;
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">metric</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">PiiProcessor</span>};
 <span class="kw">use</span> <span class="ident">relay_general::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
     <span class="self">self</span>, <span class="ident">Breadcrumb</span>, <span class="ident">Csp</span>, <span class="ident">Event</span>, <span class="ident">EventId</span>, <span class="ident">EventType</span>, <span class="ident">ExpectCt</span>, <span class="ident">ExpectStaple</span>, <span class="ident">Hpkp</span>, <span class="ident">IpAddr</span>,
-    <span class="ident">LenientString</span>, <span class="ident">Metrics</span>, <span class="ident">SecurityReportType</span>, <span class="ident">SessionUpdate</span>, <span class="ident">Timestamp</span>, <span class="ident">UserReport</span>, <span class="ident">Values</span>,
+    <span class="ident">LenientString</span>, <span class="ident">Metrics</span>, <span class="ident">RelayInfo</span>, <span class="ident">SecurityReportType</span>, <span class="ident">SessionUpdate</span>, <span class="ident">Timestamp</span>, <span class="ident">UserReport</span>,
+    <span class="ident">Values</span>,
 };
 <span class="kw">use</span> <span class="ident">relay_general::store::ClockDriftProcessor</span>;
 <span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
@@ -4035,6 +4058,23 @@
             <span class="prelude-val">None</span> <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::NoEventPayload</span>),
         };
+
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
+            <span class="macro">lazy_static!</span> {
+                <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">MY_VERSION_STRING</span>: <span class="ident">String</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">RelayVersion::current</span>());
+            }
+            <span class="ident">event</span>
+                .<span class="ident">ingest_path</span>
+                .<span class="ident">get_or_insert_with</span>(<span class="ident">Default::default</span>)
+                .<span class="ident">push</span>(<span class="ident">Annotated::new</span>(<span class="ident">RelayInfo</span> {
+                    <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="ident">MY_VERSION_STRING</span>.<span class="ident">clone</span>()),
+                    <span class="ident">public_key</span>: <span class="self">self</span>
+                        .<span class="ident">config</span>
+                        .<span class="ident">public_key</span>()
+                        .<span class="ident">map_or</span>(<span class="ident">Annotated::empty</span>(), <span class="op">|</span><span class="ident">pk</span><span class="op">|</span> <span class="ident">Annotated::new</span>(<span class="ident">pk</span>.<span class="ident">to_string</span>())),
+                    <span class="ident">other</span>: <span class="ident">Default::default</span>(),
+                }));
+        }
 
         <span class="comment">// Event id is set statically in the ingest path.</span>
         <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>().<span class="ident">unwrap_or_default</span>();
