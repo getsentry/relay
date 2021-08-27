@@ -1698,6 +1698,28 @@ mod tests {
     }
 
     #[test]
+    fn test_aggregator_mixed_projects() {
+        relay_test::setup();
+
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            ..AggregatorConfig::default()
+        };
+
+        let receiver = TestReceiver::start_default().recipient();
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+        let mut aggregator = Aggregator::new(config, receiver);
+
+        // It's OK to have same metric with different projects:
+        aggregator.insert(project_key1, some_metric()).unwrap();
+        aggregator.insert(project_key2, some_metric()).unwrap();
+
+        assert_eq!(aggregator.buckets.len(), 2);
+    }
+
+    #[test]
     fn test_flush_bucket() {
         relay_test::setup();
         let receiver = TestReceiver::default();
