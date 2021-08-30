@@ -132,11 +132,11 @@ impl ServiceState {
         registry.set(envelope_manager.start());
 
         let project_cache = ProjectCache::new(config.clone(), redis_pool).start();
-        registry
-            .set(Aggregator::new(config.aggregator_config(), project_cache.recipient()).start());
-        registry.set(project_cache);
+        registry.set(project_cache.clone());
         registry.set(Healthcheck::new(config.clone()).start());
         registry.set(RelayCache::new(config.clone()).start());
+        registry
+            .set(Aggregator::new(config.aggregator_config(), project_cache.recipient()).start());
 
         Ok(ServiceState { config })
     }
