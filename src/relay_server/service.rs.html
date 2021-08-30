@@ -273,11 +273,6 @@
 <span id="273">273</span>
 <span id="274">274</span>
 <span id="275">275</span>
-<span id="276">276</span>
-<span id="277">277</span>
-<span id="278">278</span>
-<span id="279">279</span>
-<span id="280">280</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -412,17 +407,12 @@
         <span class="kw">let</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManager::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">processor</span>)<span class="question-mark">?</span>;
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">envelope_manager</span>.<span class="ident">start</span>());
 
-        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">ProjectCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>).<span class="ident">start</span>());
+        <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">ProjectCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>).<span class="ident">start</span>();
+        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">project_cache</span>.<span class="ident">clone</span>());
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Healthcheck::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>());
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">RelayCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>());
-
-        <span class="ident">registry</span>.<span class="ident">set</span>(
-            <span class="ident">Aggregator::new</span>(
-                <span class="ident">config</span>.<span class="ident">aggregator_config</span>(),
-                <span class="ident">ProjectCache::from_registry</span>().<span class="ident">recipient</span>(),
-            )
-            .<span class="ident">start</span>(),
-        );
+        <span class="ident">registry</span>
+            .<span class="ident">set</span>(<span class="ident">Aggregator::new</span>(<span class="ident">config</span>.<span class="ident">aggregator_config</span>(), <span class="ident">project_cache</span>.<span class="ident">recipient</span>()).<span class="ident">start</span>());
 
         <span class="prelude-val">Ok</span>(<span class="ident">ServiceState</span> { <span class="ident">config</span> })
     }

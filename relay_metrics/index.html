@@ -23,7 +23,7 @@ endpoint.response_time@ms:57|d|#route:user_index
 the <code>received</code> time of the envelope is assumed.</p>
 <h1 id="aggregation" class="section-header"><a href="#aggregation">Aggregation</a></h1>
 <p>Relay accumulates all metrics in <a href="struct.Bucket.html">time buckets</a> before sending them onwards. Aggregation
-is handled by the <a href="struct.Aggregator.html" title="Aggregator"><code>Aggregator</code></a>, which should be created once per Project Key (DSN). It flushes
+is handled by the <a href="struct.Aggregator.html" title="Aggregator"><code>Aggregator</code></a>, which should be created once for the entire system. It flushes
 aggregates in regular intervals, either shortly after their original time window has passed or
 with a debounce delay for backdated submissions.</p>
 <p><strong>Warning</strong>: With chained Relays submission delays accumulate.</p>
@@ -83,7 +83,7 @@ to the aggregation payload, with the addition of scoping information:</p>
 <table><tr class="module-item"><td><a class="macro" href="macro.dist.html" title="relay_metrics::dist macro">dist</a></td><td class="docblock-short"><p>Creates a <a href="struct.DistributionValue.html" title="DistributionValue"><code>DistributionValue</code></a> containing the given arguments.</p>
 </td></tr></table><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2>
 <table><tr class="module-item"><td><a class="struct" href="struct.AggregateMetricsError.html" title="relay_metrics::AggregateMetricsError struct">AggregateMetricsError</a></td><td class="docblock-short"><p>Any error that may occur during aggregation.</p>
-</td></tr><tr class="module-item"><td><a class="struct" href="struct.Aggregator.html" title="relay_metrics::Aggregator struct">Aggregator</a></td><td class="docblock-short"><p>A collector of <a href="struct.Metric.html" title="Metric"><code>Metric</code></a> submissions. Every project key (DSN) has one Aggregator.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.Aggregator.html" title="relay_metrics::Aggregator struct">Aggregator</a></td><td class="docblock-short"><p>A collector of <a href="struct.Metric.html" title="Metric"><code>Metric</code></a> submissions.</p>
 </td></tr><tr class="module-item"><td><a class="struct" href="struct.AggregatorConfig.html" title="relay_metrics::AggregatorConfig struct">AggregatorConfig</a></td><td class="docblock-short"><p>Parameters used by the <a href="struct.Aggregator.html" title="Aggregator"><code>Aggregator</code></a>.</p>
 </td></tr><tr class="module-item"><td><a class="struct" href="struct.Bucket.html" title="relay_metrics::Bucket struct">Bucket</a></td><td class="docblock-short"><p>An aggregation of metric values by the <a href="struct.Aggregator.html" title="Aggregator"><code>Aggregator</code></a>.</p>
 </td></tr><tr class="module-item"><td><a class="struct" href="struct.DistributionIter.html" title="relay_metrics::DistributionIter struct">DistributionIter</a></td><td class="docblock-short"><p>An iterator over distribution entries in a <a href="struct.DistributionValue.html" title="DistributionValue"><code>DistributionValue</code></a>.</p>

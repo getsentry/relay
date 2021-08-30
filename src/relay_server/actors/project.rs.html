@@ -688,6 +688,12 @@
 <span id="688">688</span>
 <span id="689">689</span>
 <span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -1202,6 +1208,9 @@
         <span class="self">self</span>.<span class="ident">last_updated_at</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
     }
 
+    <span class="doccomment">/// Inserts given [buckets](Bucket) into the metrics aggregator.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The buckets will be keyed underneath this project key.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge_buckets</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>) {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">metrics_allowed</span> {
             <span class="ident">Aggregator::from_registry</span>()
@@ -1209,6 +1218,9 @@
         }
     }
 
+    <span class="doccomment">/// Inserts given [metrics](Metric) into the metrics aggregator.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The metrics will be keyed underneath this project key.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert_metrics</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>) {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">metrics_allowed</span> {
             <span class="ident">Aggregator::from_registry</span>()
