@@ -11,7 +11,7 @@ use actix::prelude::*;
 use float_ord::FloatOrd;
 use serde::{Deserialize, Serialize};
 
-use relay_common::{clone, MonotonicResult, ProjectKey, UnixTimestamp};
+use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
@@ -1082,7 +1082,7 @@ impl Aggregator {
             self.receiver
                 .send(FlushBuckets::new(project_key, buckets))
                 .into_actor(self)
-                .and_then(clone!(project_key, |result, slf, _ctx| {
+                .and_then(move |result, slf, _ctx| {
                     if let Err(buckets) = result {
                         relay_log::trace!(
                             "returned {} buckets from receiver, merging back",
@@ -1091,7 +1091,7 @@ impl Aggregator {
                         slf.merge_all(project_key, buckets).ok();
                     }
                     fut::ok(())
-                }))
+                })
                 .drop_err()
                 .spawn(context);
         }
