@@ -448,22 +448,6 @@ impl StateChannel {
     }
 }
 
-/// States for the metrics [`Aggregator`] within a [`Project`].
-///
-/// This allows to initialize an aggregator on demand and permanently disable it during project
-/// state updates.
-#[derive(Debug)]
-enum AggregatorState {
-    /// The aggregator has not been initialized.
-    Unknown,
-
-    /// The aggregator is initialized and available.
-    Available(Addr<Aggregator>),
-
-    /// The aggregator is disabled and metrics should be dropped.
-    Unavailable,
-}
-
 /// Structure representing organization and project configuration for a project key.
 ///
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
@@ -472,11 +456,11 @@ pub struct Project {
     last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
-    aggregator: AggregatorState,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
+    metrics_allowed: bool,
 }
 
 impl Project {
@@ -486,11 +470,18 @@ impl Project {
             last_updated_at: Instant::now(),
             project_key: key,
             config,
-            aggregator: AggregatorState::Unknown,
             state: None,
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
+            metrics_allowed: true,
+        }
+    }
+
+    /// If we know that a project is disabled, disallow metrics, too.
+    fn update_metrics_allowed(&mut self) {
+        if let Some(state) = self.state() {
+            self.metrics_allowed = state.check_disabled(&self.config).is_ok();
         }
     }
 
@@ -520,63 +511,17 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
-    /// Creates the aggregator if it is uninitialized and returns it.
-    ///
-    /// Returns `None` if the aggregator is permanently disabled, primarily for disabled projects.
-    fn get_or_create_aggregator(&mut self) -> Option<Addr<Aggregator>> {
-        if matches!(self.aggregator, AggregatorState::Unknown) {
-            let aggregator = Aggregator::new(
-                self.project_key,
-                self.config.aggregator_config(),
-                ProjectCache::from_registry().recipient(),
-            );
-            // TODO: This starts the aggregator on the project arbiter, but we want a separate
-            // thread or thread pool for this.
-            self.aggregator = AggregatorState::Available(aggregator.start());
-        }
-
-        if let AggregatorState::Available(ref aggregator) = self.aggregator {
-            Some(aggregator.clone())
-        } else {
-            None
-        }
-    }
-
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
-        if let Some(aggregator) = self.get_or_create_aggregator() {
-            aggregator.do_send(relay_metrics::MergeBuckets::new(buckets));
+        if self.metrics_allowed {
+            Aggregator::from_registry()
+                .do_send(relay_metrics::MergeBuckets::new(self.project_key, buckets));
         }
     }
 
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
-        if let Some(aggregator) = self.get_or_create_aggregator() {
-            aggregator.do_send(relay_metrics::InsertMetrics::new(metrics));
-        }
-    }
-
-    /// Updates the aggregator based on updates to the project state.
-    ///
-    /// Changes to the aggregator depend on the project state:
-    ///
-    ///  1. The project state is missing: In this case, the project has not been loaded, so the
-    ///     aggregator remains unmodified.
-    ///  2. The project state is valid: Create an aggregator if it has previously been marked as
-    ///     `Unavailable`, but leave it uninitialized otherwise.
-    ///  3. The project state is disabled or invalid: Mark the aggregator as `Unavailable`,
-    ///     potentially removing an existing aggregator.
-    ///
-    /// If the aggregator is not stopped immediately. Existing requests can continue and the
-    /// aggregator will be stopped when the last reference drops.
-    fn update_aggregator(&mut self) {
-        let metrics_allowed = match self.state() {
-            Some(state) => state.check_disabled(&self.config).is_ok(),
-            None => return,
-        };
-
-        if metrics_allowed && matches!(self.aggregator, AggregatorState::Unavailable) {
-            self.get_or_create_aggregator();
-        } else if !metrics_allowed {
-            self.aggregator = AggregatorState::Unavailable;
+        if self.metrics_allowed {
+            Aggregator::from_registry()
+                .do_send(relay_metrics::InsertMetrics::new(self.project_key, metrics));
         }
     }
 
@@ -665,7 +610,7 @@ impl Project {
 
         self.state_channel = None;
         self.state = state_result.map(|resp| resp.state);
-        self.update_aggregator();
+        self.update_metrics_allowed();
 
         if let Some(ref state) = self.state {
             relay_log::debug!("project state {} updated", self.project_key);

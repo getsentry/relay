@@ -8,6 +8,7 @@ use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
 
 use relay_config::Config;
+use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 
 use crate::actors::controller::{Configure, Controller};
@@ -133,6 +134,14 @@ impl ServiceState {
         registry.set(ProjectCache::new(config.clone(), redis_pool).start());
         registry.set(Healthcheck::new(config.clone()).start());
         registry.set(RelayCache::new(config.clone()).start());
+
+        registry.set(
+            Aggregator::new(
+                config.aggregator_config(),
+                ProjectCache::from_registry().recipient(),
+            )
+            .start(),
+        );
 
         Ok(ServiceState { config })
     }
