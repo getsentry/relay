@@ -13,7 +13,8 @@ pub struct Span {
     #[metastructure(required = "true")]
     pub start_timestamp: Annotated<Timestamp>,
 
-    /// The amount of time spent in this span, excluding its immediate child spans.
+    /// The amount of time in milliseconds spent in this span,
+    /// excluding its immediate child spans.
     pub exclusive_time: Annotated<f64>,
 
     /// Human readable description of a span (e.g. method URL).

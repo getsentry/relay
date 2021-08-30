@@ -1,20 +1,9 @@
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
-
 use crate::protocol::{Event, Span, Timestamp};
 use crate::types::Annotated;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum SpanAttribute {
-    #[serde(rename = "exclusive-time")]
-    ExclusiveTime,
-
-    /// forward compatibility
-    #[serde(other)]
-    Unknown,
-}
+use crate::types::SpanAttribute;
 
 #[derive(Clone, Debug)]
 struct TimeInterval {
@@ -138,61 +127,68 @@ fn get_span_interval(span: &Span) -> Option<TimeInterval> {
 }
 
 pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<SpanAttribute>) {
-    if attributes.contains(&SpanAttribute::ExclusiveTime) {
-        let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
-
-        let mut span_map = HashMap::new();
-
-        for span in spans.iter() {
-            let span = match span.value() {
-                None => continue,
-                Some(span) => span,
-            };
-
-            let parent_span_id = match span.parent_span_id.value() {
-                None => continue,
-                Some(parent_span_id) => parent_span_id.clone(),
-            };
-
-            let interval = match get_span_interval(span) {
-                None => continue,
-                Some(interval) => interval,
-            };
-
-            span_map
-                .entry(parent_span_id)
-                .or_insert_with(Vec::new)
-                .push(interval)
+    for attribute in attributes {
+        match attribute {
+            SpanAttribute::ExclusiveTime => compute_span_exclusive_time(event),
+            SpanAttribute::Unknown => (), // ignored
         }
+    }
+}
 
-        for span in spans.iter_mut() {
-            let mut span = match span.value_mut() {
-                None => continue,
-                Some(span) => span,
-            };
+fn compute_span_exclusive_time(event: &mut Event) {
+    let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
-            let span_id = match span.span_id.value() {
-                None => continue,
-                Some(span_id) => span_id,
-            };
+    let mut span_map = HashMap::new();
 
-            let span_interval = match get_span_interval(span) {
-                None => continue,
-                Some(interval) => interval,
-            };
+    for span in spans.iter() {
+        let span = match span.value() {
+            None => continue,
+            Some(span) => span,
+        };
 
-            let child_intervals = match span_map.get_mut(span_id) {
-                Some(intervals) => {
-                    // Make sure that the intervals are sorted by start time.
-                    intervals.sort_unstable_by_key(|interval| interval.start);
-                    merge_non_overlapping_intervals(intervals)
-                }
-                None => Vec::new(),
-            };
+        let parent_span_id = match span.parent_span_id.value() {
+            None => continue,
+            Some(parent_span_id) => parent_span_id.clone(),
+        };
 
-            let exclusive_time = interval_exclusive_time(&span_interval, &child_intervals);
-            span.exclusive_time = Annotated::new(exclusive_time);
-        }
+        let interval = match get_span_interval(span) {
+            None => continue,
+            Some(interval) => interval,
+        };
+
+        span_map
+            .entry(parent_span_id)
+            .or_insert_with(Vec::new)
+            .push(interval)
+    }
+
+    for span in spans.iter_mut() {
+        let mut span = match span.value_mut() {
+            None => continue,
+            Some(span) => span,
+        };
+
+        let span_id = match span.span_id.value() {
+            None => continue,
+            Some(span_id) => span_id,
+        };
+
+        let span_interval = match get_span_interval(span) {
+            None => continue,
+            Some(interval) => interval,
+        };
+
+        let child_intervals = match span_map.get_mut(span_id) {
+            Some(intervals) => {
+                // Make sure that the intervals are sorted by start time.
+                intervals.sort_unstable_by_key(|interval| interval.start);
+                merge_non_overlapping_intervals(intervals)
+            }
+            None => Vec::new(),
+        };
+
+        let exclusive_time = interval_exclusive_time(&span_interval, &child_intervals);
+        span.exclusive_time = Annotated::new(exclusive_time);
     }
 }
 
