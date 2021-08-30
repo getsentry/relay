@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add indexer hash function for metrics. ([#1057](https://github.com/getsentry/relay/pull/1057))
+
 ## 0.8.8
 
 - Bump release parser to 1.3.0 and add ability to compare versions. ([#1038](https://github.com/getsentry/relay/pull/1038))

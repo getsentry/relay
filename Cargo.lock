@@ -404,11 +404,11 @@ checksum = "ad1f8e949d755f9d79112b5bb46938e0ef9d3804a0b16dfab13aafcaa5f0fa72"
 
 [[package]]
 name = "cadence"
-version = "0.22.0"
+version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6281d1200ac3293fd08be899c9a0c17b83cda0672221fcbe1fefc886a555e35e"
+checksum = "a7685b737fff763407351ce3a0d18c980a68e154b36f2d0b0fafebbac47de032"
 dependencies = [
- "crossbeam-channel 0.4.4",
+ "crossbeam-channel 0.5.1",
 ]
 
 [[package]]
@@ -668,12 +668,12 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.4.4"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b153fe7cbef478c567df0f972e02e6d736db11affe43dfc9c56a9374d1adfb87"
+checksum = "06ed27e177f16d65f0f0c22a213e17c696ace5dd64b14258b52f9417ccb52db4"
 dependencies = [
- "crossbeam-utils 0.7.2",
- "maybe-uninit",
+ "cfg-if 1.0.0",
+ "crossbeam-utils 0.8.5",
 ]
 
 [[package]]
@@ -731,6 +731,16 @@ checksum = "c3c7c73a2d1e9fc0886a08b93e98eb643461230d5f1925e4036204d5f2e261a8"
 dependencies = [
  "autocfg 1.0.0",
  "cfg-if 0.1.10",
+ "lazy_static",
+]
+
+[[package]]
+name = "crossbeam-utils"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d82cfc11ce7f2c3faef78d8a684447b40d503d9681acebed6cb728d45940c4db"
+dependencies = [
+ "cfg-if 1.0.0",
  "lazy_static",
 ]
 
@@ -3103,6 +3113,7 @@ dependencies = [
  "relay-common",
  "relay-ffi",
  "relay-general",
+ "relay-metrics",
  "relay-sampling",
  "sentry-release-parser",
  "serde",
@@ -3255,6 +3266,7 @@ version = "21.8.0"
 dependencies = [
  "actix",
  "float-ord",
+ "fnv",
  "futures 0.1.29",
  "hash32",
  "insta",

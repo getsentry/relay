@@ -10,7 +10,7 @@ import pytest
 
 from . import SentryLike
 
-RELAY_BIN = [os.environ.get("RELAY_BIN") or "target/debug/relay"]
+RELAY_BIN = [os.path.abspath(os.environ.get("RELAY_BIN") or "target/debug/relay")]
 
 if os.environ.get("RELAY_AS_CARGO", "false") == "true":
     RELAY_BIN = ["cargo", "run", "--"]
@@ -174,3 +174,12 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         return relay
 
     return inner
+
+
+@pytest.fixture
+def latest_relay_version(get_relay_binary):
+    version_str = subprocess.check_output(
+        get_relay_binary() + ["--version"], universal_newlines=True
+    ).strip()
+    _the_word_relay, version = version_str.split(" ", 1)
+    return version

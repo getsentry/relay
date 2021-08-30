@@ -151,7 +151,7 @@ enum EnqueuePosition {
 ///
 /// These limits do not carry scope information. Use `UpstreamRateLimits::scope` to attach scope
 /// identifiers and return a fully populated `RateLimits` instance.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UpstreamRateLimits {
     retry_after: RetryAfter,
     rate_limits: String,
@@ -651,7 +651,7 @@ impl UpstreamRelay {
         );
 
         metric!(
-            histogram(RelayHistograms::UpstreamRetries) = request.previous_retries.into(),
+            histogram(RelayHistograms::UpstreamRetries) = request.previous_retries as u64,
             result = result,
             status_code = status_code,
             route = request.route_name(),
@@ -1205,14 +1205,18 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
                     .json(self.max_response_size)
                     .map_err(UpstreamRequestError::Http)
                     .then(|result| {
-                        sender.map(|sender| sender.send(result));
+                        if let Some(sender) = sender {
+                            sender.send(result).ok();
+                        }
                         Ok(())
                     });
 
                 Box::new(future)
             }
             Err(error) => {
-                sender.map(|sender| sender.send(Err(error)));
+                if let Some(sender) = sender {
+                    sender.send(Err(error)).ok();
+                }
                 Box::new(future::err(()))
             }
         }

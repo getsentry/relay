@@ -11,15 +11,18 @@ use actix_web::http::Method;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use futures::{future, prelude::*, sync::oneshot};
+use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
 
+use relay_auth::RelayVersion;
 use relay_common::{clone, metric, ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, SecurityReportType, SessionUpdate, Timestamp, UserReport, Values,
+    LenientString, Metrics, RelayInfo, SecurityReportType, SessionUpdate, Timestamp, UserReport,
+    Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -126,7 +129,7 @@ enum ProcessingError {
     StoreFailed(#[cause] StoreError),
 
     #[fail(display = "envelope items were rate limited")]
-    RateLimited(RateLimits),
+    RateLimited,
 
     #[cfg(feature = "processing")]
     #[fail(display = "failed to apply quotas")]
@@ -175,7 +178,7 @@ impl ProcessingError {
             Self::EventFiltered(_) => None,
             Self::TraceSampled(_) => None,
             Self::EventSampled(_) => None,
-            Self::RateLimited(_) => None,
+            Self::RateLimited => None,
             #[cfg(feature = "processing")]
             Self::StoreFailed(_) => None,
 
@@ -1186,6 +1189,23 @@ impl EnvelopeProcessor {
             None => return Err(ProcessingError::NoEventPayload),
         };
 
+        if !self.config.processing_enabled() {
+            lazy_static! {
+                static ref MY_VERSION_STRING: String = format!("{}", RelayVersion::current());
+            }
+            event
+                .ingest_path
+                .get_or_insert_with(Default::default)
+                .push(Annotated::new(RelayInfo {
+                    version: Annotated::new(MY_VERSION_STRING.clone()),
+                    public_key: self
+                        .config
+                        .public_key()
+                        .map_or(Annotated::empty(), |pk| Annotated::new(pk.to_string())),
+                    other: Default::default(),
+                }));
+        }
+
         // Event id is set statically in the ingest path.
         let event_id = envelope.event_id().unwrap_or_default();
         debug_assert!(!event_id.is_nil());
@@ -1712,7 +1732,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
                     Some(metric)
                 });
 
-                relay_log::trace!("inserting metrics into project aggregator");
+                relay_log::trace!("inserting metrics into project cache");
                 project_cache.do_send(InsertMetrics::new(public_key, metrics));
             } else if item.ty() == ItemType::MetricBuckets {
                 if let Ok(mut buckets) = Bucket::parse_all(&payload) {
@@ -1720,7 +1740,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
                         clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                     }
 
-                    relay_log::trace!("merging metric buckets into project aggregator");
+                    relay_log::trace!("merging metric buckets into project cache");
                     project_cache.do_send(MergeBuckets::new(public_key, buckets));
                 }
             } else {
@@ -1735,13 +1755,13 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 
 /// Error returned from [`EnvelopeManager::send_envelope`].
 #[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
 enum SendEnvelopeError {
     #[cfg(feature = "processing")]
     ScheduleFailed,
     #[cfg(feature = "processing")]
     StoreFailed(StoreError),
     SendFailed(UpstreamRequestError),
-    RateLimited(RateLimits),
 }
 
 /// Either a captured envelope or an error that occured during processing.
@@ -1807,7 +1827,24 @@ impl UpstreamRequest for SendEnvelope {
                 Box::new(future)
             }
             Err(error) => {
-                sender.map(|sender| sender.send(Err(error)));
+                match error {
+                    UpstreamRequestError::RateLimited(upstream_limits) => {
+                        ProjectCache::from_registry().do_send(UpdateRateLimits::new(
+                            self.project_key,
+                            upstream_limits.clone().scope(&self.scoping),
+                        ));
+                        if let Some(sender) = sender {
+                            sender
+                                .send(Err(UpstreamRequestError::RateLimited(upstream_limits)))
+                                .ok();
+                        }
+                    }
+                    error => {
+                        if let Some(sender) = sender {
+                            sender.send(Err(error)).ok();
+                        }
+                    }
+                };
                 Box::new(future::err(()))
             }
         }
@@ -1898,17 +1935,9 @@ impl EnvelopeManager {
         UpstreamRelay::from_registry().do_send(SendRequest(request));
 
         let future = rx
-            .map_err(|_| SendEnvelopeError::SendFailed(UpstreamRequestError::ChannelClosed))
-            .and_then(move |result| {
-                if let Err(UpstreamRequestError::RateLimited(upstream_limits)) = result {
-                    let limits = upstream_limits.scope(&scoping);
-                    ProjectCache::from_registry()
-                        .do_send(UpdateRateLimits::new(project_key, limits.clone()));
-                    Err(SendEnvelopeError::RateLimited(limits))
-                } else {
-                    result.map_err(SendEnvelopeError::SendFailed)
-                }
-            });
+            .map_err(|_| UpstreamRequestError::ChannelClosed)
+            .flatten()
+            .map_err(SendEnvelopeError::SendFailed);
 
         Box::new(future)
     }
@@ -2137,7 +2166,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         Ok(envelope)
                     }
                     // errors from rate limiting already produced outcomes nothing more to do
-                    None => Err(ProcessingError::RateLimited(checked.rate_limits)),
+                    None => Err(ProcessingError::RateLimited),
                 }
             }))
             .and_then(clone!(envelope_context, |envelope| {
@@ -2193,7 +2222,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 // Processing returned new rate limits. Cache them on the project to avoid expensive
                 // processing while the limit is active.
                 if rate_limits.is_limited() {
-                    project_cache.do_send(UpdateRateLimits::new(project_key, rate_limits.clone()));
+                    project_cache.do_send(UpdateRateLimits::new(project_key, rate_limits));
                 }
 
                 if !processed.metrics.is_empty() {
@@ -2207,7 +2236,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         envelope_context.borrow_mut().update(&envelope);
                         Ok(envelope)
                     }
-                    None => Err(ProcessingError::RateLimited(rate_limits)),
+                    None => Err(ProcessingError::RateLimited),
                 }
             }))
             .into_actor(self)
@@ -2237,10 +2266,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                                     }
 
                                     ProcessingError::SendFailed(e)
-                                }
-                                SendEnvelopeError::RateLimited(e) => {
-                                    // outcome emitted at the source
-                                    ProcessingError::RateLimited(e)
                                 }
                             }
                         })

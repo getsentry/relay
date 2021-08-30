@@ -1,7 +1,9 @@
+use fnv::FnvHasher;
 use std::collections::{btree_map, BinaryHeap};
 use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt;
+use std::hash::Hasher;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
@@ -12,6 +14,25 @@ use serde::{Deserialize, Serialize};
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
+
+/// Contains the numeric value corresponding to a metrics tag name, tag key or tag value.
+/// Currently implemented as a FNV-64 hash
+pub struct MetricSymbol(u64);
+
+impl MetricSymbol {
+    /// Returns the symbol as a 64 bit unsigned integer
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
+}
+
+impl From<&str> for MetricSymbol {
+    fn from(value: &str) -> Self {
+        let mut hasher = FnvHasher::default();
+        hasher.write(value.as_bytes());
+        Self(hasher.finish())
+    }
+}
 
 /// A snapshot of values within a [`Bucket`].
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
@@ -715,6 +736,7 @@ impl Error for AggregateMetricsError {}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct BucketKey {
+    project_key: ProjectKey,
     timestamp: UnixTimestamp,
     metric_name: String,
     metric_type: MetricType,
@@ -924,7 +946,6 @@ impl Message for FlushBuckets {
 /// }
 /// ```
 pub struct Aggregator {
-    project_key: ProjectKey,
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, BucketValue>,
     queue: BinaryHeap<QueuedBucket>,
@@ -936,13 +957,8 @@ impl Aggregator {
     ///
     /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
     /// the given `config`.
-    pub fn new(
-        project_key: ProjectKey,
-        config: AggregatorConfig,
-        receiver: Recipient<FlushBuckets>,
-    ) -> Self {
+    pub fn new(config: AggregatorConfig, receiver: Recipient<FlushBuckets>) -> Self {
         Self {
-            project_key,
             config,
             buckets: HashMap::new(),
             queue: BinaryHeap::new(),
@@ -988,8 +1004,13 @@ impl Aggregator {
     /// Inserts a metric into the corresponding bucket in this aggregator.
     ///
     /// If no bucket exists for the given bucket key, a new bucket will be created.
-    pub fn insert(&mut self, metric: Metric) -> Result<(), AggregateMetricsError> {
+    pub fn insert(
+        &mut self,
+        project_key: ProjectKey,
+        metric: Metric,
+    ) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
+            project_key,
             timestamp: self.get_bucket_timestamp(metric.timestamp),
             metric_name: metric.name,
             metric_type: metric.value.ty(),
@@ -1002,8 +1023,13 @@ impl Aggregator {
     /// Merge a preaggregated bucket into this aggregator.
     ///
     /// If no bucket exists for the given bucket key, a new bucket will be created.
-    pub fn merge(&mut self, bucket: Bucket) -> Result<(), AggregateMetricsError> {
+    pub fn merge(
+        &mut self,
+        project_key: ProjectKey,
+        bucket: Bucket,
+    ) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
+            project_key,
             timestamp: bucket.timestamp,
             metric_name: bucket.name,
             metric_type: bucket.value.ty(),
@@ -1016,12 +1042,16 @@ impl Aggregator {
     /// Merges all given `buckets` into this aggregator.
     ///
     /// Buckets that do not exist yet will be created.
-    pub fn merge_all<I>(&mut self, buckets: I) -> Result<(), AggregateMetricsError>
+    pub fn merge_all<I>(
+        &mut self,
+        project_key: ProjectKey,
+        buckets: I,
+    ) -> Result<(), AggregateMetricsError>
     where
         I: IntoIterator<Item = Bucket>,
     {
         for bucket in buckets.into_iter() {
-            self.merge(bucket)?;
+            self.merge(project_key, bucket)?;
         }
 
         Ok(())
@@ -1031,12 +1061,15 @@ impl Aggregator {
     ///
     /// If the receiver returns buckets, they are merged back into the cache.
     fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
-        let mut buckets = Vec::new();
+        let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
 
         while self.queue.peek().map_or(false, |flush| flush.elapsed()) {
             let flush = self.queue.pop().unwrap();
             let value = self.buckets.remove(&flush.key).unwrap();
-            buckets.push(Bucket::from_parts(flush.key, value));
+            buckets
+                .entry(flush.key.project_key)
+                .or_default()
+                .push(Bucket::from_parts(flush.key, value));
         }
 
         if buckets.is_empty() {
@@ -1045,21 +1078,23 @@ impl Aggregator {
 
         relay_log::trace!("flushing {} buckets to receiver", buckets.len());
 
-        self.receiver
-            .send(FlushBuckets::new(self.project_key, buckets))
-            .into_actor(self)
-            .and_then(|result, slf, _ctx| {
-                if let Err(buckets) = result {
-                    relay_log::trace!(
-                        "returned {} buckets from receiver, merging back",
-                        buckets.len()
-                    );
-                    slf.merge_all(buckets).ok();
-                }
-                fut::ok(())
-            })
-            .drop_err()
-            .spawn(context);
+        for (project_key, buckets) in buckets.into_iter() {
+            self.receiver
+                .send(FlushBuckets::new(project_key, buckets))
+                .into_actor(self)
+                .and_then(move |result, slf, _ctx| {
+                    if let Err(buckets) = result {
+                        relay_log::trace!(
+                            "returned {} buckets from receiver, merging back",
+                            buckets.len()
+                        );
+                        slf.merge_all(project_key, buckets).ok();
+                    }
+                    fut::ok(())
+                })
+                .drop_err()
+                .spawn(context);
+        }
     }
 }
 
@@ -1089,19 +1124,31 @@ impl Actor for Aggregator {
     }
 }
 
+impl Default for Aggregator {
+    fn default() -> Self {
+        unimplemented!("register with the SystemRegistry instead")
+    }
+}
+
+impl Supervised for Aggregator {}
+
+impl SystemService for Aggregator {}
+
 /// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetrics {
+    project_key: ProjectKey,
     metrics: Vec<Metric>,
 }
 
 impl InsertMetrics {
     /// Creates a new message containing a list of [`Metric`]s.
-    pub fn new<I>(metrics: I) -> Self
+    pub fn new<I>(project_key: ProjectKey, metrics: I) -> Self
     where
         I: IntoIterator<Item = Metric>,
     {
         Self {
+            project_key,
             metrics: metrics.into_iter().collect(),
         }
     }
@@ -1116,7 +1163,7 @@ impl Handler<InsertMetrics> for Aggregator {
 
     fn handle(&mut self, msg: InsertMetrics, _ctx: &mut Self::Context) -> Self::Result {
         for metric in msg.metrics {
-            self.insert(metric)?;
+            self.insert(msg.project_key, metric)?;
         }
 
         Ok(())
@@ -1126,13 +1173,17 @@ impl Handler<InsertMetrics> for Aggregator {
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
+    project_key: ProjectKey,
     buckets: Vec<Bucket>,
 }
 
 impl MergeBuckets {
     /// Creates a new message containing a list of [`Bucket`]s.
-    pub fn new(buckets: Vec<Bucket>) -> Self {
-        Self { buckets }
+    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+        Self {
+            project_key,
+            buckets,
+        }
     }
 }
 
@@ -1144,7 +1195,7 @@ impl Handler<MergeBuckets> for Aggregator {
     type Result = Result<(), AggregateMetricsError>;
 
     fn handle(&mut self, msg: MergeBuckets, _ctx: &mut Self::Context) -> Self::Result {
-        self.merge_all(msg.buckets)
+        self.merge_all(msg.project_key, msg.buckets)
     }
 }
 
@@ -1512,18 +1563,19 @@ mod tests {
 
         let config = AggregatorConfig::default();
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(project_key, config, receiver);
+        let mut aggregator = Aggregator::new(config, receiver);
 
         let metric1 = some_metric();
 
         let mut metric2 = metric1.clone();
         metric2.value = MetricValue::Counter(43.);
-        aggregator.insert(metric1).unwrap();
-        aggregator.insert(metric2).unwrap();
+        aggregator.insert(project_key, metric1).unwrap();
+        aggregator.insert(project_key, metric2).unwrap();
 
         insta::assert_debug_snapshot!(aggregator.buckets, @r###"
         {
             BucketKey {
+                project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                 timestamp: UnixTimestamp(4710),
                 metric_name: "foo",
                 metric_type: Counter,
@@ -1546,7 +1598,7 @@ mod tests {
         let receiver = TestReceiver::start_default().recipient();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(project_key, config, receiver);
+        let mut aggregator = Aggregator::new(config, receiver);
 
         let metric1 = some_metric();
 
@@ -1555,9 +1607,9 @@ mod tests {
 
         let mut metric3 = metric1.clone();
         metric3.timestamp = UnixTimestamp::from_secs(4721);
-        aggregator.insert(metric1).unwrap();
-        aggregator.insert(metric2).unwrap();
-        aggregator.insert(metric3).unwrap();
+        aggregator.insert(project_key, metric1).unwrap();
+        aggregator.insert(project_key, metric2).unwrap();
+        aggregator.insert(project_key, metric3).unwrap();
 
         let mut buckets: Vec<(BucketKey, BucketValue)> = aggregator.buckets.into_iter().collect();
         buckets.sort_by(|a, b| a.0.timestamp.cmp(&b.0.timestamp));
@@ -1565,6 +1617,7 @@ mod tests {
         [
             (
                 BucketKey {
+                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(4710),
                     metric_name: "foo",
                     metric_type: Counter,
@@ -1577,6 +1630,7 @@ mod tests {
             ),
             (
                 BucketKey {
+                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(4720),
                     metric_name: "foo",
                     metric_type: Counter,
@@ -1603,7 +1657,7 @@ mod tests {
         let receiver = TestReceiver::start_default().recipient();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(project_key, config, receiver);
+        let mut aggregator = Aggregator::new(config, receiver);
 
         let metric1 = some_metric();
 
@@ -1611,8 +1665,8 @@ mod tests {
         metric2.value = MetricValue::Set(123);
 
         // It's OK to have same name for different types:
-        aggregator.insert(metric1).unwrap();
-        aggregator.insert(metric2).unwrap();
+        aggregator.insert(project_key, metric1).unwrap();
+        aggregator.insert(project_key, metric2).unwrap();
         assert_eq!(aggregator.buckets.len(), 2);
     }
 
@@ -1628,7 +1682,7 @@ mod tests {
         let receiver = TestReceiver::start_default().recipient();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(project_key, config, receiver);
+        let mut aggregator = Aggregator::new(config, receiver);
 
         let metric1 = some_metric();
 
@@ -1636,10 +1690,32 @@ mod tests {
         metric2.unit = MetricUnit::Duration(DurationPrecision::Second);
 
         // It's OK to have same metric with different units:
-        aggregator.insert(metric1).unwrap();
-        aggregator.insert(metric2).unwrap();
+        aggregator.insert(project_key, metric1).unwrap();
+        aggregator.insert(project_key, metric2).unwrap();
 
         // TODO: This should convert if units are convertible
+        assert_eq!(aggregator.buckets.len(), 2);
+    }
+
+    #[test]
+    fn test_aggregator_mixed_projects() {
+        relay_test::setup();
+
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            ..AggregatorConfig::default()
+        };
+
+        let receiver = TestReceiver::start_default().recipient();
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+        let mut aggregator = Aggregator::new(config, receiver);
+
+        // It's OK to have same metric with different projects:
+        aggregator.insert(project_key1, some_metric()).unwrap();
+        aggregator.insert(project_key2, some_metric()).unwrap();
+
         assert_eq!(aggregator.buckets.len(), 2);
     }
 
@@ -1655,12 +1731,13 @@ mod tests {
             };
             let recipient = receiver.clone().start().recipient();
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-            let aggregator = Aggregator::new(project_key, config, recipient).start();
+            let aggregator = Aggregator::new(config, recipient).start();
 
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
             aggregator
                 .send(InsertMetrics {
+                    project_key,
                     metrics: vec![metric],
                 })
                 .and_then(move |_| aggregator.send(BucketCountInquiry))
@@ -1703,12 +1780,13 @@ mod tests {
             let recipient = receiver.clone().start().recipient();
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-            let aggregator = Aggregator::new(project_key, config, recipient).start();
+            let aggregator = Aggregator::new(config, recipient).start();
 
             let mut metric = some_metric();
             metric.timestamp = UnixTimestamp::now();
             aggregator
                 .send(InsertMetrics {
+                    project_key,
                     metrics: vec![metric],
                 })
                 .map_err(|_| ())

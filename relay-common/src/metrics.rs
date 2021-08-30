@@ -536,7 +536,7 @@ macro_rules! metric {
         $crate::metrics::with_client(|client| {
             use $crate::metrics::_pred::*;
             client.send_metric(
-                client.time_duration_with_tags(&$crate::metrics::TimerMetric::name(&$id), $value)
+                client.time_with_tags(&$crate::metrics::TimerMetric::name(&$id), $value)
                     $(.with_tag(stringify!($k), $v))*
             )
         })
@@ -549,7 +549,7 @@ macro_rules! metric {
         $crate::metrics::with_client(|client| {
             use $crate::metrics::_pred::*;
             client.send_metric(
-                client.time_duration_with_tags(&$crate::metrics::TimerMetric::name(&$id), now.elapsed())
+                client.time_with_tags(&$crate::metrics::TimerMetric::name(&$id), now.elapsed())
                     $(.with_tag(stringify!($k), $v))*
             )
         });

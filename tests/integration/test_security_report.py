@@ -5,10 +5,11 @@ CSP_IGNORED_FIELDS = (
     "event_id",
     "timestamp",
     "received",
+    "ingest_path",
 )
-EXPECT_CT_IGNORED_FIELDS = ("event_id",)
-EXPECT_STAPLE_IGNORED_FIELDS = ("event_id",)
-HPKP_IGNORED_FIELDS = ("event_id",)
+EXPECT_CT_IGNORED_FIELDS = ("event_id", "ingest_path")
+EXPECT_STAPLE_IGNORED_FIELDS = ("event_id", "ingest_path")
+HPKP_IGNORED_FIELDS = ("event_id", "ingest_path")
 
 
 def get_security_report(envelope):

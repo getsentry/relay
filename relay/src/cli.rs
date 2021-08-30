@@ -7,7 +7,9 @@ use dialoguer::{Confirmation, Select};
 use failure::{err_msg, Error};
 
 use relay_common::Uuid;
-use relay_config::{Config, Credentials, MinimalConfig, OverridableConfig, RelayMode};
+use relay_config::{
+    Config, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
+};
 
 use crate::cliapp::make_app;
 use crate::setup;
@@ -30,7 +32,16 @@ pub fn execute() -> Result<(), Error> {
     }
 
     // Commands that need a loaded config:
-    let mut config = Config::from_path(&config_path)?;
+    let mut config = match Config::from_path(&config_path) {
+        Ok(config) => config,
+        Err(e)
+            if matches.value_of("config").is_none()
+                && e.kind() == ConfigErrorKind::CouldNotOpenFile =>
+        {
+            Config::default()
+        }
+        Err(e) => return Err(e.into()),
+    };
     // override file config with environment variables
     let env_config = extract_config_env_vars();
     config.apply_override(env_config)?;
@@ -61,6 +72,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
     };
 
     OverridableConfig {
+        mode: matches.value_of("mode").map(str::to_owned),
         upstream: matches.value_of("upstream").map(str::to_owned),
         host: matches.value_of("host").map(str::to_owned),
         port: matches.value_of("port").map(str::to_owned),
@@ -77,6 +89,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
 /// Extract config arguments from environment variables
 pub fn extract_config_env_vars() -> OverridableConfig {
     OverridableConfig {
+        mode: env::var("RELAY_MODE").ok(),
         upstream: env::var("RELAY_UPSTREAM_URL").ok(),
         host: env::var("RELAY_HOST").ok(),
         port: env::var("RELAY_PORT").ok(),
