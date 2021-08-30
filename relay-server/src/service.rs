@@ -131,17 +131,12 @@ impl ServiceState {
         let envelope_manager = EnvelopeManager::create(config.clone(), processor)?;
         registry.set(envelope_manager.start());
 
-        registry.set(ProjectCache::new(config.clone(), redis_pool).start());
+        let project_cache = ProjectCache::new(config.clone(), redis_pool).start();
+        registry.set(project_cache.clone());
         registry.set(Healthcheck::new(config.clone()).start());
         registry.set(RelayCache::new(config.clone()).start());
-
-        registry.set(
-            Aggregator::new(
-                config.aggregator_config(),
-                ProjectCache::from_registry().recipient(),
-            )
-            .start(),
-        );
+        registry
+            .set(Aggregator::new(config.aggregator_config(), project_cache.recipient()).start());
 
         Ok(ServiceState { config })
     }
