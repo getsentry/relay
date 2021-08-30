@@ -269,6 +269,15 @@
 <span id="269">269</span>
 <span id="270">270</span>
 <span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -280,6 +289,7 @@
 <span class="kw">use</span> <span class="ident">listenfd::ListenFd</span>;
 
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
+<span class="kw">use</span> <span class="ident">relay_metrics::Aggregator</span>;
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::controller</span>::{<span class="ident">Configure</span>, <span class="ident">Controller</span>};
@@ -405,6 +415,14 @@
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">ProjectCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>).<span class="ident">start</span>());
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Healthcheck::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>());
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">RelayCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>());
+
+        <span class="ident">registry</span>.<span class="ident">set</span>(
+            <span class="ident">Aggregator::new</span>(
+                <span class="ident">config</span>.<span class="ident">aggregator_config</span>(),
+                <span class="ident">ProjectCache::from_registry</span>().<span class="ident">recipient</span>(),
+            )
+            .<span class="ident">start</span>(),
+        );
 
         <span class="prelude-val">Ok</span>(<span class="ident">ServiceState</span> { <span class="ident">config</span> })
     }

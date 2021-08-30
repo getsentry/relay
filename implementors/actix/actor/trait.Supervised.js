@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["relay_metrics"] = [{"text":"impl Supervised for <a class=\"struct\" href=\"relay_metrics/struct.Aggregator.html\" title=\"struct relay_metrics::Aggregator\">Aggregator</a>","synthetic":false,"types":["relay_metrics::aggregation::Aggregator"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
