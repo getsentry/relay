@@ -26,7 +26,7 @@ mod contexts;
 mod logentry;
 mod mechanism;
 mod request;
-pub mod spans;
+mod spans;
 mod stacktrace;
 
 #[cfg(feature = "uaparser")]
