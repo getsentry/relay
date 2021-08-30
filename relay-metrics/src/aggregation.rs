@@ -743,6 +743,7 @@ struct BucketKey {
     metric_unit: MetricUnit,
     tags: BTreeMap<String, String>,
 }
+
 /// Parameters used by the [`Aggregator`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AggregatorConfig {
@@ -897,12 +898,12 @@ impl Message for FlushBuckets {
     type Result = Result<(), Vec<Bucket>>;
 }
 
-/// A collector of [`Metric`] submissions. Every project key (DSN) has one Aggregator.
+/// A collector of [`Metric`] submissions.
 ///
 /// # Aggregation
 ///
-/// Each metric is dispatched into the a [`Bucket`] depending on its name, type, unit, tags and
-/// timestamp. The bucket timestamp is rounded to the precision declared by the
+/// Each metric is dispatched into the a [`Bucket`] depending on its project key (DSN), name, type,
+/// unit, tags and timestamp. The bucket timestamp is rounded to the precision declared by the
 /// [`bucket_interval`](AggregatorConfig::bucket_interval) configuration.
 ///
 /// Each bucket stores the accumulated value of submitted metrics:
