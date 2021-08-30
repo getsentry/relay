@@ -516,6 +516,9 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
+    /// Inserts given [buckets](Bucket) into the metrics aggregator.
+    ///
+    /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
         if self.metrics_allowed {
             Aggregator::from_registry()
@@ -523,6 +526,9 @@ impl Project {
         }
     }
 
+    /// Inserts given [metrics](Metric) into the metrics aggregator.
+    ///
+    /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
         if self.metrics_allowed {
             Aggregator::from_registry()

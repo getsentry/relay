@@ -36,7 +36,7 @@
 //! # Aggregation
 //!
 //! Relay accumulates all metrics in [time buckets](Bucket) before sending them onwards. Aggregation
-//! is handled by the [`Aggregator`], which should be created once per Project Key (DSN). It flushes
+//! is handled by the [`Aggregator`], which should be created once for the entire system. It flushes
 //! aggregates in regular intervals, either shortly after their original time window has passed or
 //! with a debounce delay for backdated submissions.
 //!
