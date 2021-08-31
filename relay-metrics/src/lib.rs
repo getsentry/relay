@@ -108,6 +108,7 @@
 
 mod aggregation;
 mod protocol;
+mod statsd;
 
 pub use aggregation::*;
 pub use protocol::*;
