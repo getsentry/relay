@@ -1824,6 +1824,21 @@
 <span id="1824">1824</span>
 <span id="1825">1825</span>
 <span id="1826">1826</span>
+<span id="1827">1827</span>
+<span id="1828">1828</span>
+<span id="1829">1829</span>
+<span id="1830">1830</span>
+<span id="1831">1831</span>
+<span id="1832">1832</span>
+<span id="1833">1833</span>
+<span id="1834">1834</span>
+<span id="1835">1835</span>
+<span id="1836">1836</span>
+<span id="1837">1837</span>
+<span id="1838">1838</span>
+<span id="1839">1839</span>
+<span id="1840">1840</span>
+<span id="1841">1841</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">fnv::FnvHasher</span>;
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
@@ -1839,6 +1854,7 @@
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">MonotonicResult</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
 
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd</span>::{<span class="ident">MetricGauges</span>, <span class="ident">MetricHistograms</span>, <span class="ident">MetricTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">Metric</span>, <span class="ident">MetricType</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};
 
 <span class="doccomment">/// Contains the numeric value corresponding to a metrics tag name, tag key or tag value.</span>
@@ -2884,29 +2900,43 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the receiver returns buckets, they are merged back into the cache.</span>
     <span class="kw">fn</span> <span class="ident">try_flush</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="self">Self</span> <span class="kw">as</span> <span class="ident">Actor</span><span class="op">&gt;</span><span class="ident">::Context</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="ident">::new</span>();
+        <span class="macro">relay_statsd::metric!</span>(<span class="ident">gauge</span>(<span class="ident">MetricGauges::Buckets</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">flush_buckets</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="ident">::new</span>();
 
-        <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">retain</span>(<span class="op">|</span><span class="ident">key</span>, <span class="ident">entry</span><span class="op">|</span> {
-            <span class="kw">if</span> <span class="ident">entry</span>.<span class="ident">elapsed</span>() {
-                <span class="comment">// Take the value and leave a placeholder behind. It&#39;ll be removed right after.</span>
-                <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">std::mem::replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">entry</span>.<span class="ident">value</span>, <span class="ident">BucketValue::Counter</span>(<span class="number">0.0</span>));
-                <span class="kw">let</span> <span class="ident">bucket</span> <span class="op">=</span> <span class="ident">Bucket::from_parts</span>(<span class="ident">key</span>.<span class="ident">clone</span>(), <span class="ident">value</span>);
-                <span class="ident">buckets</span>.<span class="ident">entry</span>(<span class="ident">key</span>.<span class="ident">project_key</span>).<span class="ident">or_default</span>().<span class="ident">push</span>(<span class="ident">bucket</span>);
-                <span class="bool-val">false</span>
-            } <span class="kw">else</span> {
-                <span class="bool-val">true</span>
-            }
+        <span class="macro">relay_statsd::metric!</span>(<span class="ident">timer</span>(<span class="ident">MetricTimers::BucketsScanDuration</span>), {
+            <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">retain</span>(<span class="op">|</span><span class="ident">key</span>, <span class="ident">entry</span><span class="op">|</span> {
+                <span class="kw">if</span> <span class="ident">entry</span>.<span class="ident">elapsed</span>() {
+                    <span class="comment">// Take the value and leave a placeholder behind. It&#39;ll be removed right after.</span>
+                    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">std::mem::replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">entry</span>.<span class="ident">value</span>, <span class="ident">BucketValue::Counter</span>(<span class="number">0.0</span>));
+                    <span class="kw">let</span> <span class="ident">bucket</span> <span class="op">=</span> <span class="ident">Bucket::from_parts</span>(<span class="ident">key</span>.<span class="ident">clone</span>(), <span class="ident">value</span>);
+                    <span class="ident">flush_buckets</span>
+                        .<span class="ident">entry</span>(<span class="ident">key</span>.<span class="ident">project_key</span>)
+                        .<span class="ident">or_default</span>()
+                        .<span class="ident">push</span>(<span class="ident">bucket</span>);
+                    <span class="bool-val">false</span>
+                } <span class="kw">else</span> {
+                    <span class="bool-val">true</span>
+                }
+            });
         });
 
-        <span class="kw">if</span> <span class="ident">buckets</span>.<span class="ident">is_empty</span>() {
+        <span class="kw">if</span> <span class="ident">flush_buckets</span>.<span class="ident">is_empty</span>() {
             <span class="kw">return</span>;
         }
 
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;flushing {} buckets to receiver&quot;</span>, <span class="ident">buckets</span>.<span class="ident">len</span>());
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;flushing {} buckets to receiver&quot;</span>, <span class="ident">flush_buckets</span>.<span class="ident">len</span>());
+        <span class="macro">relay_statsd::metric!</span>(
+            <span class="ident">histogram</span>(<span class="ident">MetricHistograms::BucketsFlushed</span>) <span class="op">=</span> <span class="ident">flush_buckets</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>
+        );
 
-        <span class="kw">for</span> (<span class="ident">project_key</span>, <span class="ident">buckets</span>) <span class="kw">in</span> <span class="ident">buckets</span>.<span class="ident">into_iter</span>() {
+        <span class="kw">for</span> (<span class="ident">project_key</span>, <span class="ident">project_buckets</span>) <span class="kw">in</span> <span class="ident">flush_buckets</span>.<span class="ident">into_iter</span>() {
+            <span class="macro">relay_statsd::metric!</span>(
+                <span class="ident">histogram</span>(<span class="ident">MetricHistograms::BucketsFlushedPerProject</span>) <span class="op">=</span>
+                    <span class="ident">project_buckets</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>
+            );
+
             <span class="self">self</span>.<span class="ident">receiver</span>
-                .<span class="ident">send</span>(<span class="ident">FlushBuckets::new</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>))
+                .<span class="ident">send</span>(<span class="ident">FlushBuckets::new</span>(<span class="ident">project_key</span>, <span class="ident">project_buckets</span>))
                 .<span class="ident">into_actor</span>(<span class="self">self</span>)
                 .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span>, <span class="ident">slf</span>, <span class="ident">_ctx</span><span class="op">|</span> {
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">buckets</span>) <span class="op">=</span> <span class="ident">result</span> {
