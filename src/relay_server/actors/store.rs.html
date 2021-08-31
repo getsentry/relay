@@ -684,6 +684,7 @@
 <span id="684">684</span>
 <span id="685">685</span>
 <span id="686">686</span>
+<span id="687">687</span>
 </pre><pre class="rust">
 <span class="doccomment">//! This module contains the actor that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The actor uses kafka topics to forward data to Sentry</span>
@@ -701,16 +702,17 @@
 <span class="kw">use</span> <span class="ident">rmp_serde::encode::Error</span> <span class="kw">as</span> <span class="ident">RmpError</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">ser::Error</span>, <span class="ident">Serialize</span>};
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectId</span>, <span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">KafkaTopic</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="self">self</span>, <span class="ident">EventId</span>, <span class="ident">SessionAggregates</span>, <span class="ident">SessionStatus</span>, <span class="ident">SessionUpdate</span>};
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">BucketValue</span>, <span class="ident">MetricUnit</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas::Scoping</span>;
+<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics::RelayCounters</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service</span>::{<span class="ident">ServerError</span>, <span class="ident">ServerErrorKind</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd::RelayCounters</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="ident">CaptureErrorContext</span>, <span class="ident">ThreadedProducer</span>};
 
 <span class="macro">lazy_static::lazy_static!</span> {

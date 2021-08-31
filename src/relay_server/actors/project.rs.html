@@ -694,6 +694,7 @@
 <span id="694">694</span>
 <span id="695">695</span>
 <span id="696">696</span>
+<span id="697">697</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -708,7 +709,7 @@
 <span class="kw">use</span> <span class="ident">url::Url</span>;
 
 <span class="kw">use</span> <span class="ident">relay_auth::PublicKey</span>;
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>};
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 <span class="kw">use</span> <span class="ident">relay_filter</span>::{<span class="ident">matches_any_origin</span>, <span class="ident">FiltersConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>};
@@ -716,6 +717,7 @@
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="self">self</span>, <span class="ident">Aggregator</span>, <span class="ident">Bucket</span>, <span class="ident">Metric</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">Quota</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_sampling::SamplingConfig</span>;
+<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome::DiscardReason</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_cache</span>::{
@@ -724,7 +726,7 @@
 };
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::extractors::RequestMeta</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics::RelayCounters</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd::RelayCounters</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="ident">EnvelopeLimiter</span>, <span class="ident">Response</span>};
 
 <span class="doccomment">/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].</span>

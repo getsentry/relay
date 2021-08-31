@@ -2867,6 +2867,7 @@
 <span id="2867">2867</span>
 <span id="2868">2868</span>
 <span id="2869">2869</span>
+<span id="2870">2870</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
@@ -2885,7 +2886,7 @@
 <span class="kw">use</span> <span class="ident">serde_json::Value</span> <span class="kw">as</span> <span class="ident">SerdeValue</span>;
 
 <span class="kw">use</span> <span class="ident">relay_auth::RelayVersion</span>;
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">metric</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">PiiProcessor</span>};
 <span class="kw">use</span> <span class="ident">relay_general::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
@@ -2901,6 +2902,7 @@
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">RuleId</span>, <span class="ident">SamplingResult</span>};
+<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">OutcomeProducer</span>, <span class="ident">TrackOutcome</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project</span>::{<span class="ident">Feature</span>, <span class="ident">ProjectState</span>};
@@ -2912,8 +2914,8 @@
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope</span>::{<span class="self">self</span>, <span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::extractors</span>::{<span class="ident">PartialDsn</span>, <span class="ident">RequestMeta</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service::ServerError</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{
     <span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">EnvelopeSummary</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>, <span class="ident">SendWithOutcome</span>,
 };

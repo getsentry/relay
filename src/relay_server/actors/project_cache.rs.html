@@ -603,6 +603,7 @@
 <span id="603">603</span>
 <span id="604">604</span>
 <span id="605">605</span>
+<span id="606">606</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -613,11 +614,12 @@
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">Future</span>};
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectKey</span>};
+<span class="kw">use</span> <span class="ident">relay_common::ProjectKey</span>;
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="self">self</span>, <span class="ident">AggregateMetricsError</span>, <span class="ident">Bucket</span>, <span class="ident">FlushBuckets</span>, <span class="ident">Metric</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
+<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendMetrics</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome::DiscardReason</span>;
@@ -625,7 +627,7 @@
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_local::LocalProjectSource</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_upstream::UpstreamProjectSource</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope::Envelope</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">Response</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>

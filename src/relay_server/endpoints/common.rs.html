@@ -628,6 +628,7 @@
 <span id="628">628</span>
 <span id="629">629</span>
 <span id="630">630</span>
+<span id="631">631</span>
 </pre><pre class="rust">
 <span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.</span>
 
@@ -642,12 +643,13 @@
 <span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">serde::Deserialize</span>;
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">metric</span>, <span class="ident">tryf</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">tryf</span>};
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">EventId</span>, <span class="ident">EventType</span>};
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_quotas::RateLimits</span>;
 <span class="kw">use</span> <span class="ident">relay_sampling::RuleId</span>;
+<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::envelopes</span>::{
     <span class="ident">EnvelopeContext</span>, <span class="ident">EnvelopeManager</span>, <span class="ident">QueueEnvelope</span>, <span class="ident">QueueEnvelopeError</span>,
@@ -657,8 +659,8 @@
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::body::StorePayloadError</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">Envelope</span>, <span class="ident">EnvelopeError</span>, <span class="ident">ItemType</span>, <span class="ident">Items</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::extractors::RequestMeta</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics::RelayCounters</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service</span>::{<span class="ident">ServiceApp</span>, <span class="ident">ServiceState</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd::RelayCounters</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="self">self</span>, <span class="ident">ApiErrorResponse</span>, <span class="ident">FormDataIter</span>, <span class="ident">MultipartError</span>, <span class="ident">SendWithOutcome</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>

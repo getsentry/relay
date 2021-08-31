@@ -366,6 +366,7 @@
 <span id="366">366</span>
 <span id="367">367</span>
 <span id="368">368</span>
+<span id="369">369</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
@@ -379,14 +380,15 @@
 <span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">ProjectKey</span>, <span class="ident">RetryBackoff</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectKey</span>, <span class="ident">RetryBackoff</span>};
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
+<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project::ProjectState</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_cache</span>::{<span class="ident">FetchProjectState</span>, <span class="ident">ProjectError</span>, <span class="ident">ProjectStateResponse</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::upstream</span>::{<span class="ident">RequestPriority</span>, <span class="ident">SendQuery</span>, <span class="ident">UpstreamQuery</span>, <span class="ident">UpstreamRelay</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="self">self</span>, <span class="ident">ErrorBoundary</span>};
 
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>

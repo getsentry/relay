@@ -1014,11 +1014,11 @@
     <span class="kw">use</span> <span class="ident">rdkafka::ClientConfig</span>;
     <span class="kw">use</span> <span class="ident">serde_json::Error</span> <span class="kw">as</span> <span class="ident">SerdeSerializationError</span>;
 
-    <span class="kw">use</span> <span class="ident">relay_common::metric</span>;
     <span class="kw">use</span> <span class="ident">relay_config::KafkaTopic</span>;
+    <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
-    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics::RelayCounters</span>;
     <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service::ServerErrorKind</span>;
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd::RelayCounters</span>;
     <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="ident">CaptureErrorContext</span>, <span class="ident">ThreadedProducer</span>};
 
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>

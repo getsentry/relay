@@ -1628,6 +1628,12 @@
 <span id="1628">1628</span>
 <span id="1629">1629</span>
 <span id="1630">1630</span>
+<span id="1631">1631</span>
+<span id="1632">1632</span>
+<span id="1633">1633</span>
+<span id="1634">1634</span>
+<span id="1635">1635</span>
+<span id="1636">1636</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
@@ -2078,20 +2084,26 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">Metrics</span> {
-    <span class="doccomment">/// If set to a host/port string then metrics will be reported to this</span>
-    <span class="doccomment">/// statsd instance.</span>
+    <span class="doccomment">/// Hostname and port of the statsd server.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Defaults to `None`.</span>
     <span class="ident">statsd</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// The prefix that should be added to all metrics.</span>
+    <span class="doccomment">/// Common prefix that should be added to all metrics.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Defaults to `&quot;sentry.relay&quot;`.</span>
     <span class="ident">prefix</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// Default tags to apply to all outgoing metrics.</span>
+    <span class="doccomment">/// Default tags to apply to all metrics.</span>
     <span class="ident">default_tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// A tag name to report the hostname to, for each metric. Defaults to not sending such a tag.</span>
+    <span class="doccomment">/// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.</span>
     <span class="ident">hostname_tag</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// If set to true, emitted metrics will be buffered to optimize performance.</span>
-    <span class="doccomment">/// Defaults to true.</span>
+    <span class="doccomment">/// Emitted metrics will be buffered to optimize performance.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Defaults to `true`.</span>
     <span class="ident">buffering</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// Global sample rate for all emitted metrics. Should be between 0.0 and 1.0.</span>
-    <span class="doccomment">/// For example, the value of 0.3 means that only 30% of the emitted metrics will be sent.</span>
+    <span class="doccomment">/// Global sample rate for all emitted metrics between `0.0` and `1.0`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.</span>
+    <span class="doccomment">/// Defaults to `1.0` (100%).</span>
     <span class="ident">sample_rate</span>: <span class="ident">f32</span>,
 }
 

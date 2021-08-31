@@ -33,10 +33,10 @@
 <span class="kw">use</span> <span class="ident">rdkafka::producer</span>::{<span class="ident">DeliveryResult</span>, <span class="ident">ProducerContext</span>};
 <span class="kw">use</span> <span class="ident">rdkafka::ClientContext</span>;
 
-<span class="kw">use</span> <span class="ident">relay_common::metric</span>;
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
+<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics::RelayCounters</span>;
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd::RelayCounters</span>;
 
 <span class="doccomment">/// Kafka producer context that logs producer errors</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CaptureErrorContext</span>;

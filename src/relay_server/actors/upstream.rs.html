@@ -1275,6 +1275,7 @@
 <span id="1275">1275</span>
 <span id="1276">1276</span>
 <span id="1277">1277</span>
+<span id="1278">1278</span>
 </pre><pre class="rust">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1312,15 +1313,16 @@
 <span class="kw">use</span> <span class="ident">serde::ser::Serialize</span>;
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::{<span class="ident">RegisterChallenge</span>, <span class="ident">RegisterRequest</span>, <span class="ident">RegisterResponse</span>, <span class="ident">Registration</span>};
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">metric</span>, <span class="ident">tryf</span>, <span class="ident">RetryBackoff</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">tryf</span>, <span class="ident">RetryBackoff</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_log</span>::{<span class="self">self</span>, <span class="ident">LogError</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{
     <span class="ident">DataCategories</span>, <span class="ident">QuotaScope</span>, <span class="ident">RateLimit</span>, <span class="ident">RateLimitScope</span>, <span class="ident">RateLimits</span>, <span class="ident">RetryAfter</span>, <span class="ident">Scoping</span>,
 };
+<span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>, <span class="ident">StatusCode</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::metrics</span>::{<span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd</span>::{<span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{<span class="self">self</span>, <span class="ident">ApiErrorResponse</span>, <span class="ident">IntoTracked</span>, <span class="ident">RelayErrorAction</span>, <span class="ident">TrackedFutureFinished</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
