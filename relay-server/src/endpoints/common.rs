@@ -11,12 +11,13 @@ use failure::Fail;
 use futures::prelude::*;
 use serde::Deserialize;
 
-use relay_common::{clone, metric, tryf};
+use relay_common::{clone, tryf};
 use relay_config::Config;
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_sampling::RuleId;
+use relay_statsd::metric;
 
 use crate::actors::envelopes::{
     EnvelopeContext, EnvelopeManager, QueueEnvelope, QueueEnvelopeError,

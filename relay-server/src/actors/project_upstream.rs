@@ -10,9 +10,10 @@ use futures::{future, future::Shared, sync::oneshot, Future};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use relay_common::{metric, ProjectKey, RetryBackoff};
+use relay_common::{ProjectKey, RetryBackoff};
 use relay_config::Config;
 use relay_log::LogError;
+use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};

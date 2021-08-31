@@ -34,12 +34,13 @@ use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
-use relay_common::{metric, tryf, RetryBackoff};
+use relay_common::{tryf, RetryBackoff};
 use relay_config::{Config, RelayMode};
 use relay_log::{self, LogError};
 use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
+use relay_statsd::metric;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::metrics::{RelayHistograms, RelayTimers};

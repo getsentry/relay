@@ -8,9 +8,6 @@
 #[macro_use]
 mod macros;
 
-#[macro_use]
-pub mod metrics;
-
 mod cell;
 mod constants;
 mod glob;

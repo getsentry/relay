@@ -2,8 +2,8 @@ use ::actix::prelude::*;
 use actix_web::server::StopServer;
 use futures::prelude::*;
 
-use relay_common::metric;
 use relay_config::Config;
+use relay_statsd::metric;
 
 use crate::actors::controller::{Controller, Shutdown};
 use crate::metrics::RelayCounters;

@@ -14,12 +14,13 @@ use rdkafka::ClientConfig;
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
-use relay_common::{metric, ProjectId, UnixTimestamp, Uuid};
+use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricUnit};
 use relay_quotas::Scoping;
+use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::metrics::RelayCounters;

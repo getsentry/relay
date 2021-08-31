@@ -11,9 +11,9 @@ use actix_web::{http::header, Body, HttpMessage, HttpRequest, HttpResponse};
 use failure::Fail;
 use futures::prelude::*;
 
-use relay_common::metric;
 use relay_log::_sentry::{types::Uuid, Hub, Level, ScopeGuard};
 use relay_log::protocol::{ClientSdkPackage, Event, Request};
+use relay_statsd::metric;
 
 use crate::constants::SERVER;
 use crate::extractors::SharedPayload;

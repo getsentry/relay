@@ -7,11 +7,12 @@ use actix_web::ResponseError;
 use failure::Fail;
 use futures::{future, Future};
 
-use relay_common::{metric, ProjectKey};
+use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
 use relay_metrics::{self, AggregateMetricsError, Bucket, FlushBuckets, Metric};
 use relay_quotas::{RateLimits, Scoping};
 use relay_redis::RedisPool;
+use relay_statsd::metric;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
