@@ -11,6 +11,10 @@
 
 - Use correct commandline argument name for setting Relay port. ([#1059](https://github.com/getsentry/relay/pull/1059))
 
+**Internal**:
+
+- Add new metrics on Relay's performance in dealing with buckets of metric aggregates, as well as the amount of aggregated buckets. ([#1070](https://github.com/getsentry/relay/pull/1070))
+
 ## 21.8.0
 
 - No documented changes.
