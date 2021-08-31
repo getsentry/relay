@@ -14,8 +14,6 @@ use serde::Serialize;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
-static FILE_PATHS: &[&str] = &["relay-server/src/metrics.rs"];
-
 #[derive(Clone, Copy, Debug)]
 enum SchemaFormat {
     Json,
@@ -257,6 +255,10 @@ struct Cli {
     /// Optional output path. By default, documentation is printed on stdout.
     #[structopt(short, long, value_name = "PATH")]
     output: Option<PathBuf>,
+
+    /// Paths to source files declaring metrics.
+    #[structopt(required = true, value_name = "PATH")]
+    paths: Vec<PathBuf>,
 }
 
 impl Cli {
@@ -271,7 +273,7 @@ impl Cli {
 
     pub fn run(self) -> Result<()> {
         let mut metrics = Vec::new();
-        for path in FILE_PATHS {
+        for path in &self.paths {
             metrics.extend(parse_metrics(&fs::read_to_string(path)?)?);
         }
         sort_metrics(&mut metrics);
