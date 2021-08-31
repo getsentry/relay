@@ -1,38 +1,15 @@
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 
-use crate::protocol::{Event, Span, Timestamp};
+use crate::protocol::{Event, Span};
 use crate::types::Annotated;
 use crate::types::SpanAttribute;
 
-#[derive(Clone, Debug)]
-struct TimeInterval {
-    start: Timestamp,
-    end: Timestamp,
-}
-
-impl TimeInterval {
-    fn new(start: Timestamp, end: Timestamp) -> Self {
-        if end < start {
-            TimeInterval {
-                start: end,
-                end: start,
-            }
-        } else {
-            TimeInterval { start, end }
-        }
-    }
-
-    fn get_duration(&self) -> f64 {
-        let delta: f64 = (self.end.timestamp_nanos() - self.start.timestamp_nanos()) as f64;
-        // convert to milliseconds (1 ms = 1,000,000 nanoseconds)
-        (delta / 1_000_000.00).abs()
-    }
-}
+use crate::store::normalize::breakdowns::TimeWindowSpan;
 
 /// Merge a list of intervals into a list of non overlapping intervals.
 /// Assumes that the input intervals are sorted by start time.
-fn merge_non_overlapping_intervals(intervals: &mut [TimeInterval]) -> Vec<TimeInterval> {
+fn merge_non_overlapping_intervals(intervals: &mut [TimeWindowSpan]) -> Vec<TimeWindowSpan> {
     let mut non_overlapping_intervals = Vec::new();
 
     // Make sure that there is at least 1 interval present.
@@ -44,14 +21,14 @@ fn merge_non_overlapping_intervals(intervals: &mut [TimeInterval]) -> Vec<TimeIn
 
     // The first interval is stored in `previous`, so make sure to skip it.
     for current in intervals.iter().skip(1) {
-        if current.end < previous.end {
+        if current.end_timestamp < previous.end_timestamp {
             // The current interval is completely contained within the
             // previous interval, nothing to be done here.
             continue;
-        } else if current.start < previous.end {
+        } else if current.start_timestamp < previous.end_timestamp {
             // The head of the current interval overlaps with the tail of
             // the previous interval, merge the two intervals into one.
-            previous.end = current.end;
+            previous.end_timestamp = current.end_timestamp;
         } else {
             // The current interval does not intersect with the previous
             // interval, finished with the previous interval, and use the
@@ -70,17 +47,17 @@ fn merge_non_overlapping_intervals(intervals: &mut [TimeInterval]) -> Vec<TimeIn
 /// Computes the exclusive time of the source interval after subtracting the
 /// list of intervals.
 /// Assumes that the input intervals are sorted by start time.
-fn interval_exclusive_time(source: &TimeInterval, intervals: &[TimeInterval]) -> f64 {
+fn interval_exclusive_time(source: &TimeWindowSpan, intervals: &[TimeWindowSpan]) -> f64 {
     let mut exclusive_time = 0.0;
 
     let mut remaining = source.clone();
 
     for interval in intervals {
-        if interval.end < remaining.start {
+        if interval.end_timestamp < remaining.start_timestamp {
             // The interval is entirely to the left of the remaining interval,
             // so nothing to be done here.
             continue;
-        } else if interval.start >= remaining.end {
+        } else if interval.start_timestamp >= remaining.end_timestamp {
             // The interval is entirely to the right of the remaining interval,
             // so nothing to be done here.
             //
@@ -90,25 +67,27 @@ fn interval_exclusive_time(source: &TimeInterval, intervals: &[TimeInterval]) ->
         } else {
             // The interval must intersect with the remaining interval in some way.
 
-            if interval.start > remaining.start {
+            if interval.start_timestamp > remaining.start_timestamp {
                 // The interval begins within the remaining interval, there is a
                 // portion to its left that should be added to the results.
-                exclusive_time += TimeInterval::new(remaining.start, interval.start).get_duration();
+                exclusive_time +=
+                    TimeWindowSpan::new(remaining.start_timestamp, interval.start_timestamp)
+                        .get_duration();
             }
 
-            if interval.end < remaining.end {
+            if interval.end_timestamp < remaining.end_timestamp {
                 // The interval ends within the remaining interval, so the
                 // tail of the interval interesects with the head of the remaining
                 // interval.
                 //
                 // Subtract the intersection by shifting the start of the remaining
                 // interval.
-                remaining.start = interval.end;
+                remaining.start_timestamp = interval.end_timestamp;
             } else {
                 // The interval ends to the right of the remaining interval, so
                 // the interval intersects with the entirety of the remaining
                 // interval. So zero out the interval.
-                remaining.start = remaining.end;
+                remaining.start_timestamp = remaining.end_timestamp;
 
                 // There is nothing remaining to be checked.
                 break;
@@ -120,10 +99,10 @@ fn interval_exclusive_time(source: &TimeInterval, intervals: &[TimeInterval]) ->
     exclusive_time + remaining.get_duration()
 }
 
-fn get_span_interval(span: &Span) -> Option<TimeInterval> {
+fn get_span_interval(span: &Span) -> Option<TimeWindowSpan> {
     let start_timestamp = *span.start_timestamp.value()?;
     let end_timestamp = *span.timestamp.value()?;
-    Some(TimeInterval::new(start_timestamp, end_timestamp))
+    Some(TimeWindowSpan::new(start_timestamp, end_timestamp))
 }
 
 pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<SpanAttribute>) {
@@ -181,7 +160,7 @@ fn compute_span_exclusive_time(event: &mut Event) {
         let child_intervals = match span_map.get_mut(span_id) {
             Some(intervals) => {
                 // Make sure that the intervals are sorted by start time.
-                intervals.sort_unstable_by_key(|interval| interval.start);
+                intervals.sort_unstable_by_key(|interval| interval.start_timestamp);
                 merge_non_overlapping_intervals(intervals)
             }
             None => Vec::new(),
@@ -195,7 +174,7 @@ fn compute_span_exclusive_time(event: &mut Event) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{Event, EventType, Span, SpanId, TraceId};
+    use crate::protocol::{Event, EventType, Span, SpanId, Timestamp, TraceId};
     use chrono::{TimeZone, Utc};
 
     fn make_span(

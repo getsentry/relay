@@ -11,13 +11,13 @@ use crate::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
 use crate::types::Annotated;
 
 #[derive(Clone, Debug)]
-struct TimeWindowSpan {
-    start_timestamp: Timestamp,
-    end_timestamp: Timestamp,
+pub struct TimeWindowSpan {
+    pub start_timestamp: Timestamp,
+    pub end_timestamp: Timestamp,
 }
 
 impl TimeWindowSpan {
-    fn new(start_timestamp: Timestamp, end_timestamp: Timestamp) -> Self {
+    pub fn new(start_timestamp: Timestamp, end_timestamp: Timestamp) -> Self {
         if end_timestamp < start_timestamp {
             return TimeWindowSpan {
                 start_timestamp: end_timestamp,
@@ -31,7 +31,7 @@ impl TimeWindowSpan {
         }
     }
 
-    fn get_duration(&self) -> f64 {
+    pub fn get_duration(&self) -> f64 {
         let delta: f64 =
             (self.end_timestamp.timestamp_nanos() - self.start_timestamp.timestamp_nanos()) as f64;
         // convert to milliseconds (1 ms = 1,000,000 nanoseconds)
