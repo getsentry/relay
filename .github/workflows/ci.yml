@@ -259,7 +259,7 @@ jobs:
           echo "::set-output name=relay-test-image::$RELAY_TEST_IMAGE"
           # We cannot execute actions that are not placed under .github of the main repo
           mkdir -p .github/actions
-          cp -r sentry/.github/actions/*
+          cp -r sentry/.github/actions/* .github/actions
 
       - name: Setup Sentry
         uses: ./.github/actions/setup-sentry
