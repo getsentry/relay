@@ -10,7 +10,7 @@ use relay_statsd::metric;
 
 use crate::actors::controller::{Controller, Shutdown};
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
-use crate::metrics::RelayGauges;
+use crate::statsd::RelayGauges;
 
 pub struct Healthcheck {
     is_shutting_down: bool,

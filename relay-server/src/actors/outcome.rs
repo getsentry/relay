@@ -373,8 +373,8 @@ mod processing {
     use relay_config::KafkaTopic;
     use relay_statsd::metric;
 
-    use crate::metrics::RelayCounters;
     use crate::service::ServerErrorKind;
+    use crate::statsd::RelayCounters;
     use crate::utils::{CaptureErrorContext, ThreadedProducer};
 
     #[derive(Fail, Debug)]

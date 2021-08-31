@@ -15,7 +15,7 @@ use relay_statsd::metric;
 
 use crate::actors::outcome::DiscardReason;
 use crate::extractors::SharedPayload;
-use crate::metrics::RelayHistograms;
+use crate::statsd::RelayHistograms;
 use crate::utils;
 
 /// A set of errors that can occur during parsing json payloads

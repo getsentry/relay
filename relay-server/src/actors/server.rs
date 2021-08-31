@@ -6,8 +6,8 @@ use relay_config::Config;
 use relay_statsd::metric;
 
 use crate::actors::controller::{Controller, Shutdown};
-use crate::metrics::RelayCounters;
 use crate::service;
+use crate::statsd::RelayCounters;
 
 pub use crate::service::ServerError;
 

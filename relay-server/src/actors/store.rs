@@ -23,8 +23,8 @@ use relay_quotas::Scoping;
 use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use crate::metrics::RelayCounters;
 use crate::service::{ServerError, ServerErrorKind};
+use crate::statsd::RelayCounters;
 use crate::utils::{CaptureErrorContext, ThreadedProducer};
 
 lazy_static::lazy_static! {

@@ -28,7 +28,7 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use crate::metrics::RelayCounters;
+use crate::statsd::RelayCounters;
 use crate::utils::{EnvelopeLimiter, Response};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].

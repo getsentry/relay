@@ -27,8 +27,8 @@ use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
 use crate::body::StorePayloadError;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
-use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
+use crate::statsd::RelayCounters;
 use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError, SendWithOutcome};
 
 #[derive(Fail, Debug)]

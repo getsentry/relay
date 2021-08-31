@@ -20,7 +20,7 @@ use crate::actors::project::{Expiry, Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
-use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{ActorResponse, Response};
 
 #[cfg(feature = "processing")]

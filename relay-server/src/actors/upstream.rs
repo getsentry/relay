@@ -43,7 +43,7 @@ use relay_quotas::{
 use relay_statsd::metric;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
-use crate::metrics::{RelayHistograms, RelayTimers};
+use crate::statsd::{RelayHistograms, RelayTimers};
 use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
 #[derive(Fail, Debug)]

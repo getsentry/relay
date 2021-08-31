@@ -17,7 +17,7 @@ use relay_statsd::metric;
 
 use crate::constants::SERVER;
 use crate::extractors::SharedPayload;
-use crate::metrics::{RelayCounters, RelayTimers};
+use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::ApiErrorResponse;
 
 /// Basic metrics
