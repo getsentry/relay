@@ -1,6 +1,5 @@
 use fnv::FnvHasher;
-use std::collections::{btree_map, BinaryHeap};
-use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap};
+use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt;
 use std::hash::Hasher;
@@ -13,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
+use crate::statsd::{MetricGauges, MetricHistograms, MetricTimers};
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
 /// Contains the numeric value corresponding to a metrics tag name, tag key or tag value.
@@ -816,20 +816,20 @@ impl Default for AggregatorConfig {
     }
 }
 
-/// Reference to a bucket in the [`Aggregator`] with a defined flush time.
+/// Bucket in the [`Aggregator`] with a defined flush time.
 ///
 /// This type implements an inverted total ordering. The maximum queued bucket has the lowest flush
 /// time, which is suitable for using it in a [`BinaryHeap`].
 #[derive(Debug)]
 struct QueuedBucket {
     flush_at: Instant,
-    key: BucketKey,
+    value: BucketValue,
 }
 
 impl QueuedBucket {
     /// Creates a new `QueuedBucket` with a given flush time.
-    fn new(flush_at: Instant, key: BucketKey) -> Self {
-        Self { flush_at, key }
+    fn new(flush_at: Instant, value: BucketValue) -> Self {
+        Self { flush_at, value }
     }
 
     /// Returns `true` if the flush time has elapsed.
@@ -948,8 +948,7 @@ impl Message for FlushBuckets {
 /// ```
 pub struct Aggregator {
     config: AggregatorConfig,
-    buckets: HashMap<BucketKey, BucketValue>,
-    queue: BinaryHeap<QueuedBucket>,
+    buckets: HashMap<BucketKey, QueuedBucket>,
     receiver: Recipient<FlushBuckets>,
 }
 
@@ -962,7 +961,6 @@ impl Aggregator {
         Self {
             config,
             buckets: HashMap::new(),
-            queue: BinaryHeap::new(),
             receiver,
         }
     }
@@ -989,13 +987,11 @@ impl Aggregator {
 
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
-                value.merge_into(entry.get_mut())?;
+                value.merge_into(&mut entry.get_mut().value)?;
             }
             Entry::Vacant(entry) => {
                 let flush_at = self.config.get_flush_time(timestamp);
-                self.queue
-                    .push(QueuedBucket::new(flush_at, entry.key().clone()));
-                entry.insert(value.into());
+                entry.insert(QueuedBucket::new(flush_at, value.into()));
             }
         }
 
@@ -1062,26 +1058,43 @@ impl Aggregator {
     ///
     /// If the receiver returns buckets, they are merged back into the cache.
     fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
-        let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
+        relay_statsd::metric!(gauge(MetricGauges::Buckets) = self.buckets.len() as u64);
+        let mut flush_buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
 
-        while self.queue.peek().map_or(false, |flush| flush.elapsed()) {
-            let flush = self.queue.pop().unwrap();
-            let value = self.buckets.remove(&flush.key).unwrap();
-            buckets
-                .entry(flush.key.project_key)
-                .or_default()
-                .push(Bucket::from_parts(flush.key, value));
-        }
+        relay_statsd::metric!(timer(MetricTimers::BucketsScanDuration), {
+            self.buckets.retain(|key, entry| {
+                if entry.elapsed() {
+                    // Take the value and leave a placeholder behind. It'll be removed right after.
+                    let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                    let bucket = Bucket::from_parts(key.clone(), value);
+                    flush_buckets
+                        .entry(key.project_key)
+                        .or_default()
+                        .push(bucket);
+                    false
+                } else {
+                    true
+                }
+            });
+        });
 
-        if buckets.is_empty() {
+        if flush_buckets.is_empty() {
             return;
         }
 
-        relay_log::trace!("flushing {} buckets to receiver", buckets.len());
+        relay_log::trace!("flushing {} buckets to receiver", flush_buckets.len());
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BucketsFlushed) = flush_buckets.len() as u64
+        );
 
-        for (project_key, buckets) in buckets.into_iter() {
+        for (project_key, project_buckets) in flush_buckets.into_iter() {
+            relay_statsd::metric!(
+                histogram(MetricHistograms::BucketsFlushedPerProject) =
+                    project_buckets.len() as u64
+            );
+
             self.receiver
-                .send(FlushBuckets::new(project_key, buckets))
+                .send(FlushBuckets::new(project_key, project_buckets))
                 .into_actor(self)
                 .and_then(move |result, slf, _ctx| {
                     if let Err(buckets) = result {
@@ -1104,7 +1117,6 @@ impl fmt::Debug for Aggregator {
         f.debug_struct(std::any::type_name::<Self>())
             .field("config", &self.config)
             .field("buckets", &self.buckets)
-            .field("queue", &self.queue)
             .field("receiver", &format_args!("Recipient<FlushBuckets>"))
             .finish()
     }
@@ -1573,19 +1585,28 @@ mod tests {
         aggregator.insert(project_key, metric1).unwrap();
         aggregator.insert(project_key, metric2).unwrap();
 
-        insta::assert_debug_snapshot!(aggregator.buckets, @r###"
-        {
-            BucketKey {
-                project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                timestamp: UnixTimestamp(4710),
-                metric_name: "foo",
-                metric_type: Counter,
-                metric_unit: None,
-                tags: {},
-            }: Counter(
-                85.0,
+        let buckets: Vec<_> = aggregator
+            .buckets
+            .into_iter()
+            .map(|(k, e)| (k, e.value)) // skip flush times, they are different every time
+            .collect();
+
+        insta::assert_debug_snapshot!(buckets, @r###"
+        [
+            (
+                BucketKey {
+                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
+                    timestamp: UnixTimestamp(4710),
+                    metric_name: "foo",
+                    metric_type: Counter,
+                    metric_unit: None,
+                    tags: {},
+                },
+                Counter(
+                    85.0,
+                ),
             ),
-        }
+        ]
         "###);
     }
 
@@ -1612,7 +1633,12 @@ mod tests {
         aggregator.insert(project_key, metric2).unwrap();
         aggregator.insert(project_key, metric3).unwrap();
 
-        let mut buckets: Vec<(BucketKey, BucketValue)> = aggregator.buckets.into_iter().collect();
+        let mut buckets: Vec<_> = aggregator
+            .buckets
+            .into_iter()
+            .map(|(k, e)| (k, e.value)) // skip flush times, they are different every time
+            .collect();
+
         buckets.sort_by(|a, b| a.0.timestamp.cmp(&b.0.timestamp));
         insta::assert_debug_snapshot!(buckets, @r###"
         [

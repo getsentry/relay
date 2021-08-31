@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 use std::fmt;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::PathBuf;
 
@@ -13,8 +13,6 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
-
-static FILE_CONTENTS: &str = include_str!("../../../relay-server/src/metrics.rs");
 
 #[derive(Clone, Copy, Debug)]
 enum SchemaFormat {
@@ -198,6 +196,10 @@ fn parse_impl_parts(mut imp: syn::ItemImpl) -> Option<(MetricType, syn::Ident, V
     Some((ty, type_name, arms))
 }
 
+fn sort_metrics(metrics: &mut [Metric]) {
+    metrics.sort_by(|a, b| a.name.cmp(&b.name));
+}
+
 /// Parses metrics from the given source code.
 fn parse_metrics(source: &str) -> Result<Vec<Metric>> {
     let ast = syn::parse_file(source).with_context(|| "failed to parse metrics file")?;
@@ -238,8 +240,7 @@ fn parse_metrics(source: &str) -> Result<Vec<Metric>> {
         });
     }
 
-    metrics.sort_by(|a, b| a.name.cmp(&b.name));
-
+    sort_metrics(&mut metrics);
     Ok(metrics)
 }
 
@@ -254,6 +255,10 @@ struct Cli {
     /// Optional output path. By default, documentation is printed on stdout.
     #[structopt(short, long, value_name = "PATH")]
     output: Option<PathBuf>,
+
+    /// Paths to source files declaring metrics.
+    #[structopt(required = true, value_name = "PATH")]
+    paths: Vec<PathBuf>,
 }
 
 impl Cli {
@@ -267,7 +272,11 @@ impl Cli {
     }
 
     pub fn run(self) -> Result<()> {
-        let metrics = parse_metrics(FILE_CONTENTS)?;
+        let mut metrics = Vec::new();
+        for path in &self.paths {
+            metrics.extend(parse_metrics(&fs::read_to_string(path)?)?);
+        }
+        sort_metrics(&mut metrics);
 
         match self.output {
             Some(ref path) => self.write_metrics(File::create(path)?, &metrics)?,

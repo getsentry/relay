@@ -9,6 +9,16 @@ TEST_CONFIG = {
 }
 
 
+def metrics_by_name(metrics_consumer, count):
+    metrics = {
+        metric["name"]: metric
+        for metric in [metrics_consumer.get_metric() for _ in range(count)]
+    }
+
+    metrics_consumer.assert_empty()
+    return metrics
+
+
 def test_metrics(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
@@ -25,10 +35,11 @@ def test_metrics(mini_sentry, relay):
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
 
-    received_metrics = metrics_item.get_bytes()
-    assert json.loads(received_metrics.decode()) == [
-        {"timestamp": timestamp, "name": "foo", "value": 42.0, "type": "c"},
+    received_metrics = json.loads(metrics_item.get_bytes().decode())
+    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    assert received_metrics == [
         {"timestamp": timestamp, "name": "bar", "value": 17.0, "type": "c"},
+        {"timestamp": timestamp, "name": "foo", "value": 42.0, "type": "c"},
     ]
 
 
@@ -65,9 +76,9 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     metrics_payload = f"foo:42|c\nbar@s:17|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
-    metric = metrics_consumer.get_metric()
+    metrics = metrics_by_name(metrics_consumer, 2)
 
-    assert metric == {
+    assert metrics["foo"] == {
         "org_id": 1,
         "project_id": project_id,
         "name": "foo",
@@ -77,9 +88,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "timestamp": timestamp,
     }
 
-    metric = metrics_consumer.get_metric()
-
-    assert metric == {
+    assert metrics["bar"] == {
         "org_id": 1,
         "project_id": project_id,
         "name": "bar",
@@ -88,8 +97,6 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "type": "c",
         "timestamp": timestamp,
     }
-
-    metrics_consumer.assert_empty()
 
 
 def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consumer):
@@ -189,8 +196,9 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
 
     relay.send_session(project_id, session_payload)
 
-    metric = metrics_consumer.get_metric()
-    assert metric == {
+    metrics = metrics_by_name(metrics_consumer, 3)
+
+    assert metrics["session"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": int(timestamp.timestamp()),
@@ -205,8 +213,7 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
         },
     }
 
-    metric = metrics_consumer.get_metric()
-    assert metric == {
+    assert metrics["user"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": int(timestamp.timestamp()),
@@ -221,8 +228,7 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
         },
     }
 
-    metric = metrics_consumer.get_metric()
-    assert metric == {
+    assert metrics["session.duration"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": int(timestamp.timestamp()),
@@ -233,14 +239,11 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
         "tags": {"environment": "production", "release": "sentry-test@1.0.0",},
     }
 
-    metrics_consumer.assert_empty()
-
 
 def test_transaction_metrics(mini_sentry, relay_with_processing, metrics_consumer):
     metrics_consumer = metrics_consumer()
 
     for feature_enabled in (True, False):
-
         relay = relay_with_processing(options=TEST_CONFIG)
         project_id = 42
         mini_sentry.add_full_project_config(project_id)
@@ -273,14 +276,8 @@ def test_transaction_metrics(mini_sentry, relay_with_processing, metrics_consume
 
             continue
 
-        metrics = {
-            metric["name"]: metric
-            for metric in [metrics_consumer.get_metric() for _ in range(3)]
-        }
+        metrics = metrics_by_name(metrics_consumer, 3)
 
-        metrics_consumer.assert_empty()
-
-        assert "measurement.foo" in metrics
         assert metrics["measurement.foo"] == {
             "org_id": 1,
             "project_id": 42,

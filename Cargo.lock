@@ -3083,6 +3083,7 @@ dependencies = [
  "relay-config",
  "relay-log",
  "relay-server",
+ "relay-statsd",
 ]
 
 [[package]]
@@ -3125,7 +3126,6 @@ name = "relay-common"
 version = "21.8.0"
 dependencies = [
  "backoff",
- "cadence",
  "chrono",
  "failure",
  "globset",
@@ -3133,7 +3133,6 @@ dependencies = [
  "lazycell",
  "lru",
  "parking_lot 0.10.2",
- "rand 0.7.3",
  "regex",
  "relay-log",
  "schemars",
@@ -3272,6 +3271,7 @@ dependencies = [
  "insta",
  "relay-common",
  "relay-log",
+ "relay-statsd",
  "relay-test",
  "serde",
  "serde_json",
@@ -3356,6 +3356,7 @@ dependencies = [
  "relay-quotas",
  "relay-redis",
  "relay-sampling",
+ "relay-statsd",
  "relay-test",
  "reqwest",
  "rmp-serde",
@@ -3369,6 +3370,17 @@ dependencies = [
  "tokio-timer",
  "url 2.2.0",
  "uuid 0.8.1",
+]
+
+[[package]]
+name = "relay-statsd"
+version = "21.8.0"
+dependencies = [
+ "cadence",
+ "lazy_static",
+ "parking_lot 0.10.2",
+ "rand 0.7.3",
+ "relay-log",
 ]
 
 [[package]]
