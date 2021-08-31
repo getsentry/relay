@@ -248,8 +248,6 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: getsentry/sentry
-          # XXX: Testing
-          ref: build/ci/fix-setup-sentry-inputs
           path: sentry
 
       - name: Setup steps
