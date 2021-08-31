@@ -35,10 +35,11 @@ def test_metrics(mini_sentry, relay):
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
 
-    received_metrics = metrics_item.get_bytes()
-    assert json.loads(received_metrics.decode()) == [
-        {"timestamp": timestamp, "name": "foo", "value": 42.0, "type": "c"},
+    received_metrics = json.loads(metrics_item.get_bytes().decode())
+    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    assert received_metrics == [
         {"timestamp": timestamp, "name": "bar", "value": 17.0, "type": "c"},
+        {"timestamp": timestamp, "name": "foo", "value": 42.0, "type": "c"},
     ]
 
 
