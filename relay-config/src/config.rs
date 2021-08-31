@@ -447,20 +447,26 @@ impl Default for Relay {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Metrics {
-    /// If set to a host/port string then metrics will be reported to this
-    /// statsd instance.
+    /// Hostname and port of the statsd server.
+    ///
+    /// Defaults to `None`.
     statsd: Option<String>,
-    /// The prefix that should be added to all metrics.
+    /// Common prefix that should be added to all metrics.
+    ///
+    /// Defaults to `"sentry.relay"`.
     prefix: String,
-    /// Default tags to apply to all outgoing metrics.
+    /// Default tags to apply to all metrics.
     default_tags: BTreeMap<String, String>,
-    /// A tag name to report the hostname to, for each metric. Defaults to not sending such a tag.
+    /// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
     hostname_tag: Option<String>,
-    /// If set to true, emitted metrics will be buffered to optimize performance.
-    /// Defaults to true.
+    /// Emitted metrics will be buffered to optimize performance.
+    ///
+    /// Defaults to `true`.
     buffering: bool,
-    /// Global sample rate for all emitted metrics. Should be between 0.0 and 1.0.
-    /// For example, the value of 0.3 means that only 30% of the emitted metrics will be sent.
+    /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
+    ///
+    /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
+    /// Defaults to `1.0` (100%).
     sample_rate: f32,
 }
 

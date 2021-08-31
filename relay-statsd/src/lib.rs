@@ -18,13 +18,12 @@
 //! collected.
 //!
 //! To initialize the client, either use [`set_client`] to pass a custom client, or use
-//! [`configure_statsd`] to create a default client with known arguments:
+//! [`init`] to create a default client with known arguments:
 //!
 //! ```no_run
 //! # use std::collections::BTreeMap;
-//! use relay_statsd;
 //!
-//! metrics::configure_statsd("myprefix", "localhost:8125", BTreeMap::new(), true, 1.0);
+//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), true, 1.0);
 //! ```
 //!
 //! ## Macro Usage
@@ -49,10 +48,9 @@
 //! ## Manual Usage
 //!
 //! ```
-//! use relay_statsd;
 //! use relay_statsd::prelude::*;
 //!
-//! metrics::with_client(|client| {
+//! relay_statsd::with_client(|client| {
 //!     client.count("mymetric", 1).ok();
 //! });
 //! ```
