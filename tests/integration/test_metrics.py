@@ -189,8 +189,16 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
 
     relay.send_session(project_id, session_payload)
 
-    metric = metrics_consumer.get_metric()
-    assert metric == {
+    metrics = sorted(
+        [
+            metrics_consumer.get_metric(),
+            metrics_consumer.get_metric(),
+            metrics_consumer.get_metric(),
+        ],
+        key=lambda x: x["name"],
+    )
+
+    assert metrics[0] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": int(timestamp.timestamp()),
@@ -205,8 +213,18 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
         },
     }
 
-    metric = metrics_consumer.get_metric()
-    assert metric == {
+    assert metrics[1] == {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(timestamp.timestamp()),
+        "name": "session.duration",
+        "type": "d",
+        "unit": "s",
+        "value": [1947.49],
+        "tags": {"environment": "production", "release": "sentry-test@1.0.0",},
+    }
+
+    assert metrics[2] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": int(timestamp.timestamp()),
@@ -219,18 +237,6 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
             "release": "sentry-test@1.0.0",
             "session.status": "init",
         },
-    }
-
-    metric = metrics_consumer.get_metric()
-    assert metric == {
-        "org_id": 1,
-        "project_id": 42,
-        "timestamp": int(timestamp.timestamp()),
-        "name": "session.duration",
-        "type": "d",
-        "unit": "s",
-        "value": [1947.49],
-        "tags": {"environment": "production", "release": "sentry-test@1.0.0",},
     }
 
     metrics_consumer.assert_empty()
