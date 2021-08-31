@@ -349,6 +349,15 @@
 <span id="349">349</span>
 <span id="350">350</span>
 <span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
 </pre><pre class="rust">
 <span class="attribute">#![<span class="ident">doc</span>(
     <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
@@ -357,7 +366,7 @@
 
 <span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
-<span class="kw">use</span> <span class="ident">std::fs::File</span>;
+<span class="kw">use</span> <span class="ident">std::fs</span>::{<span class="self">self</span>, <span class="ident">File</span>};
 <span class="kw">use</span> <span class="ident">std::io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">std::path::PathBuf</span>;
 
@@ -365,8 +374,6 @@
 <span class="kw">use</span> <span class="ident">serde::Serialize</span>;
 <span class="kw">use</span> <span class="ident">structopt::clap::AppSettings</span>;
 <span class="kw">use</span> <span class="ident">structopt::StructOpt</span>;
-
-<span class="kw">static</span> <span class="ident">FILE_CONTENTS</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="macro">include_str!</span>(<span class="string">&quot;../../../relay-server/src/metrics.rs&quot;</span>);
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">enum</span> <span class="ident">SchemaFormat</span> {
@@ -550,6 +557,10 @@
     <span class="prelude-val">Some</span>((<span class="ident">ty</span>, <span class="ident">type_name</span>, <span class="ident">arms</span>))
 }
 
+<span class="kw">fn</span> <span class="ident">sort_metrics</span>(<span class="ident">metrics</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">Metric</span>]) {
+    <span class="ident">metrics</span>.<span class="ident">sort_by</span>(<span class="op">|</span><span class="ident">a</span>, <span class="ident">b</span><span class="op">|</span> <span class="ident">a</span>.<span class="ident">name</span>.<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>.<span class="ident">name</span>));
+}
+
 <span class="doccomment">/// Parses metrics from the given source code.</span>
 <span class="kw">fn</span> <span class="ident">parse_metrics</span>(<span class="ident">source</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">ast</span> <span class="op">=</span> <span class="ident">syn::parse_file</span>(<span class="ident">source</span>).<span class="ident">with_context</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;failed to parse metrics file&quot;</span>)<span class="question-mark">?</span>;
@@ -590,8 +601,7 @@
         });
     }
 
-    <span class="ident">metrics</span>.<span class="ident">sort_by</span>(<span class="op">|</span><span class="ident">a</span>, <span class="ident">b</span><span class="op">|</span> <span class="ident">a</span>.<span class="ident">name</span>.<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>.<span class="ident">name</span>));
-
+    <span class="ident">sort_metrics</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">metrics</span>);
     <span class="prelude-val">Ok</span>(<span class="ident">metrics</span>)
 }
 
@@ -606,6 +616,10 @@
     <span class="doccomment">/// Optional output path. By default, documentation is printed on stdout.</span>
     <span class="attribute">#[<span class="ident">structopt</span>(<span class="ident">short</span>, <span class="ident">long</span>, <span class="ident">value_name</span> <span class="op">=</span> <span class="string">&quot;PATH&quot;</span>)]</span>
     <span class="ident">output</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Paths to source files declaring metrics.</span>
+    <span class="attribute">#[<span class="ident">structopt</span>(<span class="ident">required</span> <span class="op">=</span> <span class="bool-val">true</span>, <span class="ident">value_name</span> <span class="op">=</span> <span class="string">&quot;PATH&quot;</span>)]</span>
+    <span class="ident">paths</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Cli</span> {
@@ -619,7 +633,11 @@
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="ident">parse_metrics</span>(<span class="ident">FILE_CONTENTS</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+        <span class="kw">for</span> <span class="ident">path</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">paths</span> {
+            <span class="ident">metrics</span>.<span class="ident">extend</span>(<span class="ident">parse_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">fs::read_to_string</span>(<span class="ident">path</span>)<span class="question-mark">?</span>)<span class="question-mark">?</span>);
+        }
+        <span class="ident">sort_metrics</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">metrics</span>);
 
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">output</span> {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">path</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">write_metrics</span>(<span class="ident">File::create</span>(<span class="ident">path</span>)<span class="question-mark">?</span>, <span class="kw-2">&amp;</span><span class="ident">metrics</span>)<span class="question-mark">?</span>,
