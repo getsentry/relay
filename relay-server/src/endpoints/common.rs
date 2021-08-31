@@ -11,12 +11,13 @@ use failure::Fail;
 use futures::prelude::*;
 use serde::Deserialize;
 
-use relay_common::{clone, metric, tryf};
+use relay_common::{clone, tryf};
 use relay_config::Config;
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_sampling::RuleId;
+use relay_statsd::metric;
 
 use crate::actors::envelopes::{
     EnvelopeContext, EnvelopeManager, QueueEnvelope, QueueEnvelopeError,
@@ -26,8 +27,8 @@ use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
 use crate::body::StorePayloadError;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
-use crate::metrics::RelayCounters;
 use crate::service::{ServiceApp, ServiceState};
+use crate::statsd::RelayCounters;
 use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError, SendWithOutcome};
 
 #[derive(Fail, Debug)]

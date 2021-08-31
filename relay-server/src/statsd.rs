@@ -1,4 +1,4 @@
-use relay_common::metrics::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
+use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {

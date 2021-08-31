@@ -11,7 +11,7 @@ use smallvec::SmallVec;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{metric, ProjectId, ProjectKey};
+use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -19,6 +19,7 @@ use relay_general::store::BreakdownsConfig;
 use relay_metrics::{self, Aggregator, Bucket, Metric};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
+use relay_statsd::metric;
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{
@@ -27,7 +28,7 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use crate::metrics::RelayCounters;
+use crate::statsd::RelayCounters;
 use crate::utils::{EnvelopeLimiter, Response};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].

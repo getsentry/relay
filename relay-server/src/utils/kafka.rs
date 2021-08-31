@@ -1,10 +1,10 @@
 use rdkafka::producer::{DeliveryResult, ProducerContext};
 use rdkafka::ClientContext;
 
-use relay_common::metric;
 use relay_log::LogError;
+use relay_statsd::metric;
 
-use crate::metrics::RelayCounters;
+use crate::statsd::RelayCounters;
 
 /// Kafka producer context that logs producer errors
 pub struct CaptureErrorContext;

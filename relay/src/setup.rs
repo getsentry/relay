@@ -1,6 +1,5 @@
 use failure::{err_msg, Error};
 
-use relay_common::metrics;
 use relay_config::{Config, RelayMode};
 
 pub fn check_config(config: &Config) -> Result<(), Error> {
@@ -62,7 +61,7 @@ pub fn init_metrics(config: &Config) -> Result<(), Error> {
             default_tags.insert(hostname_tag.to_owned(), hostname);
         }
     }
-    metrics::configure_statsd(
+    relay_statsd::init(
         config.metrics_prefix(),
         &addrs[..],
         default_tags,

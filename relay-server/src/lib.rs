@@ -259,9 +259,9 @@ mod endpoints;
 mod envelope;
 mod extractors;
 mod http;
-mod metrics;
 mod middlewares;
 mod service;
+mod statsd;
 mod utils;
 
 use relay_config::Config;
