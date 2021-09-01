@@ -10,6 +10,7 @@
 **Bug Fixes**:
 
 - Use correct commandline argument name for setting Relay port. ([#1059](https://github.com/getsentry/relay/pull/1059))
+- Retrieve OS Context for Unity Events INGEST-293. ([#1072](https://github.com/getsentry/relay/pull/1072))
 
 **Internal**:
 
