@@ -1315,6 +1315,7 @@ impl EnvelopeProcessor {
             sent_at: envelope.sent_at(),
             received_at: Some(envelope_context.received_at),
             breakdowns: project_state.config.breakdowns_v2.clone(),
+            span_attributes: project_state.config.span_attributes.clone(),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_deref());

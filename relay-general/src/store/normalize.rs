@@ -26,6 +26,7 @@ mod contexts;
 mod logentry;
 mod mechanism;
 mod request;
+mod spans;
 mod stacktrace;
 
 #[cfg(feature = "uaparser")]
@@ -108,6 +109,12 @@ impl<'a> NormalizeProcessor<'a> {
         match &self.config.breakdowns {
             None => {}
             Some(breakdowns_config) => breakdowns::normalize_breakdowns(event, breakdowns_config),
+        }
+    }
+
+    fn normalize_spans(&self, event: &mut Event) {
+        if event.ty.value() == Some(&EventType::Transaction) {
+            spans::normalize_spans(event, &self.config.span_attributes);
         }
     }
 
@@ -493,6 +500,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         self.normalize_user_agent(event);
         self.normalize_measurements(event);
         self.normalize_breakdowns(event);
+        self.normalize_spans(event);
 
         Ok(())
     }

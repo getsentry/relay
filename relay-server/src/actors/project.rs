@@ -16,6 +16,7 @@ use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::BreakdownsConfig;
+use relay_general::types::SpanAttribute;
 use relay_metrics::{self, Aggregator, Bucket, Metric};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
@@ -85,6 +86,9 @@ pub struct ProjectConfig {
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
+    /// The span attributes configuration.
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub span_attributes: BTreeSet<SpanAttribute>,
     /// Exposable features enabled for this project
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
@@ -103,6 +107,7 @@ impl Default for ProjectConfig {
             quotas: Vec::new(),
             dynamic_sampling: None,
             breakdowns_v2: None,
+            span_attributes: BTreeSet::new(),
             features: BTreeSet::new(),
         }
     }
