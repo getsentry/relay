@@ -2868,6 +2868,7 @@
 <span id="2868">2868</span>
 <span id="2869">2869</span>
 <span id="2870">2870</span>
+<span id="2871">2871</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
@@ -4186,6 +4187,7 @@
             <span class="ident">sent_at</span>: <span class="ident">envelope</span>.<span class="ident">sent_at</span>(),
             <span class="ident">received_at</span>: <span class="prelude-val">Some</span>(<span class="ident">envelope_context</span>.<span class="ident">received_at</span>),
             <span class="ident">breakdowns</span>: <span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">breakdowns_v2</span>.<span class="ident">clone</span>(),
+            <span class="ident">span_attributes</span>: <span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">span_attributes</span>.<span class="ident">clone</span>(),
         };
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">store_processor</span> <span class="op">=</span> <span class="ident">StoreProcessor::new</span>(<span class="ident">store_config</span>, <span class="self">self</span>.<span class="ident">geoip_lookup</span>.<span class="ident">as_deref</span>());

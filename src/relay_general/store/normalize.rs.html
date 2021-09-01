@@ -1592,6 +1592,14 @@
 <span id="1592">1592</span>
 <span id="1593">1593</span>
 <span id="1594">1594</span>
+<span id="1595">1595</span>
+<span id="1596">1596</span>
+<span id="1597">1597</span>
+<span id="1598">1598</span>
+<span id="1599">1599</span>
+<span id="1600">1600</span>
+<span id="1601">1601</span>
+<span id="1602">1602</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::collections::hash_map::DefaultHasher</span>;
 <span class="kw">use</span> <span class="ident">std::hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>};
@@ -1621,6 +1629,7 @@
 <span class="kw">mod</span> <span class="ident">logentry</span>;
 <span class="kw">mod</span> <span class="ident">mechanism</span>;
 <span class="kw">mod</span> <span class="ident">request</span>;
+<span class="kw">mod</span> <span class="ident">spans</span>;
 <span class="kw">mod</span> <span class="ident">stacktrace</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;uaparser&quot;</span>)]</span>
@@ -1703,6 +1712,12 @@
         <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>.<span class="ident">breakdowns</span> {
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {}
             <span class="prelude-val">Some</span>(<span class="ident">breakdowns_config</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">breakdowns::normalize_breakdowns</span>(<span class="ident">event</span>, <span class="ident">breakdowns_config</span>),
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">normalize_spans</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) {
+        <span class="kw">if</span> <span class="ident">event</span>.<span class="ident">ty</span>.<span class="ident">value</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">EventType::Transaction</span>) {
+            <span class="ident">spans::normalize_spans</span>(<span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>.<span class="ident">span_attributes</span>);
         }
     }
 
@@ -2088,6 +2103,7 @@
         <span class="self">self</span>.<span class="ident">normalize_user_agent</span>(<span class="ident">event</span>);
         <span class="self">self</span>.<span class="ident">normalize_measurements</span>(<span class="ident">event</span>);
         <span class="self">self</span>.<span class="ident">normalize_breakdowns</span>(<span class="ident">event</span>);
+        <span class="self">self</span>.<span class="ident">normalize_spans</span>(<span class="ident">event</span>);
 
         <span class="prelude-val">Ok</span>(())
     }

@@ -695,6 +695,11 @@
 <span id="695">695</span>
 <span id="696">696</span>
 <span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -714,6 +719,7 @@
 <span class="kw">use</span> <span class="ident">relay_filter</span>::{<span class="ident">matches_any_origin</span>, <span class="ident">FiltersConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general::store::BreakdownsConfig</span>;
+<span class="kw">use</span> <span class="ident">relay_general::types::SpanAttribute</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="self">self</span>, <span class="ident">Aggregator</span>, <span class="ident">Bucket</span>, <span class="ident">Metric</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">Quota</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_sampling::SamplingConfig</span>;
@@ -783,6 +789,9 @@
     <span class="doccomment">/// Configuration for operation breakdown. Will be emitted only if present.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">breakdowns_v2</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BreakdownsConfig</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// The span attributes configuration.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">span_attributes</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SpanAttribute</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Exposable features enabled for this project</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">features</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">Feature</span><span class="op">&gt;</span>,
@@ -801,6 +810,7 @@
             <span class="ident">quotas</span>: <span class="ident">Vec::new</span>(),
             <span class="ident">dynamic_sampling</span>: <span class="prelude-val">None</span>,
             <span class="ident">breakdowns_v2</span>: <span class="prelude-val">None</span>,
+            <span class="ident">span_attributes</span>: <span class="ident">BTreeSet::new</span>(),
             <span class="ident">features</span>: <span class="ident">BTreeSet::new</span>(),
         }
     }

@@ -440,11 +440,6 @@
 <span id="440">440</span>
 <span id="441">441</span>
 <span id="442">442</span>
-<span id="443">443</span>
-<span id="444">444</span>
-<span id="445">445</span>
-<span id="446">446</span>
-<span id="447">447</span>
 </pre><pre class="rust">
 <span class="doccomment">//! Contains the breakdowns normalization code</span>
 <span class="doccomment">//!</span>
@@ -459,29 +454,25 @@
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::Annotated</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">struct</span> <span class="ident">TimeWindowSpan</span> {
-    <span class="ident">start_timestamp</span>: <span class="ident">Timestamp</span>,
-    <span class="ident">end_timestamp</span>: <span class="ident">Timestamp</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TimeWindowSpan</span> {
+    <span class="kw">pub</span> <span class="ident">start</span>: <span class="ident">Timestamp</span>,
+    <span class="kw">pub</span> <span class="ident">end</span>: <span class="ident">Timestamp</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TimeWindowSpan</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">start_timestamp</span>: <span class="ident">Timestamp</span>, <span class="ident">end_timestamp</span>: <span class="ident">Timestamp</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="kw">if</span> <span class="ident">end_timestamp</span> <span class="op">&lt;</span> <span class="ident">start_timestamp</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">start</span>: <span class="ident">Timestamp</span>, <span class="ident">end</span>: <span class="ident">Timestamp</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="kw">if</span> <span class="ident">end</span> <span class="op">&lt;</span> <span class="ident">start</span> {
             <span class="kw">return</span> <span class="ident">TimeWindowSpan</span> {
-                <span class="ident">start_timestamp</span>: <span class="ident">end_timestamp</span>,
-                <span class="ident">end_timestamp</span>: <span class="ident">start_timestamp</span>,
+                <span class="ident">start</span>: <span class="ident">end</span>,
+                <span class="ident">end</span>: <span class="ident">start</span>,
             };
         }
 
-        <span class="ident">TimeWindowSpan</span> {
-            <span class="ident">start_timestamp</span>,
-            <span class="ident">end_timestamp</span>,
-        }
+        <span class="ident">TimeWindowSpan</span> { <span class="ident">start</span>, <span class="ident">end</span> }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_duration</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">f64</span> {
-        <span class="kw">let</span> <span class="ident">delta</span>: <span class="ident">f64</span> <span class="op">=</span>
-            (<span class="self">self</span>.<span class="ident">end_timestamp</span>.<span class="ident">timestamp_nanos</span>() <span class="op">-</span> <span class="self">self</span>.<span class="ident">start_timestamp</span>.<span class="ident">timestamp_nanos</span>()) <span class="kw">as</span> <span class="ident">f64</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">duration</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">f64</span> {
+        <span class="kw">let</span> <span class="ident">delta</span>: <span class="ident">f64</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">end</span>.<span class="ident">timestamp_nanos</span>() <span class="op">-</span> <span class="self">self</span>.<span class="ident">start</span>.<span class="ident">timestamp_nanos</span>()) <span class="kw">as</span> <span class="ident">f64</span>;
         <span class="comment">// convert to milliseconds (1 ms = 1,000,000 nanoseconds)</span>
         (<span class="ident">delta</span> <span class="op">/</span> <span class="number">1_000_000.00</span>).<span class="ident">abs</span>()
     }
@@ -498,8 +489,8 @@
         <span class="kw">return</span> <span class="prelude-val">None</span>;
     }
 
-    <span class="comment">// sort by start_timestamp in ascending order</span>
-    <span class="ident">intervals</span>.<span class="ident">sort_unstable_by_key</span>(<span class="op">|</span><span class="ident">span</span><span class="op">|</span> <span class="ident">span</span>.<span class="ident">start_timestamp</span>);
+    <span class="comment">// sort by start timestamp in ascending order</span>
+    <span class="ident">intervals</span>.<span class="ident">sort_unstable_by_key</span>(<span class="op">|</span><span class="ident">span</span><span class="op">|</span> <span class="ident">span</span>.<span class="ident">start</span>);
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">op_time_spent</span> <span class="op">=</span> <span class="number">0.0</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">previous_interval</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TimeWindowSpan</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;
@@ -507,20 +498,19 @@
     <span class="kw">for</span> <span class="ident">current_interval</span> <span class="kw">in</span> <span class="ident">intervals</span>.<span class="ident">into_iter</span>() {
         <span class="kw">match</span> <span class="ident">previous_interval</span>.<span class="ident">as_mut</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">last_interval</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="kw">if</span> <span class="ident">last_interval</span>.<span class="ident">end_timestamp</span> <span class="op">&lt;</span> <span class="ident">current_interval</span>.<span class="ident">start_timestamp</span> {
+                <span class="kw">if</span> <span class="ident">last_interval</span>.<span class="ident">end</span> <span class="op">&lt;</span> <span class="ident">current_interval</span>.<span class="ident">start</span> {
                     <span class="comment">// if current_interval does not overlap with last_interval,</span>
                     <span class="comment">// then add last_interval to op_time_spent</span>
-                    <span class="ident">op_time_spent</span> <span class="op">+</span><span class="op">=</span> <span class="ident">last_interval</span>.<span class="ident">get_duration</span>();
+                    <span class="ident">op_time_spent</span> <span class="op">+</span><span class="op">=</span> <span class="ident">last_interval</span>.<span class="ident">duration</span>();
                     <span class="ident">previous_interval</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">current_interval</span>);
                     <span class="kw">continue</span>;
                 }
 
                 <span class="comment">// current_interval and last_interval overlaps; so we merge these intervals</span>
 
-                <span class="comment">// invariant: last_interval.start_timestamp &lt;= current_interval.start_timestamp</span>
+                <span class="comment">// invariant: last_interval.start &lt;= current_interval.start</span>
 
-                <span class="ident">last_interval</span>.<span class="ident">end_timestamp</span> <span class="op">=</span>
-                    <span class="ident">std::cmp::max</span>(<span class="ident">last_interval</span>.<span class="ident">end_timestamp</span>, <span class="ident">current_interval</span>.<span class="ident">end_timestamp</span>);
+                <span class="ident">last_interval</span>.<span class="ident">end</span> <span class="op">=</span> <span class="ident">std::cmp::max</span>(<span class="ident">last_interval</span>.<span class="ident">end</span>, <span class="ident">current_interval</span>.<span class="ident">end</span>);
             }
             <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">previous_interval</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">current_interval</span>);
@@ -529,7 +519,7 @@
     }
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">remaining_interval</span>) <span class="op">=</span> <span class="ident">previous_interval</span> {
-        <span class="ident">op_time_spent</span> <span class="op">+</span><span class="op">=</span> <span class="ident">remaining_interval</span>.<span class="ident">get_duration</span>();
+        <span class="ident">op_time_spent</span> <span class="op">+</span><span class="op">=</span> <span class="ident">remaining_interval</span>.<span class="ident">duration</span>();
     }
 
     <span class="prelude-val">Some</span>(<span class="ident">op_time_spent</span>)
@@ -577,17 +567,17 @@
                 <span class="prelude-val">Some</span>(<span class="ident">span_op</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">span_op</span>,
             };
 
-            <span class="kw">let</span> <span class="ident">start_timestamp</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>() {
+            <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>() {
                 <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">continue</span>,
-                <span class="prelude-val">Some</span>(<span class="ident">start_timestamp</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">start_timestamp</span>,
+                <span class="prelude-val">Some</span>(<span class="ident">start</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">start</span>,
             };
 
-            <span class="kw">let</span> <span class="ident">end_timestamp</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>() {
+            <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>() {
                 <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">continue</span>,
-                <span class="prelude-val">Some</span>(<span class="ident">end_timestamp</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">end_timestamp</span>,
+                <span class="prelude-val">Some</span>(<span class="ident">end</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">end</span>,
             };
 
-            <span class="kw">let</span> <span class="ident">cover</span> <span class="op">=</span> <span class="ident">TimeWindowSpan::new</span>(<span class="kw-2">*</span><span class="ident">start_timestamp</span>, <span class="kw-2">*</span><span class="ident">end_timestamp</span>);
+            <span class="kw">let</span> <span class="ident">cover</span> <span class="op">=</span> <span class="ident">TimeWindowSpan::new</span>(<span class="kw-2">*</span><span class="ident">start</span>, <span class="kw-2">*</span><span class="ident">end</span>);
 
             <span class="comment">// Only emit an operation breakdown measurement if the operation name matches any</span>
             <span class="comment">// entries in operation_name_breakdown.</span>
@@ -764,13 +754,13 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_emit_ops_breakdown</span>() {
         <span class="kw">fn</span> <span class="ident">make_span</span>(
-            <span class="ident">start_timestamp</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Timestamp</span><span class="op">&gt;</span>,
-            <span class="ident">end_timestamp</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Timestamp</span><span class="op">&gt;</span>,
+            <span class="ident">start</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Timestamp</span><span class="op">&gt;</span>,
+            <span class="ident">end</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Timestamp</span><span class="op">&gt;</span>,
             <span class="ident">op_name</span>: <span class="ident">String</span>,
         ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Span</span><span class="op">&gt;</span> {
             <span class="ident">Annotated::new</span>(<span class="ident">Span</span> {
-                <span class="ident">timestamp</span>: <span class="ident">end_timestamp</span>,
-                <span class="ident">start_timestamp</span>,
+                <span class="ident">timestamp</span>: <span class="ident">end</span>,
+                <span class="ident">start_timestamp</span>: <span class="ident">start</span>,
                 <span class="ident">description</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;desc&quot;</span>.<span class="ident">to_owned</span>()),
                 <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="ident">op_name</span>),
                 <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),

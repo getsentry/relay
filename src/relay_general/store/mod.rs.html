@@ -124,8 +124,13 @@
 <span id="124">124</span>
 <span id="125">125</span>
 <span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
 </pre><pre class="rust">
 <span class="doccomment">//! Utility code for sentry&#39;s internal store.</span>
+<span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Utc</span>};
@@ -134,7 +139,7 @@
 
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::processor</span>::{<span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{<span class="ident">Event</span>, <span class="ident">IpAddr</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types</span>::{<span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types</span>::{<span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>, <span class="ident">SpanAttribute</span>};
 
 <span class="kw">mod</span> <span class="ident">clock_drift</span>;
 <span class="kw">mod</span> <span class="ident">event_error</span>;
@@ -180,6 +185,9 @@
 
     <span class="doccomment">/// Emit breakdowns based on given configuration.</span>
     <span class="kw">pub</span> <span class="ident">breakdowns</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">normalize::breakdowns::BreakdownsConfig</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Emit additional span attributes based on given configuration.</span>
+    <span class="kw">pub</span> <span class="ident">span_attributes</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SpanAttribute</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// The processor that normalizes events for store.</span>
