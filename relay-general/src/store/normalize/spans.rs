@@ -21,14 +21,14 @@ fn merge_non_overlapping_intervals(intervals: &mut [TimeWindowSpan]) -> Vec<Time
 
     // The first interval is stored in `previous`, so make sure to skip it.
     for current in intervals.iter().skip(1) {
-        if current.end_timestamp < previous.end_timestamp {
+        if current.end < previous.end {
             // The current interval is completely contained within the
             // previous interval, nothing to be done here.
             continue;
-        } else if current.start_timestamp < previous.end_timestamp {
+        } else if current.start < previous.end {
             // The head of the current interval overlaps with the tail of
             // the previous interval, merge the two intervals into one.
-            previous.end_timestamp = current.end_timestamp;
+            previous.end = current.end;
         } else {
             // The current interval does not intersect with the previous
             // interval, finished with the previous interval, and use the
@@ -53,11 +53,11 @@ fn interval_exclusive_time(source: &TimeWindowSpan, intervals: &[TimeWindowSpan]
     let mut remaining = source.clone();
 
     for interval in intervals {
-        if interval.end_timestamp < remaining.start_timestamp {
+        if interval.end < remaining.start {
             // The interval is entirely to the left of the remaining interval,
             // so nothing to be done here.
             continue;
-        } else if interval.start_timestamp >= remaining.end_timestamp {
+        } else if interval.start >= remaining.end {
             // The interval is entirely to the right of the remaining interval,
             // so nothing to be done here.
             //
@@ -67,27 +67,25 @@ fn interval_exclusive_time(source: &TimeWindowSpan, intervals: &[TimeWindowSpan]
         } else {
             // The interval must intersect with the remaining interval in some way.
 
-            if interval.start_timestamp > remaining.start_timestamp {
+            if interval.start > remaining.start {
                 // The interval begins within the remaining interval, there is a
                 // portion to its left that should be added to the results.
-                exclusive_time +=
-                    TimeWindowSpan::new(remaining.start_timestamp, interval.start_timestamp)
-                        .get_duration();
+                exclusive_time += TimeWindowSpan::new(remaining.start, interval.start).duration();
             }
 
-            if interval.end_timestamp < remaining.end_timestamp {
+            if interval.end < remaining.end {
                 // The interval ends within the remaining interval, so the
                 // tail of the interval interesects with the head of the remaining
                 // interval.
                 //
                 // Subtract the intersection by shifting the start of the remaining
                 // interval.
-                remaining.start_timestamp = interval.end_timestamp;
+                remaining.start = interval.end;
             } else {
                 // The interval ends to the right of the remaining interval, so
                 // the interval intersects with the entirety of the remaining
                 // interval. So zero out the interval.
-                remaining.start_timestamp = remaining.end_timestamp;
+                remaining.start = remaining.end;
 
                 // There is nothing remaining to be checked.
                 break;
@@ -96,13 +94,13 @@ fn interval_exclusive_time(source: &TimeWindowSpan, intervals: &[TimeWindowSpan]
     }
 
     // make sure to add the remaining interval
-    exclusive_time + remaining.get_duration()
+    exclusive_time + remaining.duration()
 }
 
 fn get_span_interval(span: &Span) -> Option<TimeWindowSpan> {
-    let start_timestamp = *span.start_timestamp.value()?;
-    let end_timestamp = *span.timestamp.value()?;
-    Some(TimeWindowSpan::new(start_timestamp, end_timestamp))
+    let start = *span.start_timestamp.value()?;
+    let end = *span.timestamp.value()?;
+    Some(TimeWindowSpan::new(start, end))
 }
 
 pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<SpanAttribute>) {
@@ -160,7 +158,7 @@ fn compute_span_exclusive_time(event: &mut Event) {
         let child_intervals = match span_map.get_mut(span_id) {
             Some(intervals) => {
                 // Make sure that the intervals are sorted by start time.
-                intervals.sort_unstable_by_key(|interval| interval.start_timestamp);
+                intervals.sort_unstable_by_key(|interval| interval.start);
                 merge_non_overlapping_intervals(intervals)
             }
             None => Vec::new(),
@@ -180,16 +178,16 @@ mod tests {
     fn make_span(
         op: &str,
         description: &str,
-        start_timestamp: Timestamp,
-        end_timestamp: Timestamp,
+        start: Timestamp,
+        end: Timestamp,
         span_id: &str,
         parent_span_id: &str,
     ) -> Annotated<Span> {
         Annotated::new(Span {
             op: Annotated::new(op.into()),
             description: Annotated::new(description.into()),
-            start_timestamp: Annotated::new(start_timestamp),
-            timestamp: Annotated::new(end_timestamp),
+            start_timestamp: Annotated::new(start),
+            timestamp: Annotated::new(end),
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId(span_id.into())),
             parent_span_id: Annotated::new(SpanId(parent_span_id.into())),
