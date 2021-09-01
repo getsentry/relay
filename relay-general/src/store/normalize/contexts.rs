@@ -5,7 +5,10 @@ use crate::types::Empty;
 
 lazy_static::lazy_static! {
     /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
-    static ref OS_WINDOWS_REGEX: Regex = Regex::new(r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.\d+).*$"#).unwrap();
+    static ref OS_WINDOWS_REGEX1: Regex = Regex::new(r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.\d+).*$"#).unwrap();
+    static ref OS_WINDOWS_REGEX2: Regex = Regex::new(r#"^Windows\s+\d+\s+\((?P<version>\d+\.\d+\.\d+).*$"#).unwrap();
+
+    static ref OS_ANDROID_REGEX: Regex = Regex::new(r#"^Android OS (?P<version>(\d+)) / API-(?P<api>(\d+))"#).unwrap();
 
     /// Format sent by Unreal Engine on macOS
     static ref OS_MACOS_REGEX: Regex = Regex::new(r#"^Mac OS X (?P<version>\d+\.\d+\.\d+)( \((?P<build>[a-fA-F0-9]+)\))?$"#).unwrap();
@@ -69,18 +72,33 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     }
 }
 
+fn get_windows_version(description: &str) -> Option<&str> {
+    if let Some(captures) = OS_WINDOWS_REGEX1.captures(description) {
+        captures.name("version").map(|m| m.as_str())
+    } else if let Some(captures) = OS_WINDOWS_REGEX2.captures(description) {
+        captures.name("version").map(|m| m.as_str())
+    } else {
+        None
+    }
+}
+
+pub fn get_android_api_version(description: &str) -> Option<&str> {
+    if let Some(captures) = OS_ANDROID_REGEX.captures(description) {
+        captures.name("api").map(|m| m.as_str())
+    } else {
+        None
+    }
+}
+
 fn normalize_os_context(os: &mut OsContext) {
     if os.name.value().is_some() || os.version.value().is_some() {
         return;
     }
 
     if let Some(raw_description) = os.raw_description.as_str() {
-        if let Some(captures) = OS_WINDOWS_REGEX.captures(raw_description) {
+        if let Some(version) = get_windows_version(raw_description) {
             os.name = "Windows".to_string().into();
-            os.version = captures
-                .name("version")
-                .map(|m| m.as_str().to_string())
-                .into();
+            os.version = version.to_string().into();
         } else if let Some(captures) = OS_MACOS_REGEX.captures(raw_description) {
             os.name = "macOS".to_string().into();
             os.version = captures
@@ -94,6 +112,12 @@ fn normalize_os_context(os: &mut OsContext) {
         } else if let Some(captures) = OS_UNAME_REGEX.captures(raw_description) {
             os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
             os.kernel_version = captures
+                .name("version")
+                .map(|m| m.as_str().to_string())
+                .into();
+        } else if let Some(captures) = OS_ANDROID_REGEX.captures(raw_description) {
+            os.name = "Android".to_string().into();
+            os.version = captures
                 .name("version")
                 .map(|m| m.as_str().to_string())
                 .into();
@@ -349,4 +373,49 @@ fn test_no_name() {
     assert_eq_dbg!(None, os.version.value());
     assert_eq_dbg!(None, os.kernel_version.value());
     assert_eq_dbg!(None, os.raw_description.value());
+}
+
+#[test]
+fn test_unity_mac_os() {
+    let mut os = OsContext {
+        raw_description: "Mac OS X 10.16.0".to_string().into(),
+        ..OsContext::default()
+    };
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("macOS"), os.name.as_str());
+    assert_eq_dbg!(Some("10.16.0"), os.version.as_str());
+    assert_eq_dbg!(None, os.build.value());
+}
+
+//OS_WINDOWS_REGEX = r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.\d+).*$"#;
+#[test]
+fn test_unity_windows_os() {
+    let mut os = OsContext {
+        raw_description: "Windows 10  (10.0.19042) 64bit".to_string().into(),
+        ..OsContext::default()
+    };
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("Windows"), os.name.as_str());
+    assert_eq_dbg!(Some("10.0.19042"), os.version.as_str());
+    assert_eq_dbg!(None, os.build.value());
+}
+
+#[test]
+fn test_unity_android_os() {
+    let mut os = OsContext {
+        raw_description: "Android OS 11 / API-30 (RP1A.201005.001/2107031736)"
+            .to_string()
+            .into(),
+        ..OsContext::default()
+    };
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("Android"), os.name.as_str());
+    assert_eq_dbg!(Some("11"), os.version.as_str());
+    assert_eq_dbg!(None, os.build.value());
+}
+
+#[test]
+fn test_unity_android_api_version() {
+    let description = "Android OS 11 / API-30 (RP1A.201005.001/2107031736)";
+    assert_eq_dbg!(Some("30"), get_android_api_version(description));
 }
