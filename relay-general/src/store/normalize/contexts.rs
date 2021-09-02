@@ -83,6 +83,7 @@ fn get_windows_version(description: &str) -> Option<&str> {
 }
 
 #[allow(dead_code)]
+// TODO use this to add a tag `android.api` to the message (not yet 100% decided)
 pub fn get_android_api_version(description: &str) -> Option<&str> {
     if let Some(captures) = OS_ANDROID_REGEX.captures(description) {
         captures.name("api").map(|m| m.as_str())
