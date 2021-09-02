@@ -2,12 +2,9 @@
 source: relay-general/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
-event_id: 6f6e2d3fa0754d14b37a2bec59619a98
+event_id: 39c94eefab9447229d70df71c7d41993
 level: error
 type: error
-fingerprint:
-  - "{{ default }}"
-culprit: TestMonoBehaviour.cs in Sentry.Unity.Tests.TestBehaviours.TestMonoBehaviour.TestException
 logger: ""
 modules:
   Assembly-CSharp: 0.0.0.0
@@ -31,6 +28,7 @@ modules:
   System.Numerics.Vectors: 4.1.4.0
   System.Reflection.Metadata: 5.0.0.0
   System.Runtime.CompilerServices.Unsafe: 5.0.0.0
+  System.Runtime.Serialization: 4.0.0.0
   System.Text.Encodings.Web: 5.0.0.1
   System.Text.Json: 5.0.0.0
   System.Threading.Tasks.Extensions: 4.2.0.1
@@ -47,11 +45,13 @@ modules:
   UnityEditor: 0.0.0.0
   UnityEditor.Android.Extensions: 0.0.0.0
   UnityEditor.Graphs: 0.0.0.0
+  UnityEditor.OSXStandalone.Extensions: 0.0.0.0
   UnityEditor.TestRunner: 1.0.0.0
   UnityEditor.UI: 1.0.0.0
   UnityEditor.VR: 0.0.0.0
-  UnityEditor.WebGL.Extensions: 1.0.0.0
-  UnityEditor.WindowsStandalone.Extensions: 0.0.0.0
+  UnityEditor.iOS.Extensions: 1.0.0.0
+  UnityEditor.iOS.Extensions.Common: 1.0.0.0
+  UnityEditor.iOS.Extensions.Xcode: 1.0.0.0
   UnityEngine: 0.0.0.0
   UnityEngine.AIModule: 0.0.0.0
   UnityEngine.ARModule: 0.0.0.0
@@ -129,66 +129,60 @@ contexts:
     Name: en-US
     type: Current Culture
   app:
-    app_start_time: "2021-07-01T08:17:02.531426+00:00"
+    app_start_time: "2021-07-01T15:00:18.810059+00:00"
     build_type: debug
     type: app
   device:
-    name: DESKTOP-23F43DQ
-    model: XPS 15 9570 (Dell Inc.)
-    battery_level: 100.0
+    name: MacFox
+    model: "MacBookPro16,1"
+    battery_level: 87.0
     simulator: true
     memory_size: ~
     boot_time: ~
     timezone: ~
-    battery_status: Full
-    cpu_description: Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz
+    battery_status: NotCharging
+    cpu_description: Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz
     device_type: Desktop
-    processor_count: 12
+    processor_count: 16
     supports_vibration: false
-    timezone_display_name: "(UTC+02:00) Helsinki, Kyiv, Riga, Sofia, Tallinn, Vilnius"
     type: device
   gpu:
-    name: NVIDIA GeForce GTX 1050 Ti with Max-Q Design
-    version: "Direct3D 11.0 [level 11.1]"
-    id: 7308
-    vendor_id: "4318"
-    vendor_name: NVIDIA
-    memory_size: 4021
-    api_type: Direct3D11
+    name: AMD Radeon Pro 5300M
+    version: Metal
+    id: 0
+    vendor_id: "0"
+    vendor_name: Apple
+    memory_size: 4080
+    api_type: Metal
     multi_threaded_rendering: true
     npot_support: Full
     graphics_shader_level: Shader Model 5.0
     max_texture_size: 16384
     supports_compute_shaders: true
     supports_draw_call_instancing: true
-    supports_geometry_shaders: true
+    supports_geometry_shaders: false
     supports_ray_tracing: false
     type: gpu
   os:
-    name: Windows 10  (10.0.19042) 64bit
+    name: Mac OS X 10.16.0
     type: os
   runtime:
     name: Mono
     version: 5.11.0
-    raw_description: Mono 5.11.0 (Visual Studio built mono)
+    raw_description: Mono 5.11.0 ((HEAD/e2385dca346)
     type: runtime
   unity:
     install_mode: Editor
     type: unity
 breadcrumbs:
   values:
-    - timestamp: 1625127430.945
+    - timestamp: 1625151624.054
       type: default
       category: scene.beforeload
       level: info
       message: BeforeSceneLoad
       data:
         scene: 1_BugfarmScene
-    - timestamp: 1625127430.952
-      type: default
-      category: unity.logger
-      level: error
-      message: "Exception: This is an exception"
 exception:
   values:
     - type: Exception
@@ -196,33 +190,34 @@ exception:
       stacktrace:
         frames:
           - function: "UnityEngine.SetupCoroutine:InvokeMoveNext(IEnumerator, IntPtr)"
-            lineno: ~
+            filename: Coroutines.cs
+            abs_path: "/Users/[user]/buildslave/unity/build/Runtime/Export/Scripting/Coroutines.cs"
+            lineno: 17
             in_app: false
           - function: "Sentry.Unity.Tests.<BugFarmScene_EventCaptured_IncludesApplicationVersionAsRelease_WhenProductNameWhitespace>d__3:MoveNext()"
             filename: IntegrationTests.cs
-            abs_path: "C:/Projects/Unity/sentry-unity/test/Sentry.Unity.Tests/IntegrationTests.cs"
+            abs_path: "/Users/[user]/_Workspace/unity/test/Sentry.Unity.Tests/IntegrationTests.cs"
             lineno: 96
             in_app: true
           - function: "UnityEngine.GameObject:SendMessage(String)"
-            lineno: ~
             in_app: false
           - function: Sentry.Unity.Tests.TestBehaviours.TestMonoBehaviour.TestException
             raw_function: Sentry.Unity.Tests.TestBehaviours.TestMonoBehaviour.TestException ()
             filename: TestMonoBehaviour.cs
-            abs_path: "C:/Projects/Unity/sentry-unity/test/Sentry.Unity.Tests/TestBehaviours/TestMonoBehaviour.cs"
+            abs_path: "/Users/[user]/_Workspace/unity/test/Sentry.Unity.Tests/TestBehaviours/TestMonoBehaviour.cs"
             lineno: 12
             in_app: true
 tags:
   - - device
-    - XPS 15 9570 (Dell Inc.)
+    - "MacBookPro16,1"
   - - gpu.name
-    - NVIDIA GeForce GTX 1050 Ti with Max-Q Design
+    - AMD Radeon Pro 5300M
   - - gpu.vendor
-    - NVIDIA
+    - Apple
   - - level
     - error
   - - os.name
-    - Windows 10  (10.0.19042) 64bit
+    - Mac OS X 10.16.0
   - - runtime
     - Mono 5.11.0
   - - runtime.name
@@ -239,37 +234,10 @@ sdk:
   name: sentry.dotnet.unity
   version: 0.3.1
   packages:
-    - name: "nuget:Sentry"
-      version: 3.6.0
     - name: "upm:sentry.unity"
       version: 0.3.1
-errors:
-  - type: invalid_data
-    name: exception.values.0.stacktrace.frames.0.lineno
-    value: -1
-  - type: invalid_data
-    name: exception.values.0.stacktrace.frames.2.lineno
-    value: -1
-  - type: invalid_data
-    name: exception.values.0.stacktrace.frames.0.lineno
-    value: -1
-    reason: expected an unsigned integer
-  - type: invalid_data
-    name: exception.values.0.stacktrace.frames.2.lineno
-    value: -1
-    reason: expected an unsigned integer
-  - type: invalid_attribute
-    name: datetime
-  - type: invalid_attribute
-    name: location
-  - type: invalid_attribute
-    name: title
-_metrics:
-  bytes.ingested.event: 7225
-  bytes.stored.event: 9912
-datetime: ~
-location: ~
-title: ~
+    - name: "nuget:Sentry"
+      version: 3.6.0
 _meta:
   contexts:
     device:
@@ -288,34 +256,35 @@ _meta:
           rem:
             - - "@anything:remove"
               - x
-  datetime:
-    "":
-      err:
-        - invalid_attribute
   exception:
     values:
       "0":
         stacktrace:
           frames:
             "0":
-              lineno:
+              abs_path:
                 "":
-                  err:
-                    - - invalid_data
-                      - reason: expected an unsigned integer
-                  val: -1
-            "2":
-              lineno:
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 7
+                      - 13
+                  len: 61
+            "1":
+              abs_path:
                 "":
-                  err:
-                    - - invalid_data
-                      - reason: expected an unsigned integer
-                  val: -1
-  location:
-    "":
-      err:
-        - invalid_attribute
-  title:
-    "":
-      err:
-        - invalid_attribute
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 7
+                      - 13
+                  len: 54
+            "3":
+              abs_path:
+                "":
+                  rem:
+                    - - "@userpath:replace"
+                      - s
+                      - 7
+                      - 13
+                  len: 69

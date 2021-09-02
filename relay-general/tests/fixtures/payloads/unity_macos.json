@@ -1,11 +1,7 @@
 {
   "event_id": "39c94eefab9447229d70df71c7d41993",
-  "project": 5439417,
   "release": "0.1",
-  "dist": null,
   "platform": "csharp",
-  "message": "",
-  "datetime": "2021-07-01T15:00:24.056852Z",
   "tags": [
     [
       "device",
@@ -60,37 +56,6 @@
       "Editor"
     ]
   ],
-  "_meta": {
-    "exception": {
-      "values": {
-        "0": {
-          "stacktrace": {
-            "frames": {
-              "2": {
-                "lineno": {
-                  "": {
-                    "err": [
-                      [
-                        "invalid_data",
-                        {
-                          "reason": "expected an unsigned integer"
-                        }
-                      ]
-                    ],
-                    "val": -1
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
-  "_metrics": {
-    "bytes.ingested.event": 6917,
-    "bytes.stored.event": 9528
-  },
   "breadcrumbs": {
     "values": [
       {
@@ -165,16 +130,7 @@
       "type": "unity"
     }
   },
-  "culprit": "TestMonoBehaviour.cs in Sentry.Unity.Tests.TestBehaviours.TestMonoBehaviour.TestException",
   "environment": "editor",
-  "errors": [
-    {
-      "type": "invalid_data",
-      "name": "exception.values.0.stacktrace.frames.2.lineno",
-      "value": -1,
-      "reason": "expected an unsigned integer"
-    }
-  ],
   "exception": {
     "values": [
       {
@@ -214,27 +170,7 @@
       }
     ]
   },
-  "fingerprint": [
-    "{{ default }}"
-  ],
-  "grouping_config": {
-    "enhancements": "eJybzDRxY3J-bm5-npWRgaGlroGxrpHxBABcYgcZ",
-    "id": "newstyle:2019-10-29"
-  },
-  "hashes": [
-    "b160ef1cbd8fba24251cc0800b93afca",
-    "652ae56cfa5dcf1f4e610ff00254cda7"
-  ],
-  "key_id": "1347370",
   "level": "error",
-  "location": "TestMonoBehaviour.cs",
-  "logger": "",
-  "metadata": {
-    "filename": "TestMonoBehaviour.cs",
-    "function": "Sentry.Unity.Tests.TestBehaviours.TestMonoBehaviour.TestException",
-    "type": "Exception",
-    "value": "This is an exception"
-  },
   "modules": {
     "Assembly-CSharp": "0.0.0.0",
     "Assembly-CSharp-Editor": "0.0.0.0",
@@ -347,7 +283,6 @@
     "netstandard": "2.0.0.0",
     "nunit.framework": "3.5.0.0"
   },
-  "received": 1625151624.788168,
   "sdk": {
     "name": "sentry.dotnet.unity",
     "version": "0.3.1",
@@ -363,7 +298,5 @@
     ]
   },
   "timestamp": 1625151624.056852,
-  "title": "Exception: This is an exception",
-  "type": "error",
-  "version": "7"
+  "type": "error"
 }

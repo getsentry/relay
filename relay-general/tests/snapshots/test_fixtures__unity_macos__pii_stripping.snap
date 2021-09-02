@@ -5,9 +5,6 @@ expression: SerializableAnnotated(&event)
 event_id: 39c94eefab9447229d70df71c7d41993
 level: error
 type: error
-fingerprint:
-  - "{{ default }}"
-culprit: TestMonoBehaviour.cs in Sentry.Unity.Tests.TestBehaviours.TestMonoBehaviour.TestException
 logger: ""
 modules:
   Assembly-CSharp: 0.0.0.0
@@ -203,7 +200,6 @@ exception:
             lineno: 96
             in_app: true
           - function: "UnityEngine.GameObject:SendMessage(String)"
-            lineno: ~
             in_app: false
           - function: Sentry.Unity.Tests.TestBehaviours.TestMonoBehaviour.TestException
             raw_function: Sentry.Unity.Tests.TestBehaviours.TestMonoBehaviour.TestException ()
@@ -242,26 +238,6 @@ sdk:
       version: 0.3.1
     - name: "nuget:Sentry"
       version: 3.6.0
-errors:
-  - type: invalid_data
-    name: exception.values.0.stacktrace.frames.2.lineno
-    value: -1
-  - type: invalid_data
-    name: exception.values.0.stacktrace.frames.2.lineno
-    value: -1
-    reason: expected an unsigned integer
-  - type: invalid_attribute
-    name: datetime
-  - type: invalid_attribute
-    name: location
-  - type: invalid_attribute
-    name: title
-_metrics:
-  bytes.ingested.event: 6917
-  bytes.stored.event: 9528
-datetime: ~
-location: ~
-title: ~
 _meta:
   contexts:
     device:
@@ -280,10 +256,6 @@ _meta:
           rem:
             - - "@anything:remove"
               - x
-  datetime:
-    "":
-      err:
-        - invalid_attribute
   exception:
     values:
       "0":
@@ -307,13 +279,6 @@ _meta:
                       - 7
                       - 13
                   len: 54
-            "2":
-              lineno:
-                "":
-                  err:
-                    - - invalid_data
-                      - reason: expected an unsigned integer
-                  val: -1
             "3":
               abs_path:
                 "":
@@ -323,11 +288,3 @@ _meta:
                       - 7
                       - 13
                   len: 69
-  location:
-    "":
-      err:
-        - invalid_attribute
-  title:
-    "":
-      err:
-        - invalid_attribute
