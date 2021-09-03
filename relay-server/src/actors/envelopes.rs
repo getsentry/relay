@@ -813,6 +813,10 @@ impl EnvelopeProcessor {
             clock_drift_processor.process_timestamp(timestamp);
         }
 
+        if discarded_events.is_empty() {
+            return;
+        }
+
         let producer = OutcomeProducer::from_registry();
         for ((reason, category), quantity) in discarded_events.into_iter() {
             producer.do_send(TrackOutcome {
@@ -2682,6 +2686,8 @@ mod tests {
 
     #[test]
     fn test_client_report_removal() {
+        relay_test::setup();
+
         let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -2706,23 +2712,23 @@ mod tests {
             item
         });
 
-        let envelope_response = processor
-            .process(ProcessEnvelope {
-                envelope,
-                project_state: Arc::new(ProjectState::allowed()),
-                start_time: Instant::now(),
-                scoping: Scoping {
-                    project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                    organization_id: 1,
-                    project_id: ProjectId::new(1),
-                    key_id: None,
-                },
-            })
-            .unwrap();
+        let envelope_response = relay_test::with_system(move || {
+            processor
+                .process(ProcessEnvelope {
+                    envelope,
+                    project_state: Arc::new(ProjectState::allowed()),
+                    start_time: Instant::now(),
+                    scoping: Scoping {
+                        project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                        organization_id: 1,
+                        project_id: ProjectId::new(1),
+                        key_id: None,
+                    },
+                })
+                .unwrap()
+        });
 
-        let new_envelope = envelope_response.envelope.unwrap();
-
-        assert_eq!(new_envelope.len(), 0);
+        assert!(envelope_response.envelope.is_none());
     }
 
     #[test]
