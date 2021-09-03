@@ -119,12 +119,21 @@ class Sentry(SentryLike):
             },
         }
 
-    def add_basic_project_config(self, project_id, dsn_public_key=None):
+    def add_basic_project_config(self, project_id, dsn_public_key=None, extra=None):
         ret_val = self.basic_project_config(project_id, dsn_public_key)
+
+        if extra:
+            extra_config = extra.get("config", {})
+            ret_val = {
+                **ret_val,
+                **extra,
+                "config": {**ret_val["config"], **extra_config},
+            }
+
         self.project_configs[project_id] = ret_val
         return ret_val
 
-    def add_full_project_config(self, project_id, dsn_public_key=None):
+    def full_project_config(self, project_id, dsn_public_key=None, extra=None):
         basic = self.basic_project_config(project_id, dsn_public_key)
         full = {
             "organizationId": 1,
@@ -144,12 +153,20 @@ class Sentry(SentryLike):
             },
         }
 
+        extra = extra or {}
+        extra_config = extra.get("config", {})
+
         ret_val = {
             **basic,
             **full,
-            "config": {**basic["config"], **full["config"]},
+            **extra,
+            "config": {**basic["config"], **full["config"], **extra_config},
         }
 
+        return ret_val
+
+    def add_full_project_config(self, project_id, dsn_public_key=None, extra=None):
+        ret_val = self.full_project_config(project_id, dsn_public_key, extra)
         self.project_configs[project_id] = ret_val
         return ret_val
 

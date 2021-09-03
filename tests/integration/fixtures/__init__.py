@@ -170,9 +170,12 @@ class SentryLike(object):
         response = self.post(url, headers=headers, data=envelope.serialize())
         response.raise_for_status()
 
-    def send_session(self, project_id, payload):
+    def send_session(self, project_id, payload, item_headers=None):
         envelope = Envelope()
         envelope.add_session(payload)
+        if item_headers:
+            item = envelope.items[0]
+            item.headers = {**item.headers, **item_headers}
         self.send_envelope(project_id, envelope)
 
     def send_session_aggregates(self, project_id, payload):

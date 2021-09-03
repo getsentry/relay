@@ -374,10 +374,6 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     timestamp: Option<UnixTimestamp>,
 
-    /// Other attributes for forward compatibility.
-    #[serde(flatten)]
-    other: BTreeMap<String, Value>,
-
     /// Flag indicating if metrics have already been extracted from the item
     ///
     /// In order to only extract metrics once from an item while through a
@@ -386,6 +382,10 @@ pub struct ItemHeaders {
     /// not extract the metric again causing double counting of the metric.
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
+
+    /// Other attributes for forward compatibility.
+    #[serde(flatten)]
+    other: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug)]

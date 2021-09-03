@@ -6,6 +6,7 @@
 
 - Add sampling based on transaction name. ([#1058](https://github.com/getsentry/relay/pull/1058))
 - Support running Relay without config directory. The most important configuration, including Relay mode and credentials, can now be provided through commandline arguments or environment variables alone. ([#1055](https://github.com/getsentry/relay/pull/1055)
+- Extract session metrics in non processing relays (INGEST-250). ([#1073](https://github.com/getsentry/relay/pull/1073))
 
 **Bug Fixes**:
 
