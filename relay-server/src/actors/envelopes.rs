@@ -27,7 +27,7 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, Metric};
+use relay_metrics::{Bucket, DurationPrecision, Metric, MetricUnit, MetricValue};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
@@ -57,7 +57,6 @@ use {
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_metrics::{DurationPrecision, MetricUnit, MetricValue},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
 };
 
@@ -379,7 +378,6 @@ impl ProcessEnvelopeState {
     }
 }
 
-#[cfg(feature = "processing")]
 fn with_tag(
     tags: &BTreeMap<String, String>,
     name: &str,
@@ -2421,7 +2419,6 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
-    #[cfg(feature = "processing")]
     use relay_general::protocol::SessionStatus;
 
     use crate::extractors::RequestMeta;
