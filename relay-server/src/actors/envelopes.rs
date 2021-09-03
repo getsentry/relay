@@ -817,7 +817,7 @@ impl EnvelopeProcessor {
         for ((reason, category), quantity) in discarded_events.into_iter() {
             producer.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
-                scoping: state.envelope_context.scoping.clone(),
+                scoping: state.envelope_context.scoping,
                 outcome: Outcome::ClientDiscard(reason),
                 event_id: None,
                 remote_addr: state.envelope_context.remote_addr,
