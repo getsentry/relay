@@ -2681,6 +2681,51 @@ mod tests {
     }
 
     #[test]
+    fn test_client_report_removal() {
+        let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r###"
+                    {
+                    "discarded_events": [
+                        ["queue_full", "error", 42]
+                    ]
+                    }
+                "###,
+            );
+            item
+        });
+
+        let envelope_response = processor
+            .process(ProcessEnvelope {
+                envelope,
+                project_state: Arc::new(ProjectState::allowed()),
+                start_time: Instant::now(),
+                scoping: Scoping {
+                    project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                    organization_id: 1,
+                    project_id: ProjectId::new(1),
+                    key_id: None,
+                },
+            })
+            .unwrap();
+
+        let new_envelope = envelope_response.envelope.unwrap();
+
+        assert_eq!(new_envelope.len(), 0);
+    }
+
+    #[test]
     #[cfg(feature = "processing")]
     fn test_extract_session_metrics() {
         let mut metrics = vec![];
