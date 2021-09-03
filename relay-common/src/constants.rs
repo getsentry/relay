@@ -96,6 +96,10 @@ impl fmt::Display for EventType {
 #[repr(i8)]
 pub enum DataCategory {
     /// Reserved and unused.
+    ///
+    /// There is a reserved `internal` data category which also maps to `Default`.  Relays
+    /// will never emit rate limits for `internal` but client SDKs can assume a data category
+    /// of `internal` for envelopes carrying internal messages for instance SDK outcomes.
     Default = 0,
     /// Error events and Events with an `event_type` not explicitly listed below.
     Error = 1,
@@ -116,7 +120,7 @@ impl DataCategory {
     /// Returns the data category corresponding to the given name.
     pub fn from_name(string: &str) -> Self {
         match string {
-            "default" => Self::Default,
+            "default" | "internal" => Self::Default,
             "error" => Self::Error,
             "transaction" => Self::Transaction,
             "security" => Self::Security,

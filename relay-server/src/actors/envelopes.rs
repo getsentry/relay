@@ -20,9 +20,9 @@ use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    self, Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, SecurityReportType, SessionUpdate, Timestamp, UserReport,
-    Values,
+    self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
+    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionUpdate, Timestamp,
+    UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -273,7 +273,10 @@ impl EnvelopeContext {
                 event_id: self.event_id,
                 remote_addr: self.remote_addr,
                 category: DataCategory::Attachment,
-                quantity: self.summary.attachment_quantity,
+                // XXX: attachment_quantity is usize which lets us go all the way to
+                // 64bit on our machines, but the protocl and data store can only
+                // do 32.
+                quantity: self.summary.attachment_quantity as u32,
             });
         }
     }
@@ -765,6 +768,65 @@ impl EnvelopeProcessor {
         });
     }
 
+    /// Validates and extracts client reports.
+    ///
+    /// At the moment client reports are primarily used to transfer outcomes from
+    /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
+    /// system.
+    fn process_client_reports(&self, state: &mut ProcessEnvelopeState) {
+        let mut timestamp = None;
+        let mut discarded_events = BTreeMap::new();
+        let received = state.envelope_context.received_at;
+
+        let clock_drift_processor = ClockDriftProcessor::new(state.envelope.sent_at(), received)
+            .at_least(MINIMUM_CLOCK_DRIFT);
+
+        // we're going through all client reports but we're effectively just merging
+        // them into the first one.
+        state.envelope.retain_items(|item| {
+            if item.ty() != ItemType::ClientReport {
+                return true;
+            };
+            match ClientReport::parse(&item.payload()) {
+                Ok(report) => {
+                    for (reason, category, quantity) in report.discarded_events.into_iter() {
+                        if reason.len() > 200 {
+                            relay_log::trace!("ignored client outcome with an overlong reason");
+                            continue;
+                        }
+                        *discarded_events.entry((reason, category)).or_insert(0) += quantity;
+                    }
+                    if let Some(ts) = report.timestamp {
+                        timestamp.get_or_insert(ts);
+                    }
+                }
+                Err(err) => relay_log::trace!("invalid client report received: {}", LogError(&err)),
+            }
+            false
+        });
+
+        let timestamp =
+            timestamp.get_or_insert_with(|| UnixTimestamp::from_secs(received.timestamp() as u64));
+
+        if clock_drift_processor.is_drifted() {
+            relay_log::trace!("applying clock drift correction to client report");
+            clock_drift_processor.process_timestamp(timestamp);
+        }
+
+        let producer = OutcomeProducer::from_registry();
+        for ((reason, category), quantity) in discarded_events.into_iter() {
+            producer.do_send(TrackOutcome {
+                timestamp: timestamp.as_datetime(),
+                scoping: state.envelope_context.scoping.clone(),
+                outcome: Outcome::ClientDiscard(reason),
+                event_id: None,
+                remote_addr: state.envelope_context.remote_addr,
+                category,
+                quantity,
+            });
+        }
+    }
+
     /// Creates and initializes the processing state.
     ///
     /// This applies defaults to the envelope and initializes empty rate limits.
@@ -1064,6 +1126,7 @@ impl EnvelopeProcessor {
             ItemType::Sessions => false,
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
+            ItemType::ClientReport => false,
         }
     }
 
@@ -1553,6 +1616,7 @@ impl EnvelopeProcessor {
         }
 
         self.process_sessions(&mut state);
+        self.process_client_reports(&mut state);
         self.process_user_reports(&mut state);
 
         if state.creates_event() {
