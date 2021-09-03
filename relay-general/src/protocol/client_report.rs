@@ -20,3 +20,47 @@ impl ClientReport {
         serde_json::to_vec(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_client_report_roundtrip() {
+        let json = r#"{
+  "timestamp": "2020-02-07T15:17:00Z",
+  "discarded_events": [
+    ["foo_reason", "error", 42],
+    ["foo_reason", "transaction", 23]
+  ]
+}"#;
+
+        let output = r#"{
+  "timestamp": 1581088620,
+  "discarded_events": [
+    [
+      "foo_reason",
+      "error",
+      42
+    ],
+    [
+      "foo_reason",
+      "transaction",
+      23
+    ]
+  ]
+}"#;
+
+        let update = ClientReport {
+            timestamp: Some("2020-02-07T15:17:00Z".parse().unwrap()),
+            discarded_events: vec![
+                ("foo_reason".into(), DataCategory::Error, 42),
+                ("foo_reason".into(), DataCategory::Transaction, 23),
+            ],
+        };
+
+        let parsed = ClientReport::parse(json.as_bytes()).unwrap();
+        assert_eq_dbg!(update, parsed);
+        assert_eq_str!(output, serde_json::to_string_pretty(&update).unwrap());
+    }
+}

@@ -144,6 +144,7 @@ impl std::ops::Sub for UnixTimestamp {
     }
 }
 
+#[derive(Debug)]
 /// An error returned from parsing [`UnixTimestamp`].
 pub struct ParseUnixTimestampError(());
 
@@ -151,6 +152,12 @@ impl std::str::FromStr for UnixTimestamp {
     type Err = ParseUnixTimestampError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(datetime) = s.parse::<DateTime<Utc>>() {
+            let timestamp = datetime.timestamp();
+            if timestamp >= 0 {
+                return Ok(UnixTimestamp(timestamp as u64));
+            }
+        }
         let ts = s.parse().or(Err(ParseUnixTimestampError(())))?;
         Ok(Self(ts))
     }

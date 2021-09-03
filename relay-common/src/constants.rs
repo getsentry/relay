@@ -332,3 +332,16 @@ impl fmt::Display for SpanStatus {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_internal_data_category() {
+        assert_eq!(
+            DataCategory::from_str("internal"),
+            Ok(DataCategory::Default)
+        );
+    }
+}
