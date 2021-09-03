@@ -21,8 +21,9 @@ def _session_payload(timestamp: datetime, started: datetime):
         "duration": 1947.49,
         "status": "exited",
         "errors": 0,
-        "attrs": {"release": "sentry-test@1.0.0", "environment": "production", },
+        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
     }
+
 
 def metrics_by_name(metrics_consumer, count, timeout=None):
     metrics = {
@@ -153,9 +154,15 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     metrics_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("extract_metrics", [True, False], ids=["extract", "don't extract"] )
-@pytest.mark.parametrize("metrics_extracted", [True, False], ids=["extracted", "not extracted"] )
-def test_session_metrics_non_processing(mini_sentry, relay, extract_metrics, metrics_extracted):
+@pytest.mark.parametrize(
+    "extract_metrics", [True, False], ids=["extract", "don't extract"]
+)
+@pytest.mark.parametrize(
+    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
+)
+def test_session_metrics_non_processing(
+    mini_sentry, relay, extract_metrics, metrics_extracted
+):
     """
         Tests metrics extraction in  a non processing relay
 
@@ -178,7 +185,11 @@ def test_session_metrics_non_processing(mini_sentry, relay, extract_metrics, met
     started = timestamp - timedelta(hours=1)
     session_payload = _session_payload(timestamp=timestamp, started=started)
 
-    relay.send_session(project_id, session_payload, item_headers={ "metrics_extracted": metrics_extracted} )
+    relay.send_session(
+        project_id,
+        session_payload,
+        item_headers={"metrics_extracted": metrics_extracted},
+    )
 
     # Get session envelope
     first_envelope = mini_sentry.captured_events.get(timeout=2)
@@ -214,26 +225,38 @@ def test_session_metrics_non_processing(mini_sentry, relay, extract_metrics, met
         session_metrics = sorted(session_metrics, key=lambda x: x["name"])
 
         ts = int(timestamp.timestamp())
-        assert session_metrics == [{'name': 'session',
-                                    'tags': {'environment': 'production',
-                                             'release': 'sentry-test@1.0.0',
-                                             'session.status': 'init'},
-                                    'timestamp': ts,
-                                    'type': 'c',
-                                    'value': 1.0},
-                                   {'name': 'session.duration',
-                                    'tags': {'environment': 'production', 'release': 'sentry-test@1.0.0'},
-                                    'timestamp': ts,
-                                    'type': 'd',
-                                    'unit': 's',
-                                    'value': [1947.49]},
-                                   {'name': 'user',
-                                    'tags': {'environment': 'production',
-                                             'release': 'sentry-test@1.0.0',
-                                             'session.status': 'init'},
-                                    'timestamp': ts,
-                                    'type': 's',
-                                    'value': [1617781333]}]
+        assert session_metrics == [
+            {
+                "name": "session",
+                "tags": {
+                    "environment": "production",
+                    "release": "sentry-test@1.0.0",
+                    "session.status": "init",
+                },
+                "timestamp": ts,
+                "type": "c",
+                "value": 1.0,
+            },
+            {
+                "name": "session.duration",
+                "tags": {"environment": "production", "release": "sentry-test@1.0.0"},
+                "timestamp": ts,
+                "type": "d",
+                "unit": "s",
+                "value": [1947.49],
+            },
+            {
+                "name": "user",
+                "tags": {
+                    "environment": "production",
+                    "release": "sentry-test@1.0.0",
+                    "session.status": "init",
+                },
+                "timestamp": ts,
+                "type": "s",
+                "value": [1617781333],
+            },
+        ]
     else:
         # either the metrics are already extracted or we have metric extraction disabled
         # only the session message should be present
@@ -245,10 +268,15 @@ def test_session_metrics_non_processing(mini_sentry, relay, extract_metrics, met
 
     # we have marked the item as "metrics extracted" properly
     # already extracted metrics should keep the flag, newly extracted metrics should set the flag
-    assert session_item.headers.get("metrics_extracted", False) is extract_metrics or metrics_extracted
+    assert (
+        session_item.headers.get("metrics_extracted", False) is extract_metrics
+        or metrics_extracted
+    )
 
 
-def test_metrics_extracted_only_once(mini_sentry, relay, relay_with_processing, metrics_consumer):
+def test_metrics_extracted_only_once(
+    mini_sentry, relay, relay_with_processing, metrics_consumer
+):
     """
     Tests that a chain of multiple relays only extracts metrics once
 
@@ -256,7 +284,10 @@ def test_metrics_extracted_only_once(mini_sentry, relay, relay_with_processing, 
     relay does the extraction and the following relays just pass the metrics through
     """
 
-    relay_chain = relay(relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG), options=TEST_CONFIG)
+    relay_chain = relay(
+        relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG),
+        options=TEST_CONFIG,
+    )
 
     # enable metrics extraction for the project
     extra_config = {"config": {"features": ["organizations:metrics-extraction"]}}
@@ -268,7 +299,7 @@ def test_metrics_extracted_only_once(mini_sentry, relay, relay_with_processing, 
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
-    session_payload = _session_payload(timestamp=timestamp,started=started)
+    session_payload = _session_payload(timestamp=timestamp, started=started)
 
     relay_chain.send_session(project_id, session_payload)
 
@@ -281,8 +312,12 @@ def test_metrics_extracted_only_once(mini_sentry, relay, relay_with_processing, 
     assert len(metrics["session.duration"]["value"]) == 1
 
 
-@pytest.mark.parametrize("metrics_extracted", [True, False], ids=["extracted", "not extracted"] )
-def test_session_metrics_processing(mini_sentry, relay_with_processing, metrics_consumer,metrics_extracted):
+@pytest.mark.parametrize(
+    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
+)
+def test_session_metrics_processing(
+    mini_sentry, relay_with_processing, metrics_consumer, metrics_extracted
+):
     """
         Tests that a processing relay with metrics-extraction enabled creates metrics
         from sessions if the metrics were not already extracted before.
@@ -366,7 +401,7 @@ def test_transaction_metrics(mini_sentry, relay_with_processing, metrics_consume
             "foo": {"value": 1.2},
             "bar": {"value": 1.3},
         }
-        transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4}, }}
+        transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4},}}
 
         relay.send_event(42, transaction)
 
@@ -374,7 +409,7 @@ def test_transaction_metrics(mini_sentry, relay_with_processing, metrics_consume
         transaction["measurements"] = {
             "foo": {"value": 2.2},
         }
-        transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4}, }}
+        transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
         relay.send_event(42, transaction)
 
         if not feature_enabled:
