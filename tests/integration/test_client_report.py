@@ -19,8 +19,8 @@ def test_client_reports(relay, mini_sentry):
     report_payload = {
         "timestamp": timestamp.isoformat(),
         "discarded_events": [
-            ["queue_full", "error", 42],
-            ["queue_full", "transaction", 1231],
+            ["queue_overflow", "error", 42],
+            ["queue_overflow", "transaction", 1231],
         ],
     }
 
@@ -39,7 +39,7 @@ def test_client_reports(relay, mini_sentry):
             "project_id": 42,
             "key_id": 123,
             "outcome": 5,
-            "reason": "queue_full",
+            "reason": "queue_overflow",
             "remote_addr": "127.0.0.1",
             "source": "my-layer",
             "category": 1,
@@ -51,7 +51,7 @@ def test_client_reports(relay, mini_sentry):
             "project_id": 42,
             "key_id": 123,
             "outcome": 5,
-            "reason": "queue_full",
+            "reason": "queue_overflow",
             "remote_addr": "127.0.0.1",
             "source": "my-layer",
             "category": 2,
