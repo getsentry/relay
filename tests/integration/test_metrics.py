@@ -336,7 +336,15 @@ def test_session_metrics_processing(
     started = timestamp - timedelta(hours=1)
     session_payload = _session_payload(timestamp=timestamp, started=started)
 
-    relay.send_session(project_id, session_payload)
+    relay.send_session(
+        project_id,
+        session_payload,
+        item_headers={"metrics_extracted": metrics_extracted},
+    )
+
+    if metrics_extracted:
+        metrics_consumer.assert_empty(timeout=2)
+        return
 
     metrics = metrics_by_name(metrics_consumer, 3)
 
