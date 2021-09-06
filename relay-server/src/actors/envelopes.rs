@@ -789,12 +789,14 @@ impl EnvelopeProcessor {
             };
             match ClientReport::parse(&item.payload()) {
                 Ok(report) => {
-                    for (reason, category, quantity) in report.discarded_events.into_iter() {
-                        if reason.len() > 200 {
+                    for discarded_event in report.discarded_events.into_iter() {
+                        if discarded_event.reason.len() > 200 {
                             relay_log::trace!("ignored client outcome with an overlong reason");
                             continue;
                         }
-                        *discarded_events.entry((reason, category)).or_insert(0) += quantity;
+                        *discarded_events
+                            .entry((discarded_event.reason, discarded_event.category))
+                            .or_insert(0) += discarded_event.quantity;
                     }
                     if let Some(ts) = report.timestamp {
                         timestamp.get_or_insert(ts);

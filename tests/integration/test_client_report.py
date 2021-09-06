@@ -19,8 +19,8 @@ def test_client_reports(relay, mini_sentry):
     report_payload = {
         "timestamp": timestamp.isoformat(),
         "discarded_events": [
-            ["queue_overflow", "error", 42],
-            ["queue_overflow", "transaction", 1231],
+            {"reason": "queue_overflow", "category": "error", "quantity": 42},
+            {"reason": "queue_overflow", "category": "transaction", "quantity": 1231},
         ],
     }
 
