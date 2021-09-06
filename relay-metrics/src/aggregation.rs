@@ -1053,10 +1053,10 @@ impl Aggregator {
         Ok(())
     }
 
-    /// Sends the [`FlushBuckets`] message to the receiver.
+    /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
-    /// If the receiver returns buckets, they are merged back into the cache.
-    fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
+    /// Note that this function is primarily intended for tests.
+    pub fn pop_flush_buckets(&mut self) -> HashMap<ProjectKey, Vec<Bucket>> {
         let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
 
         self.buckets.retain(|key, entry| {
@@ -1070,6 +1070,15 @@ impl Aggregator {
                 true
             }
         });
+
+        buckets
+    }
+
+    /// Sends the [`FlushBuckets`] message to the receiver.
+    ///
+    /// If the receiver returns buckets, they are merged back into the cache.
+    fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
+        let buckets = self.pop_flush_buckets();
 
         if buckets.is_empty() {
             return;
