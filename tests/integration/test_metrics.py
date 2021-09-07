@@ -386,10 +386,7 @@ def test_session_metrics_processing(
         "type": "d",
         "unit": "s",
         "value": [1947.49],
-        "tags": {
-            "environment": "production",
-            "release": "sentry-test@1.0.0",
-        },
+        "tags": {"environment": "production", "release": "sentry-test@1.0.0",},
     }
 
 
@@ -423,11 +420,7 @@ def test_transaction_metrics(
         "foo": {"value": 1.2},
         "bar": {"value": 1.3},
     }
-    transaction["breakdowns"] = {
-        "breakdown1": {
-            "baz": {"value": 1.4},
-        }
-    }
+    transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4},}}
 
     #: The `metrics_extracted` header is ignored for transactions for now.
     #: This means that transaction metrics are extracted regardless of the header.
@@ -439,11 +432,7 @@ def test_transaction_metrics(
     transaction["measurements"] = {
         "foo": {"value": 2.2},
     }
-    transaction["breakdowns"] = {
-        "breakdown1": {
-            "baz": {"value": 2.4},
-        }
-    }
+    transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
     relay.send_transaction(42, transaction, item_headers=item_headers)
 
     if not extract_metrics:
