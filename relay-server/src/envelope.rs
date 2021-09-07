@@ -320,6 +320,10 @@ impl Default for AttachmentType {
     }
 }
 
+fn is_false(val: &bool) -> bool {
+    !*val
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ItemHeaders {
     /// The type of the item.
@@ -370,6 +374,15 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     timestamp: Option<UnixTimestamp>,
 
+    /// Flag indicating if metrics have already been extracted from the item
+    ///
+    /// In order to only extract metrics once from an item while through a
+    /// chain of Relays, a Relay that extracts metrics from an item (typically
+    /// the first Relay) MUST set this flat to true so that downstream Relays do
+    /// not extract the metric again causing double counting of the metric.
+    #[serde(default, skip_serializing_if = "is_false")]
+    metrics_extracted: bool,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -395,6 +408,7 @@ impl Item {
                 sample_rates: None,
                 timestamp: None,
                 other: BTreeMap::new(),
+                metrics_extracted: false,
             },
             payload: Bytes::new(),
         }
@@ -494,6 +508,16 @@ impl Item {
     /// Get custom timestamp for this item. Currently used to backdate metrics.
     pub fn timestamp(&self) -> Option<UnixTimestamp> {
         self.headers.timestamp
+    }
+
+    /// Returns the metrics extracted flag.
+    pub fn metrics_extracted(&self) -> bool {
+        self.headers.metrics_extracted
+    }
+
+    /// Sets the metrics extracted flag.
+    pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
+        self.headers.metrics_extracted = metrics_extracted;
     }
 
     /// Returns the specified header value, if present.
@@ -1105,7 +1129,7 @@ mod tests {
         assert_eq!(*meta.dsn(), dsn);
         assert_eq!(meta.project_id(), Some(ProjectId::new(42)));
         assert_eq!(
-            meta.public_key().as_str(),
+            meta.public_key().to_string(),
             "e12d836b15bb49d7bbf99e64295d995b"
         );
         assert_eq!(meta.client(), Some("sentry/javascript"));
@@ -1268,7 +1292,7 @@ mod tests {
         assert_eq!(*meta.dsn(), dsn);
         assert_eq!(meta.project_id(), Some(ProjectId::new(42)));
         assert_eq!(
-            meta.public_key().as_str(),
+            meta.public_key().to_string(),
             "e12d836b15bb49d7bbf99e64295d995b"
         );
         assert_eq!(meta.client(), Some("sentry/client"));

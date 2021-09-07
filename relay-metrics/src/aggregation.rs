@@ -1089,17 +1089,15 @@ impl Aggregator {
             return;
         }
 
-        relay_log::trace!("flushing {} buckets to receiver", flush_buckets.len());
+        relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
 
-        relay_statsd::metric!(
-            histogram(MetricHistograms::BucketsFlushed) = flush_buckets.len() as u64
-        );
-
+        let mut total_bucket_count = 0u64;
         for (project_key, project_buckets) in flush_buckets.into_iter() {
+            let bucket_count = project_buckets.len() as u64;
             relay_statsd::metric!(
-                histogram(MetricHistograms::BucketsFlushedPerProject) =
-                    project_buckets.len() as u64
+                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count
             );
+            total_bucket_count += bucket_count;
 
             self.receiver
                 .send(FlushBuckets::new(project_key, project_buckets))
@@ -1117,6 +1115,8 @@ impl Aggregator {
                 .drop_err()
                 .spawn(context);
         }
+
+        relay_statsd::metric!(histogram(MetricHistograms::BucketsFlushed) = total_bucket_count);
     }
 }
 
