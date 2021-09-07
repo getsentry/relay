@@ -386,74 +386,100 @@ def test_session_metrics_processing(
         "type": "d",
         "unit": "s",
         "value": [1947.49],
-        "tags": {"environment": "production", "release": "sentry-test@1.0.0",},
+        "tags": {
+            "environment": "production",
+            "release": "sentry-test@1.0.0",
+        },
     }
 
 
-def test_transaction_metrics(mini_sentry, relay_with_processing, metrics_consumer):
+@pytest.mark.parametrize(
+    "extract_metrics", [True, False], ids=["extract", "don't extract"]
+)
+@pytest.mark.parametrize(
+    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
+)
+def test_transaction_metrics(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    metrics_extracted,
+    extract_metrics,
+):
     metrics_consumer = metrics_consumer()
 
-    for feature_enabled in (True, False):
-        relay = relay_with_processing(options=TEST_CONFIG)
-        project_id = 42
-        mini_sentry.add_full_project_config(project_id)
-        timestamp = datetime.now(tz=timezone.utc)
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    timestamp = datetime.now(tz=timezone.utc)
 
-        mini_sentry.project_configs[project_id]["config"]["features"] = (
-            ["organizations:metrics-extraction"] if feature_enabled else []
-        )
+    mini_sentry.project_configs[project_id]["config"]["features"] = (
+        ["organizations:metrics-extraction"] if extract_metrics else []
+    )
 
-        transaction = generate_transaction_item()
-        transaction["timestamp"] = timestamp.isoformat()
-        transaction["measurements"] = {
-            "foo": {"value": 1.2},
-            "bar": {"value": 1.3},
+    transaction = generate_transaction_item()
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["measurements"] = {
+        "foo": {"value": 1.2},
+        "bar": {"value": 1.3},
+    }
+    transaction["breakdowns"] = {
+        "breakdown1": {
+            "baz": {"value": 1.4},
         }
-        transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4},}}
+    }
 
-        relay.send_event(42, transaction)
+    #: The `metrics_extracted` header is ignored for transactions for now.
+    #: This means that transaction metrics are extracted regardless of the header.
+    item_headers = {"metrics_extracted": metrics_extracted}
 
-        # Send another transaction:
-        transaction["measurements"] = {
-            "foo": {"value": 2.2},
+    relay.send_transaction(42, transaction, item_headers=item_headers)
+
+    # Send another transaction:
+    transaction["measurements"] = {
+        "foo": {"value": 2.2},
+    }
+    transaction["breakdowns"] = {
+        "breakdown1": {
+            "baz": {"value": 2.4},
         }
-        transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
-        relay.send_event(42, transaction)
+    }
+    relay.send_transaction(42, transaction, item_headers=item_headers)
 
-        if not feature_enabled:
-            message = metrics_consumer.poll(timeout=None)
-            assert message is None, message.value()
+    if not extract_metrics:
+        message = metrics_consumer.poll(timeout=None)
+        assert message is None, message.value()
 
-            continue
+        return
 
-        metrics = metrics_by_name(metrics_consumer, 3)
+    metrics = metrics_by_name(metrics_consumer, 3)
 
-        assert metrics["measurement.foo"] == {
-            "org_id": 1,
-            "project_id": 42,
-            "timestamp": int(timestamp.timestamp()),
-            "name": "measurement.foo",
-            "type": "d",
-            "unit": "",
-            "value": [1.2, 2.2],
-        }
+    assert metrics["measurement.foo"] == {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(timestamp.timestamp()),
+        "name": "measurement.foo",
+        "type": "d",
+        "unit": "",
+        "value": [1.2, 2.2],
+    }
 
-        assert metrics["measurement.bar"] == {
-            "org_id": 1,
-            "project_id": 42,
-            "timestamp": int(timestamp.timestamp()),
-            "name": "measurement.bar",
-            "type": "d",
-            "unit": "",
-            "value": [1.3],
-        }
+    assert metrics["measurement.bar"] == {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(timestamp.timestamp()),
+        "name": "measurement.bar",
+        "type": "d",
+        "unit": "",
+        "value": [1.3],
+    }
 
-        assert metrics["breakdown.breakdown1.baz"] == {
-            "org_id": 1,
-            "project_id": 42,
-            "timestamp": int(timestamp.timestamp()),
-            "name": "breakdown.breakdown1.baz",
-            "type": "d",
-            "unit": "",
-            "value": [1.4, 2.4],
-        }
+    assert metrics["breakdown.breakdown1.baz"] == {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(timestamp.timestamp()),
+        "name": "breakdown.breakdown1.baz",
+        "type": "d",
+        "unit": "",
+        "value": [1.4, 2.4],
+    }

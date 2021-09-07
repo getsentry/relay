@@ -178,6 +178,14 @@ class SentryLike(object):
             item.headers = {**item.headers, **item_headers}
         self.send_envelope(project_id, envelope)
 
+    def send_transaction(self, project_id, payload, item_headers=None):
+        envelope = Envelope()
+        envelope.add_transaction(payload)
+        if item_headers:
+            item = envelope.items[0]
+            item.headers = {**item.headers, **item_headers}
+        self.send_envelope(project_id, envelope)
+
     def send_session_aggregates(self, project_id, payload):
         envelope = Envelope()
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="sessions"))
