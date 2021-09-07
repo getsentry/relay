@@ -27,6 +27,7 @@ impl Handler<FlushBuckets> for TestReceiver {
 /// Struct representing a testcase for which insert + flush are timed.
 struct MetricInput {
     num_metrics: usize,
+    num_metric_names: usize,
     num_project_keys: usize,
     metric: Metric,
 }
@@ -43,8 +44,11 @@ impl MetricInput {
 
         for i in 0..self.num_metrics {
             let key_id = i % self.num_project_keys;
+            let metric_name = format!("foo{}", i % self.num_metric_names);
+            let mut metric = self.metric.clone();
+            metric.name = metric_name;
             let key = ProjectKey::parse(&format!("{:0width$x}", key_id, width = 32)).unwrap();
-            rv.push((key, self.metric.clone()));
+            rv.push((key, metric));
         }
 
         rv
@@ -55,9 +59,10 @@ impl fmt::Display for MetricInput {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{} {:?} metrics, {} keys",
+            "{} {:?} metrics with {} names, {} keys",
             self.num_metrics,
             self.metric.value.ty(),
+            self.num_metric_names,
             self.num_project_keys
         )
     }
@@ -72,26 +77,51 @@ lazy_static::lazy_static! {
         tags: BTreeMap::new(),
     };
 
-    static ref METRIC_INPUTS: [MetricInput; 4] = [
+    static ref METRIC_INPUTS: [MetricInput; 7] = [
         MetricInput {
             num_metrics: 1,
+            num_metric_names: 1,
+            metric: COUNTER_METRIC.clone(),
+            num_project_keys: 1,
+        },
+        // scaling num_metrics
+        MetricInput {
+            num_metrics: 100,
+            num_metric_names: 1,
             metric: COUNTER_METRIC.clone(),
             num_project_keys: 1,
         },
         MetricInput {
             num_metrics: 1000,
+            num_metric_names: 1,
+            metric: COUNTER_METRIC.clone(),
+            num_project_keys: 1,
+        },
+        // scaling num_metric_names
+        MetricInput {
+            num_metrics: 100,
+            num_metric_names: 100,
             metric: COUNTER_METRIC.clone(),
             num_project_keys: 1,
         },
         MetricInput {
             num_metrics: 1000,
+            num_metric_names: 1000,
+            metric: COUNTER_METRIC.clone(),
+            num_project_keys: 1,
+        },
+        // scaling num_project_keys
+        MetricInput {
+            num_metrics: 100,
+            num_metric_names: 1,
+            metric: COUNTER_METRIC.clone(),
+            num_project_keys: 100,
+        },
+        MetricInput {
+            num_metrics: 1000,
+            num_metric_names: 1,
             metric: COUNTER_METRIC.clone(),
             num_project_keys: 1000,
-        },
-        MetricInput {
-            num_metrics: 10000,
-            metric: COUNTER_METRIC.clone(),
-            num_project_keys: 10000,
         },
     ];
 }
