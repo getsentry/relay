@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
+use crate::statsd::{MetricGauges, MetricHistograms, MetricTimers};
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
 /// Contains the numeric value corresponding to a metrics tag name, tag key or tag value.
@@ -1057,18 +1058,22 @@ impl Aggregator {
     ///
     /// Note that this function is primarily intended for tests.
     pub fn pop_flush_buckets(&mut self) -> HashMap<ProjectKey, Vec<Bucket>> {
+        relay_statsd::metric!(gauge(MetricGauges::Buckets) = self.buckets.len() as u64);
+
         let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
 
-        self.buckets.retain(|key, entry| {
-            if entry.elapsed() {
-                // Take the value and leave a placeholder behind. It'll be removed right after.
-                let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
-                let bucket = Bucket::from_parts(key.clone(), value);
-                buckets.entry(key.project_key).or_default().push(bucket);
-                false
-            } else {
-                true
-            }
+        relay_statsd::metric!(timer(MetricTimers::BucketsScanDuration), {
+            self.buckets.retain(|key, entry| {
+                if entry.elapsed() {
+                    // Take the value and leave a placeholder behind. It'll be removed right after.
+                    let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                    let bucket = Bucket::from_parts(key.clone(), value);
+                    buckets.entry(key.project_key).or_default().push(bucket);
+                    false
+                } else {
+                    true
+                }
+            });
         });
 
         buckets
@@ -1084,11 +1089,19 @@ impl Aggregator {
             return;
         }
 
-        relay_log::trace!("flushing {} buckets to receiver", buckets.len());
+        relay_log::trace!("flushing {} buckets to receiver", flush_buckets.len());
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BucketsFlushed) = flush_buckets.len() as u64
+        );
 
-        for (project_key, buckets) in buckets.into_iter() {
+        for (project_key, project_buckets) in flush_buckets.into_iter() {
+            relay_statsd::metric!(
+                histogram(MetricHistograms::BucketsFlushedPerProject) =
+                    project_buckets.len() as u64
+            );
+
             self.receiver
-                .send(FlushBuckets::new(project_key, buckets))
+                .send(FlushBuckets::new(project_key, project_buckets))
                 .into_actor(self)
                 .and_then(move |result, slf, _ctx| {
                     if let Err(buckets) = result {

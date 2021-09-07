@@ -370,11 +370,11 @@ mod processing {
     use rdkafka::ClientConfig;
     use serde_json::Error as SerdeSerializationError;
 
-    use relay_common::metric;
     use relay_config::KafkaTopic;
+    use relay_statsd::metric;
 
-    use crate::metrics::RelayCounters;
     use crate::service::ServerErrorKind;
+    use crate::statsd::RelayCounters;
     use crate::utils::{CaptureErrorContext, ThreadedProducer};
 
     #[derive(Fail, Debug)]

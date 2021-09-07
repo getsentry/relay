@@ -10,6 +10,12 @@
 **Bug Fixes**:
 
 - Use correct commandline argument name for setting Relay port. ([#1059](https://github.com/getsentry/relay/pull/1059))
+- Retrieve OS Context for Unity Events INGEST-293. ([#1072](https://github.com/getsentry/relay/pull/1072))
+
+**Internal**:
+
+- Add new metrics on Relay's performance in dealing with buckets of metric aggregates, as well as the amount of aggregated buckets. ([#1070](https://github.com/getsentry/relay/pull/1070))
+- Add the exclusive time of a span. ([#1061](https://github.com/getsentry/relay/pull/1061))
 
 ## 21.8.0
 

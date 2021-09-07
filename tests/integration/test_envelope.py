@@ -207,7 +207,7 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     transaction_item = generate_transaction_item()
     transaction_item.update(
         {
-            "breakdowns": {"span_ops": {"lcp": {"value": 202.1},}},
+            "breakdowns": {"span_ops": {"lcp": {"value": 202.1}}},
             "spans": [
                 {
                     "description": "GET /api/0/organizations/?member=1",
@@ -279,6 +279,176 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
             "total.time": {"value": 2200001.003},
         },
     }
+
+
+def test_no_span_attributes(mini_sentry, relay_with_processing, transactions_consumer):
+    events_consumer = transactions_consumer()
+
+    relay = relay_with_processing()
+    config = mini_sentry.add_basic_project_config(42)
+
+    if "spanAttributes" in config["config"]:
+        del config["config"]["spanAttributes"]
+
+    transaction_item = generate_transaction_item()
+    transaction_item.update(
+        {
+            "spans": [
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "aaaaaaaaaaaaaaaa",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "start_timestamp": 1000,
+                    "timestamp": 3000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "bbbbbbbbbbbbbbbb",
+                    "span_id": "cccccccccccccccc",
+                    "start_timestamp": 1400,
+                    "timestamp": 2600,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "cccccccccccccccc",
+                    "span_id": "dddddddddddddddd",
+                    "start_timestamp": 1700,
+                    "timestamp": 2300,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+            ],
+        }
+    )
+
+    envelope = Envelope()
+    envelope.add_transaction(transaction_item)
+    relay.send_envelope(42, envelope)
+
+    event, _ = events_consumer.get_event()
+    assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    assert "trace" in event["contexts"]
+    for span in event["spans"]:
+        assert "exclusive_time" not in span
+
+
+def test_empty_span_attributes(
+    mini_sentry, relay_with_processing, transactions_consumer
+):
+    events_consumer = transactions_consumer()
+
+    relay = relay_with_processing()
+    config = mini_sentry.add_basic_project_config(42)
+
+    config["config"].setdefault("spanAttributes", [])
+
+    transaction_item = generate_transaction_item()
+    transaction_item.update(
+        {
+            "spans": [
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "aaaaaaaaaaaaaaaa",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "start_timestamp": 1000,
+                    "timestamp": 3000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "bbbbbbbbbbbbbbbb",
+                    "span_id": "cccccccccccccccc",
+                    "start_timestamp": 1400,
+                    "timestamp": 2600,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "cccccccccccccccc",
+                    "span_id": "dddddddddddddddd",
+                    "start_timestamp": 1700,
+                    "timestamp": 2300,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+            ],
+        }
+    )
+
+    envelope = Envelope()
+    envelope.add_transaction(transaction_item)
+    relay.send_envelope(42, envelope)
+
+    event, _ = events_consumer.get_event()
+    assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    assert "trace" in event["contexts"]
+    for span in event["spans"]:
+        assert "exclusive_time" not in span
+
+
+def test_span_attributes_exclusive_time(
+    mini_sentry, relay_with_processing, transactions_consumer
+):
+    events_consumer = transactions_consumer()
+
+    relay = relay_with_processing()
+    config = mini_sentry.add_basic_project_config(42)
+
+    config["config"].setdefault("spanAttributes", ["exclusive-time"])
+
+    transaction_item = generate_transaction_item()
+    transaction_item.update(
+        {
+            "spans": [
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "aaaaaaaaaaaaaaaa",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "start_timestamp": 1000,
+                    "timestamp": 3000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "bbbbbbbbbbbbbbbb",
+                    "span_id": "cccccccccccccccc",
+                    "start_timestamp": 1400,
+                    "timestamp": 2600,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+                {
+                    "description": "GET /api/0/organizations/?member=1",
+                    "op": "http",
+                    "parent_span_id": "cccccccccccccccc",
+                    "span_id": "dddddddddddddddd",
+                    "start_timestamp": 1700,
+                    "timestamp": 2300,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                },
+            ],
+        }
+    )
+
+    envelope = Envelope()
+    envelope.add_transaction(transaction_item)
+    relay.send_envelope(42, envelope)
+
+    event, _ = events_consumer.get_event()
+    assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    assert "trace" in event["contexts"]
+    assert [span["exclusive_time"] for span in event["spans"]] == [
+        800000,
+        600000,
+        600000,
+    ]
 
 
 def test_sample_rates(mini_sentry, relay_chain):

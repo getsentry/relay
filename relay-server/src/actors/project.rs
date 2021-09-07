@@ -11,14 +11,16 @@ use smallvec::SmallVec;
 use url::Url;
 
 use relay_auth::PublicKey;
-use relay_common::{metric, ProjectId, ProjectKey};
+use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::BreakdownsConfig;
+use relay_general::types::SpanAttribute;
 use relay_metrics::{self, Aggregator, Bucket, Metric};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::SamplingConfig;
+use relay_statsd::metric;
 
 use crate::actors::outcome::DiscardReason;
 use crate::actors::project_cache::{
@@ -27,7 +29,7 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
-use crate::metrics::RelayCounters;
+use crate::statsd::RelayCounters;
 use crate::utils::{EnvelopeLimiter, Response};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
@@ -84,6 +86,9 @@ pub struct ProjectConfig {
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
+    /// The span attributes configuration.
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub span_attributes: BTreeSet<SpanAttribute>,
     /// Exposable features enabled for this project
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
@@ -102,6 +107,7 @@ impl Default for ProjectConfig {
             quotas: Vec::new(),
             dynamic_sampling: None,
             breakdowns_v2: None,
+            span_attributes: BTreeSet::new(),
             features: BTreeSet::new(),
         }
     }

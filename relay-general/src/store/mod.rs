@@ -1,4 +1,5 @@
 //! Utility code for sentry's internal store.
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -7,7 +8,7 @@ use serde_json::Value;
 
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{Event, IpAddr};
-use crate::types::{Meta, ProcessingResult};
+use crate::types::{Meta, ProcessingResult, SpanAttribute};
 
 mod clock_drift;
 mod event_error;
@@ -53,6 +54,9 @@ pub struct StoreConfig {
 
     /// Emit breakdowns based on given configuration.
     pub breakdowns: Option<normalize::breakdowns::BreakdownsConfig>,
+
+    /// Emit additional span attributes based on given configuration.
+    pub span_attributes: BTreeSet<SpanAttribute>,
 }
 
 /// The processor that normalizes events for store.

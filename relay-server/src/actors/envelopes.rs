@@ -15,7 +15,7 @@ use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
 
 use relay_auth::RelayVersion;
-use relay_common::{clone, metric, ProjectId, ProjectKey, UnixTimestamp};
+use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -31,6 +31,7 @@ use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
+use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::actors::project::{Feature, ProjectState};
@@ -42,8 +43,8 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, Upstr
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::metrics::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::service::ServerError;
+use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, SendWithOutcome,
 };
@@ -1314,6 +1315,7 @@ impl EnvelopeProcessor {
             sent_at: envelope.sent_at(),
             received_at: Some(envelope_context.received_at),
             breakdowns: project_state.config.breakdowns_v2.clone(),
+            span_attributes: project_state.config.span_attributes.clone(),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_deref());

@@ -442,7 +442,7 @@ impl FromValue for TraceId {
 }
 
 /// A 16-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanId(pub String);
 

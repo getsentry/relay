@@ -7,11 +7,12 @@ use actix_web::ResponseError;
 use failure::Fail;
 use futures::{future, Future};
 
-use relay_common::{metric, ProjectKey};
+use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
 use relay_metrics::{self, AggregateMetricsError, Bucket, FlushBuckets, Metric};
 use relay_quotas::{RateLimits, Scoping};
 use relay_redis::RedisPool;
+use relay_statsd::metric;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
@@ -19,7 +20,7 @@ use crate::actors::project::{Expiry, Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
-use crate::metrics::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{ActorResponse, Response};
 
 #[cfg(feature = "processing")]

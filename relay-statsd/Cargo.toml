@@ -1,0 +1,17 @@
+[package]
+name = "relay-statsd"
+authors = ["Sentry <oss@sentry.io>"]
+description = "High-level StatsD metric client for internal measurements"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "21.8.0"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+cadence = "0.26.0"
+lazy_static = "1.4.0"
+parking_lot = "0.10.0"
+rand = "0.7.3"
+relay-log = { path = "../relay-log" }

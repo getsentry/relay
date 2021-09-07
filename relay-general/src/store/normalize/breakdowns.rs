@@ -11,29 +11,25 @@ use crate::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
 use crate::types::Annotated;
 
 #[derive(Clone, Debug)]
-struct TimeWindowSpan {
-    start_timestamp: Timestamp,
-    end_timestamp: Timestamp,
+pub struct TimeWindowSpan {
+    pub start: Timestamp,
+    pub end: Timestamp,
 }
 
 impl TimeWindowSpan {
-    fn new(start_timestamp: Timestamp, end_timestamp: Timestamp) -> Self {
-        if end_timestamp < start_timestamp {
+    pub fn new(start: Timestamp, end: Timestamp) -> Self {
+        if end < start {
             return TimeWindowSpan {
-                start_timestamp: end_timestamp,
-                end_timestamp: start_timestamp,
+                start: end,
+                end: start,
             };
         }
 
-        TimeWindowSpan {
-            start_timestamp,
-            end_timestamp,
-        }
+        TimeWindowSpan { start, end }
     }
 
-    fn get_duration(&self) -> f64 {
-        let delta: f64 =
-            (self.end_timestamp.timestamp_nanos() - self.start_timestamp.timestamp_nanos()) as f64;
+    pub fn duration(&self) -> f64 {
+        let delta: f64 = (self.end.timestamp_nanos() - self.start.timestamp_nanos()) as f64;
         // convert to milliseconds (1 ms = 1,000,000 nanoseconds)
         (delta / 1_000_000.00).abs()
     }
@@ -50,8 +46,8 @@ fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
         return None;
     }
 
-    // sort by start_timestamp in ascending order
-    intervals.sort_unstable_by_key(|span| span.start_timestamp);
+    // sort by start timestamp in ascending order
+    intervals.sort_unstable_by_key(|span| span.start);
 
     let mut op_time_spent = 0.0;
     let mut previous_interval: Option<TimeWindowSpan> = None;
@@ -59,20 +55,19 @@ fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
     for current_interval in intervals.into_iter() {
         match previous_interval.as_mut() {
             Some(last_interval) => {
-                if last_interval.end_timestamp < current_interval.start_timestamp {
+                if last_interval.end < current_interval.start {
                     // if current_interval does not overlap with last_interval,
                     // then add last_interval to op_time_spent
-                    op_time_spent += last_interval.get_duration();
+                    op_time_spent += last_interval.duration();
                     previous_interval = Some(current_interval);
                     continue;
                 }
 
                 // current_interval and last_interval overlaps; so we merge these intervals
 
-                // invariant: last_interval.start_timestamp <= current_interval.start_timestamp
+                // invariant: last_interval.start <= current_interval.start
 
-                last_interval.end_timestamp =
-                    std::cmp::max(last_interval.end_timestamp, current_interval.end_timestamp);
+                last_interval.end = std::cmp::max(last_interval.end, current_interval.end);
             }
             None => {
                 previous_interval = Some(current_interval);
@@ -81,7 +76,7 @@ fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
     }
 
     if let Some(remaining_interval) = previous_interval {
-        op_time_spent += remaining_interval.get_duration();
+        op_time_spent += remaining_interval.duration();
     }
 
     Some(op_time_spent)
@@ -129,17 +124,17 @@ impl EmitBreakdowns for SpanOperationsConfig {
                 Some(span_op) => span_op,
             };
 
-            let start_timestamp = match span.start_timestamp.value() {
+            let start = match span.start_timestamp.value() {
                 None => continue,
-                Some(start_timestamp) => start_timestamp,
+                Some(start) => start,
             };
 
-            let end_timestamp = match span.timestamp.value() {
+            let end = match span.timestamp.value() {
                 None => continue,
-                Some(end_timestamp) => end_timestamp,
+                Some(end) => end,
             };
 
-            let cover = TimeWindowSpan::new(*start_timestamp, *end_timestamp);
+            let cover = TimeWindowSpan::new(*start, *end);
 
             // Only emit an operation breakdown measurement if the operation name matches any
             // entries in operation_name_breakdown.
@@ -316,13 +311,13 @@ mod tests {
     #[test]
     fn test_emit_ops_breakdown() {
         fn make_span(
-            start_timestamp: Annotated<Timestamp>,
-            end_timestamp: Annotated<Timestamp>,
+            start: Annotated<Timestamp>,
+            end: Annotated<Timestamp>,
             op_name: String,
         ) -> Annotated<Span> {
             Annotated::new(Span {
-                timestamp: end_timestamp,
-                start_timestamp,
+                timestamp: end,
+                start_timestamp: start,
                 description: Annotated::new("desc".to_owned()),
                 op: Annotated::new(op_name),
                 trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),

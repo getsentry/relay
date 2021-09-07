@@ -94,6 +94,11 @@ event_snapshot!(cordova);
 event_snapshot!(dotnet);
 event_snapshot!(legacy_python);
 event_snapshot!(legacy_node_exception);
+event_snapshot!(unity_macos);
+event_snapshot!(unity_windows);
+event_snapshot!(unity_ios);
+event_snapshot!(unity_linux);
+event_snapshot!(unity_android);
 
 #[test]
 #[cfg(feature = "jsonschema")]

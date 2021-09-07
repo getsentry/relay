@@ -5,12 +5,12 @@ use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 
-use relay_common::metric;
 use relay_config::{Config, RelayMode};
+use relay_statsd::metric;
 
 use crate::actors::controller::{Controller, Shutdown};
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
-use crate::metrics::RelayGauges;
+use crate::statsd::RelayGauges;
 
 pub struct Healthcheck {
     is_shutting_down: bool,
