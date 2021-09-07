@@ -196,7 +196,7 @@ def test_session_metrics_non_processing(
 
     try:
         second_envelope = mini_sentry.captured_events.get(timeout=2)
-    except:
+    except Exception:
         second_envelope = None
 
     assert first_envelope is not None
