@@ -2859,16 +2859,6 @@
 <span id="2859">2859</span>
 <span id="2860">2860</span>
 <span id="2861">2861</span>
-<span id="2862">2862</span>
-<span id="2863">2863</span>
-<span id="2864">2864</span>
-<span id="2865">2865</span>
-<span id="2866">2866</span>
-<span id="2867">2867</span>
-<span id="2868">2868</span>
-<span id="2869">2869</span>
-<span id="2870">2870</span>
-<span id="2871">2871</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
@@ -2899,7 +2889,7 @@
 <span class="kw">use</span> <span class="ident">relay_general::store::ClockDriftProcessor</span>;
 <span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">Metric</span>};
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">DurationPrecision</span>, <span class="ident">Metric</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">RuleId</span>, <span class="ident">SamplingResult</span>};
@@ -2929,7 +2919,6 @@
     <span class="ident">failure::ResultExt</span>,
     <span class="ident">relay_filter::FilterStatKey</span>,
     <span class="ident">relay_general::store</span>::{<span class="ident">GeoIpLookup</span>, <span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>},
-    <span class="ident">relay_metrics</span>::{<span class="ident">DurationPrecision</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>},
     <span class="ident">relay_quotas</span>::{<span class="ident">RateLimitingError</span>, <span class="ident">RedisRateLimiter</span>},
 };
 
@@ -3251,7 +3240,6 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">fn</span> <span class="ident">with_tag</span>(
     <span class="ident">tags</span>: <span class="kw-2">&amp;</span><span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
@@ -3323,7 +3311,6 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">fn</span> <span class="ident">extract_session_metrics</span>(<span class="ident">session</span>: <span class="kw-2">&amp;</span><span class="ident">SessionUpdate</span>, <span class="ident">target</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>) {
     <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">UnixTimestamp::from_datetime</span>(<span class="ident">session</span>.<span class="ident">timestamp</span>) {
         <span class="prelude-val">Some</span>(<span class="ident">ts</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ts</span>,
@@ -3495,10 +3482,9 @@
     <span class="doccomment">/// are out of range after clock drift correction.</span>
     <span class="kw">fn</span> <span class="ident">process_sessions</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) {
         <span class="kw">let</span> <span class="ident">received</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">received_at</span>;
-        <span class="kw">let</span> <span class="ident">extract_metrics</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>()
-            <span class="op">&amp;&amp;</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">has_feature</span>(<span class="ident">Feature::MetricsExtraction</span>);
         <span class="kw">let</span> <span class="ident">_extracted_metrics</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">extracted_metrics</span>;
-
+        <span class="kw">let</span> <span class="ident">metrics_extraction_enabled</span> <span class="op">=</span>
+            <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">has_feature</span>(<span class="ident">Feature::MetricsExtraction</span>);
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
         <span class="kw">let</span> <span class="ident">client_addr</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
 
@@ -3521,7 +3507,7 @@
                 }
             };
 
-            <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">sequence</span> <span class="op">=</span><span class="op">=</span> <span class="ident">u64::max_value</span>() {
+            <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">sequence</span> <span class="op">=</span><span class="op">=</span> <span class="ident">u64::MAX</span> {
                 <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping session due to sequence overflow&quot;</span>);
                 <span class="kw">return</span> <span class="bool-val">false</span>;
             }
@@ -3584,9 +3570,9 @@
                 }
             }
 
-            <span class="kw">if</span> <span class="ident">extract_metrics</span> {
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="kw">if</span> <span class="ident">metrics_extraction_enabled</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">metrics_extracted</span>() {
                 <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="ident">_extracted_metrics</span>);
+                <span class="ident">item</span>.<span class="ident">set_metrics_extracted</span>(<span class="bool-val">true</span>);
             }
 
             <span class="kw">if</span> <span class="ident">changed</span> {
@@ -5295,7 +5281,6 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">use</span> <span class="ident">relay_general::protocol::SessionStatus</span>;
 
     <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::extractors::RequestMeta</span>;
@@ -5489,7 +5474,6 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_extract_session_metrics</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
 
@@ -5524,7 +5508,6 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_extract_session_metrics_ok</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
 
@@ -5582,7 +5565,6 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_extract_session_metrics_errored</span>() {
         <span class="kw">let</span> <span class="ident">update1</span> <span class="op">=</span> <span class="ident">SessionUpdate::parse</span>(
             <span class="string">r#&quot;{
@@ -5629,7 +5611,6 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_extract_session_metrics_fatal</span>() {
         <span class="kw">for</span> <span class="ident">status</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[<span class="ident">SessionStatus::Crashed</span>, <span class="ident">SessionStatus::Abnormal</span>] {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">session</span> <span class="op">=</span> <span class="ident">SessionUpdate::parse</span>(
@@ -5710,7 +5691,6 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_extract_session_metrics_duration</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
 
