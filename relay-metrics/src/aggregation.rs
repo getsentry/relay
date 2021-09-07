@@ -1083,13 +1083,14 @@ impl Aggregator {
     ///
     /// If the receiver returns buckets, they are merged back into the cache.
     fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
-        let buckets = self.pop_flush_buckets();
+        let flush_buckets = self.pop_flush_buckets();
 
-        if buckets.is_empty() {
+        if flush_buckets.is_empty() {
             return;
         }
 
         relay_log::trace!("flushing {} buckets to receiver", flush_buckets.len());
+
         relay_statsd::metric!(
             histogram(MetricHistograms::BucketsFlushed) = flush_buckets.len() as u64
         );
