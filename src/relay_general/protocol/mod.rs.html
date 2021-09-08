@@ -72,14 +72,11 @@
 <span id="72">72</span>
 <span id="73">73</span>
 <span id="74">74</span>
-<span id="75">75</span>
-<span id="76">76</span>
 </pre><pre class="rust">
 <span class="doccomment">//! Implements the sentry event protocol.</span>
 
 <span class="kw">mod</span> <span class="ident">breadcrumb</span>;
 <span class="kw">mod</span> <span class="ident">breakdowns</span>;
-<span class="kw">mod</span> <span class="ident">client_report</span>;
 <span class="kw">mod</span> <span class="ident">clientsdk</span>;
 <span class="kw">mod</span> <span class="ident">constants</span>;
 <span class="kw">mod</span> <span class="ident">contexts</span>;
@@ -110,7 +107,6 @@
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span><span class="ident">::breadcrumb::Breadcrumb</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span><span class="ident">::breakdowns::Breakdowns</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span><span class="ident">::client_report::ClientReport</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span><span class="ident">::clientsdk</span>::{<span class="ident">ClientSdkInfo</span>, <span class="ident">ClientSdkPackage</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span><span class="ident">::constants::VALID_PLATFORMS</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span><span class="ident">::contexts</span>::{

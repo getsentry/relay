@@ -1634,14 +1634,6 @@
 <span id="1634">1634</span>
 <span id="1635">1635</span>
 <span id="1636">1636</span>
-<span id="1637">1637</span>
-<span id="1638">1638</span>
-<span id="1639">1639</span>
-<span id="1640">1640</span>
-<span id="1641">1641</span>
-<span id="1642">1642</span>
-<span id="1643">1643</span>
-<span id="1644">1644</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
@@ -2146,8 +2138,6 @@
     <span class="ident">max_attachment_size</span>: <span class="ident">ByteSize</span>,
     <span class="doccomment">/// The maximum combined size for all attachments in an envelope or request.</span>
     <span class="ident">max_attachments_size</span>: <span class="ident">ByteSize</span>,
-    <span class="doccomment">/// The maximum combined size for all client reports in an envelope or request.</span>
-    <span class="ident">max_client_reports_size</span>: <span class="ident">ByteSize</span>,
     <span class="doccomment">/// The maximum payload size for an entire envelopes. Individual limits still apply.</span>
     <span class="ident">max_envelope_size</span>: <span class="ident">ByteSize</span>,
     <span class="doccomment">/// The maximum number of session items per envelope.</span>
@@ -2186,7 +2176,6 @@
             <span class="ident">max_event_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">1</span>),
             <span class="ident">max_attachment_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">100</span>),
             <span class="ident">max_attachments_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">100</span>),
-            <span class="ident">max_client_reports_size</span>: <span class="ident">ByteSize::kibibytes</span>(<span class="number">4</span>),
             <span class="ident">max_envelope_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">100</span>),
             <span class="ident">max_session_count</span>: <span class="number">100</span>,
             <span class="ident">max_api_payload_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">20</span>),
@@ -3097,11 +3086,6 @@
     <span class="doccomment">/// (minidump, unreal, standalone attachments) in bytes.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_attachments_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_attachments_size</span>.<span class="ident">as_bytes</span>()
-    }
-
-    <span class="doccomment">/// Returns the maxmium combined size of client reports in bytes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_client_reports_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
-        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_client_reports_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maximum size of an envelope payload in bytes.</span>

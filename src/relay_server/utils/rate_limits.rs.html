@@ -805,15 +805,6 @@
 <span id="805">805</span>
 <span id="806">806</span>
 <span id="807">807</span>
-<span id="808">808</span>
-<span id="809">809</span>
-<span id="810">810</span>
-<span id="811">811</span>
-<span id="812">812</span>
-<span id="813">813</span>
-<span id="814">814</span>
-<span id="815">815</span>
-<span id="816">816</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::fmt</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
@@ -919,13 +910,6 @@
         <span class="ident">ItemType::MetricBuckets</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
         <span class="ident">ItemType::FormData</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
         <span class="ident">ItemType::UserReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-        <span class="comment">// the following items are &quot;internal&quot; item types.  From the perspective of the SDK</span>
-        <span class="comment">// the use the &quot;internal&quot; data category however this data category is in fact never</span>
-        <span class="comment">// supposed to be emitted by relay as internal items must not be rate limited.  As</span>
-        <span class="comment">// such we do not emit a data category here.  An SDK however is supposed to assume</span>
-        <span class="comment">// that such item types use the reserved &quot;internal&quot; data category to not accidentally</span>
-        <span class="comment">// assume another rate limit (such as default).</span>
-        <span class="ident">ItemType::ClientReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
     }
 }
 
@@ -1066,9 +1050,7 @@
                     <span class="ident">event_id</span>: <span class="ident">envelope</span>.<span class="ident">event_id</span>(),
                     <span class="ident">remote_addr</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">remote_addr</span>(),
                     <span class="ident">category</span>: <span class="ident">limit</span>.<span class="ident">category</span>,
-                    <span class="comment">// XXX: on the limiter we have quantity of usize, but in the protocol</span>
-                    <span class="comment">// and data store we&#39;re limited to u32.</span>
-                    <span class="ident">quantity</span>: <span class="ident">limit</span>.<span class="ident">quantity</span> <span class="kw">as</span> <span class="ident">u32</span>,
+                    <span class="ident">quantity</span>: <span class="ident">limit</span>.<span class="ident">quantity</span>,
                 });
             }
         }
