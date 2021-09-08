@@ -1129,7 +1129,7 @@ mod tests {
         assert_eq!(*meta.dsn(), dsn);
         assert_eq!(meta.project_id(), Some(ProjectId::new(42)));
         assert_eq!(
-            meta.public_key().to_string(),
+            meta.public_key().as_str(),
             "e12d836b15bb49d7bbf99e64295d995b"
         );
         assert_eq!(meta.client(), Some("sentry/javascript"));
@@ -1292,7 +1292,7 @@ mod tests {
         assert_eq!(*meta.dsn(), dsn);
         assert_eq!(meta.project_id(), Some(ProjectId::new(42)));
         assert_eq!(
-            meta.public_key().to_string(),
+            meta.public_key().as_str(),
             "e12d836b15bb49d7bbf99e64295d995b"
         );
         assert_eq!(meta.client(), Some("sentry/client"));
