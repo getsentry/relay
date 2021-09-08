@@ -112,6 +112,16 @@ where
     })
 }
 
+/// Runs the provided function with an active actix system.
+///
+/// This function otherwise functions exactly as [`block_fn`].
+pub fn with_system<F, R>(func: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    block_fn(move || future::ok::<_, ()>(func())).unwrap()
+}
+
 /// Returns a future which completes after the requested delay.
 /// ```
 /// use std::time::Duration;

@@ -501,6 +501,8 @@ struct Limits {
     max_attachment_size: ByteSize,
     /// The maximum combined size for all attachments in an envelope or request.
     max_attachments_size: ByteSize,
+    /// The maximum combined size for all client reports in an envelope or request.
+    max_client_reports_size: ByteSize,
     /// The maximum payload size for an entire envelopes. Individual limits still apply.
     max_envelope_size: ByteSize,
     /// The maximum number of session items per envelope.
@@ -539,6 +541,7 @@ impl Default for Limits {
             max_event_size: ByteSize::mebibytes(1),
             max_attachment_size: ByteSize::mebibytes(100),
             max_attachments_size: ByteSize::mebibytes(100),
+            max_client_reports_size: ByteSize::kibibytes(4),
             max_envelope_size: ByteSize::mebibytes(100),
             max_session_count: 100,
             max_api_payload_size: ByteSize::mebibytes(20),
@@ -1449,6 +1452,11 @@ impl Config {
     /// (minidump, unreal, standalone attachments) in bytes.
     pub fn max_attachments_size(&self) -> usize {
         self.values.limits.max_attachments_size.as_bytes()
+    }
+
+    /// Returns the maxmium combined size of client reports in bytes.
+    pub fn max_client_reports_size(&self) -> usize {
+        self.values.limits.max_client_reports_size.as_bytes()
     }
 
     /// Returns the maximum size of an envelope payload in bytes.

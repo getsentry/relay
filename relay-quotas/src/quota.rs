@@ -106,7 +106,7 @@ impl CategoryUnit {
             | DataCategory::Security => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
-            DataCategory::Unknown => None,
+            DataCategory::Internal | DataCategory::Unknown => None,
         }
     }
 }
