@@ -7,11 +7,12 @@
 - Add sampling based on transaction name. ([#1058](https://github.com/getsentry/relay/pull/1058))
 - Support running Relay without config directory. The most important configuration, including Relay mode and credentials, can now be provided through commandline arguments or environment variables alone. ([#1055](https://github.com/getsentry/relay/pull/1055)
 - Protocol support for client reports. ([#1074](https://github.com/getsentry/relay/pull/1074))
+- Extract session metrics in non processing relays. ([#1073](https://github.com/getsentry/relay/pull/1073))
 
 **Bug Fixes**:
 
 - Use correct commandline argument name for setting Relay port. ([#1059](https://github.com/getsentry/relay/pull/1059))
-- Retrieve OS Context for Unity Events INGEST-293. ([#1072](https://github.com/getsentry/relay/pull/1072))
+- Retrieve OS Context for Unity Events. ([#1072](https://github.com/getsentry/relay/pull/1072))
 
 **Internal**:
 

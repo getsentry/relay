@@ -27,7 +27,7 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, Metric};
+use relay_metrics::{Bucket, DurationPrecision, Metric, MetricUnit, MetricValue};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
@@ -57,7 +57,6 @@ use {
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
-    relay_metrics::{DurationPrecision, MetricUnit, MetricValue},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
 };
 
@@ -382,7 +381,6 @@ impl ProcessEnvelopeState {
     }
 }
 
-#[cfg(feature = "processing")]
 fn with_tag(
     tags: &BTreeMap<String, String>,
     name: &str,
@@ -454,7 +452,6 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     }
 }
 
-#[cfg(feature = "processing")]
 fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
     let timestamp = match UnixTimestamp::from_datetime(session.timestamp) {
         Some(ts) => ts,
@@ -626,10 +623,9 @@ impl EnvelopeProcessor {
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.envelope_context.received_at;
-        let extract_metrics = self.config.processing_enabled()
-            && state.project_state.has_feature(Feature::MetricsExtraction);
         let _extracted_metrics = &mut state.extracted_metrics;
-
+        let metrics_extraction_enabled =
+            state.project_state.has_feature(Feature::MetricsExtraction);
         let envelope = &mut state.envelope;
         let client_addr = envelope.meta().client_addr();
 
@@ -652,7 +648,7 @@ impl EnvelopeProcessor {
                 }
             };
 
-            if session.sequence == u64::max_value() {
+            if session.sequence == u64::MAX {
                 relay_log::trace!("skipping session due to sequence overflow");
                 return false;
             }
@@ -715,9 +711,9 @@ impl EnvelopeProcessor {
                 }
             }
 
-            if extract_metrics {
-                #[cfg(feature = "processing")]
+            if metrics_extraction_enabled && !item.metrics_extracted() {
                 extract_session_metrics(&session, _extracted_metrics);
+                item.set_metrics_extracted(true);
             }
 
             if changed {
@@ -2493,7 +2489,6 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
-    #[cfg(feature = "processing")]
     use relay_general::protocol::SessionStatus;
 
     use crate::extractors::RequestMeta;
@@ -2769,7 +2764,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "processing")]
     fn test_extract_session_metrics_ok() {
         let mut metrics = vec![];
 
@@ -2827,7 +2821,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "processing")]
     fn test_extract_session_metrics_errored() {
         let update1 = SessionUpdate::parse(
             r#"{
@@ -2874,7 +2867,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "processing")]
     fn test_extract_session_metrics_fatal() {
         for status in &[SessionStatus::Crashed, SessionStatus::Abnormal] {
             let mut session = SessionUpdate::parse(
@@ -2955,7 +2947,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "processing")]
     fn test_extract_session_metrics_duration() {
         let mut metrics = vec![];
 

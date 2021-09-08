@@ -1,18 +1,34 @@
 from datetime import datetime, timedelta, timezone
 import json
 
-from .test_envelope import generate_transaction_item
+import pytest
 
+from .test_envelope import generate_transaction_item
 
 TEST_CONFIG = {
     "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0,}
 }
 
 
-def metrics_by_name(metrics_consumer, count):
+def _session_payload(timestamp: datetime, started: datetime):
+    return {
+        "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
+        "did": "foobarbaz",
+        "seq": 42,
+        "init": True,
+        "timestamp": timestamp.isoformat(),
+        "started": started.isoformat(),
+        "duration": 1947.49,
+        "status": "exited",
+        "errors": 0,
+        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+    }
+
+
+def metrics_by_name(metrics_consumer, count, timeout=None):
     metrics = {
         metric["name"]: metric
-        for metric in [metrics_consumer.get_metric() for _ in range(count)]
+        for metric in [metrics_consumer.get_metric(timeout) for _ in range(count)]
     }
 
     metrics_consumer.assert_empty()
@@ -138,63 +154,197 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     metrics_consumer.assert_empty()
 
 
-def test_session_metrics_feature_disabled(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "extract_metrics", [True, False], ids=["extract", "don't extract"]
+)
+@pytest.mark.parametrize(
+    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
+)
+def test_session_metrics_non_processing(
+    mini_sentry, relay, extract_metrics, metrics_extracted
+):
+    """
+        Tests metrics extraction in  a non processing relay
+
+        If and only if the metrics-extraction feature is enabled and the metrics from the session were not already
+        extracted the relay should extract the metrics from the session and mark the session item as "metrics extracted"
+    """
+
     relay = relay(mini_sentry, options=TEST_CONFIG)
 
+    if extract_metrics:
+        # enable metrics extraction for the project
+        extra_config = {"config": {"features": ["organizations:metrics-extraction"]}}
+    else:
+        extra_config = {}
+
     project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
+    mini_sentry.add_basic_project_config(project_id, extra=extra_config)
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
-    session_payload = {
-        "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-        "did": "foobarbaz",
-        "seq": 42,
-        "init": True,
-        "timestamp": timestamp.isoformat(),
-        "started": started.isoformat(),
-        "duration": 1947.49,
-        "status": "exited",
-        "errors": 0,
-        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
-    }
+    session_payload = _session_payload(timestamp=timestamp, started=started)
 
-    relay.send_session(project_id, session_payload)
+    relay.send_session(
+        project_id,
+        session_payload,
+        item_headers={"metrics_extracted": metrics_extracted},
+    )
 
     # Get session envelope
-    mini_sentry.captured_events.get(timeout=2)
+    first_envelope = mini_sentry.captured_events.get(timeout=2)
 
-    # Get metrics envelope
-    assert mini_sentry.captured_events.empty()
+    try:
+        second_envelope = mini_sentry.captured_events.get(timeout=2)
+    except Exception:
+        second_envelope = None
+
+    assert first_envelope is not None
+    assert len(first_envelope.items) == 1
+    first_item = first_envelope.items[0]
+
+    if extract_metrics and not metrics_extracted:
+        # here we have not yet extracted metrics and metric extraction is enabled
+        # we expect to have two messages a session message and a metrics message
+        assert second_envelope is not None
+        assert len(second_envelope.items) == 1
+
+        second_item = second_envelope.items[0]
+
+        if first_item.type == "session":
+            session_item = first_item
+            metrics_item = second_item
+        else:
+            session_item = second_item
+            metrics_item = first_item
+
+        # check the metrics item
+        assert metrics_item.type == "metric_buckets"
+
+        session_metrics = json.loads(metrics_item.get_bytes().decode())
+        session_metrics = sorted(session_metrics, key=lambda x: x["name"])
+
+        ts = int(timestamp.timestamp())
+        assert session_metrics == [
+            {
+                "name": "session",
+                "tags": {
+                    "environment": "production",
+                    "release": "sentry-test@1.0.0",
+                    "session.status": "init",
+                },
+                "timestamp": ts,
+                "type": "c",
+                "value": 1.0,
+            },
+            {
+                "name": "session.duration",
+                "tags": {"environment": "production", "release": "sentry-test@1.0.0"},
+                "timestamp": ts,
+                "type": "d",
+                "unit": "s",
+                "value": [1947.49],
+            },
+            {
+                "name": "user",
+                "tags": {
+                    "environment": "production",
+                    "release": "sentry-test@1.0.0",
+                    "session.status": "init",
+                },
+                "timestamp": ts,
+                "type": "s",
+                "value": [1617781333],
+            },
+        ]
+    else:
+        # either the metrics are already extracted or we have metric extraction disabled
+        # only the session message should be present
+        assert second_envelope is None
+        session_item = first_item
+
+    assert session_item is not None
+    assert session_item.type == "session"
+
+    # we have marked the item as "metrics extracted" properly
+    # already extracted metrics should keep the flag, newly extracted metrics should set the flag
+    assert (
+        session_item.headers.get("metrics_extracted", False) is extract_metrics
+        or metrics_extracted
+    )
 
 
-def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
-    relay = relay_with_processing(options=TEST_CONFIG)
+def test_metrics_extracted_only_once(
+    mini_sentry, relay, relay_with_processing, metrics_consumer
+):
+    """
+    Tests that a chain of multiple relays only extracts metrics once
+
+    Create a chain with 3 relays (all with metric extraction), and check that only the first
+    relay does the extraction and the following relays just pass the metrics through
+    """
+
+    relay_chain = relay(
+        relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG),
+        options=TEST_CONFIG,
+    )
+
+    # enable metrics extraction for the project
+    extra_config = {"config": {"features": ["organizations:metrics-extraction"]}}
+
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
+    mini_sentry.add_full_project_config(project_id, extra=extra_config)
 
     metrics_consumer = metrics_consumer()
 
-    mini_sentry.project_configs[project_id]["config"]["features"] = [
-        "organizations:metrics-extraction"
-    ]
+    timestamp = datetime.now(tz=timezone.utc)
+    started = timestamp - timedelta(hours=1)
+    session_payload = _session_payload(timestamp=timestamp, started=started)
+
+    relay_chain.send_session(project_id, session_payload)
+
+    metrics = metrics_by_name(metrics_consumer, 3, timeout=6)
+
+    # if it is not 1 it means the session was extracted multiple times
+    assert metrics["session"]["value"] == 1.0
+
+    # if the vector contains multiple duration we have the session extracted multiple times
+    assert len(metrics["session.duration"]["value"]) == 1
+
+
+@pytest.mark.parametrize(
+    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
+)
+def test_session_metrics_processing(
+    mini_sentry, relay_with_processing, metrics_consumer, metrics_extracted
+):
+    """
+        Tests that a processing relay with metrics-extraction enabled creates metrics
+        from sessions if the metrics were not already extracted before.
+    """
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+
+    # enable metrics extraction for the project
+    extra_config = {"config": {"features": ["organizations:metrics-extraction"]}}
+
+    mini_sentry.add_full_project_config(project_id, extra=extra_config)
+
+    metrics_consumer = metrics_consumer()
 
     timestamp = datetime.now(tz=timezone.utc)
     started = timestamp - timedelta(hours=1)
-    session_payload = {
-        "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
-        "did": "foobarbaz",
-        "seq": 42,
-        "init": True,
-        "timestamp": timestamp.isoformat(),
-        "started": started.isoformat(),
-        "duration": 1947.49,
-        "status": "exited",
-        "errors": 0,
-        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
-    }
+    session_payload = _session_payload(timestamp=timestamp, started=started)
 
-    relay.send_session(project_id, session_payload)
+    relay.send_session(
+        project_id,
+        session_payload,
+        item_headers={"metrics_extracted": metrics_extracted},
+    )
+
+    if metrics_extracted:
+        metrics_consumer.assert_empty(timeout=2)
+        return
 
     metrics = metrics_by_name(metrics_consumer, 3)
 
@@ -240,70 +390,85 @@ def test_session_metrics(mini_sentry, relay_with_processing, metrics_consumer):
     }
 
 
-def test_transaction_metrics(mini_sentry, relay_with_processing, metrics_consumer):
+@pytest.mark.parametrize(
+    "extract_metrics", [True, False], ids=["extract", "don't extract"]
+)
+@pytest.mark.parametrize(
+    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
+)
+def test_transaction_metrics(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    metrics_extracted,
+    extract_metrics,
+):
     metrics_consumer = metrics_consumer()
 
-    for feature_enabled in (True, False):
-        relay = relay_with_processing(options=TEST_CONFIG)
-        project_id = 42
-        mini_sentry.add_full_project_config(project_id)
-        timestamp = datetime.now(tz=timezone.utc)
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    timestamp = datetime.now(tz=timezone.utc)
 
-        mini_sentry.project_configs[project_id]["config"]["features"] = (
-            ["organizations:metrics-extraction"] if feature_enabled else []
-        )
+    mini_sentry.project_configs[project_id]["config"]["features"] = (
+        ["organizations:metrics-extraction"] if extract_metrics else []
+    )
 
-        transaction = generate_transaction_item()
-        transaction["timestamp"] = timestamp.isoformat()
-        transaction["measurements"] = {
-            "foo": {"value": 1.2},
-            "bar": {"value": 1.3},
-        }
-        transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4},}}
+    transaction = generate_transaction_item()
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["measurements"] = {
+        "foo": {"value": 1.2},
+        "bar": {"value": 1.3},
+    }
+    transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4},}}
 
-        relay.send_event(42, transaction)
+    #: The `metrics_extracted` header is ignored for transactions for now.
+    #: This means that transaction metrics are extracted regardless of the header.
+    item_headers = {"metrics_extracted": metrics_extracted}
 
-        # Send another transaction:
-        transaction["measurements"] = {
-            "foo": {"value": 2.2},
-        }
-        transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
-        relay.send_event(42, transaction)
+    relay.send_transaction(42, transaction, item_headers=item_headers)
 
-        if not feature_enabled:
-            message = metrics_consumer.poll(timeout=None)
-            assert message is None, message.value()
+    # Send another transaction:
+    transaction["measurements"] = {
+        "foo": {"value": 2.2},
+    }
+    transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
+    relay.send_transaction(42, transaction, item_headers=item_headers)
 
-            continue
+    if not extract_metrics:
+        message = metrics_consumer.poll(timeout=None)
+        assert message is None, message.value()
 
-        metrics = metrics_by_name(metrics_consumer, 3)
+        return
 
-        assert metrics["measurement.foo"] == {
-            "org_id": 1,
-            "project_id": 42,
-            "timestamp": int(timestamp.timestamp()),
-            "name": "measurement.foo",
-            "type": "d",
-            "unit": "",
-            "value": [1.2, 2.2],
-        }
+    metrics = metrics_by_name(metrics_consumer, 3)
 
-        assert metrics["measurement.bar"] == {
-            "org_id": 1,
-            "project_id": 42,
-            "timestamp": int(timestamp.timestamp()),
-            "name": "measurement.bar",
-            "type": "d",
-            "unit": "",
-            "value": [1.3],
-        }
+    assert metrics["measurement.foo"] == {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(timestamp.timestamp()),
+        "name": "measurement.foo",
+        "type": "d",
+        "unit": "",
+        "value": [1.2, 2.2],
+    }
 
-        assert metrics["breakdown.breakdown1.baz"] == {
-            "org_id": 1,
-            "project_id": 42,
-            "timestamp": int(timestamp.timestamp()),
-            "name": "breakdown.breakdown1.baz",
-            "type": "d",
-            "unit": "",
-            "value": [1.4, 2.4],
-        }
+    assert metrics["measurement.bar"] == {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(timestamp.timestamp()),
+        "name": "measurement.bar",
+        "type": "d",
+        "unit": "",
+        "value": [1.3],
+    }
+
+    assert metrics["breakdown.breakdown1.baz"] == {
+        "org_id": 1,
+        "project_id": 42,
+        "timestamp": int(timestamp.timestamp()),
+        "name": "breakdown.breakdown1.baz",
+        "type": "d",
+        "unit": "",
+        "value": [1.4, 2.4],
+    }
