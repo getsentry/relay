@@ -2,7 +2,6 @@
 
 mod breadcrumb;
 mod breakdowns;
-mod client_report;
 mod clientsdk;
 mod constants;
 mod contexts;
@@ -33,7 +32,6 @@ pub use sentry_release_parser::{validate_environment, validate_release};
 
 pub use self::breadcrumb::Breadcrumb;
 pub use self::breakdowns::Breakdowns;
-pub use self::client_report::ClientReport;
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
 pub use self::constants::VALID_PLATFORMS;
 pub use self::contexts::{

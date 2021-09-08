@@ -102,13 +102,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::MetricBuckets => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
-        // the following items are "internal" item types.  From the perspective of the SDK
-        // the use the "internal" data category however this data category is in fact never
-        // supposed to be emitted by relay as internal items must not be rate limited.  As
-        // such we do not emit a data category here.  An SDK however is supposed to assume
-        // that such item types use the reserved "internal" data category to not accidentally
-        // assume another rate limit (such as default).
-        ItemType::ClientReport => None,
     }
 }
 
@@ -249,9 +242,7 @@ impl Enforcement {
                     event_id: envelope.event_id(),
                     remote_addr: envelope.meta().remote_addr(),
                     category: limit.category,
-                    // XXX: on the limiter we have quantity of usize, but in the protocol
-                    // and data store we're limited to u32.
-                    quantity: limit.quantity as u32,
+                    quantity: limit.quantity,
                 });
             }
         }

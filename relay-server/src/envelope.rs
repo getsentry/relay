@@ -100,8 +100,6 @@ pub enum ItemType {
     Metrics,
     /// Buckets of preaggregated metrics encoded as JSON.
     MetricBuckets,
-    /// Client internal report (eg: outcomes).
-    ClientReport,
 }
 
 impl ItemType {
@@ -132,7 +130,6 @@ impl fmt::Display for ItemType {
             Self::Sessions => write!(f, "aggregated sessions"),
             Self::Metrics => write!(f, "metrics"),
             Self::MetricBuckets => write!(f, "metric buckets"),
-            Self::ClientReport => write!(f, "client report"),
         }
     }
 }
@@ -575,8 +572,7 @@ impl Item {
             | ItemType::Session
             | ItemType::Sessions
             | ItemType::Metrics
-            | ItemType::MetricBuckets
-            | ItemType::ClientReport => false,
+            | ItemType::MetricBuckets => false,
         }
     }
 
@@ -597,7 +593,6 @@ impl Item {
             ItemType::Sessions => false,
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
-            ItemType::ClientReport => false,
         }
     }
 }
