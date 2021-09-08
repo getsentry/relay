@@ -1054,12 +1054,13 @@ impl Aggregator {
         Ok(())
     }
 
-    /// Sends the [`FlushBuckets`] message to the receiver.
+    /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
-    /// If the receiver returns buckets, they are merged back into the cache.
-    fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
+    /// Note that this function is primarily intended for tests.
+    pub fn pop_flush_buckets(&mut self) -> HashMap<ProjectKey, Vec<Bucket>> {
         relay_statsd::metric!(gauge(MetricGauges::Buckets) = self.buckets.len() as u64);
-        let mut flush_buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
+
+        let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
 
         relay_statsd::metric!(timer(MetricTimers::BucketsScanDuration), {
             self.buckets.retain(|key, entry| {
@@ -1067,16 +1068,22 @@ impl Aggregator {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
                     let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
                     let bucket = Bucket::from_parts(key.clone(), value);
-                    flush_buckets
-                        .entry(key.project_key)
-                        .or_default()
-                        .push(bucket);
+                    buckets.entry(key.project_key).or_default().push(bucket);
                     false
                 } else {
                     true
                 }
             });
         });
+
+        buckets
+    }
+
+    /// Sends the [`FlushBuckets`] message to the receiver.
+    ///
+    /// If the receiver returns buckets, they are merged back into the cache.
+    fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
+        let flush_buckets = self.pop_flush_buckets();
 
         if flush_buckets.is_empty() {
             return;

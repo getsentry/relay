@@ -3264,11 +3264,13 @@ name = "relay-metrics"
 version = "21.8.0"
 dependencies = [
  "actix",
+ "criterion",
  "float-ord",
  "fnv",
  "futures 0.1.29",
  "hash32",
  "insta",
+ "lazy_static",
  "relay-common",
  "relay-log",
  "relay-statsd",
