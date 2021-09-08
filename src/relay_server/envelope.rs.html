@@ -2582,7 +2582,7 @@
         <span class="macro">assert_eq!</span>(<span class="kw-2">*</span><span class="ident">meta</span>.<span class="ident">dsn</span>(), <span class="ident">dsn</span>);
         <span class="macro">assert_eq!</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>(), <span class="prelude-val">Some</span>(<span class="ident">ProjectId::new</span>(<span class="number">42</span>)));
         <span class="macro">assert_eq!</span>(
-            <span class="ident">meta</span>.<span class="ident">public_key</span>().<span class="ident">to_string</span>(),
+            <span class="ident">meta</span>.<span class="ident">public_key</span>().<span class="ident">as_str</span>(),
             <span class="string">&quot;e12d836b15bb49d7bbf99e64295d995b&quot;</span>
         );
         <span class="macro">assert_eq!</span>(<span class="ident">meta</span>.<span class="ident">client</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;sentry/javascript&quot;</span>));
@@ -2745,7 +2745,7 @@
         <span class="macro">assert_eq!</span>(<span class="kw-2">*</span><span class="ident">meta</span>.<span class="ident">dsn</span>(), <span class="ident">dsn</span>);
         <span class="macro">assert_eq!</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>(), <span class="prelude-val">Some</span>(<span class="ident">ProjectId::new</span>(<span class="number">42</span>)));
         <span class="macro">assert_eq!</span>(
-            <span class="ident">meta</span>.<span class="ident">public_key</span>().<span class="ident">to_string</span>(),
+            <span class="ident">meta</span>.<span class="ident">public_key</span>().<span class="ident">as_str</span>(),
             <span class="string">&quot;e12d836b15bb49d7bbf99e64295d995b&quot;</span>
         );
         <span class="macro">assert_eq!</span>(<span class="ident">meta</span>.<span class="ident">client</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;sentry/client&quot;</span>));
