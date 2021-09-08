@@ -1450,6 +1450,11 @@
 <span id="1450">1450</span>
 <span id="1451">1451</span>
 <span id="1452">1452</span>
+<span id="1453">1453</span>
+<span id="1454">1454</span>
+<span id="1455">1455</span>
+<span id="1456">1456</span>
+<span id="1457">1457</span>
 </pre><pre class="rust">
 <span class="doccomment">//! Implementation of event envelopes.</span>
 <span class="doccomment">//!</span>
@@ -1553,6 +1558,8 @@
     <span class="ident">Metrics</span>,
     <span class="doccomment">/// Buckets of preaggregated metrics encoded as JSON.</span>
     <span class="ident">MetricBuckets</span>,
+    <span class="doccomment">/// Client internal report (eg: outcomes).</span>
+    <span class="ident">ClientReport</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ItemType</span> {
@@ -1583,6 +1590,7 @@
             <span class="self">Self</span><span class="ident">::Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;aggregated sessions&quot;</span>),
             <span class="self">Self</span><span class="ident">::Metrics</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;metrics&quot;</span>),
             <span class="self">Self</span><span class="ident">::MetricBuckets</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;metric buckets&quot;</span>),
+            <span class="self">Self</span><span class="ident">::ClientReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;client report&quot;</span>),
         }
     }
 }
@@ -2025,7 +2033,8 @@
             <span class="op">|</span> <span class="ident">ItemType::Session</span>
             <span class="op">|</span> <span class="ident">ItemType::Sessions</span>
             <span class="op">|</span> <span class="ident">ItemType::Metrics</span>
-            <span class="op">|</span> <span class="ident">ItemType::MetricBuckets</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="op">|</span> <span class="ident">ItemType::MetricBuckets</span>
+            <span class="op">|</span> <span class="ident">ItemType::ClientReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -2046,6 +2055,7 @@
             <span class="ident">ItemType::Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
             <span class="ident">ItemType::Metrics</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
             <span class="ident">ItemType::MetricBuckets</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">ItemType::ClientReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
