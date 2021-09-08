@@ -96,10 +96,6 @@ impl fmt::Display for EventType {
 #[repr(i8)]
 pub enum DataCategory {
     /// Reserved and unused.
-    ///
-    /// There is a reserved `internal` data category which also maps to `Default`.  Relays
-    /// will never emit rate limits for `internal` but client SDKs can assume a data category
-    /// of `internal` for envelopes carrying internal messages for instance SDK outcomes.
     Default = 0,
     /// Error events and Events with an `event_type` not explicitly listed below.
     Error = 1,
@@ -111,6 +107,8 @@ pub enum DataCategory {
     Attachment = 4,
     /// Session updates. Quantity is the number of updates in the batch.
     Session = 5,
+    /// Reserved data category that shall not appear in the outcomes.
+    Internal = -2,
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
@@ -120,12 +118,13 @@ impl DataCategory {
     /// Returns the data category corresponding to the given name.
     pub fn from_name(string: &str) -> Self {
         match string {
-            "default" | "internal" => Self::Default,
+            "default" => Self::Default,
             "error" => Self::Error,
             "transaction" => Self::Transaction,
             "security" => Self::Security,
             "attachment" => Self::Attachment,
             "session" => Self::Session,
+            "internal" => Self::Internal,
             _ => Self::Unknown,
         }
     }
@@ -139,6 +138,7 @@ impl DataCategory {
             Self::Security => "security",
             Self::Attachment => "attachment",
             Self::Session => "session",
+            Self::Internal => "internal",
             Self::Unknown => "unknown",
         }
     }
@@ -150,6 +150,8 @@ impl DataCategory {
 
     /// Returns the numeric value for this outcome.
     pub fn value(self) -> Option<u8> {
+        // negative values (Internal and Unknown) cannot be sent as
+        // outcomes (internally so!)
         (self as i8).try_into().ok()
     }
 }
@@ -330,18 +332,5 @@ impl fmt::Display for SpanStatus {
             SpanStatus::OutOfRange => write!(f, "out_of_range"),
             SpanStatus::DataLoss => write!(f, "data_loss"),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_internal_data_category() {
-        assert_eq!(
-            DataCategory::from_str("internal"),
-            Ok(DataCategory::Default)
-        );
     }
 }
