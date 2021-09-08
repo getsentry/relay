@@ -807,16 +807,16 @@ impl EnvelopeProcessor {
             false
         });
 
+        if discarded_events.is_empty() {
+            return;
+        }
+
         let timestamp =
             timestamp.get_or_insert_with(|| UnixTimestamp::from_secs(received.timestamp() as u64));
 
         if clock_drift_processor.is_drifted() {
             relay_log::trace!("applying clock drift correction to client report");
             clock_drift_processor.process_timestamp(timestamp);
-        }
-
-        if discarded_events.is_empty() {
-            return;
         }
 
         let producer = OutcomeProducer::from_registry();
