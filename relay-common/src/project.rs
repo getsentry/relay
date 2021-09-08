@@ -20,7 +20,7 @@ impl std::error::Error for ParseProjectKeyError {}
 ///
 /// Project keys are always 32-character hexadecimal strings.
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialOrd, PartialEq)]
-pub struct ProjectKey(u128);
+pub struct ProjectKey([u8; 32]);
 
 impl_str_serde!(ProjectKey, "a project key string");
 
@@ -31,8 +31,9 @@ impl ProjectKey {
             return Err(ParseProjectKeyError);
         }
 
-        let number = u128::from_str_radix(key, 16).map_err(|_| ParseProjectKeyError)?;
-        Ok(ProjectKey(number))
+        let mut project_key = Self(Default::default());
+        project_key.0.copy_from_slice(key.as_bytes());
+        Ok(project_key)
     }
 
     /// Parses a `ProjectKey` from a string with flags.
@@ -41,17 +42,25 @@ impl ProjectKey {
         let key = ProjectKey::parse(iter.next().ok_or(ParseProjectKeyError)?)?;
         Ok((key, iter.collect()))
     }
+
+    /// Returns the string representation of the project key.
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        // Safety: The string is already validated to be of length 32 and valid ASCII when
+        // constructing `ProjectKey`.
+        unsafe { std::str::from_utf8_unchecked(&self.0) }
+    }
 }
 
 impl fmt::Debug for ProjectKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ProjectKey(\"{}\")", self)
+        write!(f, "ProjectKey(\"{}\")", self.as_str())
     }
 }
 
 impl fmt::Display for ProjectKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:0width$x}", self.0, width = 32)
+        self.as_str().fmt(f)
     }
 }
 
