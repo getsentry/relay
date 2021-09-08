@@ -191,6 +191,11 @@ class SentryLike(object):
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="sessions"))
         self.send_envelope(project_id, envelope)
 
+    def send_client_report(self, project_id, payload):
+        envelope = Envelope()
+        envelope.add_item(Item(PayloadRef(json=payload), type="client_report"))
+        self.send_envelope(project_id, envelope)
+
     def send_metrics(self, project_id, payload, timestamp=None):
         envelope = Envelope()
         envelope.add_item(
