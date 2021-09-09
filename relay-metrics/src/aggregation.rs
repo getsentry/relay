@@ -1,8 +1,7 @@
-use fnv::FnvHasher;
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
+
 use std::error::Error;
 use std::fmt;
-use std::hash::Hasher;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
@@ -14,25 +13,6 @@ use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
 use crate::statsd::{MetricGauges, MetricHistograms, MetricTimers};
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
-
-/// Contains the numeric value corresponding to a metrics tag name, tag key or tag value.
-/// Currently implemented as a FNV-64 hash
-pub struct MetricSymbol(u64);
-
-impl MetricSymbol {
-    /// Returns the symbol as a 64 bit unsigned integer
-    pub fn as_u64(&self) -> u64 {
-        self.0
-    }
-}
-
-impl From<&str> for MetricSymbol {
-    fn from(value: &str) -> Self {
-        let mut hasher = FnvHasher::default();
-        hasher.write(value.as_bytes());
-        Self(hasher.finish())
-    }
-}
 
 /// A snapshot of values within a [`Bucket`].
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]

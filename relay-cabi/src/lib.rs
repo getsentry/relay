@@ -100,12 +100,10 @@ mod auth;
 mod constants;
 mod core;
 mod ffi;
-mod metrics;
 mod processing;
 
 pub use crate::auth::*;
 pub use crate::constants::*;
 pub use crate::core::*;
 pub use crate::ffi::*;
-pub use crate::metrics::*;
 pub use crate::processing::*;
