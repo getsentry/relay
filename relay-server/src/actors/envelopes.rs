@@ -2691,7 +2691,15 @@ mod tests {
     fn test_client_report_removal() {
         relay_test::setup();
 
-        let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": true,
+                "emit_client_outcomes": true
+            }
+        }))
+        .unwrap();
+
+        let processor = EnvelopeProcessor::new(Arc::new(config));
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -2732,6 +2740,64 @@ mod tests {
         });
 
         assert!(envelope_response.envelope.is_none());
+    }
+
+    #[test]
+    fn test_client_report_forwarding() {
+        relay_test::setup();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": false,
+                // a relay need to emit outcomes at all to not process.
+                "emit_client_outcomes": true
+            }
+        }))
+        .unwrap();
+
+        let processor = EnvelopeProcessor::new(Arc::new(config));
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r###"
+                    {
+                    "discarded_events": [
+                        ["queue_full", "error", 42]
+                    ]
+                    }
+                "###,
+            );
+            item
+        });
+
+        let envelope_response = relay_test::with_system(move || {
+            processor
+                .process(ProcessEnvelope {
+                    envelope,
+                    project_state: Arc::new(ProjectState::allowed()),
+                    start_time: Instant::now(),
+                    scoping: Scoping {
+                        project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                        organization_id: 1,
+                        project_id: ProjectId::new(1),
+                        key_id: None,
+                    },
+                })
+                .unwrap()
+        });
+
+        let envelope = envelope_response.envelope.unwrap();
+        let item = envelope.items().nth(0).unwrap();
+        assert_eq!(item.ty(), ItemType::ClientReport);
     }
 
     #[test]

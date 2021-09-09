@@ -1023,6 +1023,18 @@ impl Config {
         Ok(config)
     }
 
+    /// Creates a config from a JSON value.
+    ///
+    /// This is mostly useful for tests.
+    pub fn from_json_value(value: serde_json::Value) -> Result<Config, ConfigError> {
+        Ok(Config {
+            values: serde_json::from_value(value)
+                .map_err(|err| ConfigError::wrap(err, ConfigErrorKind::BadJson))?,
+            credentials: None,
+            path: PathBuf::new(),
+        })
+    }
+
     /// Override configuration with values coming from other sources (e.g. env variables or
     /// command line parameters)
     pub fn apply_override(
