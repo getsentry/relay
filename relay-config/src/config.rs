@@ -827,6 +827,8 @@ pub struct Outcomes {
     /// Controls whether outcomes will be emitted when processing is disabled.
     /// Processing relays always emit outcomes (for backwards compatibility).
     pub emit_outcomes: bool,
+    /// Controls wheather client reported outcomes should be emitted.
+    pub emit_client_outcomes: bool,
     /// The maximum number of outcomes that are batched before being sent
     /// via http to the upstream (only applies to non processing relays).
     pub batch_size: usize,
@@ -842,6 +844,7 @@ impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: false,
+            emit_client_outcomes: true,
             batch_size: 1000,
             batch_interval: 500,
             source: None,
@@ -1308,6 +1311,13 @@ impl Config {
     /// in processing mode.
     pub fn emit_outcomes(&self) -> bool {
         self.values.outcomes.emit_outcomes || self.values.processing.enabled
+    }
+
+    /// Returns whether this Relay should emit client outcomes
+    ///
+    /// This is `true` when `outcomes.emit_client_outcomes` is enabled and this relay emits outcomes.
+    pub fn emit_client_outcomes(&self) -> bool {
+        self.emit_outcomes() && self.values.outcomes.emit_client_outcomes
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent

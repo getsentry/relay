@@ -770,6 +770,16 @@ impl EnvelopeProcessor {
     /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
     /// system.
     fn process_client_reports(&self, state: &mut ProcessEnvelopeState) {
+        // if client outcomes are disabled we just remove the client reports entirely
+        // for now and bail.  If at a later point we transfer additional information
+        // this will have to just ignore the outcomes.
+        if !self.config.emit_client_outcomes() {
+            state
+                .envelope
+                .retain_items(|item| item.ty() != ItemType::ClientReport);
+            return;
+        }
+
         let mut timestamp = None;
         let mut discarded_events = BTreeMap::new();
         let received = state.envelope_context.received_at;
