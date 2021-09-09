@@ -1315,7 +1315,9 @@ impl Config {
 
     /// Returns whether this Relay should emit client outcomes
     ///
-    /// This is `true` when `outcomes.emit_client_outcomes` is enabled and this relay emits outcomes.
+    /// This is `true` when `outcomes.emit_client_outcomes` is enabled and this relay emits
+    /// outcomes.  Relays that do not emit client outcomes will forward client recieved outcomes
+    /// directly to the next relay in the chain as client report envelope.
     pub fn emit_client_outcomes(&self) -> bool {
         self.emit_outcomes() && self.values.outcomes.emit_client_outcomes
     }
