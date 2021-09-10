@@ -641,6 +641,11 @@
 <span id="641">641</span>
 <span id="642">642</span>
 <span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
 </pre><pre class="rust">
 <span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
@@ -728,7 +733,7 @@
     <span class="doccomment">/// The event&#39;s data category.</span>
     <span class="kw">pub</span> <span class="ident">category</span>: <span class="ident">DataCategory</span>,
     <span class="doccomment">/// The number of events or total attachment size in bytes.</span>
-    <span class="kw">pub</span> <span class="ident">quantity</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">quantity</span>: <span class="ident">u32</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">TrackOutcome</span> {
@@ -758,6 +763,9 @@
     <span class="doccomment">/// The event has been discarded because of invalid data.</span>
     <span class="ident">Invalid</span>(<span class="ident">DiscardReason</span>),
 
+    <span class="doccomment">/// The event has already been discarded on the client side.</span>
+    <span class="ident">ClientDiscard</span>(<span class="ident">String</span>),
+
     <span class="doccomment">/// Reserved but unused in Sentry.</span>
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
     <span class="ident">Abuse</span>,
@@ -771,6 +779,7 @@
             <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">2</span>,
             <span class="ident">Outcome::Invalid</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">3</span>,
             <span class="ident">Outcome::Abuse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">4</span>,
+            <span class="ident">Outcome::ClientDiscard</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">5</span>,
         }
     }
 
@@ -784,6 +793,7 @@
             <span class="ident">Outcome::RateLimited</span>(<span class="ident">code_opt</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">code_opt</span>
                 .<span class="ident">as_ref</span>()
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">code</span><span class="op">|</span> <span class="ident">Cow::Owned</span>(<span class="ident">code</span>.<span class="ident">as_str</span>().<span class="ident">into</span>())),
+            <span class="ident">Outcome::ClientDiscard</span>(<span class="kw-2">ref</span> <span class="ident">discard_reason</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">discard_reason</span>)),
             <span class="ident">Outcome::Abuse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
         }
     }
@@ -963,7 +973,7 @@
     <span class="kw">pub</span> <span class="ident">category</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The number of events or total attachment size in bytes.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">quantity</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">quantity</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TrackRawOutcome</span> {

@@ -1634,6 +1634,42 @@
 <span id="1634">1634</span>
 <span id="1635">1635</span>
 <span id="1636">1636</span>
+<span id="1637">1637</span>
+<span id="1638">1638</span>
+<span id="1639">1639</span>
+<span id="1640">1640</span>
+<span id="1641">1641</span>
+<span id="1642">1642</span>
+<span id="1643">1643</span>
+<span id="1644">1644</span>
+<span id="1645">1645</span>
+<span id="1646">1646</span>
+<span id="1647">1647</span>
+<span id="1648">1648</span>
+<span id="1649">1649</span>
+<span id="1650">1650</span>
+<span id="1651">1651</span>
+<span id="1652">1652</span>
+<span id="1653">1653</span>
+<span id="1654">1654</span>
+<span id="1655">1655</span>
+<span id="1656">1656</span>
+<span id="1657">1657</span>
+<span id="1658">1658</span>
+<span id="1659">1659</span>
+<span id="1660">1660</span>
+<span id="1661">1661</span>
+<span id="1662">1662</span>
+<span id="1663">1663</span>
+<span id="1664">1664</span>
+<span id="1665">1665</span>
+<span id="1666">1666</span>
+<span id="1667">1667</span>
+<span id="1668">1668</span>
+<span id="1669">1669</span>
+<span id="1670">1670</span>
+<span id="1671">1671</span>
+<span id="1672">1672</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
@@ -2138,6 +2174,8 @@
     <span class="ident">max_attachment_size</span>: <span class="ident">ByteSize</span>,
     <span class="doccomment">/// The maximum combined size for all attachments in an envelope or request.</span>
     <span class="ident">max_attachments_size</span>: <span class="ident">ByteSize</span>,
+    <span class="doccomment">/// The maximum combined size for all client reports in an envelope or request.</span>
+    <span class="ident">max_client_reports_size</span>: <span class="ident">ByteSize</span>,
     <span class="doccomment">/// The maximum payload size for an entire envelopes. Individual limits still apply.</span>
     <span class="ident">max_envelope_size</span>: <span class="ident">ByteSize</span>,
     <span class="doccomment">/// The maximum number of session items per envelope.</span>
@@ -2176,6 +2214,7 @@
             <span class="ident">max_event_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">1</span>),
             <span class="ident">max_attachment_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">100</span>),
             <span class="ident">max_attachments_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">100</span>),
+            <span class="ident">max_client_reports_size</span>: <span class="ident">ByteSize::kibibytes</span>(<span class="number">4</span>),
             <span class="ident">max_envelope_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">100</span>),
             <span class="ident">max_session_count</span>: <span class="number">100</span>,
             <span class="ident">max_api_payload_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">20</span>),
@@ -2461,6 +2500,8 @@
     <span class="doccomment">/// Controls whether outcomes will be emitted when processing is disabled.</span>
     <span class="doccomment">/// Processing relays always emit outcomes (for backwards compatibility).</span>
     <span class="kw">pub</span> <span class="ident">emit_outcomes</span>: <span class="ident">bool</span>,
+    <span class="doccomment">/// Controls wheather client reported outcomes should be emitted.</span>
+    <span class="kw">pub</span> <span class="ident">emit_client_outcomes</span>: <span class="ident">bool</span>,
     <span class="doccomment">/// The maximum number of outcomes that are batched before being sent</span>
     <span class="doccomment">/// via http to the upstream (only applies to non processing relays).</span>
     <span class="kw">pub</span> <span class="ident">batch_size</span>: <span class="ident">usize</span>,
@@ -2476,6 +2517,7 @@
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">Outcomes</span> {
             <span class="ident">emit_outcomes</span>: <span class="bool-val">false</span>,
+            <span class="ident">emit_client_outcomes</span>: <span class="bool-val">true</span>,
             <span class="ident">batch_size</span>: <span class="number">1000</span>,
             <span class="ident">batch_interval</span>: <span class="number">500</span>,
             <span class="ident">source</span>: <span class="prelude-val">None</span>,
@@ -2652,6 +2694,18 @@
         }
 
         <span class="prelude-val">Ok</span>(<span class="ident">config</span>)
+    }
+
+    <span class="doccomment">/// Creates a config from a JSON value.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is mostly useful for tests.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_json_value</span>(<span class="ident">value</span>: <span class="ident">serde_json::Value</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Config</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">Config</span> {
+            <span class="ident">values</span>: <span class="ident">serde_json::from_value</span>(<span class="ident">value</span>)
+                .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">ConfigError::wrap</span>(<span class="ident">err</span>, <span class="ident">ConfigErrorKind::BadJson</span>))<span class="question-mark">?</span>,
+            <span class="ident">credentials</span>: <span class="prelude-val">None</span>,
+            <span class="ident">path</span>: <span class="ident">PathBuf::new</span>(),
+        })
     }
 
     <span class="doccomment">/// Override configuration with values coming from other sources (e.g. env variables or</span>
@@ -2944,6 +2998,19 @@
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">outcomes</span>.<span class="ident">emit_outcomes</span> <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">enabled</span>
     }
 
+    <span class="doccomment">/// Returns whether this Relay should emit client outcomes</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Relays that do not emit client outcomes will forward client recieved outcomes</span>
+    <span class="doccomment">/// directly to the next relay in the chain as client report envelope.  This is only done</span>
+    <span class="doccomment">/// if this relay emits outcomes at all. A relay that will not emit outcomes</span>
+    <span class="doccomment">/// will forward the envelope unchanged.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This flag can be explicitly disabled on processing relays as well to prevent the</span>
+    <span class="doccomment">/// emitting of client outcomes to the kafka topic.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">emit_client_outcomes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">outcomes</span>.<span class="ident">emit_client_outcomes</span>
+    }
+
     <span class="doccomment">/// Returns the maximum number of outcomes that are batched before being sent</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_batch_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">outcomes</span>.<span class="ident">batch_size</span>
@@ -3086,6 +3153,11 @@
     <span class="doccomment">/// (minidump, unreal, standalone attachments) in bytes.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_attachments_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_attachments_size</span>.<span class="ident">as_bytes</span>()
+    }
+
+    <span class="doccomment">/// Returns the maxmium combined size of client reports in bytes.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_client_reports_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_client_reports_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maximum size of an envelope payload in bytes.</span>
