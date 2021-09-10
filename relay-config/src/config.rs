@@ -1327,11 +1327,15 @@ impl Config {
 
     /// Returns whether this Relay should emit client outcomes
     ///
-    /// This is `true` when `outcomes.emit_client_outcomes` is enabled and this relay emits
-    /// outcomes.  Relays that do not emit client outcomes will forward client recieved outcomes
-    /// directly to the next relay in the chain as client report envelope.
+    /// Relays that do not emit client outcomes will forward client recieved outcomes
+    /// directly to the next relay in the chain as client report envelope.  This is only done
+    /// if this relay emits outcomes at all. A relay that will not emit outcomes
+    /// will forward the envelope unchanged.
+    ///
+    /// This flag can be explicitly disabled on processing relays as well to prevent the
+    /// emitting of client outcomes to the kafka topic.
     pub fn emit_client_outcomes(&self) -> bool {
-        self.emit_outcomes() && self.values.outcomes.emit_client_outcomes
+        self.values.outcomes.emit_client_outcomes
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent

@@ -772,7 +772,13 @@ impl EnvelopeProcessor {
     fn process_client_reports(&self, state: &mut ProcessEnvelopeState) {
         // if client outcomes are disabled we leave the the client reports unprocessed
         // and pass them on.
-        if !self.config.emit_client_outcomes() {
+        if !self.config.emit_outcomes() || !self.config.emit_client_outcomes() {
+            // if a processing relay has client outcomes disabled we drop them.
+            if self.config.processing_enabled() {
+                state
+                    .envelope
+                    .retain_items(|item| item.ty() != ItemType::ClientReport);
+            }
             return;
         }
 
@@ -2714,9 +2720,9 @@ mod tests {
                 ContentType::Json,
                 r###"
                     {
-                    "discarded_events": [
-                        ["queue_full", "error", 42]
-                    ]
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
                     }
                 "###,
             );
@@ -2770,9 +2776,9 @@ mod tests {
                 ContentType::Json,
                 r###"
                     {
-                    "discarded_events": [
-                        ["queue_full", "error", 42]
-                    ]
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
                     }
                 "###,
             );
@@ -2798,6 +2804,66 @@ mod tests {
         let envelope = envelope_response.envelope.unwrap();
         let item = envelope.items().next().unwrap();
         assert_eq!(item.ty(), ItemType::ClientReport);
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_client_report_removal_in_processing() {
+        relay_test::setup();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": true,
+                "emit_client_outcomes": false,
+            },
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let processor = EnvelopeProcessor::new(Arc::new(config));
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r###"
+                    {
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
+                    }
+                "###,
+            );
+            item
+        });
+
+        let envelope_response = relay_test::with_system(move || {
+            processor
+                .process(ProcessEnvelope {
+                    envelope,
+                    project_state: Arc::new(ProjectState::allowed()),
+                    start_time: Instant::now(),
+                    scoping: Scoping {
+                        project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                        organization_id: 1,
+                        project_id: ProjectId::new(1),
+                        key_id: None,
+                    },
+                })
+                .unwrap()
+        });
+
+        assert!(envelope_response.envelope.is_none());
     }
 
     #[test]
