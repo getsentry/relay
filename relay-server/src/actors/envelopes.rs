@@ -2796,7 +2796,7 @@ mod tests {
         });
 
         let envelope = envelope_response.envelope.unwrap();
-        let item = envelope.items().nth(0).unwrap();
+        let item = envelope.items().next().unwrap();
         assert_eq!(item.ty(), ItemType::ClientReport);
     }
 
