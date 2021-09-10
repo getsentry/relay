@@ -3,7 +3,7 @@
 use std::fmt;
 use std::time::{Duration, Instant, SystemTime};
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Converts an `Instant` into a `SystemTime`.
@@ -83,6 +83,11 @@ impl UnixTimestamp {
         self.0
     }
 
+    /// Returns the timestamp as chrono datetime.
+    pub fn as_datetime(self) -> DateTime<Utc> {
+        DateTime::from_utc(NaiveDateTime::from_timestamp(self.0 as i64, 0), Utc)
+    }
+
     /// Converts the UNIX timestamp into an `Instant` based on the current system timestamp.
     ///
     /// Returns [`MonotonicResult::Instant`] if the timestamp can be represented. Otherwise, returns
@@ -139,6 +144,7 @@ impl std::ops::Sub for UnixTimestamp {
     }
 }
 
+#[derive(Debug)]
 /// An error returned from parsing [`UnixTimestamp`].
 pub struct ParseUnixTimestampError(());
 
@@ -146,6 +152,12 @@ impl std::str::FromStr for UnixTimestamp {
     type Err = ParseUnixTimestampError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(datetime) = s.parse::<DateTime<Utc>>() {
+            let timestamp = datetime.timestamp();
+            if timestamp >= 0 {
+                return Ok(UnixTimestamp(timestamp as u64));
+            }
+        }
         let ts = s.parse().or(Err(ParseUnixTimestampError(())))?;
         Ok(Self(ts))
     }

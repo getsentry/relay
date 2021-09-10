@@ -335,6 +335,7 @@ fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
     let mut event_size = 0;
     let mut attachments_size = 0;
     let mut session_count = 0;
+    let mut client_reports_size = 0;
 
     for item in envelope.items() {
         match item.ty() {
@@ -355,12 +356,14 @@ fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
             ItemType::UserReport => (),
             ItemType::Metrics => (),
             ItemType::MetricBuckets => (),
+            ItemType::ClientReport => client_reports_size += item.len(),
         }
     }
 
     event_size <= config.max_event_size()
         && attachments_size <= config.max_attachments_size()
         && session_count <= config.max_session_count()
+        && client_reports_size <= config.max_client_reports_size()
 }
 
 /// Handles Sentry events.

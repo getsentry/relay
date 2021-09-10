@@ -84,7 +84,7 @@ pub struct TrackOutcome {
     /// The event's data category.
     pub category: DataCategory,
     /// The number of events or total attachment size in bytes.
-    pub quantity: usize,
+    pub quantity: u32,
 }
 
 impl Message for TrackOutcome {
@@ -114,6 +114,9 @@ pub enum Outcome {
     /// The event has been discarded because of invalid data.
     Invalid(DiscardReason),
 
+    /// The event has already been discarded on the client side.
+    ClientDiscard(String),
+
     /// Reserved but unused in Sentry.
     #[allow(dead_code)]
     Abuse,
@@ -127,6 +130,7 @@ impl Outcome {
             Outcome::RateLimited(_) => 2,
             Outcome::Invalid(_) => 3,
             Outcome::Abuse => 4,
+            Outcome::ClientDiscard(_) => 5,
         }
     }
 
@@ -140,6 +144,7 @@ impl Outcome {
             Outcome::RateLimited(code_opt) => code_opt
                 .as_ref()
                 .map(|code| Cow::Owned(code.as_str().into())),
+            Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
         }
     }
@@ -319,7 +324,7 @@ pub struct TrackRawOutcome {
     pub category: Option<u8>,
     /// The number of events or total attachment size in bytes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub quantity: Option<usize>,
+    pub quantity: Option<u32>,
 }
 
 impl TrackRawOutcome {
