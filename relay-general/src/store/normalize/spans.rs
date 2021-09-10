@@ -170,7 +170,6 @@ fn compute_span_exclusive_time(event: &mut Event) {
 
             let exclusive_time = interval_exclusive_time(&span_interval, &child_intervals);
             event.exclusive_time = Annotated::new(exclusive_time);
-            println!("{:?}", exclusive_time);
         }
     }
 
