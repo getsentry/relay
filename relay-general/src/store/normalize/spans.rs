@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 
-use crate::protocol::{Event, Span};
+use crate::protocol::{Context, Event, Span, SpanId};
 use crate::types::Annotated;
 use crate::types::SpanAttribute;
 
@@ -112,32 +112,69 @@ pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<SpanAttribute>) 
     }
 }
 
-fn compute_span_exclusive_time(event: &mut Event) {
-    let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
+fn get_transaction_interval(event: &Event) -> Option<TimeWindowSpan> {
+    let start = *event.start_timestamp.value()?;
+    let end = *event.timestamp.value()?;
+    Some(TimeWindowSpan::new(start, end))
+}
 
+fn get_transaction_span_id(event: &Event) -> Option<SpanId> {
+    let contexts = event.contexts.value()?;
+    let context = contexts.get("trace")?.value()?;
+    match &**context {
+        Context::Trace(trace_context) => {
+            let span_id = trace_context.span_id.value()?;
+            Some(span_id.clone())
+        }
+        _ => None,
+    }
+}
+
+fn compute_span_exclusive_time(event: &mut Event) {
     let mut span_map = HashMap::new();
 
-    for span in spans.iter() {
-        let span = match span.value() {
-            None => continue,
-            Some(span) => span,
-        };
+    if let Some(spans) = event.spans.value() {
+        for span in spans.iter() {
+            let span = match span.value() {
+                None => continue,
+                Some(span) => span,
+            };
 
-        let parent_span_id = match span.parent_span_id.value() {
-            None => continue,
-            Some(parent_span_id) => parent_span_id.clone(),
-        };
+            let parent_span_id = match span.parent_span_id.value() {
+                None => continue,
+                Some(parent_span_id) => parent_span_id.clone(),
+            };
 
-        let interval = match get_span_interval(span) {
-            None => continue,
-            Some(interval) => interval,
-        };
+            let interval = match get_span_interval(span) {
+                None => continue,
+                Some(interval) => interval,
+            };
 
-        span_map
-            .entry(parent_span_id)
-            .or_insert_with(Vec::new)
-            .push(interval)
+            span_map
+                .entry(parent_span_id)
+                .or_insert_with(Vec::new)
+                .push(interval)
+        }
     }
+
+    if let Some(span_interval) = get_transaction_interval(event) {
+        if let Some(span_id) = get_transaction_span_id(event) {
+            let child_intervals = match span_map.get_mut(&span_id) {
+                Some(intervals) => {
+                    // Make sure that the intervals are sorted by start time.
+                    intervals.sort_unstable_by_key(|interval| interval.start);
+                    merge_non_overlapping_intervals(intervals)
+                }
+                None => Vec::new(),
+            };
+
+            let exclusive_time = interval_exclusive_time(&span_interval, &child_intervals);
+            event.exclusive_time = Annotated::new(exclusive_time);
+            println!("{:?}", exclusive_time);
+        }
+    }
+
+    let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
     for span in spans.iter_mut() {
         let mut span = match span.value_mut() {
@@ -172,8 +209,41 @@ fn compute_span_exclusive_time(event: &mut Event) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{Event, EventType, Span, SpanId, Timestamp, TraceId};
+    use crate::protocol::{
+        Context, ContextInner, Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext,
+        TraceId,
+    };
+    use crate::types::Object;
     use chrono::{TimeZone, Utc};
+
+    fn make_event(
+        start: Timestamp,
+        end: Timestamp,
+        span_id: &str,
+        spans: Vec<Annotated<Span>>,
+    ) -> Event {
+        Event {
+            ty: EventType::Transaction.into(),
+            start_timestamp: Annotated::new(start.into()),
+            timestamp: Annotated::new(end.into()),
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "trace".to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
+                        )),
+                        span_id: Annotated::new(SpanId(span_id.into())),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            spans: spans.into(),
+            ..Default::default()
+        }
+    }
 
     fn make_span(
         op: &str,
@@ -203,20 +273,38 @@ mod tests {
     }
 
     fn extract_span_exclusive_times(event: Event) -> HashMap<SpanId, f64> {
-        event
+        let mut exclusive_times: HashMap<SpanId, f64> = event
+            .clone()
             .spans
             .into_value()
             .unwrap()
             .into_iter()
             .map(|span| extract_exclusive_time(span.into_value().unwrap()))
-            .collect()
+            .collect();
+
+        let context = event
+            .contexts
+            .into_value()
+            .unwrap()
+            .get("trace")
+            .unwrap()
+            .clone();
+        if let Context::Trace(trace_context) = &*context.into_value().unwrap() {
+            let transaction_span_id: SpanId = trace_context.span_id.value().unwrap().clone();
+            let transaction_exclusive_time = *event.exclusive_time.value().unwrap();
+            exclusive_times.insert(transaction_span_id, transaction_exclusive_time);
+        }
+
+        exclusive_times
     }
 
     #[test]
     fn test_skip_exclusive_time() {
-        let mut event = Event {
-            ty: EventType::Transaction.into(),
-            spans: vec![
+        let mut event = make_event(
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 0, 0).into(),
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 5, 0).into(),
+            "aaaaaaaaaaaaaaaa",
+            vec![
                 make_span(
                     "db",
                     "SELECT * FROM table;",
@@ -245,15 +333,15 @@ mod tests {
                     "dddddddddddddddd",
                     "aaaaaaaaaaaaaaaa",
                 ),
-            ]
-            .into(),
-            ..Default::default()
-        };
+            ],
+        );
 
         // do not insert `exclusive-time`
         let config = BTreeSet::new();
 
         normalize_spans(&mut event, &config);
+
+        assert_eq!(event.exclusive_time.value().is_none(), true);
 
         let has_exclusive_times: Vec<bool> = event
             .spans
@@ -268,9 +356,11 @@ mod tests {
 
     #[test]
     fn test_childless_spans() {
-        let mut event = Event {
-            ty: EventType::Transaction.into(),
-            spans: vec![
+        let mut event = make_event(
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 0, 0).into(),
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 5, 0).into(),
+            "aaaaaaaaaaaaaaaa",
+            vec![
                 make_span(
                     "db",
                     "SELECT * FROM table;",
@@ -299,10 +389,8 @@ mod tests {
                     "dddddddddddddddd",
                     "aaaaaaaaaaaaaaaa",
                 ),
-            ]
-            .into(),
-            ..Default::default()
-        };
+            ],
+        );
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
@@ -314,6 +402,7 @@ mod tests {
         assert_eq!(
             exclusive_times,
             vec![
+                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 1123.0),
                 (SpanId("bbbbbbbbbbbbbbbb".to_string()), 3000.0),
                 (SpanId("cccccccccccccccc".to_string()), 2500.0),
                 (SpanId("dddddddddddddddd".to_string()), 1877.0)
@@ -326,9 +415,11 @@ mod tests {
 
     #[test]
     fn test_nested_spans() {
-        let mut event = Event {
-            ty: EventType::Transaction.into(),
-            spans: vec![
+        let mut event = make_event(
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 0, 0).into(),
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 5, 0).into(),
+            "aaaaaaaaaaaaaaaa",
+            vec![
                 make_span(
                     "db",
                     "SELECT * FROM table;",
@@ -361,10 +452,8 @@ mod tests {
                     "dddddddddddddddd",
                     "cccccccccccccccc",
                 ),
-            ]
-            .into(),
-            ..Default::default()
-        };
+            ],
+        );
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
@@ -376,6 +465,7 @@ mod tests {
         assert_eq!(
             exclusive_times,
             vec![
+                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
                 (SpanId("bbbbbbbbbbbbbbbb".to_string()), 400.0),
                 (SpanId("cccccccccccccccc".to_string()), 400.0),
                 (SpanId("dddddddddddddddd".to_string()), 200.0),
@@ -388,9 +478,11 @@ mod tests {
 
     #[test]
     fn test_overlapping_child_spans() {
-        let mut event = Event {
-            ty: EventType::Transaction.into(),
-            spans: vec![
+        let mut event = make_event(
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 0, 0).into(),
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 5, 0).into(),
+            "aaaaaaaaaaaaaaaa",
+            vec![
                 make_span(
                     "db",
                     "SELECT * FROM table;",
@@ -423,10 +515,8 @@ mod tests {
                     "dddddddddddddddd",
                     "bbbbbbbbbbbbbbbb",
                 ),
-            ]
-            .into(),
-            ..Default::default()
-        };
+            ],
+        );
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
@@ -438,6 +528,7 @@ mod tests {
         assert_eq!(
             exclusive_times,
             vec![
+                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
                 (SpanId("bbbbbbbbbbbbbbbb".to_string()), 400.0),
                 (SpanId("cccccccccccccccc".to_string()), 400.0),
                 (SpanId("dddddddddddddddd".to_string()), 400.0),
@@ -450,9 +541,11 @@ mod tests {
 
     #[test]
     fn test_child_spans_dont_intersect_parent() {
-        let mut event = Event {
-            ty: EventType::Transaction.into(),
-            spans: vec![
+        let mut event = make_event(
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 0, 0).into(),
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 5, 0).into(),
+            "aaaaaaaaaaaaaaaa",
+            vec![
                 make_span(
                     "db",
                     "SELECT * FROM table;",
@@ -485,10 +578,8 @@ mod tests {
                     "dddddddddddddddd",
                     "bbbbbbbbbbbbbbbb",
                 ),
-            ]
-            .into(),
-            ..Default::default()
-        };
+            ],
+        );
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
@@ -500,6 +591,7 @@ mod tests {
         assert_eq!(
             exclusive_times,
             vec![
+                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
                 (SpanId("bbbbbbbbbbbbbbbb".to_string()), 1000.0),
                 (SpanId("cccccccccccccccc".to_string()), 400.0),
                 (SpanId("dddddddddddddddd".to_string()), 400.0),
@@ -512,9 +604,11 @@ mod tests {
 
     #[test]
     fn test_child_spans_extend_beyond_parent() {
-        let mut event = Event {
-            ty: EventType::Transaction.into(),
-            spans: vec![
+        let mut event = make_event(
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 0, 0).into(),
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 5, 0).into(),
+            "aaaaaaaaaaaaaaaa",
+            vec![
                 make_span(
                     "db",
                     "SELECT * FROM table;",
@@ -547,10 +641,8 @@ mod tests {
                     "dddddddddddddddd",
                     "bbbbbbbbbbbbbbbb",
                 ),
-            ]
-            .into(),
-            ..Default::default()
-        };
+            ],
+        );
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
@@ -562,6 +654,7 @@ mod tests {
         assert_eq!(
             exclusive_times,
             vec![
+                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
                 (SpanId("bbbbbbbbbbbbbbbb".to_string()), 200.0),
                 (SpanId("cccccccccccccccc".to_string()), 600.0),
                 (SpanId("dddddddddddddddd".to_string()), 600.0),
@@ -574,9 +667,11 @@ mod tests {
 
     #[test]
     fn test_child_spans_consumes_all_of_parent() {
-        let mut event = Event {
-            ty: EventType::Transaction.into(),
-            spans: vec![
+        let mut event = make_event(
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 0, 0).into(),
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 5, 0).into(),
+            "aaaaaaaaaaaaaaaa",
+            vec![
                 make_span(
                     "db",
                     "SELECT * FROM table;",
@@ -609,10 +704,8 @@ mod tests {
                     "dddddddddddddddd",
                     "bbbbbbbbbbbbbbbb",
                 ),
-            ]
-            .into(),
-            ..Default::default()
-        };
+            ],
+        );
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
@@ -624,6 +717,7 @@ mod tests {
         assert_eq!(
             exclusive_times,
             vec![
+                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
                 (SpanId("bbbbbbbbbbbbbbbb".to_string()), 0.0),
                 (SpanId("cccccccccccccccc".to_string()), 800.0),
                 (SpanId("dddddddddddddddd".to_string()), 800.0),
@@ -636,9 +730,11 @@ mod tests {
 
     #[test]
     fn test_only_immediate_child_spans_affect_calculation() {
-        let mut event = Event {
-            ty: EventType::Transaction.into(),
-            spans: vec![
+        let mut event = make_event(
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 0, 0).into(),
+            Utc.ymd(2021, 1, 1).and_hms_nano(0, 0, 5, 0).into(),
+            "aaaaaaaaaaaaaaaa",
+            vec![
                 make_span(
                     "db",
                     "SELECT * FROM table;",
@@ -673,10 +769,8 @@ mod tests {
                     "dddddddddddddddd",
                     "cccccccccccccccc",
                 ),
-            ]
-            .into(),
-            ..Default::default()
-        };
+            ],
+        );
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
@@ -688,6 +782,7 @@ mod tests {
         assert_eq!(
             exclusive_times,
             vec![
+                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
                 (SpanId("bbbbbbbbbbbbbbbb".to_string()), 600.0),
                 (SpanId("cccccccccccccccc".to_string()), 400.0),
                 (SpanId("dddddddddddddddd".to_string()), 400.0),
