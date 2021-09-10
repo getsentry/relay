@@ -224,8 +224,8 @@ mod tests {
     ) -> Event {
         Event {
             ty: EventType::Transaction.into(),
-            start_timestamp: Annotated::new(start.into()),
-            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start),
+            timestamp: Annotated::new(end),
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();
                 contexts.insert(
@@ -341,7 +341,7 @@ mod tests {
 
         normalize_spans(&mut event, &config);
 
-        assert_eq!(event.exclusive_time.value().is_none(), true);
+        assert!(event.exclusive_time.value().is_none());
 
         let has_exclusive_times: Vec<bool> = event
             .spans
