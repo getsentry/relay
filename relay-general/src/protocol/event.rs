@@ -243,6 +243,8 @@ pub struct Event {
     pub fingerprint: Annotated<Fingerprint>,
 
     /// Custom culprit of the event.
+    ///
+    /// This field is deprecated and shall not be set by client SDKs.
     #[metastructure(max_chars = "culprit", pii = "maybe")]
     pub culprit: Annotated<String>,
 
