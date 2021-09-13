@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -8,8 +9,11 @@ use std::{fmt, net};
 
 use actix::prelude::*;
 use actix_web::http::Method;
+use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
+use flate2::write::{GzEncoder, ZlibEncoder};
+use flate2::Compression;
 use futures::{future, prelude::*, sync::oneshot};
 use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
@@ -1848,7 +1852,8 @@ pub type CapturedEnvelope = Result<Envelope, String>;
 
 #[derive(Debug)]
 struct SendEnvelope {
-    envelope: Envelope,
+    envelope_body: Vec<u8>,
+    envelope_meta: RequestMeta,
     scoping: Scoping,
     http_encoding: HttpEncoding,
     response_sender: Option<oneshot::Sender<Result<(), UpstreamRequestError>>>,
@@ -1865,15 +1870,7 @@ impl UpstreamRequest for SendEnvelope {
     }
 
     fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
-        // Override the `sent_at` timestamp. Since the envelope went through basic
-        // normalization, all timestamps have been corrected. We propagate the new
-        // `sent_at` to allow the next Relay to double-check this timestamp and
-        // potentially apply correction again. This is done as close to sending as
-        // possible so that we avoid internal delays.
-        self.envelope.set_sent_at(Utc::now());
-
-        let meta = self.envelope.meta();
-
+        let meta = &self.envelope_meta;
         builder
             .content_encoding(self.http_encoding)
             .header_opt("Origin", meta.origin().map(|url| url.as_str()))
@@ -1881,9 +1878,7 @@ impl UpstreamRequest for SendEnvelope {
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE);
-
-        let body = self.envelope.to_vec().map_err(HttpError::custom)?;
-        builder.body(body)
+        builder.body(self.envelope_body.clone())
     }
 
     fn respond(
@@ -2002,11 +1997,23 @@ impl EnvelopeManager {
         }
 
         relay_log::trace!("sending envelope to sentry endpoint");
+
+        let http_encoding = self.config.http_encoding();
+        let (envelope_body, envelope_meta) = match Self::encode_envelope(envelope, http_encoding) {
+            Ok(v) => v,
+            Err(e) => {
+                return Box::new(future::err(SendEnvelopeError::SendFailed(
+                    UpstreamRequestError::Http(e),
+                )))
+            }
+        };
+
         let (tx, rx) = oneshot::channel();
         let request = SendEnvelope {
-            envelope,
+            envelope_meta,
+            envelope_body,
             scoping,
-            http_encoding: self.config.http_encoding(),
+            http_encoding,
             response_sender: Some(tx),
             project_key,
         };
@@ -2019,6 +2026,41 @@ impl EnvelopeManager {
             .map_err(SendEnvelopeError::SendFailed);
 
         Box::new(future)
+    }
+
+    fn encode_envelope(
+        mut envelope: Envelope,
+        http_encoding: HttpEncoding,
+    ) -> Result<(Vec<u8>, RequestMeta), HttpError> {
+        // Override the `sent_at` timestamp. Since the envelope went through basic
+        // normalization, all timestamps have been corrected. We propagate the new
+        // `sent_at` to allow the next Relay to double-check this timestamp and
+        // potentially apply correction again. This is done as close to sending as
+        // possible so that we avoid internal delays.
+        envelope.set_sent_at(Utc::now());
+        let meta = envelope.meta();
+
+        let body = envelope.to_vec().map_err(HttpError::custom)?;
+        let envelope_body = match http_encoding {
+            HttpEncoding::Identity => body,
+            HttpEncoding::Deflate => {
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+            HttpEncoding::Gzip => {
+                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+            HttpEncoding::Br => {
+                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+        };
+
+        Ok((envelope_body, meta.to_owned()))
     }
 }
 
