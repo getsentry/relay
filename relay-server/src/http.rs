@@ -30,15 +30,9 @@ pub enum HttpError {
     Io(#[cause] io::Error),
     #[fail(display = "failed to parse JSON response")]
     Json(#[cause] serde_json::Error),
-    #[fail(display = "{}", _0)]
-    Custom(Box<dyn Fail>),
 }
 
 impl HttpError {
-    pub fn custom(error: impl Fail) -> Self {
-        Self::Custom(Box::new(error))
-    }
-
     /// Returns `true` if the error indicates a network downtime.
     pub fn is_network_error(&self) -> bool {
         match self {
@@ -48,7 +42,6 @@ impl HttpError {
             Self::Reqwest(error) => error.is_timeout(),
             Self::Json(_) => false,
             HttpError::Overflow => false,
-            Self::Custom(_) => false,
         }
     }
 }

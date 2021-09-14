@@ -44,7 +44,7 @@ use crate::actors::project_cache::{
     UpdateRateLimits,
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
-use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{self, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
@@ -125,8 +125,14 @@ enum ProcessingError {
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
 
+    #[fail(display = "could not build envelope for upstream")]
+    EnvelopeBuildFailed(#[cause] EnvelopeError),
+
+    #[fail(display = "could not encode request body")]
+    BodyEncodingFailed(#[cause] std::io::Error),
+
     #[fail(display = "could not send request to upstream")]
-    SendFailed(#[cause] UpstreamRequestError),
+    UpstreamRequestFailed(#[cause] UpstreamRequestError),
 
     #[cfg(feature = "processing")]
     #[fail(display = "could not store envelope")]
@@ -171,7 +177,9 @@ impl ProcessingError {
             | Self::ProjectFailed(_)
             | Self::Timeout
             | Self::ProcessingFailed(_)
-            | Self::MissingProjectId => Some(Outcome::Invalid(DiscardReason::Internal)),
+            | Self::MissingProjectId
+            | Self::EnvelopeBuildFailed(_)
+            | Self::BodyEncodingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
 
@@ -187,7 +195,7 @@ impl ProcessingError {
             Self::StoreFailed(_) => None,
 
             // If we send to an upstream, we don't emit outcomes.
-            Self::SendFailed(_) => None,
+            Self::UpstreamRequestFailed(_) => None,
         }
     }
 }
@@ -1844,7 +1852,9 @@ enum SendEnvelopeError {
     ScheduleFailed,
     #[cfg(feature = "processing")]
     StoreFailed(StoreError),
-    SendFailed(UpstreamRequestError),
+    EnvelopeBuildFailed(EnvelopeError),
+    BodyEncodingFailed(std::io::Error),
+    UpstreamRequestFailed(UpstreamRequestError),
 }
 
 /// Either a captured envelope or an error that occured during processing.
@@ -2001,11 +2011,7 @@ impl EnvelopeManager {
         let http_encoding = self.config.http_encoding();
         let (envelope_body, envelope_meta) = match Self::encode_envelope(envelope, http_encoding) {
             Ok(v) => v,
-            Err(e) => {
-                return Box::new(future::err(SendEnvelopeError::SendFailed(
-                    UpstreamRequestError::Http(e),
-                )))
-            }
+            Err(e) => return Box::new(future::err(e)),
         };
 
         let (tx, rx) = oneshot::channel();
@@ -2023,7 +2029,7 @@ impl EnvelopeManager {
         let future = rx
             .map_err(|_| UpstreamRequestError::ChannelClosed)
             .flatten()
-            .map_err(SendEnvelopeError::SendFailed);
+            .map_err(SendEnvelopeError::UpstreamRequestFailed);
 
         Box::new(future)
     }
@@ -2031,16 +2037,27 @@ impl EnvelopeManager {
     fn encode_envelope(
         mut envelope: Envelope,
         http_encoding: HttpEncoding,
-    ) -> Result<(Vec<u8>, RequestMeta), HttpError> {
+    ) -> Result<(Vec<u8>, RequestMeta), SendEnvelopeError> {
         // Override the `sent_at` timestamp. Since the envelope went through basic
         // normalization, all timestamps have been corrected. We propagate the new
         // `sent_at` to allow the next Relay to double-check this timestamp and
         // potentially apply correction again. This is done as close to sending as
         // possible so that we avoid internal delays.
         envelope.set_sent_at(Utc::now());
-        let meta = envelope.meta();
+        let envelope_meta = envelope.meta();
 
-        let body = envelope.to_vec().map_err(HttpError::custom)?;
+        let original_body = envelope
+            .to_vec()
+            .map_err(SendEnvelopeError::EnvelopeBuildFailed)?;
+        let encoded_body = Self::encode_envelope_body(original_body, http_encoding)
+            .map_err(SendEnvelopeError::BodyEncodingFailed)?;
+        Ok((encoded_body, envelope_meta.to_owned()))
+    }
+
+    fn encode_envelope_body(
+        body: Vec<u8>,
+        http_encoding: HttpEncoding,
+    ) -> Result<Vec<u8>, std::io::Error> {
         let envelope_body = match http_encoding {
             HttpEncoding::Identity => body,
             HttpEncoding::Deflate => {
@@ -2059,8 +2076,7 @@ impl EnvelopeManager {
                 encoder.finish()?
             }
         };
-
-        Ok((envelope_body, meta.to_owned()))
+        Ok(envelope_body)
     }
 }
 
@@ -2381,12 +2397,23 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                                     envelope_context.send_outcomes(outcome);
                                     ProcessingError::StoreFailed(e)
                                 }
-                                SendEnvelopeError::SendFailed(e) => {
+
+                                SendEnvelopeError::BodyEncodingFailed(e) => {
+                                    envelope_context.send_outcomes(outcome);
+                                    ProcessingError::BodyEncodingFailed(e)
+                                }
+
+                                SendEnvelopeError::EnvelopeBuildFailed(e) => {
+                                    envelope_context.send_outcomes(outcome);
+                                    ProcessingError::EnvelopeBuildFailed(e)
+                                }
+
+                                SendEnvelopeError::UpstreamRequestFailed(e) => {
                                     if !e.is_received() {
                                         envelope_context.send_outcomes(outcome);
                                     }
 
-                                    ProcessingError::SendFailed(e)
+                                    ProcessingError::UpstreamRequestFailed(e)
                                 }
                             }
                         })
