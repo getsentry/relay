@@ -177,9 +177,7 @@ impl ProcessingError {
             | Self::ProjectFailed(_)
             | Self::Timeout
             | Self::ProcessingFailed(_)
-            | Self::MissingProjectId
-            | Self::EnvelopeBuildFailed(_)
-            | Self::BodyEncodingFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            | Self::MissingProjectId => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
 
@@ -195,7 +193,9 @@ impl ProcessingError {
             Self::StoreFailed(_) => None,
 
             // If we send to an upstream, we don't emit outcomes.
-            Self::UpstreamRequestFailed(_) => None,
+            Self::UpstreamRequestFailed(_)
+            | Self::EnvelopeBuildFailed(_)
+            | Self::BodyEncodingFailed(_) => None,
         }
     }
 }
