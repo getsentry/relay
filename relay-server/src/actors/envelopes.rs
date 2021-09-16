@@ -682,7 +682,9 @@ impl EnvelopeProcessor {
             }
 
             let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
-            if (session.started - received) > max_age || (session.timestamp - received) > max_age {
+            if (session.started - received) > max_future
+                || (session.timestamp - received) > max_future
+            {
                 relay_log::trace!(
                     "skipping session more than {}s in the future",
                     max_future.num_seconds()
@@ -825,6 +827,24 @@ impl EnvelopeProcessor {
         if clock_drift_processor.is_drifted() {
             relay_log::trace!("applying clock drift correction to client report");
             clock_drift_processor.process_timestamp(timestamp);
+        }
+
+        let max_age = SignedDuration::seconds(self.config.max_secs_in_past());
+        if (received - timestamp.as_datetime()) > max_age {
+            relay_log::trace!(
+                "skipping client outcomes older than {} days",
+                max_age.num_days()
+            );
+            return;
+        }
+
+        let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
+        if (timestamp.as_datetime() - received) > max_future {
+            relay_log::trace!(
+                "skipping client outcomes more than {}s in the future",
+                max_future.num_seconds()
+            );
+            return;
         }
 
         let producer = OutcomeProducer::from_registry();
