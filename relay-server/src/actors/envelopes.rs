@@ -2185,7 +2185,6 @@ impl Default for EnvelopeManager {
 pub struct QueueEnvelope {
     pub envelope: Envelope,
     pub project_key: ProjectKey,
-    pub sampling_project_key: Option<ProjectKey>,
     pub start_time: Instant,
 }
 
@@ -2210,7 +2209,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
         let QueueEnvelope {
             mut envelope,
             project_key,
-            sampling_project_key,
             start_time,
         } = message;
 
@@ -2246,7 +2244,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
             self.active_envelopes += 1;
             context.notify(HandleEnvelope {
                 envelope: event_envelope,
-                sampling_project_key,
                 project_key,
                 start_time,
             });
@@ -2258,7 +2255,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
             context.notify(HandleEnvelope {
                 envelope,
                 project_key,
-                sampling_project_key,
                 start_time,
             });
         }
@@ -2287,7 +2283,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
 struct HandleEnvelope {
     pub envelope: Envelope,
     pub project_key: ProjectKey,
-    pub sampling_project_key: Option<ProjectKey>,
     pub start_time: Instant,
 }
 
@@ -2323,8 +2318,9 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             envelope,
             project_key,
             start_time,
-            sampling_project_key,
         } = message;
+
+        let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
 
         let event_id = envelope.event_id();
         let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_envelope(&envelope)));

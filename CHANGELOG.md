@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 21.9.0
 
 **Features**:
 
@@ -18,6 +18,7 @@
 
 - Add new metrics on Relay's performance in dealing with buckets of metric aggregates, as well as the amount of aggregated buckets. ([#1070](https://github.com/getsentry/relay/pull/1070))
 - Add the exclusive time of a span. ([#1061](https://github.com/getsentry/relay/pull/1061))
+- Remove redundant dynamic sampling processing on fast path (INGEST-330). ([#1084](https://github.com/getsentry/relay/pull/1084))
 
 ## 21.8.0
 
