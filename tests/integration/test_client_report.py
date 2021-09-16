@@ -1,4 +1,6 @@
-from datetime import datetime, timezone
+import pytest
+from queue import Empty
+from datetime import datetime, timezone, timedelta
 
 
 def test_client_reports(relay, mini_sentry):
@@ -58,3 +60,35 @@ def test_client_reports(relay, mini_sentry):
             "quantity": 1231,
         },
     ]
+
+
+def test_client_reports_bad_timestamps(relay, mini_sentry):
+    config = {
+        # too far int the future
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "source": "my-layer",
+        },
+    }
+
+    relay = relay(mini_sentry, config)
+
+    project_id = 42
+    timestamp = datetime.now(tz=timezone.utc) + timedelta(days=300)
+
+    report_payload = {
+        "timestamp": timestamp.isoformat(),
+        "discarded_events": [
+            {"reason": "queue_overflow", "category": "error", "quantity": 42},
+            {"reason": "queue_overflow", "category": "transaction", "quantity": 1231},
+        ],
+    }
+
+    mini_sentry.add_full_project_config(project_id)
+    relay.send_client_report(project_id, report_payload)
+
+    # we should not have received any outcomes because they are too far into the future
+    with pytest.raises(Empty):
+        mini_sentry.captured_outcomes.get(timeout=0.5)["outcomes"]
