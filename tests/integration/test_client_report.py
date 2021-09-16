@@ -64,7 +64,6 @@ def test_client_reports(relay, mini_sentry):
 
 def test_client_reports_bad_timestamps(relay, mini_sentry):
     config = {
-        # too far int the future
         "outcomes": {
             "emit_outcomes": True,
             "batch_size": 1,
@@ -79,6 +78,7 @@ def test_client_reports_bad_timestamps(relay, mini_sentry):
     timestamp = datetime.now(tz=timezone.utc) + timedelta(days=300)
 
     report_payload = {
+        # too far into the future
         "timestamp": timestamp.isoformat(),
         "discarded_events": [
             {"reason": "queue_overflow", "category": "error", "quantity": 42},
