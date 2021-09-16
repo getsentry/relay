@@ -1275,7 +1275,6 @@
 <span id="1275">1275</span>
 <span id="1276">1276</span>
 <span id="1277">1277</span>
-<span id="1278">1278</span>
 </pre><pre class="rust">
 <span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
@@ -1909,7 +1908,6 @@
                     <span class="string">&quot;reqwest_error&quot;</span>,
                 )
             }
-            <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::Http</span>(<span class="ident">HttpError::Custom</span>(<span class="kw">_</span>))) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;internal&quot;</span>),
 
             <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::SendFailed</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;send_failed&quot;</span>),
             <span class="prelude-val">Err</span>(<span class="ident">UpstreamRequestError::RateLimited</span>(<span class="kw">_</span>)) <span class="op">=</span><span class="op">&gt;</span> (<span class="string">&quot;-&quot;</span>, <span class="string">&quot;rate_limited&quot;</span>),
