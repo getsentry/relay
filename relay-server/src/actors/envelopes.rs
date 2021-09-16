@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -8,8 +9,11 @@ use std::{fmt, net};
 
 use actix::prelude::*;
 use actix_web::http::Method;
+use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
+use flate2::write::{GzEncoder, ZlibEncoder};
+use flate2::Compression;
 use futures::{future, prelude::*, sync::oneshot};
 use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
@@ -40,7 +44,7 @@ use crate::actors::project_cache::{
     UpdateRateLimits,
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
-use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{self, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
@@ -121,8 +125,14 @@ enum ProcessingError {
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
 
+    #[fail(display = "could not build envelope for upstream")]
+    EnvelopeBuildFailed(#[cause] EnvelopeError),
+
+    #[fail(display = "could not encode request body")]
+    BodyEncodingFailed(#[cause] std::io::Error),
+
     #[fail(display = "could not send request to upstream")]
-    SendFailed(#[cause] UpstreamRequestError),
+    UpstreamRequestFailed(#[cause] UpstreamRequestError),
 
     #[cfg(feature = "processing")]
     #[fail(display = "could not store envelope")]
@@ -183,7 +193,9 @@ impl ProcessingError {
             Self::StoreFailed(_) => None,
 
             // If we send to an upstream, we don't emit outcomes.
-            Self::SendFailed(_) => None,
+            Self::UpstreamRequestFailed(_)
+            | Self::EnvelopeBuildFailed(_)
+            | Self::BodyEncodingFailed(_) => None,
         }
     }
 }
@@ -1721,6 +1733,31 @@ impl EnvelopeProcessor {
             },
         )
     }
+
+    fn encode_envelope_body(
+        body: Vec<u8>,
+        http_encoding: HttpEncoding,
+    ) -> Result<Vec<u8>, std::io::Error> {
+        let envelope_body = match http_encoding {
+            HttpEncoding::Identity => body,
+            HttpEncoding::Deflate => {
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+            HttpEncoding::Gzip => {
+                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+            HttpEncoding::Br => {
+                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+        };
+        Ok(envelope_body)
+    }
 }
 
 impl Actor for EnvelopeProcessor {
@@ -1860,18 +1897,70 @@ enum SendEnvelopeError {
     ScheduleFailed,
     #[cfg(feature = "processing")]
     StoreFailed(StoreError),
-    SendFailed(UpstreamRequestError),
+    EnvelopeBuildFailed(EnvelopeError),
+    BodyEncodingFailed(std::io::Error),
+    UpstreamRequestFailed(UpstreamRequestError),
 }
 
 /// Either a captured envelope or an error that occured during processing.
 pub type CapturedEnvelope = Result<Envelope, String>;
 
 #[derive(Debug)]
-struct SendEnvelope {
-    envelope: Envelope,
+struct EncodeEnvelope {
+    envelope_body: Vec<u8>,
+    envelope_meta: RequestMeta,
     scoping: Scoping,
     http_encoding: HttpEncoding,
-    response_sender: Option<oneshot::Sender<Result<(), UpstreamRequestError>>>,
+    response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
+    project_key: ProjectKey,
+}
+
+impl Message for EncodeEnvelope {
+    type Result = ();
+}
+
+impl Handler<EncodeEnvelope> for EnvelopeProcessor {
+    type Result = ();
+
+    fn handle(&mut self, message: EncodeEnvelope, _context: &mut Self::Context) -> Self::Result {
+        let EncodeEnvelope {
+            envelope_body,
+            envelope_meta,
+            scoping,
+            http_encoding,
+            response_sender,
+            project_key,
+        } = message;
+        match Self::encode_envelope_body(envelope_body, http_encoding) {
+            Err(e) => {
+                response_sender.map(|sender| {
+                    sender
+                        .send(Err(SendEnvelopeError::BodyEncodingFailed(e)))
+                        .ok()
+                });
+            }
+            Ok(envelope_body) => {
+                let request = SendEnvelope {
+                    envelope_body,
+                    envelope_meta,
+                    scoping,
+                    http_encoding,
+                    response_sender,
+                    project_key,
+                };
+                UpstreamRelay::from_registry().do_send(SendRequest(request));
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct SendEnvelope {
+    envelope_body: Vec<u8>,
+    envelope_meta: RequestMeta,
+    scoping: Scoping,
+    http_encoding: HttpEncoding,
+    response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
     project_key: ProjectKey,
 }
 
@@ -1885,15 +1974,7 @@ impl UpstreamRequest for SendEnvelope {
     }
 
     fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
-        // Override the `sent_at` timestamp. Since the envelope went through basic
-        // normalization, all timestamps have been corrected. We propagate the new
-        // `sent_at` to allow the next Relay to double-check this timestamp and
-        // potentially apply correction again. This is done as close to sending as
-        // possible so that we avoid internal delays.
-        self.envelope.set_sent_at(Utc::now());
-
-        let meta = self.envelope.meta();
-
+        let meta = &self.envelope_meta;
         builder
             .content_encoding(self.http_encoding)
             .header_opt("Origin", meta.origin().map(|url| url.as_str()))
@@ -1901,9 +1982,7 @@ impl UpstreamRequest for SendEnvelope {
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE);
-
-        let body = self.envelope.to_vec().map_err(HttpError::custom)?;
-        builder.body(body)
+        builder.body(self.envelope_body.clone())
     }
 
     fn respond(
@@ -1919,7 +1998,11 @@ impl UpstreamRequest for SendEnvelope {
                     .map_err(UpstreamRequestError::Http)
                     .map(|_| ())
                     .then(move |body_result| {
-                        sender.map(|sender| sender.send(body_result).ok());
+                        sender.map(|sender| {
+                            sender
+                                .send(body_result.map_err(SendEnvelopeError::UpstreamRequestFailed))
+                                .ok()
+                        });
                         Ok(())
                     });
 
@@ -1934,13 +2017,17 @@ impl UpstreamRequest for SendEnvelope {
                         ));
                         if let Some(sender) = sender {
                             sender
-                                .send(Err(UpstreamRequestError::RateLimited(upstream_limits)))
+                                .send(Err(SendEnvelopeError::UpstreamRequestFailed(
+                                    UpstreamRequestError::RateLimited(upstream_limits),
+                                )))
                                 .ok();
                         }
                     }
                     error => {
                         if let Some(sender) = sender {
-                            sender.send(Err(error)).ok();
+                            sender
+                                .send(Err(SendEnvelopeError::UpstreamRequestFailed(error)))
+                                .ok();
                         }
                     }
                 };
@@ -1986,7 +2073,7 @@ impl EnvelopeManager {
     fn send_envelope(
         &mut self,
         project_key: ProjectKey,
-        envelope: Envelope,
+        mut envelope: Envelope,
         scoping: Scoping,
         #[allow(unused_variables)] start_time: Instant,
     ) -> ResponseFuture<(), SendEnvelopeError> {
@@ -2022,23 +2109,53 @@ impl EnvelopeManager {
         }
 
         relay_log::trace!("sending envelope to sentry endpoint");
+
+        // Override the `sent_at` timestamp. Since the envelope went through basic
+        // normalization, all timestamps have been corrected. We propagate the new
+        // `sent_at` to allow the next Relay to double-check this timestamp and
+        // potentially apply correction again. This is done as close to sending as
+        // possible so that we avoid internal delays.
+        envelope.set_sent_at(Utc::now());
+        let envelope_meta = envelope.meta();
+
+        let original_body = match envelope.to_vec() {
+            Ok(v) => v,
+            Err(e) => return Box::new(future::err(SendEnvelopeError::EnvelopeBuildFailed(e))),
+        };
+        let http_encoding = self.config.http_encoding();
+
         let (tx, rx) = oneshot::channel();
-        let request = SendEnvelope {
-            envelope,
-            scoping,
-            http_encoding: self.config.http_encoding(),
-            response_sender: Some(tx),
-            project_key,
+        match http_encoding {
+            HttpEncoding::Identity => {
+                let request = SendEnvelope {
+                    envelope_body: original_body,
+                    envelope_meta: envelope_meta.to_owned(),
+                    scoping,
+                    http_encoding,
+                    response_sender: Some(tx),
+                    project_key,
+                };
+                UpstreamRelay::from_registry().do_send(SendRequest(request));
+            }
+            _ => {
+                let request = EncodeEnvelope {
+                    envelope_body: original_body,
+                    envelope_meta: envelope_meta.to_owned(),
+                    scoping,
+                    http_encoding,
+                    response_sender: Some(tx),
+                    project_key,
+                };
+                self.processor.do_send(request);
+            }
         };
 
-        UpstreamRelay::from_registry().do_send(SendRequest(request));
-
-        let future = rx
-            .map_err(|_| UpstreamRequestError::ChannelClosed)
-            .flatten()
-            .map_err(SendEnvelopeError::SendFailed);
-
-        Box::new(future)
+        Box::new(
+            rx.map_err(|_| {
+                SendEnvelopeError::UpstreamRequestFailed(UpstreamRequestError::ChannelClosed)
+            })
+            .flatten(),
+        )
     }
 }
 
@@ -2355,12 +2472,23 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                                     envelope_context.send_outcomes(outcome);
                                     ProcessingError::StoreFailed(e)
                                 }
-                                SendEnvelopeError::SendFailed(e) => {
+
+                                SendEnvelopeError::BodyEncodingFailed(e) => {
+                                    envelope_context.send_outcomes(outcome);
+                                    ProcessingError::BodyEncodingFailed(e)
+                                }
+
+                                SendEnvelopeError::EnvelopeBuildFailed(e) => {
+                                    envelope_context.send_outcomes(outcome);
+                                    ProcessingError::EnvelopeBuildFailed(e)
+                                }
+
+                                SendEnvelopeError::UpstreamRequestFailed(e) => {
                                     if !e.is_received() {
                                         envelope_context.send_outcomes(outcome);
                                     }
 
-                                    ProcessingError::SendFailed(e)
+                                    ProcessingError::UpstreamRequestFailed(e)
                                 }
                             }
                         })

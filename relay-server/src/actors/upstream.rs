@@ -630,7 +630,6 @@ impl UpstreamRelay {
                     "reqwest_error",
                 )
             }
-            Err(UpstreamRequestError::Http(HttpError::Custom(_))) => ("-", "internal"),
 
             Err(UpstreamRequestError::SendFailed(_)) => ("-", "send_failed"),
             Err(UpstreamRequestError::RateLimited(_)) => ("-", "rate_limited"),
