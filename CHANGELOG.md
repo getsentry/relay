@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+- Correctly validate timestamps for outcomes and sessions. ([#1086](https://github.com/getsentry/relay/pull/1086))
+
 ## 21.9.0
 
 **Features**:
