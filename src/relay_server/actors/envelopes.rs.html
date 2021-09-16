@@ -3111,6 +3111,26 @@
 <span id="3111">3111</span>
 <span id="3112">3112</span>
 <span id="3113">3113</span>
+<span id="3114">3114</span>
+<span id="3115">3115</span>
+<span id="3116">3116</span>
+<span id="3117">3117</span>
+<span id="3118">3118</span>
+<span id="3119">3119</span>
+<span id="3120">3120</span>
+<span id="3121">3121</span>
+<span id="3122">3122</span>
+<span id="3123">3123</span>
+<span id="3124">3124</span>
+<span id="3125">3125</span>
+<span id="3126">3126</span>
+<span id="3127">3127</span>
+<span id="3128">3128</span>
+<span id="3129">3129</span>
+<span id="3130">3130</span>
+<span id="3131">3131</span>
+<span id="3132">3132</span>
+<span id="3133">3133</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
@@ -3796,7 +3816,9 @@
             }
 
             <span class="kw">let</span> <span class="ident">max_future</span> <span class="op">=</span> <span class="ident">SignedDuration::seconds</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_secs_in_future</span>());
-            <span class="kw">if</span> (<span class="ident">session</span>.<span class="ident">started</span> <span class="op">-</span> <span class="ident">received</span>) <span class="op">&gt;</span> <span class="ident">max_age</span> <span class="op">|</span><span class="op">|</span> (<span class="ident">session</span>.<span class="ident">timestamp</span> <span class="op">-</span> <span class="ident">received</span>) <span class="op">&gt;</span> <span class="ident">max_age</span> {
+            <span class="kw">if</span> (<span class="ident">session</span>.<span class="ident">started</span> <span class="op">-</span> <span class="ident">received</span>) <span class="op">&gt;</span> <span class="ident">max_future</span>
+                <span class="op">|</span><span class="op">|</span> (<span class="ident">session</span>.<span class="ident">timestamp</span> <span class="op">-</span> <span class="ident">received</span>) <span class="op">&gt;</span> <span class="ident">max_future</span>
+            {
                 <span class="macro">relay_log::trace!</span>(
                     <span class="string">&quot;skipping session more than {}s in the future&quot;</span>,
                     <span class="ident">max_future</span>.<span class="ident">num_seconds</span>()
@@ -3939,6 +3961,24 @@
         <span class="kw">if</span> <span class="ident">clock_drift_processor</span>.<span class="ident">is_drifted</span>() {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;applying clock drift correction to client report&quot;</span>);
             <span class="ident">clock_drift_processor</span>.<span class="ident">process_timestamp</span>(<span class="ident">timestamp</span>);
+        }
+
+        <span class="kw">let</span> <span class="ident">max_age</span> <span class="op">=</span> <span class="ident">SignedDuration::seconds</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_secs_in_past</span>());
+        <span class="kw">if</span> (<span class="ident">received</span> <span class="op">-</span> <span class="ident">timestamp</span>.<span class="ident">as_datetime</span>()) <span class="op">&gt;</span> <span class="ident">max_age</span> {
+            <span class="macro">relay_log::trace!</span>(
+                <span class="string">&quot;skipping client outcomes older than {} days&quot;</span>,
+                <span class="ident">max_age</span>.<span class="ident">num_days</span>()
+            );
+            <span class="kw">return</span>;
+        }
+
+        <span class="kw">let</span> <span class="ident">max_future</span> <span class="op">=</span> <span class="ident">SignedDuration::seconds</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_secs_in_future</span>());
+        <span class="kw">if</span> (<span class="ident">timestamp</span>.<span class="ident">as_datetime</span>() <span class="op">-</span> <span class="ident">received</span>) <span class="op">&gt;</span> <span class="ident">max_future</span> {
+            <span class="macro">relay_log::trace!</span>(
+                <span class="string">&quot;skipping client outcomes more than {}s in the future&quot;</span>,
+                <span class="ident">max_future</span>.<span class="ident">num_seconds</span>()
+            );
+            <span class="kw">return</span>;
         }
 
         <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">OutcomeProducer::from_registry</span>();
