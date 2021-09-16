@@ -2,10 +2,18 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Correctly validate timestamps for outcomes and sessions. ([#1086](https://github.com/getsentry/relay/pull/1086))
+- Run compression on a thread pool when sending to upstream. ([#1085](https://github.com/getsentry/relay/pull/1085))
+
+## 21.9.0
+
 **Features**:
 
 - Add sampling based on transaction name. ([#1058](https://github.com/getsentry/relay/pull/1058))
 - Support running Relay without config directory. The most important configuration, including Relay mode and credentials, can now be provided through commandline arguments or environment variables alone. ([#1055](https://github.com/getsentry/relay/pull/1055)
+- Protocol support for client reports. ([#1081](https://github.com/getsentry/relay/pull/1081))
 - Extract session metrics in non processing relays. ([#1073](https://github.com/getsentry/relay/pull/1073))
 
 **Bug Fixes**:
@@ -17,6 +25,7 @@
 
 - Add new metrics on Relay's performance in dealing with buckets of metric aggregates, as well as the amount of aggregated buckets. ([#1070](https://github.com/getsentry/relay/pull/1070))
 - Add the exclusive time of a span. ([#1061](https://github.com/getsentry/relay/pull/1061)), ([#1083](https://github.com/getsentry/relay/pull/1083))
+- Remove redundant dynamic sampling processing on fast path (INGEST-330). ([#1084](https://github.com/getsentry/relay/pull/1084))
 
 ## 21.8.0
 

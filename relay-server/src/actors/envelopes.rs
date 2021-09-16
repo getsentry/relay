@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -8,8 +9,11 @@ use std::{fmt, net};
 
 use actix::prelude::*;
 use actix_web::http::Method;
+use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
+use flate2::write::{GzEncoder, ZlibEncoder};
+use flate2::Compression;
 use futures::{future, prelude::*, sync::oneshot};
 use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
@@ -20,9 +24,9 @@ use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    self, Breadcrumb, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, SecurityReportType, SessionUpdate, Timestamp, UserReport,
-    Values,
+    self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
+    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionUpdate, Timestamp,
+    UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -40,7 +44,7 @@ use crate::actors::project_cache::{
     UpdateRateLimits,
 };
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
-use crate::envelope::{self, AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{self, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
@@ -121,8 +125,14 @@ enum ProcessingError {
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
 
+    #[fail(display = "could not build envelope for upstream")]
+    EnvelopeBuildFailed(#[cause] EnvelopeError),
+
+    #[fail(display = "could not encode request body")]
+    BodyEncodingFailed(#[cause] std::io::Error),
+
     #[fail(display = "could not send request to upstream")]
-    SendFailed(#[cause] UpstreamRequestError),
+    UpstreamRequestFailed(#[cause] UpstreamRequestError),
 
     #[cfg(feature = "processing")]
     #[fail(display = "could not store envelope")]
@@ -183,7 +193,9 @@ impl ProcessingError {
             Self::StoreFailed(_) => None,
 
             // If we send to an upstream, we don't emit outcomes.
-            Self::SendFailed(_) => None,
+            Self::UpstreamRequestFailed(_)
+            | Self::EnvelopeBuildFailed(_)
+            | Self::BodyEncodingFailed(_) => None,
         }
     }
 }
@@ -272,7 +284,10 @@ impl EnvelopeContext {
                 event_id: self.event_id,
                 remote_addr: self.remote_addr,
                 category: DataCategory::Attachment,
-                quantity: self.summary.attachment_quantity,
+                // XXX: attachment_quantity is usize which lets us go all the way to
+                // 64bit on our machines, but the protocl and data store can only
+                // do 32.
+                quantity: self.summary.attachment_quantity as u32,
             });
         }
     }
@@ -679,7 +694,9 @@ impl EnvelopeProcessor {
             }
 
             let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
-            if (session.started - received) > max_age || (session.timestamp - received) > max_age {
+            if (session.started - received) > max_future
+                || (session.timestamp - received) > max_future
+            {
                 relay_log::trace!(
                     "skipping session more than {}s in the future",
                     max_future.num_seconds()
@@ -759,6 +776,101 @@ impl EnvelopeProcessor {
             item.set_payload(ContentType::Json, json_string);
             true
         });
+    }
+
+    /// Validates and extracts client reports.
+    ///
+    /// At the moment client reports are primarily used to transfer outcomes from
+    /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
+    /// system.
+    fn process_client_reports(&self, state: &mut ProcessEnvelopeState) {
+        // if client outcomes are disabled we leave the the client reports unprocessed
+        // and pass them on.
+        if !self.config.emit_outcomes() || !self.config.emit_client_outcomes() {
+            // if a processing relay has client outcomes disabled we drop them.
+            if self.config.processing_enabled() {
+                state
+                    .envelope
+                    .retain_items(|item| item.ty() != ItemType::ClientReport);
+            }
+            return;
+        }
+
+        let mut timestamp = None;
+        let mut discarded_events = BTreeMap::new();
+        let received = state.envelope_context.received_at;
+
+        let clock_drift_processor = ClockDriftProcessor::new(state.envelope.sent_at(), received)
+            .at_least(MINIMUM_CLOCK_DRIFT);
+
+        // we're going through all client reports but we're effectively just merging
+        // them into the first one.
+        state.envelope.retain_items(|item| {
+            if item.ty() != ItemType::ClientReport {
+                return true;
+            };
+            match ClientReport::parse(&item.payload()) {
+                Ok(report) => {
+                    for discarded_event in report.discarded_events.into_iter() {
+                        if discarded_event.reason.len() > 200 {
+                            relay_log::trace!("ignored client outcome with an overlong reason");
+                            continue;
+                        }
+                        *discarded_events
+                            .entry((discarded_event.reason, discarded_event.category))
+                            .or_insert(0) += discarded_event.quantity;
+                    }
+                    if let Some(ts) = report.timestamp {
+                        timestamp.get_or_insert(ts);
+                    }
+                }
+                Err(err) => relay_log::trace!("invalid client report received: {}", LogError(&err)),
+            }
+            false
+        });
+
+        if discarded_events.is_empty() {
+            return;
+        }
+
+        let timestamp =
+            timestamp.get_or_insert_with(|| UnixTimestamp::from_secs(received.timestamp() as u64));
+
+        if clock_drift_processor.is_drifted() {
+            relay_log::trace!("applying clock drift correction to client report");
+            clock_drift_processor.process_timestamp(timestamp);
+        }
+
+        let max_age = SignedDuration::seconds(self.config.max_secs_in_past());
+        if (received - timestamp.as_datetime()) > max_age {
+            relay_log::trace!(
+                "skipping client outcomes older than {} days",
+                max_age.num_days()
+            );
+            return;
+        }
+
+        let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
+        if (timestamp.as_datetime() - received) > max_future {
+            relay_log::trace!(
+                "skipping client outcomes more than {}s in the future",
+                max_future.num_seconds()
+            );
+            return;
+        }
+
+        let producer = OutcomeProducer::from_registry();
+        for ((reason, category), quantity) in discarded_events.into_iter() {
+            producer.do_send(TrackOutcome {
+                timestamp: timestamp.as_datetime(),
+                scoping: state.envelope_context.scoping,
+                outcome: Outcome::ClientDiscard(reason),
+                event_id: None,
+                remote_addr: state.envelope_context.remote_addr,
+                category,
+                quantity,
+            });
+        }
     }
 
     /// Creates and initializes the processing state.
@@ -1060,6 +1172,7 @@ impl EnvelopeProcessor {
             ItemType::Sessions => false,
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
+            ItemType::ClientReport => false,
         }
     }
 
@@ -1549,6 +1662,7 @@ impl EnvelopeProcessor {
         }
 
         self.process_sessions(&mut state);
+        self.process_client_reports(&mut state);
         self.process_user_reports(&mut state);
 
         if state.creates_event() {
@@ -1618,6 +1732,31 @@ impl EnvelopeProcessor {
                 })
             },
         )
+    }
+
+    fn encode_envelope_body(
+        body: Vec<u8>,
+        http_encoding: HttpEncoding,
+    ) -> Result<Vec<u8>, std::io::Error> {
+        let envelope_body = match http_encoding {
+            HttpEncoding::Identity => body,
+            HttpEncoding::Deflate => {
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+            HttpEncoding::Gzip => {
+                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+            HttpEncoding::Br => {
+                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+        };
+        Ok(envelope_body)
     }
 }
 
@@ -1758,18 +1897,70 @@ enum SendEnvelopeError {
     ScheduleFailed,
     #[cfg(feature = "processing")]
     StoreFailed(StoreError),
-    SendFailed(UpstreamRequestError),
+    EnvelopeBuildFailed(EnvelopeError),
+    BodyEncodingFailed(std::io::Error),
+    UpstreamRequestFailed(UpstreamRequestError),
 }
 
 /// Either a captured envelope or an error that occured during processing.
 pub type CapturedEnvelope = Result<Envelope, String>;
 
 #[derive(Debug)]
-struct SendEnvelope {
-    envelope: Envelope,
+struct EncodeEnvelope {
+    envelope_body: Vec<u8>,
+    envelope_meta: RequestMeta,
     scoping: Scoping,
     http_encoding: HttpEncoding,
-    response_sender: Option<oneshot::Sender<Result<(), UpstreamRequestError>>>,
+    response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
+    project_key: ProjectKey,
+}
+
+impl Message for EncodeEnvelope {
+    type Result = ();
+}
+
+impl Handler<EncodeEnvelope> for EnvelopeProcessor {
+    type Result = ();
+
+    fn handle(&mut self, message: EncodeEnvelope, _context: &mut Self::Context) -> Self::Result {
+        let EncodeEnvelope {
+            envelope_body,
+            envelope_meta,
+            scoping,
+            http_encoding,
+            response_sender,
+            project_key,
+        } = message;
+        match Self::encode_envelope_body(envelope_body, http_encoding) {
+            Err(e) => {
+                response_sender.map(|sender| {
+                    sender
+                        .send(Err(SendEnvelopeError::BodyEncodingFailed(e)))
+                        .ok()
+                });
+            }
+            Ok(envelope_body) => {
+                let request = SendEnvelope {
+                    envelope_body,
+                    envelope_meta,
+                    scoping,
+                    http_encoding,
+                    response_sender,
+                    project_key,
+                };
+                UpstreamRelay::from_registry().do_send(SendRequest(request));
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct SendEnvelope {
+    envelope_body: Vec<u8>,
+    envelope_meta: RequestMeta,
+    scoping: Scoping,
+    http_encoding: HttpEncoding,
+    response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
     project_key: ProjectKey,
 }
 
@@ -1783,15 +1974,7 @@ impl UpstreamRequest for SendEnvelope {
     }
 
     fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
-        // Override the `sent_at` timestamp. Since the envelope went through basic
-        // normalization, all timestamps have been corrected. We propagate the new
-        // `sent_at` to allow the next Relay to double-check this timestamp and
-        // potentially apply correction again. This is done as close to sending as
-        // possible so that we avoid internal delays.
-        self.envelope.set_sent_at(Utc::now());
-
-        let meta = self.envelope.meta();
-
+        let meta = &self.envelope_meta;
         builder
             .content_encoding(self.http_encoding)
             .header_opt("Origin", meta.origin().map(|url| url.as_str()))
@@ -1799,9 +1982,7 @@ impl UpstreamRequest for SendEnvelope {
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE);
-
-        let body = self.envelope.to_vec().map_err(HttpError::custom)?;
-        builder.body(body)
+        builder.body(self.envelope_body.clone())
     }
 
     fn respond(
@@ -1817,7 +1998,11 @@ impl UpstreamRequest for SendEnvelope {
                     .map_err(UpstreamRequestError::Http)
                     .map(|_| ())
                     .then(move |body_result| {
-                        sender.map(|sender| sender.send(body_result).ok());
+                        sender.map(|sender| {
+                            sender
+                                .send(body_result.map_err(SendEnvelopeError::UpstreamRequestFailed))
+                                .ok()
+                        });
                         Ok(())
                     });
 
@@ -1832,13 +2017,17 @@ impl UpstreamRequest for SendEnvelope {
                         ));
                         if let Some(sender) = sender {
                             sender
-                                .send(Err(UpstreamRequestError::RateLimited(upstream_limits)))
+                                .send(Err(SendEnvelopeError::UpstreamRequestFailed(
+                                    UpstreamRequestError::RateLimited(upstream_limits),
+                                )))
                                 .ok();
                         }
                     }
                     error => {
                         if let Some(sender) = sender {
-                            sender.send(Err(error)).ok();
+                            sender
+                                .send(Err(SendEnvelopeError::UpstreamRequestFailed(error)))
+                                .ok();
                         }
                     }
                 };
@@ -1884,7 +2073,7 @@ impl EnvelopeManager {
     fn send_envelope(
         &mut self,
         project_key: ProjectKey,
-        envelope: Envelope,
+        mut envelope: Envelope,
         scoping: Scoping,
         #[allow(unused_variables)] start_time: Instant,
     ) -> ResponseFuture<(), SendEnvelopeError> {
@@ -1920,23 +2109,53 @@ impl EnvelopeManager {
         }
 
         relay_log::trace!("sending envelope to sentry endpoint");
+
+        // Override the `sent_at` timestamp. Since the envelope went through basic
+        // normalization, all timestamps have been corrected. We propagate the new
+        // `sent_at` to allow the next Relay to double-check this timestamp and
+        // potentially apply correction again. This is done as close to sending as
+        // possible so that we avoid internal delays.
+        envelope.set_sent_at(Utc::now());
+        let envelope_meta = envelope.meta();
+
+        let original_body = match envelope.to_vec() {
+            Ok(v) => v,
+            Err(e) => return Box::new(future::err(SendEnvelopeError::EnvelopeBuildFailed(e))),
+        };
+        let http_encoding = self.config.http_encoding();
+
         let (tx, rx) = oneshot::channel();
-        let request = SendEnvelope {
-            envelope,
-            scoping,
-            http_encoding: self.config.http_encoding(),
-            response_sender: Some(tx),
-            project_key,
+        match http_encoding {
+            HttpEncoding::Identity => {
+                let request = SendEnvelope {
+                    envelope_body: original_body,
+                    envelope_meta: envelope_meta.to_owned(),
+                    scoping,
+                    http_encoding,
+                    response_sender: Some(tx),
+                    project_key,
+                };
+                UpstreamRelay::from_registry().do_send(SendRequest(request));
+            }
+            _ => {
+                let request = EncodeEnvelope {
+                    envelope_body: original_body,
+                    envelope_meta: envelope_meta.to_owned(),
+                    scoping,
+                    http_encoding,
+                    response_sender: Some(tx),
+                    project_key,
+                };
+                self.processor.do_send(request);
+            }
         };
 
-        UpstreamRelay::from_registry().do_send(SendRequest(request));
-
-        let future = rx
-            .map_err(|_| UpstreamRequestError::ChannelClosed)
-            .flatten()
-            .map_err(SendEnvelopeError::SendFailed);
-
-        Box::new(future)
+        Box::new(
+            rx.map_err(|_| {
+                SendEnvelopeError::UpstreamRequestFailed(UpstreamRequestError::ChannelClosed)
+            })
+            .flatten(),
+        )
     }
 }
 
@@ -1986,7 +2205,6 @@ impl Default for EnvelopeManager {
 pub struct QueueEnvelope {
     pub envelope: Envelope,
     pub project_key: ProjectKey,
-    pub sampling_project_key: Option<ProjectKey>,
     pub start_time: Instant,
 }
 
@@ -2011,7 +2229,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
         let QueueEnvelope {
             mut envelope,
             project_key,
-            sampling_project_key,
             start_time,
         } = message;
 
@@ -2047,7 +2264,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
             self.active_envelopes += 1;
             context.notify(HandleEnvelope {
                 envelope: event_envelope,
-                sampling_project_key,
                 project_key,
                 start_time,
             });
@@ -2059,7 +2275,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
             context.notify(HandleEnvelope {
                 envelope,
                 project_key,
-                sampling_project_key,
                 start_time,
             });
         }
@@ -2088,7 +2303,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
 struct HandleEnvelope {
     pub envelope: Envelope,
     pub project_key: ProjectKey,
-    pub sampling_project_key: Option<ProjectKey>,
     pub start_time: Instant,
 }
 
@@ -2124,8 +2338,9 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             envelope,
             project_key,
             start_time,
-            sampling_project_key,
         } = message;
+
+        let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
 
         let event_id = envelope.event_id();
         let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_envelope(&envelope)));
@@ -2257,12 +2472,23 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                                     envelope_context.send_outcomes(outcome);
                                     ProcessingError::StoreFailed(e)
                                 }
-                                SendEnvelopeError::SendFailed(e) => {
+
+                                SendEnvelopeError::BodyEncodingFailed(e) => {
+                                    envelope_context.send_outcomes(outcome);
+                                    ProcessingError::BodyEncodingFailed(e)
+                                }
+
+                                SendEnvelopeError::EnvelopeBuildFailed(e) => {
+                                    envelope_context.send_outcomes(outcome);
+                                    ProcessingError::EnvelopeBuildFailed(e)
+                                }
+
+                                SendEnvelopeError::UpstreamRequestFailed(e) => {
                                     if !e.is_received() {
                                         envelope_context.send_outcomes(outcome);
                                     }
 
-                                    ProcessingError::SendFailed(e)
+                                    ProcessingError::UpstreamRequestFailed(e)
                                 }
                             }
                         })
@@ -2612,6 +2838,180 @@ mod tests {
     }
 
     #[test]
+    fn test_client_report_removal() {
+        relay_test::setup();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": true,
+                "emit_client_outcomes": true
+            }
+        }))
+        .unwrap();
+
+        let processor = EnvelopeProcessor::new(Arc::new(config));
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r###"
+                    {
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
+                    }
+                "###,
+            );
+            item
+        });
+
+        let envelope_response = relay_test::with_system(move || {
+            processor
+                .process(ProcessEnvelope {
+                    envelope,
+                    project_state: Arc::new(ProjectState::allowed()),
+                    start_time: Instant::now(),
+                    scoping: Scoping {
+                        project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                        organization_id: 1,
+                        project_id: ProjectId::new(1),
+                        key_id: None,
+                    },
+                })
+                .unwrap()
+        });
+
+        assert!(envelope_response.envelope.is_none());
+    }
+
+    #[test]
+    fn test_client_report_forwarding() {
+        relay_test::setup();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": false,
+                // a relay need to emit outcomes at all to not process.
+                "emit_client_outcomes": true
+            }
+        }))
+        .unwrap();
+
+        let processor = EnvelopeProcessor::new(Arc::new(config));
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r###"
+                    {
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
+                    }
+                "###,
+            );
+            item
+        });
+
+        let envelope_response = relay_test::with_system(move || {
+            processor
+                .process(ProcessEnvelope {
+                    envelope,
+                    project_state: Arc::new(ProjectState::allowed()),
+                    start_time: Instant::now(),
+                    scoping: Scoping {
+                        project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                        organization_id: 1,
+                        project_id: ProjectId::new(1),
+                        key_id: None,
+                    },
+                })
+                .unwrap()
+        });
+
+        let envelope = envelope_response.envelope.unwrap();
+        let item = envelope.items().next().unwrap();
+        assert_eq!(item.ty(), ItemType::ClientReport);
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_client_report_removal_in_processing() {
+        relay_test::setup();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": true,
+                "emit_client_outcomes": false,
+            },
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let processor = EnvelopeProcessor::new(Arc::new(config));
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r###"
+                    {
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
+                    }
+                "###,
+            );
+            item
+        });
+
+        let envelope_response = relay_test::with_system(move || {
+            processor
+                .process(ProcessEnvelope {
+                    envelope,
+                    project_state: Arc::new(ProjectState::allowed()),
+                    start_time: Instant::now(),
+                    scoping: Scoping {
+                        project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                        organization_id: 1,
+                        project_id: ProjectId::new(1),
+                        key_id: None,
+                    },
+                })
+                .unwrap()
+        });
+
+        assert!(envelope_response.envelope.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
     fn test_extract_session_metrics() {
         let mut metrics = vec![];
 

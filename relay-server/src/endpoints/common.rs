@@ -16,7 +16,6 @@ use relay_config::Config;
 use relay_general::protocol::{EventId, EventType};
 use relay_log::LogError;
 use relay_quotas::RateLimits;
-use relay_sampling::RuleId;
 use relay_statsd::metric;
 
 use crate::actors::envelopes::{
@@ -83,9 +82,6 @@ pub enum BadStoreRequest {
 
     #[fail(display = "event submission rejected with_reason: {:?}", _0)]
     EventRejected(DiscardReason),
-
-    #[fail(display = "envelope empty due to sampling")]
-    TraceSampled(RuleId),
 }
 
 impl BadStoreRequest {
@@ -130,7 +126,6 @@ impl BadStoreRequest {
             BadStoreRequest::EventRejected(_) => return None,
             BadStoreRequest::RateLimited(_) => return None,
             BadStoreRequest::ScheduleFailed => return None,
-            BadStoreRequest::TraceSampled(_) => return None,
         })
     }
 }
@@ -335,6 +330,7 @@ fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
     let mut event_size = 0;
     let mut attachments_size = 0;
     let mut session_count = 0;
+    let mut client_reports_size = 0;
 
     for item in envelope.items() {
         match item.ty() {
@@ -355,12 +351,14 @@ fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
             ItemType::UserReport => (),
             ItemType::Metrics => (),
             ItemType::MetricBuckets => (),
+            ItemType::ClientReport => client_reports_size += item.len(),
         }
     }
 
     event_size <= config.max_event_size()
         && attachments_size <= config.max_attachments_size()
         && session_count <= config.max_session_count()
+        && client_reports_size <= config.max_client_reports_size()
 }
 
 /// Handles Sentry events.
@@ -398,7 +396,6 @@ where
     let project_key = meta.public_key();
     let start_time = meta.start_time();
     let config = request.state().config();
-    let processing_enabled = config.processing_enabled();
 
     let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_request(&meta)));
 
@@ -453,32 +450,9 @@ where
             }
         }))
         .and_then(clone!(envelope_context, |(envelope, rate_limits)| {
-            let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
-
-            utils::sample_trace(
-                envelope,
-                sampling_project_key,
-                true,
-                processing_enabled,
-                *envelope_context.borrow(),
-            )
-            .then(clone!(envelope_context, |result| match result {
-                Err(rule_id) => Err(BadStoreRequest::TraceSampled(rule_id)),
-                Ok(envelope) => {
-                    envelope_context.borrow_mut().update(&envelope);
-                    Ok((envelope, rate_limits, sampling_project_key))
-                }
-            }))
-        }))
-        .and_then(clone!(envelope_context, |(
-            envelope,
-            rate_limits,
-            sampling_project_key,
-        )| {
             let message = QueueEnvelope {
                 envelope,
                 project_key,
-                sampling_project_key,
                 start_time,
             };
 
@@ -507,10 +481,6 @@ where
             let event_id = envelope_context.borrow().event_id();
 
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
-                return Ok(create_response(event_id));
-            }
-
-            if matches!(error, BadStoreRequest::TraceSampled(_)) {
                 return Ok(create_response(event_id));
             }
 

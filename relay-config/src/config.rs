@@ -501,6 +501,8 @@ struct Limits {
     max_attachment_size: ByteSize,
     /// The maximum combined size for all attachments in an envelope or request.
     max_attachments_size: ByteSize,
+    /// The maximum combined size for all client reports in an envelope or request.
+    max_client_reports_size: ByteSize,
     /// The maximum payload size for an entire envelopes. Individual limits still apply.
     max_envelope_size: ByteSize,
     /// The maximum number of session items per envelope.
@@ -539,6 +541,7 @@ impl Default for Limits {
             max_event_size: ByteSize::mebibytes(1),
             max_attachment_size: ByteSize::mebibytes(100),
             max_attachments_size: ByteSize::mebibytes(100),
+            max_client_reports_size: ByteSize::kibibytes(4),
             max_envelope_size: ByteSize::mebibytes(100),
             max_session_count: 100,
             max_api_payload_size: ByteSize::mebibytes(20),
@@ -824,6 +827,8 @@ pub struct Outcomes {
     /// Controls whether outcomes will be emitted when processing is disabled.
     /// Processing relays always emit outcomes (for backwards compatibility).
     pub emit_outcomes: bool,
+    /// Controls wheather client reported outcomes should be emitted.
+    pub emit_client_outcomes: bool,
     /// The maximum number of outcomes that are batched before being sent
     /// via http to the upstream (only applies to non processing relays).
     pub batch_size: usize,
@@ -839,6 +844,7 @@ impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
             emit_outcomes: false,
+            emit_client_outcomes: true,
             batch_size: 1000,
             batch_interval: 500,
             source: None,
@@ -1015,6 +1021,18 @@ impl Config {
         }
 
         Ok(config)
+    }
+
+    /// Creates a config from a JSON value.
+    ///
+    /// This is mostly useful for tests.
+    pub fn from_json_value(value: serde_json::Value) -> Result<Config, ConfigError> {
+        Ok(Config {
+            values: serde_json::from_value(value)
+                .map_err(|err| ConfigError::wrap(err, ConfigErrorKind::BadJson))?,
+            credentials: None,
+            path: PathBuf::new(),
+        })
     }
 
     /// Override configuration with values coming from other sources (e.g. env variables or
@@ -1307,6 +1325,19 @@ impl Config {
         self.values.outcomes.emit_outcomes || self.values.processing.enabled
     }
 
+    /// Returns whether this Relay should emit client outcomes
+    ///
+    /// Relays that do not emit client outcomes will forward client recieved outcomes
+    /// directly to the next relay in the chain as client report envelope.  This is only done
+    /// if this relay emits outcomes at all. A relay that will not emit outcomes
+    /// will forward the envelope unchanged.
+    ///
+    /// This flag can be explicitly disabled on processing relays as well to prevent the
+    /// emitting of client outcomes to the kafka topic.
+    pub fn emit_client_outcomes(&self) -> bool {
+        self.values.outcomes.emit_client_outcomes
+    }
+
     /// Returns the maximum number of outcomes that are batched before being sent
     pub fn outcome_batch_size(&self) -> usize {
         self.values.outcomes.batch_size
@@ -1449,6 +1480,11 @@ impl Config {
     /// (minidump, unreal, standalone attachments) in bytes.
     pub fn max_attachments_size(&self) -> usize {
         self.values.limits.max_attachments_size.as_bytes()
+    }
+
+    /// Returns the maxmium combined size of client reports in bytes.
+    pub fn max_client_reports_size(&self) -> usize {
+        self.values.limits.max_client_reports_size.as_bytes()
     }
 
     /// Returns the maximum size of an envelope payload in bytes.

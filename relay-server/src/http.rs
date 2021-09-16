@@ -9,12 +9,8 @@
 ///! objects and common request objects, it's just that nobody bothers to implement the conversion
 ///! logic.
 use std::io;
-use std::io::Write;
 
-use brotli2::write::BrotliEncoder;
 use failure::Fail;
-use flate2::write::{GzEncoder, ZlibEncoder};
-use flate2::Compression;
 use futures::prelude::*;
 use futures03::{FutureExt, TryFutureExt, TryStreamExt};
 use serde::de::DeserializeOwned;
@@ -34,15 +30,9 @@ pub enum HttpError {
     Io(#[cause] io::Error),
     #[fail(display = "failed to parse JSON response")]
     Json(#[cause] serde_json::Error),
-    #[fail(display = "{}", _0)]
-    Custom(Box<dyn Fail>),
 }
 
 impl HttpError {
-    pub fn custom(error: impl Fail) -> Self {
-        Self::Custom(Box::new(error))
-    }
-
     /// Returns `true` if the error indicates a network downtime.
     pub fn is_network_error(&self) -> bool {
         match self {
@@ -52,7 +42,6 @@ impl HttpError {
             Self::Reqwest(error) => error.is_timeout(),
             Self::Json(_) => false,
             HttpError::Overflow => false,
-            Self::Custom(_) => false,
         }
     }
 }
@@ -73,22 +62,11 @@ pub struct Request(pub reqwest::Request);
 
 pub struct RequestBuilder {
     builder: reqwest::RequestBuilder,
-
-    /// The content encoding that this builder object implements on top of reqwest, which does
-    /// not support request encoding at all.
-    http_encoding: HttpEncoding,
 }
 
 impl RequestBuilder {
     pub fn reqwest(builder: reqwest::RequestBuilder) -> Self {
-        RequestBuilder {
-            builder,
-
-            // very few endpoints can actually deal with request body content-encoding. Outside of
-            // store/envelope this is almost always identity because there's no way to do content
-            // negotiation on request.
-            http_encoding: HttpEncoding::Identity,
-        }
+        RequestBuilder { builder }
     }
 
     pub fn finish(self) -> Result<Request, HttpError> {
@@ -120,41 +98,18 @@ impl RequestBuilder {
         self
     }
 
-    pub fn body<B>(mut self, body: B) -> Result<Request, HttpError>
-    where
-        B: AsRef<[u8]>,
-    {
-        self.builder = match self.http_encoding {
-            HttpEncoding::Identity => self.builder.body(body.as_ref().to_vec()),
-            HttpEncoding::Deflate => {
-                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                encoder.write_all(body.as_ref())?;
-                self.builder
-                    .header("Content-Encoding", "deflate")
-                    .body(encoder.finish()?)
-            }
-            HttpEncoding::Gzip => {
-                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                encoder.write_all(body.as_ref())?;
-                self.builder
-                    .header("Content-Encoding", "gzip")
-                    .body(encoder.finish()?)
-            }
-            HttpEncoding::Br => {
-                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
-                encoder.write_all(body.as_ref())?;
-                self.builder
-                    .header("Content-Encoding", "br")
-                    .body(encoder.finish()?)
-            }
-        };
-
+    pub fn body<B: AsRef<[u8]>>(mut self, body: B) -> Result<Request, HttpError> {
+        self.builder = self.builder.body(body.as_ref().to_vec());
         self.finish()
     }
 
     pub fn content_encoding(&mut self, encoding: HttpEncoding) -> &mut Self {
-        self.http_encoding = encoding;
-        self
+        match encoding {
+            HttpEncoding::Identity => self,
+            HttpEncoding::Deflate => self.header("Content-Encoding", "deflate"),
+            HttpEncoding::Gzip => self.header("Content-Encoding", "gzip"),
+            HttpEncoding::Br => self.header("Content-Encoding", "br"),
+        }
     }
 }
 

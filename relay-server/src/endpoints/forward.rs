@@ -28,7 +28,6 @@ use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response};
 use crate::service::{ServiceApp, ServiceState};
-use crate::utils::ApiErrorResponse;
 
 /// Headers that this endpoint must handle and cannot forward.
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
@@ -81,9 +80,6 @@ impl ResponseError for ForwardedUpstreamRequestError {
                 }
                 HttpError::Io(_) => HttpResponse::BadGateway().finish(),
                 HttpError::Json(e) => e.error_response(),
-                HttpError::Custom(e) => {
-                    HttpResponse::InternalServerError().json(&ApiErrorResponse::from_fail(e))
-                }
             },
             UpstreamRequestError::SendFailed(e) => {
                 if e.is_timeout() {
