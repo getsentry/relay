@@ -1931,7 +1931,7 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
         } = message;
         match Self::encode_envelope(envelope, http_encoding) {
             Err(e) => {
-                response_sender.map(|sender| sender.send(Err(e)));
+                response_sender.map(|sender| sender.send(Err(e)).ok());
             }
             Ok((envelope_body, envelope_meta)) => {
                 let request = SendEnvelope {
