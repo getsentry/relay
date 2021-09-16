@@ -1714,26 +1714,6 @@ impl EnvelopeProcessor {
         )
     }
 
-    fn encode_envelope(
-        mut envelope: Envelope,
-        http_encoding: HttpEncoding,
-    ) -> Result<(Vec<u8>, RequestMeta), SendEnvelopeError> {
-        // Override the `sent_at` timestamp. Since the envelope went through basic
-        // normalization, all timestamps have been corrected. We propagate the new
-        // `sent_at` to allow the next Relay to double-check this timestamp and
-        // potentially apply correction again. This is done as close to sending as
-        // possible so that we avoid internal delays.
-        envelope.set_sent_at(Utc::now());
-        let envelope_meta = envelope.meta();
-
-        let original_body = envelope
-            .to_vec()
-            .map_err(SendEnvelopeError::EnvelopeBuildFailed)?;
-        let encoded_body = Self::encode_envelope_body(original_body, http_encoding)
-            .map_err(SendEnvelopeError::BodyEncodingFailed)?;
-        Ok((encoded_body, envelope_meta.to_owned()))
-    }
-
     fn encode_envelope_body(
         body: Vec<u8>,
         http_encoding: HttpEncoding,
@@ -1907,7 +1887,8 @@ pub type CapturedEnvelope = Result<Envelope, String>;
 
 #[derive(Debug)]
 struct EncodeEnvelope {
-    envelope: Envelope,
+    envelope_body: Vec<u8>,
+    envelope_meta: RequestMeta,
     scoping: Scoping,
     http_encoding: HttpEncoding,
     response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
@@ -1923,17 +1904,22 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
 
     fn handle(&mut self, message: EncodeEnvelope, _context: &mut Self::Context) -> Self::Result {
         let EncodeEnvelope {
-            envelope,
+            envelope_body,
+            envelope_meta,
             scoping,
             http_encoding,
             response_sender,
             project_key,
         } = message;
-        match Self::encode_envelope(envelope, http_encoding) {
+        match Self::encode_envelope_body(envelope_body, http_encoding) {
             Err(e) => {
-                response_sender.map(|sender| sender.send(Err(e)).ok());
+                response_sender.map(|sender| {
+                    sender
+                        .send(Err(SendEnvelopeError::BodyEncodingFailed(e)))
+                        .ok()
+                });
             }
-            Ok((envelope_body, envelope_meta)) => {
+            Ok(envelope_body) => {
                 let request = SendEnvelope {
                     envelope_body,
                     envelope_meta,
@@ -2067,7 +2053,7 @@ impl EnvelopeManager {
     fn send_envelope(
         &mut self,
         project_key: ProjectKey,
-        envelope: Envelope,
+        mut envelope: Envelope,
         scoping: Scoping,
         #[allow(unused_variables)] start_time: Instant,
     ) -> ResponseFuture<(), SendEnvelopeError> {
@@ -2104,16 +2090,45 @@ impl EnvelopeManager {
 
         relay_log::trace!("sending envelope to sentry endpoint");
 
-        let http_encoding = self.config.http_encoding();
-        let (tx, rx) = oneshot::channel();
-        let request = EncodeEnvelope {
-            envelope,
-            scoping,
-            http_encoding,
-            response_sender: Some(tx),
-            project_key,
+        // Override the `sent_at` timestamp. Since the envelope went through basic
+        // normalization, all timestamps have been corrected. We propagate the new
+        // `sent_at` to allow the next Relay to double-check this timestamp and
+        // potentially apply correction again. This is done as close to sending as
+        // possible so that we avoid internal delays.
+        envelope.set_sent_at(Utc::now());
+        let envelope_meta = envelope.meta();
+
+        let original_body = match envelope.to_vec() {
+            Ok(v) => v,
+            Err(e) => return Box::new(future::err(SendEnvelopeError::EnvelopeBuildFailed(e))),
         };
-        self.processor.do_send(request);
+        let http_encoding = self.config.http_encoding();
+
+        let (tx, rx) = oneshot::channel();
+        match http_encoding {
+            HttpEncoding::Identity => {
+                let request = SendEnvelope {
+                    envelope_body: original_body,
+                    envelope_meta: envelope_meta.to_owned(),
+                    scoping,
+                    http_encoding,
+                    response_sender: Some(tx),
+                    project_key,
+                };
+                UpstreamRelay::from_registry().do_send(SendRequest(request));
+            }
+            _ => {
+                let request = EncodeEnvelope {
+                    envelope_body: original_body,
+                    envelope_meta: envelope_meta.to_owned(),
+                    scoping,
+                    http_encoding,
+                    response_sender: Some(tx),
+                    project_key,
+                };
+                self.processor.do_send(request);
+            }
+        };
 
         Box::new(
             rx.map_err(|_| {
