@@ -320,11 +320,6 @@ pub struct Event {
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub start_timestamp: Annotated<Timestamp>,
 
-    /// The amount of time in milliseconds spent in this transaction span, excluding its immediate
-    /// child spans. (relevant for event type = "transaction")
-    #[metastructure(omit_from_schema)] // we only document error events for now
-    pub exclusive_time: Annotated<f64>,
-
     /// Timestamp when the event has been received by Sentry.
     pub received: Annotated<Timestamp>,
 

@@ -332,7 +332,7 @@ def test_no_span_attributes(mini_sentry, relay_with_processing, transactions_con
     event, _ = events_consumer.get_event()
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
-    assert "exclusive_time" not in event
+    assert "exclusive_time" not in event["contexts"]["trace"]
     for span in event["spans"]:
         assert "exclusive_time" not in span
 
@@ -389,7 +389,7 @@ def test_empty_span_attributes(
     event, _ = events_consumer.get_event()
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
-    assert "exclusive_time" not in event
+    assert "exclusive_time" not in event["contexts"]["trace"]
     for span in event["spans"]:
         assert "exclusive_time" not in span
 
@@ -449,7 +449,7 @@ def test_span_attributes_exclusive_time(
     event, _ = events_consumer.get_event()
     assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     assert "trace" in event["contexts"]
-    assert event["exclusive_time"] == 2000000
+    assert event["contexts"]["trace"]["exclusive_time"] == 2000000
     assert [span["exclusive_time"] for span in event["spans"]] == [
         800000,
         600000,

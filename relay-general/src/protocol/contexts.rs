@@ -492,6 +492,10 @@ pub struct TraceContext {
     /// transactions.
     pub status: Annotated<SpanStatus>,
 
+    /// The amount of time in milliseconds spent in this transaction span,
+    /// excluding its immediate child spans.
+    pub exclusive_time: Annotated<f64>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -928,6 +932,7 @@ fn test_trace_context_roundtrip() {
   "parent_span_id": "fa90fdead5f74053",
   "op": "http",
   "status": "ok",
+  "exclusive_time": 0.0,
   "other": "value",
   "type": "trace"
 }"#;
@@ -937,6 +942,7 @@ fn test_trace_context_roundtrip() {
         parent_span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
         op: Annotated::new("http".into()),
         status: Annotated::new(SpanStatus::Ok),
+        exclusive_time: Annotated::new(0.0),
         other: {
             let mut map = Object::new();
             map.insert(

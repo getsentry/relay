@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 
-use crate::protocol::{Context, Event, Span, SpanId};
+use crate::protocol::{Context, ContextInner, Event, Span, SpanId};
 use crate::types::Annotated;
 use crate::types::SpanAttribute;
 
@@ -112,22 +112,49 @@ pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<SpanAttribute>) 
     }
 }
 
-fn get_transaction_interval(event: &Event) -> Option<TimeWindowSpan> {
-    let start = *event.start_timestamp.value()?;
-    let end = *event.timestamp.value()?;
-    Some(TimeWindowSpan::new(start, end))
-}
+fn set_event_exclusive_time(
+    event: &mut Event,
+    span_map: &mut HashMap<SpanId, Vec<TimeWindowSpan>>,
+) {
+    let start = match event.start_timestamp.value() {
+        Some(timestamp) => *timestamp,
+        _ => return,
+    };
 
-fn get_transaction_span_id(event: &Event) -> Option<SpanId> {
-    let contexts = event.contexts.value()?;
-    let context = contexts.get("trace")?.value()?;
-    match &**context {
-        Context::Trace(trace_context) => {
-            let span_id = trace_context.span_id.value()?;
-            Some(span_id.clone())
+    let end = match event.timestamp.value() {
+        Some(timestamp) => *timestamp,
+        _ => return,
+    };
+
+    let span_interval = TimeWindowSpan::new(start, end);
+
+    let contexts = match event.contexts.value_mut() {
+        Some(contexts) => contexts,
+        _ => return,
+    };
+
+    let trace_context = match contexts.get_mut("trace").map(Annotated::value_mut) {
+        Some(Some(ContextInner(Context::Trace(trace_context)))) => trace_context,
+        _ => return,
+    };
+
+    let span_id = match trace_context.span_id.value() {
+        Some(span_id) => span_id,
+        _ => return,
+    };
+
+    let child_intervals = match span_map.get_mut(span_id) {
+        Some(intervals) => {
+            // Make sure that the intervals are sorted by start time.
+            intervals.sort_unstable_by_key(|interval| interval.start);
+            merge_non_overlapping_intervals(intervals)
         }
-        _ => None,
-    }
+        None => Vec::new(),
+    };
+
+    let exclusive_time = interval_exclusive_time(&span_interval, &child_intervals);
+
+    trace_context.exclusive_time = Annotated::new(exclusive_time);
 }
 
 fn compute_span_exclusive_time(event: &mut Event) {
@@ -157,21 +184,7 @@ fn compute_span_exclusive_time(event: &mut Event) {
         }
     }
 
-    if let Some(span_interval) = get_transaction_interval(event) {
-        if let Some(span_id) = get_transaction_span_id(event) {
-            let child_intervals = match span_map.get_mut(&span_id) {
-                Some(intervals) => {
-                    // Make sure that the intervals are sorted by start time.
-                    intervals.sort_unstable_by_key(|interval| interval.start);
-                    merge_non_overlapping_intervals(intervals)
-                }
-                None => Vec::new(),
-            };
-
-            let exclusive_time = interval_exclusive_time(&span_interval, &child_intervals);
-            event.exclusive_time = Annotated::new(exclusive_time);
-        }
-    }
+    set_event_exclusive_time(event, &mut span_map);
 
     let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
@@ -288,9 +301,10 @@ mod tests {
             .get("trace")
             .unwrap()
             .clone();
+
         if let Context::Trace(trace_context) = &*context.into_value().unwrap() {
             let transaction_span_id: SpanId = trace_context.span_id.value().unwrap().clone();
-            let transaction_exclusive_time = *event.exclusive_time.value().unwrap();
+            let transaction_exclusive_time = *trace_context.exclusive_time.value().unwrap();
             exclusive_times.insert(transaction_span_id, transaction_exclusive_time);
         }
 
@@ -340,7 +354,17 @@ mod tests {
 
         normalize_spans(&mut event, &config);
 
-        assert!(event.exclusive_time.value().is_none());
+        let context = event
+            .contexts
+            .into_value()
+            .unwrap()
+            .get("trace")
+            .unwrap()
+            .clone();
+
+        if let Context::Trace(trace_context) = &*context.into_value().unwrap() {
+            assert!(trace_context.exclusive_time.value().is_none());
+        }
 
         let has_exclusive_times: Vec<bool> = event
             .spans
