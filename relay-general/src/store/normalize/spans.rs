@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 
-use crate::protocol::{Context, ContextInner, Event, Span, SpanId};
+use crate::protocol::{Context, ContextInner, Contexts, Event, Span, SpanId, Timestamp};
 use crate::types::Annotated;
 use crate::types::SpanAttribute;
 
@@ -113,25 +113,12 @@ pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<SpanAttribute>) 
 }
 
 fn set_event_exclusive_time(
-    event: &mut Event,
+    start: Timestamp,
+    end: Timestamp,
+    contexts: &mut Contexts,
     span_map: &mut HashMap<SpanId, Vec<TimeWindowSpan>>,
 ) {
-    let start = match event.start_timestamp.value() {
-        Some(timestamp) => *timestamp,
-        _ => return,
-    };
-
-    let end = match event.timestamp.value() {
-        Some(timestamp) => *timestamp,
-        _ => return,
-    };
-
     let span_interval = TimeWindowSpan::new(start, end);
-
-    let contexts = match event.contexts.value_mut() {
-        Some(contexts) => contexts,
-        _ => return,
-    };
 
     let trace_context = match contexts.get_mut("trace").map(Annotated::value_mut) {
         Some(Some(ContextInner(Context::Trace(trace_context)))) => trace_context,
@@ -158,35 +145,48 @@ fn set_event_exclusive_time(
 }
 
 fn compute_span_exclusive_time(event: &mut Event) {
-    let mut span_map = HashMap::new();
+    let contexts = match event.contexts.value_mut() {
+        Some(contexts) => contexts,
+        _ => return,
+    };
 
-    if let Some(spans) = event.spans.value() {
-        for span in spans.iter() {
-            let span = match span.value() {
-                None => continue,
-                Some(span) => span,
-            };
+    let start = match event.start_timestamp.value() {
+        Some(timestamp) => *timestamp,
+        _ => return,
+    };
 
-            let parent_span_id = match span.parent_span_id.value() {
-                None => continue,
-                Some(parent_span_id) => parent_span_id.clone(),
-            };
-
-            let interval = match get_span_interval(span) {
-                None => continue,
-                Some(interval) => interval,
-            };
-
-            span_map
-                .entry(parent_span_id)
-                .or_insert_with(Vec::new)
-                .push(interval)
-        }
-    }
-
-    set_event_exclusive_time(event, &mut span_map);
+    let end = match event.timestamp.value() {
+        Some(timestamp) => *timestamp,
+        _ => return,
+    };
 
     let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
+
+    let mut span_map = HashMap::new();
+
+    for span in spans.iter() {
+        let span = match span.value() {
+            None => continue,
+            Some(span) => span,
+        };
+
+        let parent_span_id = match span.parent_span_id.value() {
+            None => continue,
+            Some(parent_span_id) => parent_span_id.clone(),
+        };
+
+        let interval = match get_span_interval(span) {
+            None => continue,
+            Some(interval) => interval,
+        };
+
+        span_map
+            .entry(parent_span_id)
+            .or_insert_with(Vec::new)
+            .push(interval)
+    }
+
+    set_event_exclusive_time(start, end, contexts, &mut span_map);
 
     for span in spans.iter_mut() {
         let mut span = match span.value_mut() {

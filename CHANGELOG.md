@@ -7,6 +7,10 @@
 - Correctly validate timestamps for outcomes and sessions. ([#1086](https://github.com/getsentry/relay/pull/1086))
 - Run compression on a thread pool when sending to upstream. ([#1085](https://github.com/getsentry/relay/pull/1085))
 
+**Internal**:
+
+- Add the exclusive time of the transaction's root span. ([#1083](https://github.com/getsentry/relay/pull/1083))
+
 ## 21.9.0
 
 **Features**:
@@ -24,7 +28,7 @@
 **Internal**:
 
 - Add new metrics on Relay's performance in dealing with buckets of metric aggregates, as well as the amount of aggregated buckets. ([#1070](https://github.com/getsentry/relay/pull/1070))
-- Add the exclusive time of a span. ([#1061](https://github.com/getsentry/relay/pull/1061)), ([#1083](https://github.com/getsentry/relay/pull/1083))
+- Add the exclusive time of a span. ([#1061](https://github.com/getsentry/relay/pull/1061))
 - Remove redundant dynamic sampling processing on fast path (INGEST-330). ([#1084](https://github.com/getsentry/relay/pull/1084))
 
 ## 21.8.0
