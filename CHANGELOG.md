@@ -7,6 +7,10 @@
 - Correctly validate timestamps for outcomes and sessions. ([#1086](https://github.com/getsentry/relay/pull/1086))
 - Run compression on a thread pool when sending to upstream. ([#1085](https://github.com/getsentry/relay/pull/1085))
 
+**Internal**:
+
+- Add the exclusive time of the transaction's root span. ([#1083](https://github.com/getsentry/relay/pull/1083))
+
 ## 21.9.0
 
 **Features**:
