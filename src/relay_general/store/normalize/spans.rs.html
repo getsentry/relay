@@ -698,11 +698,129 @@
 <span id="698">698</span>
 <span id="699">699</span>
 <span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{<span class="ident">Event</span>, <span class="ident">Span</span>};
+<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{<span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">Event</span>, <span class="ident">Span</span>, <span class="ident">SpanId</span>, <span class="ident">Timestamp</span>};
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::Annotated</span>;
 <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::SpanAttribute</span>;
 
@@ -813,7 +931,54 @@
     }
 }
 
+<span class="kw">fn</span> <span class="ident">set_event_exclusive_time</span>(
+    <span class="ident">start</span>: <span class="ident">Timestamp</span>,
+    <span class="ident">end</span>: <span class="ident">Timestamp</span>,
+    <span class="ident">contexts</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Contexts</span>,
+    <span class="ident">span_map</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">SpanId</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TimeWindowSpan</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+) {
+    <span class="kw">let</span> <span class="ident">span_interval</span> <span class="op">=</span> <span class="ident">TimeWindowSpan::new</span>(<span class="ident">start</span>, <span class="ident">end</span>);
+
+    <span class="kw">let</span> <span class="ident">trace_context</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">contexts</span>.<span class="ident">get_mut</span>(<span class="string">&quot;trace&quot;</span>).<span class="ident">map</span>(<span class="ident">Annotated::value_mut</span>) {
+        <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>)))) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">trace_context</span>,
+        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+    };
+
+    <span class="kw">let</span> <span class="ident">span_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">trace_context</span>.<span class="ident">span_id</span>.<span class="ident">value</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">span_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">span_id</span>,
+        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+    };
+
+    <span class="kw">let</span> <span class="ident">child_intervals</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span_map</span>.<span class="ident">get_mut</span>(<span class="ident">span_id</span>) {
+        <span class="prelude-val">Some</span>(<span class="ident">intervals</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="comment">// Make sure that the intervals are sorted by start time.</span>
+            <span class="ident">intervals</span>.<span class="ident">sort_unstable_by_key</span>(<span class="op">|</span><span class="ident">interval</span><span class="op">|</span> <span class="ident">interval</span>.<span class="ident">start</span>);
+            <span class="ident">merge_non_overlapping_intervals</span>(<span class="ident">intervals</span>)
+        }
+        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Vec::new</span>(),
+    };
+
+    <span class="kw">let</span> <span class="ident">exclusive_time</span> <span class="op">=</span> <span class="ident">interval_exclusive_time</span>(<span class="kw-2">&amp;</span><span class="ident">span_interval</span>, <span class="kw-2">&amp;</span><span class="ident">child_intervals</span>);
+
+    <span class="ident">trace_context</span>.<span class="ident">exclusive_time</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">exclusive_time</span>);
+}
+
 <span class="kw">fn</span> <span class="ident">compute_span_exclusive_time</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) {
+    <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">value_mut</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">contexts</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">contexts</span>,
+        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+    };
+
+    <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">timestamp</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="ident">timestamp</span>,
+        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+    };
+
+    <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">timestamp</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="ident">timestamp</span>,
+        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+    };
+
     <span class="kw">let</span> <span class="ident">spans</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">spans</span>.<span class="ident">value_mut</span>().<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Vec::new</span>());
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">span_map</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
@@ -839,6 +1004,8 @@
             .<span class="ident">or_insert_with</span>(<span class="ident">Vec::new</span>)
             .<span class="ident">push</span>(<span class="ident">interval</span>)
     }
+
+    <span class="ident">set_event_exclusive_time</span>(<span class="ident">start</span>, <span class="ident">end</span>, <span class="ident">contexts</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">span_map</span>);
 
     <span class="kw">for</span> <span class="ident">span</span> <span class="kw">in</span> <span class="ident">spans</span>.<span class="ident">iter_mut</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">span</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">value_mut</span>() {
@@ -873,8 +1040,41 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{<span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Span</span>, <span class="ident">SpanId</span>, <span class="ident">Timestamp</span>, <span class="ident">TraceId</span>};
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{
+        <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Span</span>, <span class="ident">SpanId</span>, <span class="ident">Timestamp</span>, <span class="ident">TraceContext</span>,
+        <span class="ident">TraceId</span>,
+    };
+    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types::Object</span>;
     <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
+
+    <span class="kw">fn</span> <span class="ident">make_event</span>(
+        <span class="ident">start</span>: <span class="ident">Timestamp</span>,
+        <span class="ident">end</span>: <span class="ident">Timestamp</span>,
+        <span class="ident">span_id</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+        <span class="ident">spans</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Span</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Event</span> {
+        <span class="ident">Event</span> {
+            <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
+            <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">start</span>),
+            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">end</span>),
+            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">contexts</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;trace&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
+                        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(
+                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>(),
+                        )),
+                        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="ident">span_id</span>.<span class="ident">into</span>())),
+                        ..<span class="ident">Default::default</span>()
+                    })))),
+                );
+                <span class="ident">contexts</span>
+            })),
+            <span class="ident">spans</span>: <span class="ident">spans</span>.<span class="ident">into</span>(),
+            ..<span class="ident">Default::default</span>()
+        }
+    }
 
     <span class="kw">fn</span> <span class="ident">make_span</span>(
         <span class="ident">op</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
@@ -904,20 +1104,39 @@
     }
 
     <span class="kw">fn</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>: <span class="ident">Event</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">SpanId</span>, <span class="ident">f64</span><span class="op">&gt;</span> {
-        <span class="ident">event</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">exclusive_times</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">SpanId</span>, <span class="ident">f64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">event</span>
+            .<span class="ident">clone</span>()
             .<span class="ident">spans</span>
             .<span class="ident">into_value</span>()
             .<span class="ident">unwrap</span>()
             .<span class="ident">into_iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">span</span><span class="op">|</span> <span class="ident">extract_exclusive_time</span>(<span class="ident">span</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>()))
-            .<span class="ident">collect</span>()
+            .<span class="ident">collect</span>();
+
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">event</span>
+            .<span class="ident">contexts</span>
+            .<span class="ident">into_value</span>()
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">get</span>(<span class="string">&quot;trace&quot;</span>)
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">clone</span>();
+
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">context</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>() {
+            <span class="kw">let</span> <span class="ident">transaction_span_id</span>: <span class="ident">SpanId</span> <span class="op">=</span> <span class="ident">trace_context</span>.<span class="ident">span_id</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">clone</span>();
+            <span class="kw">let</span> <span class="ident">transaction_exclusive_time</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">trace_context</span>.<span class="ident">exclusive_time</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
+            <span class="ident">exclusive_times</span>.<span class="ident">insert</span>(<span class="ident">transaction_span_id</span>, <span class="ident">transaction_exclusive_time</span>);
+        }
+
+        <span class="ident">exclusive_times</span>
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_skip_exclusive_time</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
-            <span class="ident">spans</span>: <span class="macro">vec!</span>[
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
+            <span class="macro">vec!</span>[
                 <span class="ident">make_span</span>(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
@@ -946,15 +1165,25 @@
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-            ]
-            .<span class="ident">into</span>(),
-            ..<span class="ident">Default::default</span>()
-        };
+            ],
+        );
 
         <span class="comment">// do not insert `exclusive-time`</span>
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
 
         <span class="ident">normalize_spans</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>);
+
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">event</span>
+            .<span class="ident">contexts</span>
+            .<span class="ident">into_value</span>()
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">get</span>(<span class="string">&quot;trace&quot;</span>)
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">clone</span>();
+
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">context</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>() {
+            <span class="macro">assert!</span>(<span class="ident">trace_context</span>.<span class="ident">exclusive_time</span>.<span class="ident">value</span>().<span class="ident">is_none</span>());
+        }
 
         <span class="kw">let</span> <span class="ident">has_exclusive_times</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">event</span>
             .<span class="ident">spans</span>
@@ -969,9 +1198,11 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_childless_spans</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
-            <span class="ident">spans</span>: <span class="macro">vec!</span>[
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
+            <span class="macro">vec!</span>[
                 <span class="ident">make_span</span>(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
@@ -1000,10 +1231,8 @@
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
                 ),
-            ]
-            .<span class="ident">into</span>(),
-            ..<span class="ident">Default::default</span>()
-        };
+            ],
+        );
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
         <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
@@ -1015,6 +1244,7 @@
         <span class="macro">assert_eq!</span>(
             <span class="ident">exclusive_times</span>,
             <span class="macro">vec!</span>[
+                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">1123.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">3000.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">2500.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">1877.0</span>)
@@ -1027,9 +1257,11 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_nested_spans</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
-            <span class="ident">spans</span>: <span class="macro">vec!</span>[
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
+            <span class="macro">vec!</span>[
                 <span class="ident">make_span</span>(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
@@ -1062,10 +1294,8 @@
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                 ),
-            ]
-            .<span class="ident">into</span>(),
-            ..<span class="ident">Default::default</span>()
-        };
+            ],
+        );
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
         <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
@@ -1077,6 +1307,7 @@
         <span class="macro">assert_eq!</span>(
             <span class="ident">exclusive_times</span>,
             <span class="macro">vec!</span>[
+                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">200.0</span>),
@@ -1089,9 +1320,11 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_overlapping_child_spans</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
-            <span class="ident">spans</span>: <span class="macro">vec!</span>[
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
+            <span class="macro">vec!</span>[
                 <span class="ident">make_span</span>(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
@@ -1124,10 +1357,8 @@
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
-            ]
-            .<span class="ident">into</span>(),
-            ..<span class="ident">Default::default</span>()
-        };
+            ],
+        );
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
         <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
@@ -1139,6 +1370,7 @@
         <span class="macro">assert_eq!</span>(
             <span class="ident">exclusive_times</span>,
             <span class="macro">vec!</span>[
+                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
@@ -1151,9 +1383,11 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_child_spans_dont_intersect_parent</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
-            <span class="ident">spans</span>: <span class="macro">vec!</span>[
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
+            <span class="macro">vec!</span>[
                 <span class="ident">make_span</span>(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
@@ -1186,10 +1420,8 @@
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
-            ]
-            .<span class="ident">into</span>(),
-            ..<span class="ident">Default::default</span>()
-        };
+            ],
+        );
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
         <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
@@ -1201,6 +1433,7 @@
         <span class="macro">assert_eq!</span>(
             <span class="ident">exclusive_times</span>,
             <span class="macro">vec!</span>[
+                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">1000.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
@@ -1213,9 +1446,11 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_child_spans_extend_beyond_parent</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
-            <span class="ident">spans</span>: <span class="macro">vec!</span>[
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
+            <span class="macro">vec!</span>[
                 <span class="ident">make_span</span>(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
@@ -1248,10 +1483,8 @@
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
-            ]
-            .<span class="ident">into</span>(),
-            ..<span class="ident">Default::default</span>()
-        };
+            ],
+        );
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
         <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
@@ -1263,6 +1496,7 @@
         <span class="macro">assert_eq!</span>(
             <span class="ident">exclusive_times</span>,
             <span class="macro">vec!</span>[
+                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">200.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">600.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">600.0</span>),
@@ -1275,9 +1509,11 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_child_spans_consumes_all_of_parent</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
-            <span class="ident">spans</span>: <span class="macro">vec!</span>[
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
+            <span class="macro">vec!</span>[
                 <span class="ident">make_span</span>(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
@@ -1310,10 +1546,8 @@
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>,
                 ),
-            ]
-            .<span class="ident">into</span>(),
-            ..<span class="ident">Default::default</span>()
-        };
+            ],
+        );
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
         <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
@@ -1325,6 +1559,7 @@
         <span class="macro">assert_eq!</span>(
             <span class="ident">exclusive_times</span>,
             <span class="macro">vec!</span>[
+                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">0.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">800.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">800.0</span>),
@@ -1337,9 +1572,11 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_only_immediate_child_spans_affect_calculation</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span> {
-            <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
-            <span class="ident">spans</span>: <span class="macro">vec!</span>[
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">make_event</span>(
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms_nano</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>).<span class="ident">into</span>(),
+            <span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>,
+            <span class="macro">vec!</span>[
                 <span class="ident">make_span</span>(
                     <span class="string">&quot;db&quot;</span>,
                     <span class="string">&quot;SELECT * FROM table;&quot;</span>,
@@ -1374,10 +1611,8 @@
                     <span class="string">&quot;dddddddddddddddd&quot;</span>,
                     <span class="string">&quot;cccccccccccccccc&quot;</span>,
                 ),
-            ]
-            .<span class="ident">into</span>(),
-            ..<span class="ident">Default::default</span>()
-        };
+            ],
+        );
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">BTreeSet::new</span>();
         <span class="ident">config</span>.<span class="ident">insert</span>(<span class="ident">SpanAttribute::ExclusiveTime</span>);
@@ -1389,6 +1624,7 @@
         <span class="macro">assert_eq!</span>(
             <span class="ident">exclusive_times</span>,
             <span class="macro">vec!</span>[
+                (<span class="ident">SpanId</span>(<span class="string">&quot;aaaaaaaaaaaaaaaa&quot;</span>.<span class="ident">to_string</span>()), <span class="number">4000.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;bbbbbbbbbbbbbbbb&quot;</span>.<span class="ident">to_string</span>()), <span class="number">600.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;cccccccccccccccc&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
                 (<span class="ident">SpanId</span>(<span class="string">&quot;dddddddddddddddd&quot;</span>.<span class="ident">to_string</span>()), <span class="number">400.0</span>),
