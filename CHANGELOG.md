@@ -7,6 +7,9 @@
 - Correctly validate timestamps for outcomes and sessions. ([#1086](https://github.com/getsentry/relay/pull/1086))
 - Run compression on a thread pool when sending to upstream. ([#1085](https://github.com/getsentry/relay/pull/1085))
 
+**Internal**:
+- Add session.status tag to extracted session.duration metric. ([#1087](https://github.com/getsentry/relay/pull/1087))
+
 ## 21.9.0
 
 **Features**:
