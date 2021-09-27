@@ -551,7 +551,7 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
                 unit: MetricUnit::Duration(DurationPrecision::Second),
                 value: MetricValue::Distribution(duration),
                 timestamp,
-                tags,
+                tags: with_tag(&tags, "session.status", session.status),
             });
         }
     }
