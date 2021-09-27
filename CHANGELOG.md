@@ -8,6 +8,7 @@
 - Run compression on a thread pool when sending to upstream. ([#1085](https://github.com/getsentry/relay/pull/1085))
 
 **Internal**:
+- Add the exclusive time of the transaction's root span. ([#1083](https://github.com/getsentry/relay/pull/1083))
 - Add session.status tag to extracted session.duration metric. ([#1087](https://github.com/getsentry/relay/pull/1087))
 
 ## 21.9.0
