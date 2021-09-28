@@ -93,3 +93,29 @@ def test_dynamic_relays(mini_sentry, relay, caller, projects):
     data = resp.json()
     for p in public_keys:
         assert data["configs"][p] is not None
+
+
+def test_invalid_json(mini_sentry, relay):
+    relay = relay(mini_sentry, wait_healthcheck=True)
+
+    resp = relay.post(
+        "/api/0/relays/projectconfigs/?version=2",
+        data="{}",  # missing the required `public_keys` field
+        headers={"X-Sentry-Relay-Id": relay.relay_id, "X-Sentry-Relay-Signature": "doesnt_matter"},
+    )
+
+    assert resp.status_code == 400  # Bad Request
+    assert "JSON" in resp.body
+
+
+def test_invalid_signature(mini_sentry, relay):
+    relay = relay(mini_sentry, wait_healthcheck=True)
+
+    resp = relay.post(
+        "/api/0/relays/projectconfigs/?version=2",
+        data='{"public_keys":[]}',
+        headers={"X-Sentry-Relay-Id": relay.relay_id, "X-Sentry-Relay-Signature": "broken"},
+    )
+
+    assert resp.status_code == 403  # Unauthorized
+    assert "signature" in resp.body
