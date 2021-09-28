@@ -104,7 +104,10 @@ def test_invalid_json(mini_sentry, relay):
     resp = relay.post(
         "/api/0/relays/projectconfigs/?version=2",
         data=packed,
-        headers={"X-Sentry-Relay-Id": relay.relay_id, "X-Sentry-Relay-Signature": signature},
+        headers={
+            "X-Sentry-Relay-Id": relay.relay_id,
+            "X-Sentry-Relay-Signature": signature,
+        },
     )
 
     assert resp.status_code == 400  # Bad Request
@@ -117,7 +120,10 @@ def test_invalid_signature(mini_sentry, relay):
     resp = relay.post(
         "/api/0/relays/projectconfigs/?version=2",
         data='{"public_keys":[]}',
-        headers={"X-Sentry-Relay-Id": relay.relay_id, "X-Sentry-Relay-Signature": "broken"},
+        headers={
+            "X-Sentry-Relay-Id": relay.relay_id,
+            "X-Sentry-Relay-Signature": "broken",
+        },
     )
 
     assert resp.status_code == 401  # Unauthorized
