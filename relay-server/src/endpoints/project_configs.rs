@@ -9,9 +9,9 @@ use relay_common::ProjectKey;
 
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetProjectState, ProjectCache};
-use crate::actors::project_upstream::GetProjectStates;
 use crate::extractors::SignedJson;
 use crate::service::ServiceApp;
+use crate::utils::ErrorBoundary;
 
 /// Helper to deserialize the `version` query parameter.
 #[derive(Debug, Deserialize)]
@@ -58,14 +58,31 @@ struct GetProjectStatesResponseWrapper {
     configs: HashMap<ProjectKey, Option<ProjectStateWrapper>>,
 }
 
+/// Request payload of the project config endpoint.
+///
+/// This is a replica of [`GetProjectStates`](crate::actors::project_upstream::GetProjectStates)
+/// which allows skipping invalid project keys.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetProjectStatesRequest {
+    public_keys: Vec<ErrorBoundary<ProjectKey>>,
+    #[serde(default)]
+    full_config: bool,
+    #[serde(default)]
+    no_cache: bool,
+}
+
 fn get_project_configs(
-    body: SignedJson<GetProjectStates>,
+    body: SignedJson<GetProjectStatesRequest>,
 ) -> ResponseFuture<Json<GetProjectStatesResponseWrapper>, Error> {
     let relay = body.relay;
     let full = relay.internal && body.inner.full_config;
     let no_cache = body.inner.no_cache;
 
-    let futures = body.inner.public_keys.into_iter().map(move |project_key| {
+    // Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
+    let valid_keys = body.inner.public_keys.into_iter().filter_map(|e| e.ok());
+
+    let futures = valid_keys.map(move |project_key| {
         let relay = relay.clone();
         ProjectCache::from_registry()
             .send(GetProjectState::new(project_key).no_cache(no_cache))

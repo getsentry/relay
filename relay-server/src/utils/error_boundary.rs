@@ -60,6 +60,14 @@ impl<T> ErrorBoundary<T> {
     }
 
     #[inline]
+    pub fn ok(self) -> Option<T> {
+        match self {
+            ErrorBoundary::Err(_) => None,
+            ErrorBoundary::Ok(value) => Some(value),
+        }
+    }
+
+    #[inline]
     pub fn unwrap_or_else<F>(self, op: F) -> T
     where
         F: FnOnce(&dyn Fail) -> T,
