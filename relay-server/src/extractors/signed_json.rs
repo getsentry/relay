@@ -1,4 +1,5 @@
 use actix_web::actix::*;
+use actix_web::http::StatusCode;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
 use futures::prelude::*;
@@ -36,7 +37,12 @@ enum SignatureError {
 
 impl ResponseError for SignatureError {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::Unauthorized().json(&ApiErrorResponse::from_fail(self))
+        let status = match self {
+            SignatureError::InvalidJson(_) => StatusCode::BAD_REQUEST,
+            _ => StatusCode::UNAUTHORIZED,
+        };
+
+        HttpResponse::build(status).json(&ApiErrorResponse::from_fail(self))
     }
 }
 
