@@ -101,7 +101,7 @@ def test_invalid_json(mini_sentry, relay):
     body = "{}"  # missing the required `public_keys` field
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
 
-    resp = relay.post(
+    response = relay.post(
         "/api/0/relays/projectconfigs/?version=2",
         data=packed,
         headers={
@@ -110,14 +110,14 @@ def test_invalid_json(mini_sentry, relay):
         },
     )
 
-    assert resp.status_code == 400  # Bad Request
-    assert "JSON" in resp.body
+    assert response.status_code == 400  # Bad Request
+    assert "JSON" in response.text
 
 
 def test_invalid_signature(mini_sentry, relay):
     relay = relay(mini_sentry, wait_healthcheck=True)
 
-    resp = relay.post(
+    response = relay.post(
         "/api/0/relays/projectconfigs/?version=2",
         data='{"public_keys":[]}',
         headers={
@@ -126,5 +126,5 @@ def test_invalid_signature(mini_sentry, relay):
         },
     )
 
-    assert resp.status_code == 401  # Unauthorized
-    assert "signature" in resp.body
+    assert response.status_code == 401  # Unauthorized
+    assert "signature" in response.text
