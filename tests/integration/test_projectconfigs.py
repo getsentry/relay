@@ -136,12 +136,14 @@ def test_broken_projectkey(mini_sentry, relay):
     mini_sentry.add_basic_project_config(42)
     public_key = mini_sentry.get_dsn_public_key(42)
 
-    body = {"public_keys": [
-        public_key,    # valid
-        "deadbeef",    # wrong length
-        42,            # wrong type
-        "/?$äß000000000000000000000000000", # invalid characters
-    ]}
+    body = {
+        "public_keys": [
+            public_key,  # valid
+            "deadbeef",  # wrong length
+            42,  # wrong type
+            "/?$äß000000000000000000000000000",  # invalid characters
+        ]
+    }
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
 
     response = relay.post(
