@@ -137,7 +137,7 @@ def test_broken_projectkey(mini_sentry, relay):
     public_key = mini_sentry.get_dsn_public_key(42)
 
     body = {
-        "public_keys": [
+        "publicKeys": [
             public_key,  # valid
             "deadbeef",  # wrong length
             42,  # wrong type
