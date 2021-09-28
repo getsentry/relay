@@ -25,8 +25,8 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionUpdate, Timestamp,
-    UserReport, Values,
+    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionStatus, SessionUpdate,
+    Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -544,14 +544,14 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
         }
     }
 
-    if session.status.is_terminal() {
+    if matches!(session.status, SessionStatus::Exited) {
         if let Some(duration) = session.duration {
             target.push(Metric {
                 name: "session.duration".to_owned(),
                 unit: MetricUnit::Duration(DurationPrecision::Second),
                 value: MetricValue::Distribution(duration),
                 timestamp,
-                tags: with_tag(&tags, "session.status", session.status),
+                tags,
             });
         }
     }
