@@ -35,13 +35,15 @@ mod _macro {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+/// A query to retrieve a batch of project states from upstream.
+///
+/// This query does not implement `Deserialize`. To parse the query, use a wrapper that skips
+/// invalid project keys instead of failing the entire batch.
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
     pub public_keys: Vec<ProjectKey>,
-    #[serde(default)]
     pub full_config: bool,
-    #[serde(default)]
     pub no_cache: bool,
 }
 
