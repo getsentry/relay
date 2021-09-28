@@ -148,9 +148,8 @@ clean-target-dir:
 # Dependencies
 
 .venv/bin/python: Makefile
-	@rm -rf .venv
-	@which virtualenv || sudo pip install virtualenv
-	virtualenv -p $$RELAY_PYTHON_VERSION .venv
+	rm -rf .venv
+	$$RELAY_PYTHON_VERSION -m venv .venv
 
 .git/hooks/pre-commit:
 	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook pre-commit
