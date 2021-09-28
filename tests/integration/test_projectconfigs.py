@@ -99,7 +99,7 @@ def test_dynamic_relays(mini_sentry, relay, caller, projects):
 def test_invalid_json(mini_sentry, relay):
     relay = relay(mini_sentry, wait_healthcheck=True)
 
-    body = "{}"  # missing the required `public_keys` field
+    body = {}  # missing the required `publicKeys` field
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
 
     response = relay.post(
@@ -120,7 +120,7 @@ def test_invalid_signature(mini_sentry, relay):
 
     response = relay.post(
         "/api/0/relays/projectconfigs/?version=2",
-        data='{"public_keys":[]}',
+        data='{"publicKeys":[]}',
         headers={
             "X-Sentry-Relay-Id": relay.relay_id,
             "X-Sentry-Relay-Signature": "broken",
@@ -136,7 +136,12 @@ def test_broken_projectkey(mini_sentry, relay):
     mini_sentry.add_basic_project_config(42)
     public_key = mini_sentry.get_dsn_public_key(42)
 
-    body = json.dumps({"public_keys": ["broken", public_key]})
+    body = {"public_keys": [
+        public_key,    # valid
+        "deadbeef",    # wrong length
+        42,            # wrong type
+        "/?$äß000000000000000000000000000", # invalid characters
+    ]}
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
 
     response = relay.post(
