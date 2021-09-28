@@ -239,11 +239,7 @@ def test_session_metrics_non_processing(
             },
             {
                 "name": "session.duration",
-                "tags": {
-                    "environment": "production",
-                    "release": "sentry-test@1.0.0",
-                    "session.status": "exited",
-                },
+                "tags": {"environment": "production", "release": "sentry-test@1.0.0",},
                 "timestamp": ts,
                 "type": "d",
                 "unit": "s",
@@ -390,11 +386,7 @@ def test_session_metrics_processing(
         "type": "d",
         "unit": "s",
         "value": [1947.49],
-        "tags": {
-            "environment": "production",
-            "release": "sentry-test@1.0.0",
-            "session.status": "exited",
-        },
+        "tags": {"environment": "production", "release": "sentry-test@1.0.0",},
     }
 
 
