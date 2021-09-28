@@ -117,5 +117,5 @@ def test_invalid_signature(mini_sentry, relay):
         headers={"X-Sentry-Relay-Id": relay.relay_id, "X-Sentry-Relay-Signature": "broken"},
     )
 
-    assert resp.status_code == 403  # Unauthorized
+    assert resp.status_code == 401  # Unauthorized
     assert "signature" in resp.body
