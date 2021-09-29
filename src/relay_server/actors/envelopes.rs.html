@@ -3259,6 +3259,9 @@
 <span id="3259">3259</span>
 <span id="3260">3260</span>
 <span id="3261">3261</span>
+<span id="3262">3262</span>
+<span id="3263">3263</span>
+<span id="3264">3264</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
@@ -3806,6 +3809,9 @@
         }
     }
 
+    <span class="comment">// Count durations for all exited/crashed sessions. Note that right now, in the product we</span>
+    <span class="comment">// really only use durations from session.status=exited, but decided it may be worth ingesting</span>
+    <span class="comment">// this data in case we need it. If we need to cut cost, this is one place to start though.</span>
     <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">status</span>.<span class="ident">is_terminal</span>() {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">duration</span>) <span class="op">=</span> <span class="ident">session</span>.<span class="ident">duration</span> {
             <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
