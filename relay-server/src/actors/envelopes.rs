@@ -544,14 +544,17 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
         }
     }
 
-    if matches!(session.status, SessionStatus::Exited) {
+    // Count durations for all exited/crashed sessions. Note that right now, in the product we
+    // really only use durations from session.status=exited, but decided it may be worth ingesting
+    // this data in case we need it. If we need to cut cost, this is one place to start though.
+    if session.status.is_terminal() {
         if let Some(duration) = session.duration {
             target.push(Metric {
                 name: "session.duration".to_owned(),
                 unit: MetricUnit::Duration(DurationPrecision::Second),
                 value: MetricValue::Distribution(duration),
                 timestamp,
-                tags,
+                tags: with_tag(&tags, "session.status", session.status),
             });
         }
     }
