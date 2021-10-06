@@ -7,6 +7,7 @@
 - Correctly validate timestamps for outcomes and sessions. ([#1086](https://github.com/getsentry/relay/pull/1086))
 - Run compression on a thread pool when sending to upstream. ([#1085](https://github.com/getsentry/relay/pull/1085))
 - Report proper status codes and error messages when sending invalid JSON payloads to an endpoint with a `X-Sentry-Relay-Signature` header. ([#1090](https://github.com/getsentry/relay/pull/1090))
+- Enforce attachment and event size limits on UE4 crash reports. ([#1099](https://github.com/getsentry/relay/pull/1099))
 
 **Internal**:
 
