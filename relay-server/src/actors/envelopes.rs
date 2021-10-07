@@ -934,6 +934,10 @@ impl EnvelopeProcessor {
     /// envelope contains an `UnrealReport` item, it removes it from the envelope and inserts new
     /// items for each of its contents.
     ///
+    /// The envelope may be dropped if it exceeds size limits after decompression. Particularly,
+    /// this includes cases where a single attachment file exceeds the maximum file size. This is in
+    /// line with the behavior of the envelope endpoint.
+    ///
     /// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it
     /// processes any other envelopes.
     #[cfg(feature = "processing")]
@@ -943,6 +947,10 @@ impl EnvelopeProcessor {
         if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
             utils::expand_unreal_envelope(item, envelope)
                 .map_err(ProcessingError::InvalidUnrealReport)?;
+
+            if !utils::check_envelope_size_limits(&self.config, envelope) {
+                return Err(ProcessingError::PayloadTooLarge);
+            }
         }
 
         Ok(())
