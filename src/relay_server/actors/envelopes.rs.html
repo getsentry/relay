@@ -3262,6 +3262,14 @@
 <span id="3262">3262</span>
 <span id="3263">3263</span>
 <span id="3264">3264</span>
+<span id="3265">3265</span>
+<span id="3266">3266</span>
+<span id="3267">3267</span>
+<span id="3268">3268</span>
+<span id="3269">3269</span>
+<span id="3270">3270</span>
+<span id="3271">3271</span>
+<span id="3272">3272</span>
 </pre><pre class="rust">
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
@@ -4199,6 +4207,10 @@
     <span class="doccomment">/// envelope contains an `UnrealReport` item, it removes it from the envelope and inserts new</span>
     <span class="doccomment">/// items for each of its contents.</span>
     <span class="doccomment">///</span>
+    <span class="doccomment">/// The envelope may be dropped if it exceeds size limits after decompression. Particularly,</span>
+    <span class="doccomment">/// this includes cases where a single attachment file exceeds the maximum file size. This is in</span>
+    <span class="doccomment">/// line with the behavior of the envelope endpoint.</span>
+    <span class="doccomment">///</span>
     <span class="doccomment">/// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it</span>
     <span class="doccomment">/// processes any other envelopes.</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -4208,6 +4220,10 @@
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType::UnrealReport</span>) {
             <span class="ident">utils::expand_unreal_envelope</span>(<span class="ident">item</span>, <span class="ident">envelope</span>)
                 .<span class="ident">map_err</span>(<span class="ident">ProcessingError::InvalidUnrealReport</span>)<span class="question-mark">?</span>;
+
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">utils::check_envelope_size_limits</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>, <span class="ident">envelope</span>) {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::PayloadTooLarge</span>);
+            }
         }
 
         <span class="prelude-val">Ok</span>(())
