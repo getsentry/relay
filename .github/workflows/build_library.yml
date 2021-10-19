@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - release-library/**
+      - build/** # TODO: Remove. Temporary to test library builds
 
 jobs:
   linux:
