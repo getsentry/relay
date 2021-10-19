@@ -72,12 +72,24 @@ def build_native(spec):
     # Step 1: build the rust library
     build = spec.add_external_build(cmd=cmd, path=rust_path)
 
+    def find_dylib():
+        try:
+            return build.find_dylib("relay_cabi", in_path="target/%s" % target)
+        except LookupError as e:
+            cargo_target = os.environ.get("CARGO_BUILD_TARGET")
+            if cargo_target:
+                return build.find_dylib(
+                    "relay_cabi", in_path="target/%s/%s" % (cargo_target, target)
+                )
+            else:
+                raise e
+
     rtld_flags = ["NOW"]
     if sys.platform == "darwin":
         rtld_flags.append("NODELETE")
     spec.add_cffi_module(
         module_path="sentry_relay._lowlevel",
-        dylib=lambda: build.find_dylib("relay_cabi", in_path="target/%s" % target),
+        dylib=find_dylib,
         header_filename=lambda: build.find_header(
             "relay.h", in_path="relay-cabi/include"
         ),
