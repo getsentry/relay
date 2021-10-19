@@ -10,7 +10,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build-arch: [i686, x86_64]
+        build-arch:
+          - manylinux2010_i686
+          - manylinux2010_x86_64
+          - manylinux2014_aarch64
 
     name: Python Linux ${{ matrix.build-arch }}
     runs-on: ubuntu-latest
@@ -31,8 +34,19 @@ jobs:
           path: py/dist/*
 
   macos:
-    name: Python macOS
-    runs-on: macos-10.15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - macos-version: "10.15"
+            target: x86_64-apple-darwin
+            py-platform: macosx-10_15_x86_64
+          - macos-version: "11.0"
+            target: aarch64-apple-darwin
+            py-platform: macosx-11_0_arm64
+
+    name: Python macOS ${{ matrix.py-platform }}
+    runs-on: macos-${{ matrix.macos-version }}
 
     steps:
       - uses: actions/checkout@v2
@@ -42,6 +56,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          target: ${{ matrix.target }}
           profile: minimal
           override: true
 
@@ -52,7 +67,7 @@ jobs:
       - name: Build Wheel
         run: |
           pip install wheel
-          python setup.py bdist_wheel
+          python setup.py bdist_wheel -p ${{ matrix.py-platform }}
         working-directory: py
 
       - uses: actions/upload-artifact@v2
