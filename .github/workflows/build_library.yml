@@ -75,6 +75,7 @@ jobs:
           python setup.py bdist_wheel -p ${{ matrix.py-platform }}
         working-directory: py
         env:
+          # consumed by cargo and setup.py to obtain the target dir
           CARGO_BUILD_TARGET: ${{ matrix.target }}
 
       - uses: actions/upload-artifact@v2
