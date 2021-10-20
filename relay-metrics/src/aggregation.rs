@@ -651,9 +651,10 @@ impl Error for ParseBucketError {
 /// To parse a submission payload, use [`Bucket::parse_all`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Bucket {
-    /// The start time of the time window. The length of the time window is stored in the
-    /// [`Aggregator`].
+    /// The start time of the time window.
     pub timestamp: UnixTimestamp,
+    /// The length of the time window in seconds.
+    pub width: u64,
     /// The name of the metric without its unit.
     ///
     /// See [`Metric::name`].
@@ -676,9 +677,10 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    fn from_parts(key: BucketKey, value: BucketValue) -> Self {
+    fn from_parts(key: BucketKey, bucket_interval: u64, value: BucketValue) -> Self {
         Self {
             timestamp: key.timestamp,
+            width: bucket_interval,
             name: key.metric_name,
             unit: key.metric_unit,
             value,
@@ -948,11 +950,37 @@ impl Aggregator {
     /// Determines which bucket a timestamp is assigned to.
     ///
     /// The bucket timestamp is the input timestamp rounded by the configured `bucket_interval`.
-    fn get_bucket_timestamp(&self, timestamp: UnixTimestamp) -> UnixTimestamp {
+    fn get_bucket_timestamp(
+        &self,
+        timestamp: UnixTimestamp,
+        bucket_width: u64,
+    ) -> Result<UnixTimestamp, AggregateMetricsError> {
         // We know this must be UNIX timestamp because we need reliable match even with system
         // clock skew over time.
-        let ts = (timestamp.as_secs() / self.config.bucket_interval) * self.config.bucket_interval;
-        UnixTimestamp::from_secs(ts)
+
+        // TODO: use time range from config, see max_secs_in_past
+        let min_timestamp = UnixTimestamp::from_secs(50 * 365 * 24 * 60 * 60);
+        let max_timestamp = UnixTimestamp::from_secs(99 * 365 * 24 * 60 * 60);
+
+        // Checking after computation of `ts` should be sufficient, but we also want to prevent
+        // overflows:
+        if timestamp < min_timestamp || timestamp > max_timestamp {
+            return Err(AggregateMetricsError);
+        }
+
+        // Find middle of the input bucket to select a target
+        let ts = timestamp.as_secs() + bucket_width / 2;
+
+        // Align target_timestamp to output bucket width
+        let ts = (ts / self.config.bucket_interval) * self.config.bucket_interval;
+
+        let output_timestamp = UnixTimestamp::from_secs(ts);
+
+        if output_timestamp < min_timestamp || output_timestamp > max_timestamp {
+            return Err(AggregateMetricsError);
+        }
+
+        Ok(output_timestamp)
     }
 
     /// Merges any mergeable value into the bucket at the given `key`.
@@ -988,7 +1016,7 @@ impl Aggregator {
     ) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
             project_key,
-            timestamp: self.get_bucket_timestamp(metric.timestamp),
+            timestamp: self.get_bucket_timestamp(metric.timestamp, 0)?,
             metric_name: metric.name,
             metric_type: metric.value.ty(),
             metric_unit: metric.unit,
@@ -1007,7 +1035,7 @@ impl Aggregator {
     ) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
             project_key,
-            timestamp: bucket.timestamp,
+            timestamp: self.get_bucket_timestamp(bucket.timestamp, bucket.width)?,
             metric_name: bucket.name,
             metric_type: bucket.value.ty(),
             metric_unit: bucket.unit,
@@ -1043,11 +1071,12 @@ impl Aggregator {
         let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
 
         relay_statsd::metric!(timer(MetricTimers::BucketsScanDuration), {
+            let bucket_interval = self.config.bucket_interval;
             self.buckets.retain(|key, entry| {
                 if entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
                     let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
-                    let bucket = Bucket::from_parts(key.clone(), value);
+                    let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets.entry(key.project_key).or_default().push(bucket);
                     false
                 } else {
@@ -1825,5 +1854,87 @@ mod tests {
                 })
         })
         .ok();
+    }
+
+    #[test]
+    fn test_get_bucket_timestamp_overflow() {
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            initial_delay: 0,
+            debounce_delay: 0,
+        };
+        // TODO: Seems unnecessary to create all this, maybe it should be a function on the config?
+        let recipient = TestReceiver::default().start().recipient();
+        let aggregator = Aggregator::new(config, recipient);
+
+        assert!(matches!(
+            aggregator.get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2),
+            Err(AggregateMetricsError)
+        ));
+    }
+
+    #[test]
+    fn test_get_bucket_timestamp_zero() {
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            initial_delay: 0,
+            debounce_delay: 0,
+        };
+        // TODO: Seems unnecessary to create all this, maybe it should be a function on the config?
+        let recipient = TestReceiver::default().start().recipient();
+        let aggregator = Aggregator::new(config, recipient);
+
+        let now = UnixTimestamp::now().as_secs();
+        let rounded_now = UnixTimestamp::from_secs(now / 10 * 10);
+        assert_eq!(
+            aggregator
+                .get_bucket_timestamp(UnixTimestamp::from_secs(now), 0)
+                .unwrap(),
+            rounded_now
+        );
+    }
+
+    #[test]
+    fn test_get_bucket_timestamp_multiple() {
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            initial_delay: 0,
+            debounce_delay: 0,
+        };
+        // TODO: Seems unnecessary to create all this, maybe it should be a function on the config?
+        let recipient = TestReceiver::default().start().recipient();
+        let aggregator = Aggregator::new(config, recipient);
+
+        let rounded_now = UnixTimestamp::now().as_secs() / 10 * 10;
+        let now = rounded_now + 3;
+        assert_eq!(
+            aggregator
+                .get_bucket_timestamp(UnixTimestamp::from_secs(now), 20)
+                .unwrap()
+                .as_secs(),
+            rounded_now + 10
+        );
+    }
+
+    #[test]
+    fn test_get_bucket_timestamp_non_multiple() {
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            initial_delay: 0,
+            debounce_delay: 0,
+        };
+        // TODO: Seems unnecessary to create all this, maybe it should be a function on the config?
+        let recipient = TestReceiver::default().start().recipient();
+        let aggregator = Aggregator::new(config, recipient);
+
+        let rounded_now = UnixTimestamp::now().as_secs() / 10 * 10;
+        let now = rounded_now + 3;
+        assert_eq!(
+            aggregator
+                .get_bucket_timestamp(UnixTimestamp::from_secs(now), 23)
+                .unwrap()
+                .as_secs(),
+            rounded_now + 10
+        );
     }
 }
