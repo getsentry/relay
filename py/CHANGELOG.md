@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add the exclusive time of a span. ([#1061](https://github.com/getsentry/relay/pull/1061))
+- Add `ingest_path` to the event schema, capturing Relays that processed this event. ([#1062](https://github.com/getsentry/relay/pull/1062))
+- Retrieve OS Context for Unity Events. ([#1072](https://github.com/getsentry/relay/pull/1072))
+- Protocol support for client reports. ([#1081](https://github.com/getsentry/relay/pull/1081))
+- Add the exclusive time of the transaction's root span. ([#1083](https://github.com/getsentry/relay/pull/1083))
 - Build and publish binary wheels for `arm64` / `aarch64` on macOS and Linux. ([#1100](https://github.com/getsentry/relay/pull/1100))
 
 ## 0.8.8
