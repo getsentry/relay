@@ -1385,6 +1385,7 @@ mod tests {
             "value": [36, 49, 57, 68],
             "type": "d",
             "timestamp": 1615889440,
+            "width": 10,
             "tags": {
                 "route": "user_index"
             }
@@ -1396,6 +1397,7 @@ mod tests {
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
+                width: 10,
                 name: "endpoint.response_time",
                 unit: Duration(
                     MilliSecond,
@@ -1423,7 +1425,8 @@ mod tests {
             "name": "endpoint.hits",
             "value": 4,
             "type": "c",
-            "timestamp": 1615889440
+            "timestamp": 1615889440,
+            "width": 10
           }
         ]"#;
 
@@ -1432,6 +1435,7 @@ mod tests {
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
+                width: 10,
                 name: "endpoint.hits",
                 unit: None,
                 value: Counter(
@@ -1448,6 +1452,7 @@ mod tests {
         let json = r#"[
   {
     "timestamp": 1615889440,
+    "width": 10,
     "name": "endpoint.response_time",
     "type": "d",
     "value": [
@@ -1462,6 +1467,7 @@ mod tests {
   },
   {
     "timestamp": 1615889440,
+    "width": 10,
     "name": "endpoint.hits",
     "type": "c",
     "value": 4.0,
@@ -1471,6 +1477,7 @@ mod tests {
   },
   {
     "timestamp": 1615889440,
+    "width": 10,
     "name": "endpoint.parallel_requests",
     "type": "g",
     "value": {
@@ -1483,6 +1490,7 @@ mod tests {
   },
   {
     "timestamp": 1615889440,
+    "width": 10,
     "name": "endpoint.users",
     "type": "s",
     "value": [
