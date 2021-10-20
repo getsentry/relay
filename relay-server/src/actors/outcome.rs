@@ -413,7 +413,10 @@ mod processing {
         pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
             let (future_producer, http_producer) = if config.processing_enabled() {
                 let mut client_config = ClientConfig::new();
-                for config_p in config.kafka_config() {
+                for config_p in config
+                    .kafka_config(config.kafka_topics().get(KafkaTopic::Outcomes))
+                    .context(ServerErrorKind::KafkaError)?
+                {
                     client_config.set(config_p.name.as_str(), config_p.value.as_str());
                 }
                 let future_producer = client_config
@@ -462,9 +465,14 @@ mod processing {
             // kafka consumer groups.
             let key = message.event_id.unwrap_or_else(EventId::new).0;
 
-            let record = BaseRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
-                .payload(&payload)
-                .key(key.as_bytes().as_ref());
+            let record = BaseRecord::to(
+                self.config
+                    .kafka_topics()
+                    .get(KafkaTopic::Outcomes)
+                    .topic_name(),
+            )
+            .payload(&payload)
+            .key(key.as_bytes().as_ref());
 
             match producer.send(record) {
                 Ok(_) => Ok(()),

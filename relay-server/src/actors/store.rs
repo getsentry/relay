@@ -15,7 +15,7 @@ use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
-use relay_config::{Config, KafkaTopic};
+use relay_config::{Config, KafkaTopic, TopicMap};
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricUnit};
@@ -53,7 +53,7 @@ pub enum StoreError {
 /// Actor for publishing events to Sentry through kafka topics.
 pub struct StoreForwarder {
     config: Arc<Config>,
-    producer: Arc<ThreadedProducer>,
+    producers: TopicMap<Arc<ThreadedProducer>>,
 }
 
 fn make_distinct_id(s: &str) -> Uuid {
@@ -63,30 +63,48 @@ fn make_distinct_id(s: &str) -> Uuid {
 
 impl StoreForwarder {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-        let mut client_config = ClientConfig::new();
-        for config_p in config.kafka_config() {
-            client_config.set(config_p.name.as_str(), config_p.value.as_str());
-        }
+        // Temporary map used to deduplicate kafka producers
+        let mut reused_producers: BTreeMap<_, Arc<_>> = BTreeMap::new();
 
-        let producer = client_config
-            .create_with_context(CaptureErrorContext)
-            .context(ServerErrorKind::KafkaError)?;
+        let producers = config
+            .kafka_topics()
+            .as_ref()
+            .map::<_, ServerError, _>(|assignment| {
+                let config_name = assignment.kafka_config_name();
+                if let Some(producer) = reused_producers.get(&config_name) {
+                    return Ok(Arc::clone(producer));
+                }
 
-        Ok(Self {
-            config,
-            producer: Arc::new(producer),
-        })
+                let mut client_config = ClientConfig::new();
+                for config_p in config
+                    .kafka_config(assignment)
+                    .context(ServerErrorKind::KafkaError)?
+                {
+                    client_config.set(config_p.name.as_str(), config_p.value.as_str());
+                }
+
+                let producer = Arc::new(
+                    client_config
+                        .create_with_context(CaptureErrorContext)
+                        .context(ServerErrorKind::KafkaError)?,
+                );
+
+                reused_producers.insert(config_name, Arc::clone(&producer));
+                Ok(producer)
+            })?;
+
+        Ok(Self { config, producers })
     }
 
     fn produce(&self, topic: KafkaTopic, message: KafkaMessage) -> Result<(), StoreError> {
         let serialized = message.serialize()?;
         let key = message.key();
 
-        let record = BaseRecord::to(self.config.kafka_topic_name(topic))
+        let record = BaseRecord::to(self.config.kafka_topics().get(topic).topic_name())
             .key(&key)
             .payload(&serialized);
 
-        match self.producer.send(record) {
+        match self.producers.get(topic).send(record) {
             Ok(_) => Ok(()),
             Err((kafka_error, _message)) => Err(StoreError::SendFailed(kafka_error)),
         }
