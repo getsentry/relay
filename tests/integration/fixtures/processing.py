@@ -74,11 +74,6 @@ def relay_with_processing(relay, mini_sentry, processing_config):
 
     def inner(options=None):
         options = processing_config(options)
-
-        kafka_config = {}
-        for elm in options["processing"]["kafka_config"]:
-            kafka_config[elm["name"]] = elm["value"]
-
         return relay(mini_sentry, options=options)
 
     return inner
