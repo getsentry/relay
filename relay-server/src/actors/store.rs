@@ -76,10 +76,11 @@ impl StoreForwarder {
                 }
 
                 let mut client_config = ClientConfig::new();
-                for config_p in config
+                let kafka_config = config
                     .kafka_config(assignment)
-                    .context(ServerErrorKind::KafkaError)?
-                {
+                    .context(ServerErrorKind::KafkaError)?;
+
+                for config_p in kafka_config {
                     client_config.set(config_p.name.as_str(), config_p.value.as_str());
                 }
 

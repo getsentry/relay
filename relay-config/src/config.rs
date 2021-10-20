@@ -863,6 +863,9 @@ fn default_max_rate_limit() -> Option<u32> {
     Some(300) // 5 minutes
 }
 
+/// A mapping from "logical" topic to actual topic name and optionally a non-default kafka config.
+pub type TopicAssignments = TopicMap<TopicAssignment>;
+
 /// Controls Sentry-internal event processing.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Processing {
@@ -905,7 +908,7 @@ pub struct Processing {
     pub secondary_kafka_configs: BTreeMap<String, Vec<KafkaConfigParam>>,
     /// Kafka topic names.
     #[serde(default)]
-    pub topics: TopicMap<TopicAssignment>,
+    pub topics: TopicAssignments,
     /// Redis hosts to connect to for storing state for rate limits.
     #[serde(default)]
     pub redis: Option<RedisConfig>,
