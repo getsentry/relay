@@ -885,7 +885,7 @@ pub struct Processing {
     /// Additional kafka producer configurations.
     ///
     /// The `kafka_config` is the default producer configuration used for all topics. A secondary
-    /// kafka config `foo: ...` can be referenced in `topics:` like this:
+    /// kafka config can be referenced in `topics:` like this:
     ///
     /// ```yaml
     /// secondary_kafka_configs:
