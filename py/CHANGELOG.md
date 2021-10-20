@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Build and publish binary wheels for `arm64` / `aarch64` on macOS and Linux. ([#1100](https://github.com/getsentry/relay/pull/1100))
+
 ## 0.8.8
 
 - Bump release parser to 1.3.0 and add ability to compare versions. ([#1038](https://github.com/getsentry/relay/pull/1038))
