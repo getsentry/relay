@@ -10,6 +10,7 @@ import time
 
 HOUR_MILLISEC = 1000 * 3600
 
+
 def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consumer):
     """
     Tests outcomes are sent to the kafka outcome topic
@@ -50,7 +51,9 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
     assert start <= event_emission <= end
 
 
-def test_outcomes_custom_topic(mini_sentry, outcomes_consumer, processing_config, relay, get_topic_name):
+def test_outcomes_custom_topic(
+    mini_sentry, outcomes_consumer, processing_config, relay, get_topic_name
+):
     """
     Tests outcomes are sent to the kafka outcome topic, but this
     time use secondary_kafka_configs to set up the outcomes topic.
@@ -60,16 +63,16 @@ def test_outcomes_custom_topic(mini_sentry, outcomes_consumer, processing_config
     effectively tests that the secondary config is used.
     """
     options = processing_config(None)
-    kafka_config = options['processing']['kafka_config']
+    kafka_config = options["processing"]["kafka_config"]
 
     # This kafka config becomes invalid, rdkafka warns on stdout that it will drop everything on this client
-    options['processing']['kafka_config'] = []
+    options["processing"]["kafka_config"] = []
 
-    options['processing']['secondary_kafka_configs'] = {}
-    options['processing']['secondary_kafka_configs']['foo'] = kafka_config 
+    options["processing"]["secondary_kafka_configs"] = {}
+    options["processing"]["secondary_kafka_configs"]["foo"] = kafka_config
 
     # ...however, we use a custom topic config to make it work again
-    options['processing']['topics']['outcomes'] = {
+    options["processing"]["topics"]["outcomes"] = {
         "topic_name": get_topic_name("outcomes"),
         "kafka_config_name": "foo",
     }
