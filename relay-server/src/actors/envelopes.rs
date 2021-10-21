@@ -523,7 +523,7 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
             tags: tags.clone(),
         });
 
-        if let Some(ref distinct_id) = get_distinct_id(&session.distinct_id) {
+        if let Some(distinct_id) = get_distinct_id(&session.distinct_id) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -545,7 +545,7 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
             tags: with_tag(&tags, "session.status", session.status),
         });
 
-        if let Some(ref distinct_id) = get_distinct_id(&session.distinct_id) {
+        if let Some(distinct_id) = get_distinct_id(&session.distinct_id) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
