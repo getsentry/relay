@@ -728,6 +728,7 @@ struct BucketKey {
 
 /// Parameters used by the [`Aggregator`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct AggregatorConfig {
     /// Determines the wall clock time interval for buckets in seconds.
     ///
@@ -806,7 +807,7 @@ impl AggregatorConfig {
 
         let output_timestamp = UnixTimestamp::from_secs(ts);
 
-        if timestamp < min_timestamp || timestamp > max_timestamp {
+        if output_timestamp < min_timestamp || output_timestamp > max_timestamp {
             return Err(AggregateMetricsError);
         }
 
