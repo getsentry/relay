@@ -6,11 +6,7 @@ import pytest
 from .test_envelope import generate_transaction_item
 
 TEST_CONFIG = {
-    "aggregator": {
-        "bucket_interval": 1,
-        "initial_delay": 0,
-        "debounce_delay": 0,
-    }
+    "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0,}
 }
 
 
@@ -23,12 +19,13 @@ def _session_payload(timestamp: datetime, started: datetime):
         "timestamp": timestamp.isoformat(),
         "started": started.isoformat(),
         "duration": 1947.49,
-        "status": "exited",
+        "status": "exited",if now > self.max_age {
+            now - self.max_age
+        } else {
+            0
+        }
         "errors": 0,
-        "attrs": {
-            "release": "sentry-test@1.0.0",
-            "environment": "production",
-        },
+        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
     }
 
 
@@ -438,11 +435,7 @@ def test_transaction_metrics(
         "foo": {"value": 1.2},
         "bar": {"value": 1.3},
     }
-    transaction["breakdowns"] = {
-        "breakdown1": {
-            "baz": {"value": 1.4},
-        }
-    }
+    transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4},}}
 
     #: The `metrics_extracted` header is ignored for transactions for now.
     #: This means that transaction metrics are extracted regardless of the header.
@@ -454,11 +447,7 @@ def test_transaction_metrics(
     transaction["measurements"] = {
         "foo": {"value": 2.2},
     }
-    transaction["breakdowns"] = {
-        "breakdown1": {
-            "baz": {"value": 2.4},
-        }
-    }
+    transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
     relay.send_transaction(42, transaction, item_headers=item_headers)
 
     if not extract_metrics:

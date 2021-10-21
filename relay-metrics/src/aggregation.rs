@@ -748,6 +748,16 @@ pub struct AggregatorConfig {
     /// before sending such a backdated bucket to the upsteam. This should be lower than
     /// `initial_delay`.
     pub debounce_delay: u64,
+
+    /// The age in seconds of the oldest allowed bucket timestamp.
+    ///
+    /// Defaults to 30 days.
+    pub max_age: u64,
+
+    /// The time in seconds that a timestamp may be in the future.
+    ///
+    /// Defaults to 1 minute.
+    pub max_future: u64,
 }
 
 impl AggregatorConfig {
@@ -778,12 +788,12 @@ impl AggregatorConfig {
         // We know this must be UNIX timestamp because we need reliable match even with system
         // clock skew over time.
 
-        // TODO: use time range from config, see max_secs_in_past
-        let min_timestamp = UnixTimestamp::from_secs(50 * 365 * 24 * 60 * 60);
-        let max_timestamp = UnixTimestamp::from_secs(99 * 365 * 24 * 60 * 60);
+        let now = UnixTimestamp::now().as_secs();
+        let min_timestamp = UnixTimestamp::from_secs(now - self.max_age);
+        let max_timestamp = UnixTimestamp::from_secs(now + self.max_future);
 
-        // Checking after computation of `ts` should be sufficient, but we also want to prevent
-        // overflows:
+        // Checking after computation of `ts` would be sufficient logically speaking,
+        // but we also want to prevent overflows:
         if timestamp < min_timestamp || timestamp > max_timestamp {
             return Err(AggregateMetricsError);
         }
@@ -796,7 +806,7 @@ impl AggregatorConfig {
 
         let output_timestamp = UnixTimestamp::from_secs(ts);
 
-        if output_timestamp < min_timestamp || output_timestamp > max_timestamp {
+        if timestamp < min_timestamp || timestamp > max_timestamp {
             return Err(AggregateMetricsError);
         }
 
@@ -831,6 +841,8 @@ impl Default for AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 30,
             debounce_delay: 10,
+            max_age: 30 * 24 * 60 * 60, // 30 days
+            max_future: 60,             // 1 minute
         }
     }
 }
@@ -1296,12 +1308,22 @@ mod tests {
         }
     }
 
+    fn test_config() -> AggregatorConfig {
+        AggregatorConfig {
+            bucket_interval: 1,
+            initial_delay: 0,
+            debounce_delay: 0,
+            max_age: 50 * 365 * 24 * 60 * 60,
+            max_future: 50 * 365 * 24 * 60 * 60,
+        }
+    }
+
     fn some_metric() -> Metric {
         Metric {
             name: "foo".to_owned(),
             unit: MetricUnit::None,
             value: MetricValue::Counter(42.),
-            timestamp: UnixTimestamp::from_secs(4711),
+            timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
         }
     }
@@ -1602,9 +1624,8 @@ mod tests {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let config = AggregatorConfig::default();
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
+        let mut aggregator = Aggregator::new(test_config(), receiver);
 
         let metric1 = some_metric();
 
@@ -1624,7 +1645,7 @@ mod tests {
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    timestamp: UnixTimestamp(4710),
+                    timestamp: UnixTimestamp(999994711),
                     metric_name: "foo",
                     metric_type: Counter,
                     metric_unit: None,
@@ -1643,7 +1664,7 @@ mod tests {
         relay_test::setup();
         let config = AggregatorConfig {
             bucket_interval: 10,
-            ..AggregatorConfig::default()
+            ..test_config()
         };
         let receiver = TestReceiver::start_default().recipient();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -1653,10 +1674,10 @@ mod tests {
         let metric1 = some_metric();
 
         let mut metric2 = metric1.clone();
-        metric2.timestamp = UnixTimestamp::from_secs(4712);
+        metric2.timestamp = UnixTimestamp::from_secs(999994712);
 
         let mut metric3 = metric1.clone();
-        metric3.timestamp = UnixTimestamp::from_secs(4721);
+        metric3.timestamp = UnixTimestamp::from_secs(999994721);
         aggregator.insert(project_key, metric1).unwrap();
         aggregator.insert(project_key, metric2).unwrap();
         aggregator.insert(project_key, metric3).unwrap();
@@ -1673,7 +1694,7 @@ mod tests {
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    timestamp: UnixTimestamp(4710),
+                    timestamp: UnixTimestamp(999994710),
                     metric_name: "foo",
                     metric_type: Counter,
                     metric_unit: None,
@@ -1686,7 +1707,7 @@ mod tests {
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    timestamp: UnixTimestamp(4720),
+                    timestamp: UnixTimestamp(999994720),
                     metric_name: "foo",
                     metric_type: Counter,
                     metric_unit: None,
@@ -1706,7 +1727,7 @@ mod tests {
 
         let config = AggregatorConfig {
             bucket_interval: 10,
-            ..AggregatorConfig::default()
+            ..test_config()
         };
 
         let receiver = TestReceiver::start_default().recipient();
@@ -1731,7 +1752,7 @@ mod tests {
 
         let config = AggregatorConfig {
             bucket_interval: 10,
-            ..AggregatorConfig::default()
+            ..test_config()
         };
 
         let receiver = TestReceiver::start_default().recipient();
@@ -1758,7 +1779,7 @@ mod tests {
 
         let config = AggregatorConfig {
             bucket_interval: 10,
-            ..AggregatorConfig::default()
+            ..test_config()
         };
 
         let receiver = TestReceiver::start_default().recipient();
@@ -1783,6 +1804,7 @@ mod tests {
                 bucket_interval: 1,
                 initial_delay: 0,
                 debounce_delay: 0,
+                ..Default::default()
             };
             let recipient = receiver.clone().start().recipient();
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -1831,6 +1853,7 @@ mod tests {
                 bucket_interval: 1,
                 initial_delay: 0,
                 debounce_delay: 0,
+                ..Default::default()
             };
             let recipient = receiver.clone().start().recipient();
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -1873,6 +1896,7 @@ mod tests {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
+            ..Default::default()
         };
 
         assert!(matches!(
@@ -1887,6 +1911,7 @@ mod tests {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
+            ..Default::default()
         };
 
         let now = UnixTimestamp::now().as_secs();
@@ -1905,6 +1930,7 @@ mod tests {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
+            ..Default::default()
         };
 
         let rounded_now = UnixTimestamp::now().as_secs() / 10 * 10;
@@ -1924,6 +1950,7 @@ mod tests {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
+            ..Default::default()
         };
 
         let rounded_now = UnixTimestamp::now().as_secs() / 10 * 10;
