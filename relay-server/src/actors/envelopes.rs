@@ -19,7 +19,7 @@ use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
 
 use relay_auth::RelayVersion;
-use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
+use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp, Uuid};
 use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -464,6 +464,18 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     }
 }
 
+/// Treat nil UUIDs as if they were None
+fn get_distinct_id(distinct_id: &Option<String>) -> Option<&String> {
+    let distinct_id = distinct_id.as_ref()?;
+    if let Ok(uuid) = distinct_id.parse::<Uuid>() {
+        if uuid.is_nil() {
+            return None;
+        }
+    }
+
+    Some(distinct_id)
+}
+
 fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
     let timestamp = match UnixTimestamp::from_datetime(session.timestamp) {
         Some(ts) => ts,
@@ -511,7 +523,7 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
             tags: tags.clone(),
         });
 
-        if let Some(ref distinct_id) = session.distinct_id {
+        if let Some(ref distinct_id) = get_distinct_id(&session.distinct_id) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -533,7 +545,7 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
             tags: with_tag(&tags, "session.status", session.status),
         });
 
-        if let Some(ref distinct_id) = session.distinct_id {
+        if let Some(ref distinct_id) = get_distinct_id(&session.distinct_id) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -3019,6 +3031,26 @@ mod tests {
         });
 
         assert!(envelope_response.envelope.is_none());
+    }
+
+    #[test]
+    fn test_get_distinct_id() {
+        assert!(get_distinct_id(&None).is_none());
+
+        let asdf = Some("asdf".to_owned());
+        assert_eq!(get_distinct_id(&asdf).unwrap(), "asdf");
+
+        let nil = Some("00000000-0000-0000-0000-000000000000".to_owned());
+        assert!(get_distinct_id(&nil).is_none());
+
+        let nil2 = Some("00000000000000000000000000000000".to_owned());
+        assert!(get_distinct_id(&nil2).is_none());
+
+        let not_nil = Some("00000000-0000-0000-0000-000000000123".to_owned());
+        assert_eq!(
+            get_distinct_id(&not_nil).unwrap(),
+            not_nil.as_ref().unwrap()
+        );
     }
 
     #[test]
