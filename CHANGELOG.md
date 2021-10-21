@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- Add bucket width to bucket protocol. ([#1103](https://github.com/getsentry/relay/pull/1103))
+
+
 ## 21.10.0
 
 **Bug Fixes**:
