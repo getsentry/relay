@@ -431,6 +431,8 @@ pub enum RelayCounters {
     ///    be used to ingest events. Once the grace period expires, the cache is evicted and new
     ///    requests wait for an update.
     EvictingStaleProjectCaches,
+    /// Number of times that parsing a metrics bucket item from an envelope fails.
+    MetricBucketsParsingFailed,
 }
 
 impl CounterMetric for RelayCounters {
@@ -456,6 +458,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
+            RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
         }
     }
 }

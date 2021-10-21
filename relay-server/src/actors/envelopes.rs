@@ -1889,6 +1889,8 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 
                     relay_log::trace!("merging metric buckets into project cache");
                     project_cache.do_send(MergeBuckets::new(public_key, buckets));
+                } else {
+                    metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
                 }
             } else {
                 relay_log::error!(
