@@ -752,13 +752,13 @@ pub struct AggregatorConfig {
 
     /// The age in seconds of the oldest allowed bucket timestamp.
     ///
-    /// Defaults to 30 days.
-    pub max_age: u64,
+    /// Defaults to 5 days.
+    pub max_secs_in_past: u64,
 
     /// The time in seconds that a timestamp may be in the future.
     ///
     /// Defaults to 1 minute.
-    pub max_future: u64,
+    pub max_secs_in_future: u64,
 }
 
 impl AggregatorConfig {
@@ -790,17 +790,11 @@ impl AggregatorConfig {
         // clock skew over time.
 
         let now = UnixTimestamp::now().as_secs();
-        let min_timestamp = UnixTimestamp::from_secs(now - self.max_age);
-        let max_timestamp = UnixTimestamp::from_secs(now + self.max_future);
-
-        // Checking after computation of `ts` would be sufficient logically speaking,
-        // but we also want to prevent overflows:
-        if timestamp < min_timestamp || timestamp > max_timestamp {
-            return Err(AggregateMetricsError);
-        }
+        let min_timestamp = UnixTimestamp::from_secs(now.saturating_sub(self.max_secs_in_past));
+        let max_timestamp = UnixTimestamp::from_secs(now.saturating_add(self.max_secs_in_future));
 
         // Find middle of the input bucket to select a target
-        let ts = timestamp.as_secs() + bucket_width / 2;
+        let ts = timestamp.as_secs().saturating_add(bucket_width / 2);
 
         // Align target_timestamp to output bucket width
         let ts = (ts / self.bucket_interval) * self.bucket_interval;
@@ -842,8 +836,8 @@ impl Default for AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 30,
             debounce_delay: 10,
-            max_age: 30 * 24 * 60 * 60, // 30 days
-            max_future: 60,             // 1 minute
+            max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
+            max_secs_in_future: 60,             // 1 minute
         }
     }
 }
@@ -1314,8 +1308,8 @@ mod tests {
             bucket_interval: 1,
             initial_delay: 0,
             debounce_delay: 0,
-            max_age: 50 * 365 * 24 * 60 * 60,
-            max_future: 50 * 365 * 24 * 60 * 60,
+            max_secs_in_past: 50 * 365 * 24 * 60 * 60,
+            max_secs_in_future: 50 * 365 * 24 * 60 * 60,
         }
     }
 

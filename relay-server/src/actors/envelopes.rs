@@ -1876,8 +1876,10 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
                 let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
                 clock_drift_processor.process_timestamp(&mut timestamp);
 
-                let min_timestamp =
-                    max(0, received.timestamp() - self.config.max_secs_in_past()) as u64;
+                let min_timestamp = max(
+                    0,
+                    received.timestamp() - self.config.max_session_secs_in_past(),
+                ) as u64;
                 let max_timestamp =
                     (received.timestamp() + self.config.max_secs_in_future()) as u64;
                 if min_timestamp <= timestamp.as_secs() && timestamp.as_secs() <= max_timestamp {
