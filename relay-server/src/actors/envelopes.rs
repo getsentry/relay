@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::cmp::max;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::rc::Rc;
@@ -1875,7 +1876,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
         } = message;
 
         let received = relay_common::instant_to_date_time(start_time);
-        let default_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
+        let received_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
 
         let project_cache = ProjectCache::from_registry();
         let clock_drift_processor =
@@ -1884,15 +1885,22 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
         for item in items {
             let payload = item.payload();
             if item.ty() == ItemType::Metrics {
-                let timestamp = item.timestamp().unwrap_or(default_timestamp);
-                let metrics = Metric::parse_all(&payload, timestamp).filter_map(|result| {
-                    let mut metric = result.ok()?;
-                    clock_drift_processor.process_timestamp(&mut metric.timestamp);
-                    Some(metric)
-                });
+                let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
+                clock_drift_processor.process_timestamp(&mut timestamp);
 
-                relay_log::trace!("inserting metrics into project cache");
-                project_cache.do_send(InsertMetrics::new(public_key, metrics));
+                let min_timestamp = max(
+                    0,
+                    received.timestamp() - self.config.max_session_secs_in_past(),
+                ) as u64;
+                let max_timestamp =
+                    (received.timestamp() + self.config.max_secs_in_future()) as u64;
+                if min_timestamp <= timestamp.as_secs() && timestamp.as_secs() <= max_timestamp {
+                    let metrics =
+                        Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
+
+                    relay_log::trace!("inserting metrics into project cache");
+                    project_cache.do_send(InsertMetrics::new(public_key, metrics));
+                }
             } else if item.ty() == ItemType::MetricBuckets {
                 if let Ok(mut buckets) = Bucket::parse_all(&payload) {
                     for bucket in &mut buckets {
@@ -1901,6 +1909,8 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 
                     relay_log::trace!("merging metric buckets into project cache");
                     project_cache.do_send(MergeBuckets::new(public_key, buckets));
+                } else {
+                    metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
                 }
             } else {
                 relay_log::error!(
