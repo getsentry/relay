@@ -464,8 +464,8 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     }
 }
 
-/// Treat nil UUIDs as if they were None
-fn get_distinct_id(distinct_id: &Option<String>) -> Option<&String> {
+/// Convert contained nil UUIDs to None
+fn nil_to_none(distinct_id: &Option<String>) -> Option<&String> {
     let distinct_id = distinct_id.as_ref()?;
     if let Ok(uuid) = distinct_id.parse::<Uuid>() {
         if uuid.is_nil() {
@@ -523,7 +523,7 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
             tags: tags.clone(),
         });
 
-        if let Some(distinct_id) = get_distinct_id(&session.distinct_id) {
+        if let Some(distinct_id) = nil_to_none(&session.distinct_id) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -545,7 +545,7 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
             tags: with_tag(&tags, "session.status", session.status),
         });
 
-        if let Some(distinct_id) = get_distinct_id(&session.distinct_id) {
+        if let Some(distinct_id) = nil_to_none(&session.distinct_id) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -3034,23 +3034,20 @@ mod tests {
     }
 
     #[test]
-    fn test_get_distinct_id() {
-        assert!(get_distinct_id(&None).is_none());
+    fn test_nil_to_none() {
+        assert!(nil_to_none(&None).is_none());
 
         let asdf = Some("asdf".to_owned());
-        assert_eq!(get_distinct_id(&asdf).unwrap(), "asdf");
+        assert_eq!(nil_to_none(&asdf).unwrap(), "asdf");
 
         let nil = Some("00000000-0000-0000-0000-000000000000".to_owned());
-        assert!(get_distinct_id(&nil).is_none());
+        assert!(nil_to_none(&nil).is_none());
 
         let nil2 = Some("00000000000000000000000000000000".to_owned());
-        assert!(get_distinct_id(&nil2).is_none());
+        assert!(nil_to_none(&nil2).is_none());
 
         let not_nil = Some("00000000-0000-0000-0000-000000000123".to_owned());
-        assert_eq!(
-            get_distinct_id(&not_nil).unwrap(),
-            not_nil.as_ref().unwrap()
-        );
+        assert_eq!(nil_to_none(&not_nil).unwrap(), not_nil.as_ref().unwrap());
     }
 
     #[test]
