@@ -224,7 +224,7 @@ def test_session_metrics_non_processing(
         session_metrics = json.loads(metrics_item.get_bytes().decode())
         session_metrics = sorted(session_metrics, key=lambda x: x["name"])
 
-        ts = int(timestamp.timestamp())
+        ts = int(started.timestamp())
         assert session_metrics == [
             {
                 "name": "session",
@@ -355,10 +355,11 @@ def test_session_metrics_processing(
 
     metrics = metrics_by_name(metrics_consumer, 3)
 
+    expected_timestamp = int(started.timestamp())
     assert metrics["session"] == {
         "org_id": 1,
         "project_id": 42,
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": expected_timestamp,
         "name": "session",
         "type": "c",
         "unit": "",
@@ -373,7 +374,7 @@ def test_session_metrics_processing(
     assert metrics["user"] == {
         "org_id": 1,
         "project_id": 42,
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": expected_timestamp,
         "name": "user",
         "type": "s",
         "unit": "",
@@ -388,7 +389,7 @@ def test_session_metrics_processing(
     assert metrics["session.duration"] == {
         "org_id": 1,
         "project_id": 42,
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": expected_timestamp,
         "name": "session.duration",
         "type": "d",
         "unit": "s",
