@@ -16,6 +16,9 @@ targets:
 
 requireNames:
   - /^sentry_relay-.*-py2\.py3-none-macosx_10_15_x86_64.whl$/
+  - /^sentry_relay-.*-py2\.py3-none-macosx_11_0_arm64.whl$/
   - /^sentry_relay-.*-py2\.py3-none-.*manylinux2010_i686.*\.whl$/
   - /^sentry_relay-.*-py2\.py3-none-.*manylinux2010_x86_64.*\.whl$/
+  - /^sentry_relay-.*-py2\.py3-none-.*manylinux2010_x86_64.*\.whl$/
+  - /^sentry_relay-.*-py2\.py3-none-.*manylinux2014_aarch64.*\.whl$/
   - /^sentry-relay-.*\.zip$/

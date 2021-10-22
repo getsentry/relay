@@ -39,6 +39,7 @@ class Sentry(SentryLike):
         self.test_failures = []
         self.hits = {}
         self.known_relays = {}
+        self.fail_on_relay_error = True
 
     @property
     def internal_error_dsn(self):
@@ -257,7 +258,7 @@ def mini_sentry(request):
         envelope = Envelope.deserialize(flask_request.data)
         event = envelope.get_event()
 
-        if event is not None:
+        if event is not None and sentry.fail_on_relay_error:
             error = AssertionError("Relay sent us event: " + get_error_message(event))
             sentry.test_failures.append(("/api/666/envelope/", error))
 

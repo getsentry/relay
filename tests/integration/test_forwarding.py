@@ -106,15 +106,13 @@ def test_limits(mini_sentry, relay):
 
 
 def test_timeouts(mini_sentry, relay):
+    mini_sentry.fail_on_relay_error = False
+
     @mini_sentry.app.route("/api/test/timeout")
     def hi():
         time.sleep(60)
 
-    try:
-        relay = relay(mini_sentry)
+    relay = relay(mini_sentry)
 
-        response = relay.get("/api/test/timeout")
-        assert response.status_code == 504
-
-    finally:
-        mini_sentry.test_failures.clear()
+    response = relay.get("/api/test/timeout")
+    assert response.status_code == 504
