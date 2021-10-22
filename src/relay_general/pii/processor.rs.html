@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general&#x2F;src&#x2F;pii&#x2F;processor.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>processor.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input"name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general&#x2F;src&#x2F;pii&#x2F;processor.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>processor.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -944,22 +944,21 @@
 <span id="944">944</span>
 <span id="945">945</span>
 <span id="946">946</span>
-</pre><pre class="rust">
-<span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::mem</span>;
 
 <span class="kw">use</span> <span class="ident">lazy_static::lazy_static</span>;
 <span class="kw">use</span> <span class="ident">regex::Regex</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::pii::compiledconfig::RuleRef</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::pii::regexes</span>::{<span class="ident">get_regex_for_rule_type</span>, <span class="ident">PatternType</span>, <span class="ident">ReplaceBehavior</span>, <span class="ident">ANYTHING_REGEX</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::pii::utils</span>::{<span class="ident">hash_value</span>, <span class="ident">process_pairlist</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::pii</span>::{<span class="ident">CompiledPiiConfig</span>, <span class="ident">Redaction</span>, <span class="ident">RuleType</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::processor</span>::{
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii::compiledconfig::RuleRef</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii::regexes</span>::{<span class="ident">get_regex_for_rule_type</span>, <span class="ident">PatternType</span>, <span class="ident">ReplaceBehavior</span>, <span class="ident">ANYTHING_REGEX</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii::utils</span>::{<span class="ident">hash_value</span>, <span class="ident">process_pairlist</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii</span>::{<span class="ident">CompiledPiiConfig</span>, <span class="ident">Redaction</span>, <span class="ident">RuleType</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{
     <span class="ident">process_chunked_value</span>, <span class="ident">Chunk</span>, <span class="ident">Pii</span>, <span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>, <span class="ident">ValueType</span>,
 };
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{<span class="ident">AsPair</span>, <span class="ident">IpAddr</span>, <span class="ident">NativeImagePath</span>, <span class="ident">PairList</span>, <span class="ident">User</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types</span>::{<span class="ident">Meta</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>, <span class="ident">Remark</span>, <span class="ident">RemarkType</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">AsPair</span>, <span class="ident">IpAddr</span>, <span class="ident">NativeImagePath</span>, <span class="ident">PairList</span>, <span class="ident">User</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Meta</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>, <span class="ident">Remark</span>, <span class="ident">RemarkType</span>};
 
 <span class="comment">// The Regex initializer needs a scope to avoid an endless loop/recursion in RustAnalyzer:</span>
 <span class="comment">// https://github.com/rust-analyzer/rust-analyzer/issues/5896. Note that outside of lazy_static,</span>
@@ -1302,18 +1301,18 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">use</span> {
-    <span class="kw">crate</span><span class="ident">::pii::PiiConfig</span>,
-    <span class="kw">crate</span><span class="ident">::processor::process_value</span>,
-    <span class="kw">crate</span><span class="ident">::protocol</span>::{
+    <span class="ident"><span class="kw">crate</span>::pii::PiiConfig</span>,
+    <span class="ident"><span class="kw">crate</span>::processor::process_value</span>,
+    <span class="ident"><span class="kw">crate</span>::protocol</span>::{
         <span class="ident">Addr</span>, <span class="ident">DebugImage</span>, <span class="ident">DebugMeta</span>, <span class="ident">Event</span>, <span class="ident">ExtraValue</span>, <span class="ident">Headers</span>, <span class="ident">LogEntry</span>, <span class="ident">NativeDebugImage</span>,
         <span class="ident">Request</span>,
     },
-    <span class="kw">crate</span><span class="ident">::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>},
+    <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>},
 };
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_basic_stripping</span>() {
-    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::protocol</span>::{<span class="ident">TagEntry</span>, <span class="ident">Tags</span>};
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">TagEntry</span>, <span class="ident">Tags</span>};
     <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
         <span class="string">r##&quot;
         {
@@ -1891,7 +1890,7 @@
 
     <span class="macro">assert_eq!</span>(<span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">as_str</span>(), <span class="string">&quot;123&quot;</span>);
 }
-</pre></div>
+</code></pre></div>
 </section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script>
 </body></html>

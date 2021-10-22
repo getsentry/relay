@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general&#x2F;src&#x2F;protocol&#x2F;types.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>types.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input"name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general&#x2F;src&#x2F;protocol&#x2F;types.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>types.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_general/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1269,8 +1269,7 @@
 <span id="1269">1269</span>
 <span id="1270">1270</span>
 <span id="1271">1271</span>
-</pre><pre class="rust">
-<span class="doccomment">//! Common types of the protocol.</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Common types of the protocol.</span>
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::Ordering</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -1289,8 +1288,8 @@
 <span class="kw">use</span> <span class="ident">enumset::EnumSet</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>, <span class="ident">ValueType</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::types</span>::{
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>, <span class="ident">ValueType</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{
     <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Empty</span>, <span class="ident">Error</span>, <span class="ident">ErrorKind</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>,
     <span class="ident">ProcessingResult</span>, <span class="ident">SkipSerialization</span>, <span class="ident">Value</span>,
 };
@@ -1414,16 +1413,16 @@
     <span class="kw">type</span> <span class="ident">Value</span>: <span class="ident">ProcessValue</span>;
 
     <span class="doccomment">/// Constructs this value from a raw tuple.</span>
-    <span class="kw">fn</span> <span class="ident">from_pair</span>(<span class="ident">pair</span>: (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Key</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Value</span><span class="op">&gt;</span>)) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>;
+    <span class="kw">fn</span> <span class="ident">from_pair</span>(<span class="ident">pair</span>: (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>)) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>;
 
     <span class="doccomment">/// Converts this pair into a raw tuple.</span>
-    <span class="kw">fn</span> <span class="ident">into_pair</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Key</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Value</span><span class="op">&gt;</span>);
+    <span class="kw">fn</span> <span class="ident">into_pair</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>);
 
     <span class="doccomment">/// Extracts a key and value pair from the object.</span>
-    <span class="kw">fn</span> <span class="ident">as_pair</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Key</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Value</span><span class="op">&gt;</span>);
+    <span class="kw">fn</span> <span class="ident">as_pair</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>);
 
     <span class="doccomment">/// Extracts the mutable key and value pair from the object.</span>
-    <span class="kw">fn</span> <span class="ident">as_pair_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Key</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Value</span><span class="op">&gt;</span>);
+    <span class="kw">fn</span> <span class="ident">as_pair_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>);
 
     <span class="doccomment">/// Returns a reference to the string representation of the key.</span>
     <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
@@ -1431,7 +1430,7 @@
     }
 
     <span class="doccomment">/// Returns a reference to the value.</span>
-    <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="self">Self</span><span class="ident">::Value</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">as_pair</span>().<span class="number">1</span>.<span class="ident">value</span>()
     }
 }
@@ -1444,19 +1443,19 @@
     <span class="kw">type</span> <span class="ident">Key</span> <span class="op">=</span> <span class="ident">K</span>;
     <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">V</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_pair</span>(<span class="ident">pair</span>: (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Key</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Value</span><span class="op">&gt;</span>)) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from_pair</span>(<span class="ident">pair</span>: (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>)) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="ident">pair</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">into_pair</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Key</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Value</span><span class="op">&gt;</span>) {
+    <span class="kw">fn</span> <span class="ident">into_pair</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>) {
         <span class="self">self</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">as_pair</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Key</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Value</span><span class="op">&gt;</span>) {
+    <span class="kw">fn</span> <span class="ident">as_pair</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>) {
         (<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">1</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">as_pair_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Key</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="ident">::Value</span><span class="op">&gt;</span>) {
+    <span class="kw">fn</span> <span class="ident">as_pair_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Key</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span><span class="op">&gt;</span>) {
         (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">1</span>)
     }
 }
@@ -1519,13 +1518,13 @@
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">std::ops::Deref</span> <span class="kw">for</span> <span class="ident">PairList</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">Array</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span><span class="ident">::Target</span> {
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">std::ops::DerefMut</span> <span class="kw">for</span> <span class="ident">PairList</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Target</span> {
+    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Target</span> {
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span>
     }
 }
@@ -1641,7 +1640,7 @@
         <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
             <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="macro-nonterminal">std::num::ParseIntError</span>;
 
-            <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="kw">type</span>, <span class="self">Self</span><span class="macro-nonterminal">::Err</span><span class="op">&gt;</span> {
+            <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="kw">type</span>, <span class="macro-nonterminal">Self::Err</span><span class="op">&gt;</span> {
                 <span class="kw">if</span> <span class="ident">s</span>.<span class="ident">starts_with</span>(<span class="string">&quot;0x&quot;</span>) <span class="op">|</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">starts_with</span>(<span class="string">&quot;0X&quot;</span>) {
                     <span class="ident">u64::from_str_radix</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>[<span class="number">2</span>..], <span class="number">16</span>).<span class="ident">map</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>)
                 } <span class="kw">else</span> {
@@ -1695,7 +1694,7 @@
             <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 <span class="ident">s</span>: <span class="ident">S</span>,
-                <span class="ident">_behavior</span>: <span class="kw">crate</span><span class="ident">::types::SkipSerialization</span>,
+                <span class="ident">_behavior</span>: <span class="ident"><span class="kw">crate</span>::types::SkipSerialization</span>,
             ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
                 <span class="self">Self</span>: <span class="ident">Sized</span>,
@@ -1789,7 +1788,7 @@
 
     <span class="doccomment">/// Checks whether the contained ip address is still valid (relevant for PII processing).</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_valid</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="self">Self</span><span class="ident">::parse</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>).<span class="ident">is_ok</span>()
+        <span class="ident"><span class="self">Self</span>::parse</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>).<span class="ident">is_ok</span>()
     }
 
     <span class="doccomment">/// Returns the string value of this ip address.</span>
@@ -1902,7 +1901,7 @@
 <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">Level</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseLevelError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="self">Self</span><span class="ident">::Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">string</span> {
             <span class="string">&quot;debug&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Level::Debug</span>,
             <span class="string">&quot;info&quot;</span> <span class="op">|</span> <span class="string">&quot;log&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Level::Info</span>,
@@ -2028,13 +2027,13 @@
 <span class="kw">impl</span> <span class="ident">std::ops::Deref</span> <span class="kw">for</span> <span class="ident">LenientString</span> {
     <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">String</span>;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span><span class="ident">::Target</span> {
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">std::ops::DerefMut</span> <span class="kw">for</span> <span class="ident">LenientString</span> {
-    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Target</span> {
+    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Target</span> {
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span>
     }
 }
@@ -2100,13 +2099,13 @@
 <span class="kw">impl</span> <span class="ident">std::ops::Deref</span> <span class="kw">for</span> <span class="ident">JsonLenientString</span> {
     <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">String</span>;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span><span class="ident">::Target</span> {
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">std::ops::DerefMut</span> <span class="kw">for</span> <span class="ident">JsonLenientString</span> {
-    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Target</span> {
+    <span class="kw">fn</span> <span class="ident">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Target</span> {
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span>
     }
 }
@@ -2167,7 +2166,7 @@
 <span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">Timestamp</span> {
     <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span><span class="ident">::Target</span> {
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 }
@@ -2181,7 +2180,7 @@
 <span class="kw">impl</span> <span class="ident">Add</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Timestamp</span> {
     <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> <span class="self">Self</span>;
 
-    <span class="kw">fn</span> <span class="ident">add</span>(<span class="self">self</span>, <span class="ident">duration</span>: <span class="ident">Duration</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Output</span> {
+    <span class="kw">fn</span> <span class="ident">add</span>(<span class="self">self</span>, <span class="ident">duration</span>: <span class="ident">Duration</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Output</span> {
         <span class="ident">Timestamp</span>(<span class="self">self</span>.<span class="number">0</span> <span class="op">+</span> <span class="ident">duration</span>)
     }
 }
@@ -2541,7 +2540,7 @@
 }&quot;#</span>
     );
 }
-</pre></div>
+</code></pre></div>
 </section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script>
 </body></html>

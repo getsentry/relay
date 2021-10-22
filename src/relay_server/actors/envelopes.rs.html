@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server&#x2F;src&#x2F;actors&#x2F;envelopes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelopes.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input"name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server&#x2F;src&#x2F;actors&#x2F;envelopes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelopes.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -3270,8 +3270,36 @@
 <span id="3270">3270</span>
 <span id="3271">3271</span>
 <span id="3272">3272</span>
-</pre><pre class="rust">
-<span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
+<span id="3273">3273</span>
+<span id="3274">3274</span>
+<span id="3275">3275</span>
+<span id="3276">3276</span>
+<span id="3277">3277</span>
+<span id="3278">3278</span>
+<span id="3279">3279</span>
+<span id="3280">3280</span>
+<span id="3281">3281</span>
+<span id="3282">3282</span>
+<span id="3283">3283</span>
+<span id="3284">3284</span>
+<span id="3285">3285</span>
+<span id="3286">3286</span>
+<span id="3287">3287</span>
+<span id="3288">3288</span>
+<span id="3289">3289</span>
+<span id="3290">3290</span>
+<span id="3291">3291</span>
+<span id="3292">3292</span>
+<span id="3293">3293</span>
+<span id="3294">3294</span>
+<span id="3295">3295</span>
+<span id="3296">3296</span>
+<span id="3297">3297</span>
+<span id="3298">3298</span>
+<span id="3299">3299</span>
+<span id="3300">3300</span>
+<span id="3301">3301</span>
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::io::Write</span>;
@@ -3292,7 +3320,7 @@
 <span class="kw">use</span> <span class="ident">serde_json::Value</span> <span class="kw">as</span> <span class="ident">SerdeValue</span>;
 
 <span class="kw">use</span> <span class="ident">relay_auth::RelayVersion</span>;
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">PiiProcessor</span>};
 <span class="kw">use</span> <span class="ident">relay_general::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
@@ -3310,27 +3338,27 @@
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">RuleId</span>, <span class="ident">SamplingResult</span>};
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">OutcomeProducer</span>, <span class="ident">TrackOutcome</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project</span>::{<span class="ident">Feature</span>, <span class="ident">ProjectState</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::project_cache</span>::{
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">OutcomeProducer</span>, <span class="ident">TrackOutcome</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project</span>::{<span class="ident">Feature</span>, <span class="ident">ProjectState</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache</span>::{
     <span class="ident">CheckEnvelope</span>, <span class="ident">GetProjectState</span>, <span class="ident">InsertMetrics</span>, <span class="ident">MergeBuckets</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>,
     <span class="ident">UpdateRateLimits</span>,
 };
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::actors::upstream</span>::{<span class="ident">SendRequest</span>, <span class="ident">UpstreamRelay</span>, <span class="ident">UpstreamRequest</span>, <span class="ident">UpstreamRequestError</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::envelope</span>::{<span class="self">self</span>, <span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">EnvelopeError</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::extractors</span>::{<span class="ident">PartialDsn</span>, <span class="ident">RequestMeta</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::service::ServerError</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::utils</span>::{
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">SendRequest</span>, <span class="ident">UpstreamRelay</span>, <span class="ident">UpstreamRequest</span>, <span class="ident">UpstreamRequestError</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="self">self</span>, <span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">EnvelopeError</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors</span>::{<span class="ident">PartialDsn</span>, <span class="ident">RequestMeta</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServerError</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{
     <span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">EnvelopeSummary</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>, <span class="ident">SendWithOutcome</span>,
 };
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">use</span> {
-    <span class="kw">crate</span><span class="ident">::actors::store</span>::{<span class="ident">StoreEnvelope</span>, <span class="ident">StoreError</span>, <span class="ident">StoreForwarder</span>},
-    <span class="kw">crate</span><span class="ident">::service::ServerErrorKind</span>,
-    <span class="kw">crate</span><span class="ident">::utils::EnvelopeLimiter</span>,
+    <span class="ident"><span class="kw">crate</span>::actors::store</span>::{<span class="ident">StoreEnvelope</span>, <span class="ident">StoreError</span>, <span class="ident">StoreForwarder</span>},
+    <span class="ident"><span class="kw">crate</span>::service::ServerErrorKind</span>,
+    <span class="ident"><span class="kw">crate</span>::utils::EnvelopeLimiter</span>,
     <span class="ident">failure::ResultExt</span>,
     <span class="ident">relay_filter::FilterStatKey</span>,
     <span class="ident">relay_general::store</span>::{<span class="ident">GeoIpLookup</span>, <span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>},
@@ -3432,43 +3460,43 @@
     <span class="kw">fn</span> <span class="ident">to_outcome</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Outcome</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="comment">// General outcomes for invalid events</span>
-            <span class="self">Self</span><span class="ident">::PayloadTooLarge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::TooLarge</span>)),
-            <span class="self">Self</span><span class="ident">::InvalidJson</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidJson</span>)),
-            <span class="self">Self</span><span class="ident">::InvalidMsgpack</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidMsgpack</span>)),
-            <span class="self">Self</span><span class="ident">::InvalidSecurityType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::SecurityReportType</span>)),
-            <span class="self">Self</span><span class="ident">::InvalidSecurityReport</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::SecurityReport</span>)),
-            <span class="self">Self</span><span class="ident">::InvalidTransaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidTransaction</span>)),
-            <span class="self">Self</span><span class="ident">::DuplicateItem</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::DuplicateItem</span>)),
-            <span class="self">Self</span><span class="ident">::NoEventPayload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::NoEventPayload</span>)),
+            <span class="ident"><span class="self">Self</span>::PayloadTooLarge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::TooLarge</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidJson</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidJson</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidMsgpack</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidMsgpack</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidSecurityType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::SecurityReportType</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidSecurityReport</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::SecurityReport</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidTransaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidTransaction</span>)),
+            <span class="ident"><span class="self">Self</span>::DuplicateItem</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::DuplicateItem</span>)),
+            <span class="ident"><span class="self">Self</span>::NoEventPayload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::NoEventPayload</span>)),
 
             <span class="comment">// Processing-only outcomes (Sentry-internal Relays)</span>
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="self">Self</span><span class="ident">::InvalidUnrealReport</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessUnreal</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidUnrealReport</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessUnreal</span>)),
 
             <span class="comment">// Internal errors</span>
-            <span class="self">Self</span><span class="ident">::SerializeFailed</span>(<span class="kw">_</span>)
-            <span class="op">|</span> <span class="self">Self</span><span class="ident">::ProjectFailed</span>(<span class="kw">_</span>)
-            <span class="op">|</span> <span class="self">Self</span><span class="ident">::Timeout</span>
-            <span class="op">|</span> <span class="self">Self</span><span class="ident">::ProcessingFailed</span>(<span class="kw">_</span>)
-            <span class="op">|</span> <span class="self">Self</span><span class="ident">::MissingProjectId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
+            <span class="ident"><span class="self">Self</span>::SerializeFailed</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::ProjectFailed</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::Timeout</span>
+            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::ProcessingFailed</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::MissingProjectId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="self">Self</span><span class="ident">::QuotasFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
+            <span class="ident"><span class="self">Self</span>::QuotasFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
 
             <span class="comment">// These outcomes are emitted at the source.</span>
-            <span class="self">Self</span><span class="ident">::ScheduleFailed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="self">Self</span><span class="ident">::Rejected</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::ScheduleFailed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::Rejected</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="self">Self</span><span class="ident">::EventFiltered</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="self">Self</span><span class="ident">::TraceSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="self">Self</span><span class="ident">::EventSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="self">Self</span><span class="ident">::RateLimited</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::EventFiltered</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::TraceSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::EventSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::RateLimited</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="self">Self</span><span class="ident">::StoreFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::StoreFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
 
             <span class="comment">// If we send to an upstream, we don&#39;t emit outcomes.</span>
-            <span class="self">Self</span><span class="ident">::UpstreamRequestFailed</span>(<span class="kw">_</span>)
-            <span class="op">|</span> <span class="self">Self</span><span class="ident">::EnvelopeBuildFailed</span>(<span class="kw">_</span>)
-            <span class="op">|</span> <span class="self">Self</span><span class="ident">::BodyEncodingFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::UpstreamRequestFailed</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::EnvelopeBuildFailed</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::BodyEncodingFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 }
@@ -3502,7 +3530,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// To provide additional scoping, use [`EnvelopeContext::scope`].</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_envelope</span>(<span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="self">Self</span><span class="ident">::from_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::from_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>());
         <span class="ident">context</span>.<span class="ident">update</span>(<span class="ident">envelope</span>);
         <span class="ident">context</span>
     }
@@ -3737,6 +3765,18 @@
     }
 }
 
+<span class="doccomment">/// Convert contained nil UUIDs to None</span>
+<span class="kw">fn</span> <span class="ident">nil_to_none</span>(<span class="ident">distinct_id</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">distinct_id</span> <span class="op">=</span> <span class="ident">distinct_id</span>.<span class="ident">as_ref</span>()<span class="question-mark">?</span>;
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">uuid</span>) <span class="op">=</span> <span class="ident">distinct_id</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span>() {
+        <span class="kw">if</span> <span class="ident">uuid</span>.<span class="ident">is_nil</span>() {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
+        }
+    }
+
+    <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>)
+}
+
 <span class="kw">fn</span> <span class="ident">extract_session_metrics</span>(<span class="ident">session</span>: <span class="kw-2">&amp;</span><span class="ident">SessionUpdate</span>, <span class="ident">target</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>) {
     <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">UnixTimestamp::from_datetime</span>(<span class="ident">session</span>.<span class="ident">timestamp</span>) {
         <span class="prelude-val">Some</span>(<span class="ident">ts</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ts</span>,
@@ -3784,7 +3824,7 @@
             <span class="ident">tags</span>: <span class="ident">tags</span>.<span class="ident">clone</span>(),
         });
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">session</span>.<span class="ident">distinct_id</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">nil_to_none</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">distinct_id</span>) {
             <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
                 <span class="ident">name</span>: <span class="string">&quot;user&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
@@ -3806,7 +3846,7 @@
             <span class="ident">tags</span>: <span class="ident">with_tag</span>(<span class="kw-2">&amp;</span><span class="ident">tags</span>, <span class="string">&quot;session.status&quot;</span>, <span class="ident">session</span>.<span class="ident">status</span>),
         });
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">session</span>.<span class="ident">distinct_id</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">nil_to_none</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">distinct_id</span>) {
             <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
                 <span class="ident">name</span>: <span class="string">&quot;user&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
@@ -4389,9 +4429,9 @@
             <span class="op">+</span> <span class="ident">breadcrumbs_item1</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="number">0</span>, <span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">len</span>())
             <span class="op">+</span> <span class="ident">breadcrumbs_item2</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="number">0</span>, <span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">len</span>());
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="self">Self</span><span class="ident">::extract_attached_event</span>(<span class="ident">config</span>, <span class="ident">event_item</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">breadcrumbs1</span> <span class="op">=</span> <span class="self">Self</span><span class="ident">::parse_msgpack_breadcrumbs</span>(<span class="ident">config</span>, <span class="ident">breadcrumbs_item1</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">breadcrumbs2</span> <span class="op">=</span> <span class="self">Self</span><span class="ident">::parse_msgpack_breadcrumbs</span>(<span class="ident">config</span>, <span class="ident">breadcrumbs_item2</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::extract_attached_event</span>(<span class="ident">config</span>, <span class="ident">event_item</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">breadcrumbs1</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::parse_msgpack_breadcrumbs</span>(<span class="ident">config</span>, <span class="ident">breadcrumbs_item1</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">breadcrumbs2</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::parse_msgpack_breadcrumbs</span>(<span class="ident">config</span>, <span class="ident">breadcrumbs_item2</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">timestamp1</span> <span class="op">=</span> <span class="ident">breadcrumbs1</span>
             .<span class="ident">iter</span>()
@@ -4516,7 +4556,7 @@
             })<span class="question-mark">?</span>
         } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">attachment_item</span>.<span class="ident">is_some</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">breadcrumbs1</span>.<span class="ident">is_some</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">breadcrumbs2</span>.<span class="ident">is_some</span>() {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;extracting attached event data&quot;</span>);
-            <span class="self">Self</span><span class="ident">::event_from_attachments</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>, <span class="ident">attachment_item</span>, <span class="ident">breadcrumbs1</span>, <span class="ident">breadcrumbs2</span>)<span class="question-mark">?</span>
+            <span class="ident"><span class="self">Self</span>::event_from_attachments</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>, <span class="ident">attachment_item</span>, <span class="ident">breadcrumbs1</span>, <span class="ident">breadcrumbs2</span>)<span class="question-mark">?</span>
         } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">form_item</span> {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;extracting form data&quot;</span>);
             <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>();
@@ -5086,7 +5126,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">ProcessEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeResponse</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EnvelopeWaitTime</span>) <span class="op">=</span> <span class="ident">message</span>.<span class="ident">start_time</span>.<span class="ident">elapsed</span>());
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EnvelopeProcessingTime</span>), {
             <span class="self">self</span>.<span class="ident">process</span>(<span class="ident">message</span>)
@@ -5127,7 +5167,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">ProcessMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">ProcessMetrics</span> {
             <span class="ident">items</span>,
             <span class="ident">project_key</span>: <span class="ident">public_key</span>,
@@ -5206,7 +5246,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">EncodeEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">EncodeEnvelope</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">EncodeEnvelope</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">EncodeEnvelope</span> {
             <span class="ident">envelope_body</span>,
             <span class="ident">envelope_meta</span>,
@@ -5215,7 +5255,7 @@
             <span class="ident">response_sender</span>,
             <span class="ident">project_key</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
-        <span class="kw">match</span> <span class="self">Self</span><span class="ident">::encode_envelope_body</span>(<span class="ident">envelope_body</span>, <span class="ident">http_encoding</span>) {
+        <span class="kw">match</span> <span class="ident"><span class="self">Self</span>::encode_envelope_body</span>(<span class="ident">envelope_body</span>, <span class="ident">http_encoding</span>) {
             <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">response_sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> {
                     <span class="ident">sender</span>
@@ -5446,7 +5486,7 @@
 <span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
     <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) {
+    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
         <span class="comment">// Set the mailbox size to the size of the envelope buffer. This is a rough estimate but</span>
         <span class="comment">// should ensure that we&#39;re not dropping envelopes unintentionally after we&#39;ve accepted</span>
         <span class="comment">// them.</span>
@@ -5455,7 +5495,7 @@
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;envelope manager started&quot;</span>);
     }
 
-    <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) {
+    <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;envelope manager stopped&quot;</span>);
     }
 }
@@ -5499,7 +5539,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">QueueEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>, <span class="ident">QueueEnvelopeError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">QueueEnvelope</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">QueueEnvelope</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="macro">metric!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms::EnvelopeQueueSize</span>) <span class="op">=</span> <span class="ident">u64::from</span>(<span class="self">self</span>.<span class="ident">active_envelopes</span>));
 
         <span class="macro">metric!</span>(
@@ -5597,7 +5637,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">HandleEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseActFuture</span><span class="op">&lt;</span><span class="self">Self</span>, (), ()<span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">HandleEnvelope</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">HandleEnvelope</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="comment">// We measure three timers while handling envelopes, once they have been initially accepted:</span>
         <span class="comment">//</span>
         <span class="comment">// 1. `event.wait_time`: The time we take to get all dependencies for envelopes before they</span>
@@ -5856,7 +5896,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">SendMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">SendMetrics</span> {
             <span class="ident">buckets</span>,
             <span class="ident">scoping</span>,
@@ -5901,8 +5941,8 @@
     <span class="kw">fn</span> <span class="ident">handle</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">message</span>: <span class="ident">GetCapturedEnvelope</span>,
-        <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span><span class="ident">::Context</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span><span class="ident">::Result</span> {
+        <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="self">self</span>.<span class="ident">captures</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>).<span class="ident">cloned</span>()
     }
 }
@@ -5931,7 +5971,7 @@
     <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
     <span class="kw">use</span> <span class="ident">relay_general::protocol::SessionStatus</span>;
 
-    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::extractors::RequestMeta</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::RequestMeta</span>;
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
@@ -6295,6 +6335,23 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_nil_to_none</span>() {
+        <span class="macro">assert!</span>(<span class="ident">nil_to_none</span>(<span class="kw-2">&amp;</span><span class="prelude-val">None</span>).<span class="ident">is_none</span>());
+
+        <span class="kw">let</span> <span class="ident">asdf</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="string">&quot;asdf&quot;</span>.<span class="ident">to_owned</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">nil_to_none</span>(<span class="kw-2">&amp;</span><span class="ident">asdf</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;asdf&quot;</span>);
+
+        <span class="kw">let</span> <span class="ident">nil</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="string">&quot;00000000-0000-0000-0000-000000000000&quot;</span>.<span class="ident">to_owned</span>());
+        <span class="macro">assert!</span>(<span class="ident">nil_to_none</span>(<span class="kw-2">&amp;</span><span class="ident">nil</span>).<span class="ident">is_none</span>());
+
+        <span class="kw">let</span> <span class="ident">nil2</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="string">&quot;00000000000000000000000000000000&quot;</span>.<span class="ident">to_owned</span>());
+        <span class="macro">assert!</span>(<span class="ident">nil_to_none</span>(<span class="kw-2">&amp;</span><span class="ident">nil2</span>).<span class="ident">is_none</span>());
+
+        <span class="kw">let</span> <span class="ident">not_nil</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="string">&quot;00000000-0000-0000-0000-000000000123&quot;</span>.<span class="ident">to_owned</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">nil_to_none</span>(<span class="kw-2">&amp;</span><span class="ident">not_nil</span>).<span class="ident">unwrap</span>(), <span class="ident">not_nil</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_extract_session_metrics</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
@@ -6543,7 +6600,7 @@
         ));
     }
 }
-</pre></div>
+</code></pre></div>
 </section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
     <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script>
 </body></html>
