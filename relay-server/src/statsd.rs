@@ -431,7 +431,7 @@ pub enum RelayCounters {
     ///    be used to ingest events. Once the grace period expires, the cache is evicted and new
     ///    requests wait for an update.
     EvictingStaleProjectCaches,
-    /// Number of times that parsing a metrics bucket item from an envelope fails.
+    /// Number of times that parsing a metrics bucket item from an envelope failed.
     MetricBucketsParsingFailed,
 }
 
