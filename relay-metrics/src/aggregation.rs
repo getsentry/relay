@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
-use crate::statsd::{MetricGauges, MetricHistograms, MetricTimers};
+use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricTimers};
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
 /// A snapshot of values within a [`Bucket`].
@@ -1135,7 +1135,10 @@ impl Aggregator {
                 .spawn(context);
         }
 
-        relay_statsd::metric!(histogram(MetricHistograms::BucketsFlushed) = total_bucket_count);
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BucketsFlushedPerCycle) = total_bucket_count
+        );
+        relay_statsd::metric!(counter(MetricCounters::BucketsFlushed) += total_bucket_count as i64);
     }
 }
 

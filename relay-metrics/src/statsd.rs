@@ -1,4 +1,4 @@
-use relay_statsd::{GaugeMetric, HistogramMetric, TimerMetric};
+use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 /// Timer metrics for Relay Metrics.
 pub enum MetricTimers {
@@ -21,7 +21,7 @@ impl TimerMetric for MetricTimers {
 /// Histogram metrics for Relay Metrics.
 pub enum MetricHistograms {
     /// The total number of metric buckets flushed in a cycle across all projects.
-    BucketsFlushed,
+    BucketsFlushedPerCycle,
 
     /// The number of metric buckets flushed in a cycle for each project.
     ///
@@ -34,7 +34,7 @@ pub enum MetricHistograms {
 impl HistogramMetric for MetricHistograms {
     fn name(&self) -> &'static str {
         match *self {
-            Self::BucketsFlushed => "metrics.buckets.flushed",
+            Self::BucketsFlushedPerCycle => "metrics.buckets.flushed_per_cycle",
             Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
         }
     }
@@ -50,6 +50,19 @@ impl GaugeMetric for MetricGauges {
     fn name(&self) -> &'static str {
         match *self {
             Self::Buckets => "metrics.buckets",
+        }
+    }
+}
+
+pub enum MetricCounters {
+    /// Number of metric buckets flushed (all cycles, all projects).
+    BucketsFlushed,
+}
+
+impl CounterMetric for MetricCounters {
+    fn name(&self) -> &'static str {
+        match *self {
+            MetricCounters::BucketsFlushed => "metrics.buckets.flushed",
         }
     }
 }
