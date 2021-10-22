@@ -6,6 +6,10 @@
 
 - Add bucket width to bucket protocol. ([#1103](https://github.com/getsentry/relay/pull/1103))
 
+**Internal**:
+
+- Change `metrics.buckets.flushed` metric to counter, and move old histogram to `metrics.buckets.flushed_per_cycle`. ([#1106](https://github.com/getsentry/relay/pull/1106))
+
 
 ## 21.10.0
 
