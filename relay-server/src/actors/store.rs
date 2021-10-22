@@ -15,7 +15,7 @@ use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
-use relay_config::{Config, KafkaTopic, TopicMap};
+use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricUnit};
@@ -50,10 +50,38 @@ pub enum StoreError {
     NoEventId,
 }
 
+type Producer = Arc<ThreadedProducer>;
+
+struct Producers {
+    events: Producer,
+    attachments: Producer,
+    transactions: Producer,
+    sessions: Producer,
+    metrics: Producer,
+}
+
+impl Producers {
+    /// Get a producer by KafkaTopic value
+    pub fn get(&self, kafka_topic: KafkaTopic) -> Option<&Producer> {
+        match kafka_topic {
+            KafkaTopic::Attachments => Some(&self.attachments),
+            KafkaTopic::Events => Some(&self.events),
+            KafkaTopic::Transactions => Some(&self.transactions),
+            KafkaTopic::Outcomes => {
+                // should be unreachable
+                relay_log::error!("attempted to send data to outcomes topic from store forwarder. there is another actor for that.");
+                None
+            }
+            KafkaTopic::Sessions => Some(&self.sessions),
+            KafkaTopic::Metrics => Some(&self.metrics),
+        }
+    }
+}
+
 /// Actor for publishing events to Sentry through kafka topics.
 pub struct StoreForwarder {
     config: Arc<Config>,
-    producers: TopicMap<Arc<ThreadedProducer>>,
+    producers: Producers,
 }
 
 fn make_distinct_id(s: &str) -> Uuid {
@@ -61,38 +89,48 @@ fn make_distinct_id(s: &str) -> Uuid {
         .unwrap_or_else(|_| Uuid::new_v5(&NAMESPACE_DID, s.as_bytes()))
 }
 
+/// Temporary map used to deduplicate kafka producers
+type ReusedProducersMap<'a> = BTreeMap<Option<&'a str>, Producer>;
+
+fn make_producer<'a>(
+    config: &'a Config,
+    reused_producers: &mut ReusedProducersMap<'a>,
+    kafka_topic: KafkaTopic,
+) -> Result<Producer, ServerError> {
+    let (config_name, kafka_config) = config
+        .kafka_config(kafka_topic)
+        .context(ServerErrorKind::KafkaError)?;
+
+    if let Some(producer) = reused_producers.get(&config_name) {
+        return Ok(Arc::clone(producer));
+    }
+
+    let mut client_config = ClientConfig::new();
+
+    for config_p in kafka_config {
+        client_config.set(config_p.name.as_str(), config_p.value.as_str());
+    }
+
+    let producer = Arc::new(
+        client_config
+            .create_with_context(CaptureErrorContext)
+            .context(ServerErrorKind::KafkaError)?,
+    );
+
+    reused_producers.insert(config_name, Arc::clone(&producer));
+    Ok(producer)
+}
+
 impl StoreForwarder {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-        // Temporary map used to deduplicate kafka producers
-        let mut reused_producers: BTreeMap<_, Arc<_>> = BTreeMap::new();
-
-        let producers = config
-            .kafka_topics()
-            .as_ref()
-            .map::<_, ServerError, _>(|assignment| {
-                let config_name = assignment.kafka_config_name();
-                if let Some(producer) = reused_producers.get(&config_name) {
-                    return Ok(Arc::clone(producer));
-                }
-
-                let mut client_config = ClientConfig::new();
-                let kafka_config = config
-                    .kafka_config(assignment)
-                    .context(ServerErrorKind::KafkaError)?;
-
-                for config_p in kafka_config {
-                    client_config.set(config_p.name.as_str(), config_p.value.as_str());
-                }
-
-                let producer = Arc::new(
-                    client_config
-                        .create_with_context(CaptureErrorContext)
-                        .context(ServerErrorKind::KafkaError)?,
-                );
-
-                reused_producers.insert(config_name, Arc::clone(&producer));
-                Ok(producer)
-            })?;
+        let mut reused_producers = BTreeMap::new();
+        let producers = Producers {
+            attachments: make_producer(&*config, &mut reused_producers, KafkaTopic::Attachments)?,
+            events: make_producer(&*config, &mut reused_producers, KafkaTopic::Events)?,
+            transactions: make_producer(&*config, &mut reused_producers, KafkaTopic::Transactions)?,
+            sessions: make_producer(&*config, &mut reused_producers, KafkaTopic::Sessions)?,
+            metrics: make_producer(&*config, &mut reused_producers, KafkaTopic::Metrics)?,
+        };
 
         Ok(Self { config, producers })
     }
@@ -101,14 +139,17 @@ impl StoreForwarder {
         let serialized = message.serialize()?;
         let key = message.key();
 
-        let record = BaseRecord::to(self.config.kafka_topics().get(topic).topic_name())
+        let record = BaseRecord::to(self.config.kafka_topic_name(topic))
             .key(&key)
             .payload(&serialized);
 
-        match self.producers.get(topic).send(record) {
-            Ok(_) => Ok(()),
-            Err((kafka_error, _message)) => Err(StoreError::SendFailed(kafka_error)),
+        if let Some(producer) = self.producers.get(topic) {
+            producer
+                .send(record)
+                .map_err(|(kafka_error, _message)| StoreError::SendFailed(kafka_error))?;
         }
+
+        Ok(())
     }
 
     fn produce_attachment_chunks(

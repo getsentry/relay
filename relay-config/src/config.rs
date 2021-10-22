@@ -704,29 +704,26 @@ pub enum KafkaTopic {
 }
 
 /// Configuration for topics.
-// Implementation note: This type is extremely generic such that it can be repurposed by store
-// actor to store producers per topic. Technically it doesn't strictly belong in config.rs as it's
-// a more general-purpose type than that, like KafkaTopic
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-pub struct TopicMap<T> {
+pub struct TopicAssignments {
     /// Simple events topic name.
-    pub events: T,
+    pub events: TopicAssignment,
     /// Events with attachments topic name.
-    pub attachments: T,
+    pub attachments: TopicAssignment,
     /// Transaction events topic name.
-    pub transactions: T,
+    pub transactions: TopicAssignment,
     /// Event outcomes topic name.
-    pub outcomes: T,
+    pub outcomes: TopicAssignment,
     /// Session health topic name.
-    pub sessions: T,
+    pub sessions: TopicAssignment,
     /// Metrics topic name.
-    pub metrics: T,
+    pub metrics: TopicAssignment,
 }
 
-impl<T> TopicMap<T> {
-    /// Get a topic assignment (or other value) by KafkaTopic value
-    pub fn get(&self, kafka_topic: KafkaTopic) -> &T {
+impl TopicAssignments {
+    /// Get a topic assignment by KafkaTopic value
+    pub fn get(&self, kafka_topic: KafkaTopic) -> &TopicAssignment {
         match kafka_topic {
             KafkaTopic::Attachments => &self.attachments,
             KafkaTopic::Events => &self.events,
@@ -736,36 +733,9 @@ impl<T> TopicMap<T> {
             KafkaTopic::Metrics => &self.metrics,
         }
     }
-
-    /// Turn this mapping into a mapping of references
-    pub fn as_ref(&self) -> TopicMap<&T> {
-        TopicMap {
-            events: &self.events,
-            attachments: &self.attachments,
-            transactions: &self.transactions,
-            outcomes: &self.outcomes,
-            sessions: &self.sessions,
-            metrics: &self.metrics,
-        }
-    }
-
-    /// Apply `f` to convert values into different type.
-    pub fn map<U, E, F>(self, mut f: F) -> Result<TopicMap<U>, E>
-    where
-        F: FnMut(T) -> Result<U, E>,
-    {
-        Ok(TopicMap {
-            events: f(self.events)?,
-            attachments: f(self.attachments)?,
-            transactions: f(self.transactions)?,
-            outcomes: f(self.outcomes)?,
-            sessions: f(self.sessions)?,
-            metrics: f(self.metrics)?,
-        })
-    }
 }
 
-impl Default for TopicMap<TopicAssignment> {
+impl Default for TopicAssignments {
     fn default() -> Self {
         Self {
             events: "ingest-events".to_owned().into(),
@@ -810,7 +780,7 @@ impl From<String> for TopicAssignment {
 
 impl TopicAssignment {
     /// Get the topic name from this topic assignment.
-    pub fn topic_name(&self) -> &str {
+    fn topic_name(&self) -> &str {
         match *self {
             TopicAssignment::Primary(ref s) => s.as_str(),
             TopicAssignment::Secondary { ref topic_name, .. } => topic_name.as_str(),
@@ -818,7 +788,7 @@ impl TopicAssignment {
     }
 
     /// Get the name of the kafka config to use. `None` means default configuration.
-    pub fn kafka_config_name(&self) -> Option<&str> {
+    fn kafka_config_name(&self) -> Option<&str> {
         match *self {
             TopicAssignment::Primary(_) => None,
             TopicAssignment::Secondary {
@@ -862,9 +832,6 @@ fn default_projectconfig_cache_prefix() -> String {
 fn default_max_rate_limit() -> Option<u32> {
     Some(300) // 5 minutes
 }
-
-/// A mapping from "logical" topic to actual topic name and optionally a non-default kafka config.
-pub type TopicAssignments = TopicMap<TopicAssignment>;
 
 /// Controls Sentry-internal event processing.
 #[derive(Serialize, Deserialize, Debug)]
@@ -934,7 +901,7 @@ impl Default for Processing {
             max_session_secs_in_past: default_max_session_secs_in_past(),
             kafka_config: Vec::new(),
             secondary_kafka_configs: BTreeMap::new(),
-            topics: TopicMap::default(),
+            topics: TopicAssignments::default(),
             redis: None,
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
@@ -1716,27 +1683,28 @@ impl Config {
     }
 
     /// Topic name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_config(
-        &self,
-        assignment: &TopicAssignment,
-    ) -> Result<&[KafkaConfigParam], ConfigErrorKind> {
-        match assignment {
-            TopicAssignment::Primary(_) => Ok(self.values.processing.kafka_config.as_slice()),
-            TopicAssignment::Secondary {
-                kafka_config_name, ..
-            } => Ok(self
-                .values
-                .processing
-                .secondary_kafka_configs
-                .get(kafka_config_name)
-                .ok_or(ConfigErrorKind::UnknownKafkaConfigName)?
-                .as_slice()),
-        }
+    pub fn kafka_topic_name(&self, topic: KafkaTopic) -> &str {
+        self.values.processing.topics.get(topic).topic_name()
     }
 
-    /// Mapping of topic assignments.
-    pub fn kafka_topics(&self) -> &TopicMap<TopicAssignment> {
-        &self.values.processing.topics
+    /// Topic name and list of Kafka configuration parameters for a given topic.
+    pub fn kafka_config(
+        &self,
+        topic: KafkaTopic,
+    ) -> Result<(Option<&str>, &[KafkaConfigParam]), ConfigErrorKind> {
+        if let Some(config_name) = self.values.processing.topics.get(topic).kafka_config_name() {
+            Ok((
+                Some(config_name),
+                self.values
+                    .processing
+                    .secondary_kafka_configs
+                    .get(config_name)
+                    .ok_or(ConfigErrorKind::UnknownKafkaConfigName)?
+                    .as_slice(),
+            ))
+        } else {
+            Ok((None, self.values.processing.kafka_config.as_slice()))
+        }
     }
 
     /// Redis servers to connect to, for rate limiting.
