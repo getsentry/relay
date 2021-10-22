@@ -73,8 +73,8 @@ def test_outcomes_custom_topic(
 
     # ...however, we use a custom topic config to make it work again
     options["processing"]["topics"]["outcomes"] = {
-        "topic_name": get_topic_name("outcomes"),
-        "kafka_config_name": "foo",
+        "name": get_topic_name("outcomes"),
+        "config": "foo",
     }
 
     relay = relay(mini_sentry, options=options)

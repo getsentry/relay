@@ -766,8 +766,10 @@ pub enum TopicAssignment {
     /// data to the given topic name.
     Secondary {
         /// The topic name to use.
+        #[serde(rename = "name")]
         topic_name: String,
         /// An identifier referencing one of the kafka configurations in `secondary_kafka_configs`.
+        #[serde(rename = "config")]
         kafka_config_name: String,
     },
 }
