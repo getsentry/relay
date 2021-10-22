@@ -868,8 +868,8 @@ pub struct Processing {
     /// topics:
     ///   transactions: ingest-transactions
     ///   metrics:
-    ///     topic_name: ingest-metrics
-    ///     kafka_config_name: mycustomcluster
+    ///     name: ingest-metrics
+    ///     config: mycustomcluster
     /// ```
     ///
     /// Then metrics will be produced to an entirely different Kafka cluster.
