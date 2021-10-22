@@ -465,10 +465,10 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
 }
 
 fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
-    let timestamp = match UnixTimestamp::from_datetime(session.timestamp) {
+    let timestamp = match UnixTimestamp::from_datetime(session.started) {
         Some(ts) => ts,
         None => {
-            relay_log::error!("invalid session timestamp: {}", session.timestamp);
+            relay_log::error!("invalid session started timestamp: {}", session.started);
             return;
         }
     };
@@ -3021,6 +3021,10 @@ mod tests {
         assert!(envelope_response.envelope.is_none());
     }
 
+    fn started() -> UnixTimestamp {
+        UnixTimestamp::from_secs(1619420400)
+    }
+
     #[test]
     #[cfg(feature = "processing")]
     fn test_extract_session_metrics() {
@@ -3044,12 +3048,14 @@ mod tests {
         assert_eq!(metrics.len(), 2);
 
         let session_metric = &metrics[0];
+        assert_eq!(session_metric.timestamp, started());
         assert_eq!(session_metric.name, "session");
         assert!(matches!(session_metric.value, MetricValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(session_metric.tags["release"], "1.0.0");
 
         let user_metric = &metrics[1];
+        assert_eq!(session_metric.timestamp, started());
         assert_eq!(user_metric.name, "user");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
@@ -3147,11 +3153,13 @@ mod tests {
             assert_eq!(metrics.len(), expected_metrics);
 
             let session_metric = &metrics[expected_metrics - 2];
+            assert_eq!(session_metric.timestamp, started());
             assert_eq!(session_metric.name, "session.error");
             assert!(matches!(session_metric.value, MetricValue::Set(_)));
             assert_eq!(session_metric.tags.len(), 1); // Only the release tag
 
             let user_metric = &metrics[expected_metrics - 1];
+            assert_eq!(session_metric.timestamp, started());
             assert_eq!(user_metric.name, "user");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "errored");
@@ -3187,11 +3195,13 @@ mod tests {
             assert_eq!(metrics[1].tags["session.status"], "errored");
 
             let session_metric = &metrics[2];
+            assert_eq!(session_metric.timestamp, started());
             assert_eq!(session_metric.name, "session");
             assert!(matches!(session_metric.value, MetricValue::Counter(_)));
             assert_eq!(session_metric.tags["session.status"], status.to_string());
 
             let user_metric = &metrics[3];
+            assert_eq!(session_metric.timestamp, started());
             assert_eq!(user_metric.name, "user");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], status.to_string());
