@@ -54,8 +54,8 @@ def test_metrics(mini_sentry, relay):
     received_metrics = json.loads(metrics_item.get_bytes().decode())
     received_metrics = sorted(received_metrics, key=lambda x: x["name"])
     assert received_metrics == [
-        {"timestamp": timestamp, "name": "bar", "value": 17.0, "type": "c"},
-        {"timestamp": timestamp, "name": "foo", "value": 42.0, "type": "c"},
+        {"timestamp": timestamp, "width": 1, "name": "bar", "value": 17.0, "type": "c"},
+        {"timestamp": timestamp, "width": 1, "name": "foo", "value": 42.0, "type": "c"},
     ]
 
 
@@ -77,7 +77,7 @@ def test_metrics_backdated(mini_sentry, relay):
 
     received_metrics = metrics_item.get_bytes()
     assert json.loads(received_metrics.decode()) == [
-        {"timestamp": timestamp, "name": "foo", "value": 42.0, "type": "c"},
+        {"timestamp": timestamp, "width": 1, "name": "foo", "value": 42.0, "type": "c"},
     ]
 
 
@@ -164,10 +164,10 @@ def test_session_metrics_non_processing(
     mini_sentry, relay, extract_metrics, metrics_extracted
 ):
     """
-        Tests metrics extraction in  a non processing relay
+    Tests metrics extraction in  a non processing relay
 
-        If and only if the metrics-extraction feature is enabled and the metrics from the session were not already
-        extracted the relay should extract the metrics from the session and mark the session item as "metrics extracted"
+    If and only if the metrics-extraction feature is enabled and the metrics from the session were not already
+    extracted the relay should extract the metrics from the session and mark the session item as "metrics extracted"
     """
 
     relay = relay(mini_sentry, options=TEST_CONFIG)
@@ -224,7 +224,7 @@ def test_session_metrics_non_processing(
         session_metrics = json.loads(metrics_item.get_bytes().decode())
         session_metrics = sorted(session_metrics, key=lambda x: x["name"])
 
-        ts = int(timestamp.timestamp())
+        ts = int(started.timestamp())
         assert session_metrics == [
             {
                 "name": "session",
@@ -234,6 +234,7 @@ def test_session_metrics_non_processing(
                     "session.status": "init",
                 },
                 "timestamp": ts,
+                "width": 1,
                 "type": "c",
                 "value": 1.0,
             },
@@ -245,6 +246,7 @@ def test_session_metrics_non_processing(
                     "session.status": "exited",
                 },
                 "timestamp": ts,
+                "width": 1,
                 "type": "d",
                 "unit": "s",
                 "value": [1947.49],
@@ -257,6 +259,7 @@ def test_session_metrics_non_processing(
                     "session.status": "init",
                 },
                 "timestamp": ts,
+                "width": 1,
                 "type": "s",
                 "value": [1617781333],
             },
@@ -323,8 +326,8 @@ def test_session_metrics_processing(
     mini_sentry, relay_with_processing, metrics_consumer, metrics_extracted
 ):
     """
-        Tests that a processing relay with metrics-extraction enabled creates metrics
-        from sessions if the metrics were not already extracted before.
+    Tests that a processing relay with metrics-extraction enabled creates metrics
+    from sessions if the metrics were not already extracted before.
     """
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
@@ -352,10 +355,11 @@ def test_session_metrics_processing(
 
     metrics = metrics_by_name(metrics_consumer, 3)
 
+    expected_timestamp = int(started.timestamp())
     assert metrics["session"] == {
         "org_id": 1,
         "project_id": 42,
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": expected_timestamp,
         "name": "session",
         "type": "c",
         "unit": "",
@@ -370,7 +374,7 @@ def test_session_metrics_processing(
     assert metrics["user"] == {
         "org_id": 1,
         "project_id": 42,
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": expected_timestamp,
         "name": "user",
         "type": "s",
         "unit": "",
@@ -385,7 +389,7 @@ def test_session_metrics_processing(
     assert metrics["session.duration"] == {
         "org_id": 1,
         "project_id": 42,
-        "timestamp": int(timestamp.timestamp()),
+        "timestamp": expected_timestamp,
         "name": "session.duration",
         "type": "d",
         "unit": "s",

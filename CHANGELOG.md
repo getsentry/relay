@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add bucket width to bucket protocol. ([#1103](https://github.com/getsentry/relay/pull/1103))
 - Support multiple kafka cluster configurations ([#1101](https://github.com/getsentry/relay/pull/1101))
 
 ## 21.10.0

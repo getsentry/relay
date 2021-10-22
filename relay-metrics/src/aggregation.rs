@@ -651,9 +651,10 @@ impl Error for ParseBucketError {
 /// To parse a submission payload, use [`Bucket::parse_all`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Bucket {
-    /// The start time of the time window. The length of the time window is stored in the
-    /// [`Aggregator`].
+    /// The start time of the time window.
     pub timestamp: UnixTimestamp,
+    /// The length of the time window in seconds.
+    pub width: u64,
     /// The name of the metric without its unit.
     ///
     /// See [`Metric::name`].
@@ -676,9 +677,10 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    fn from_parts(key: BucketKey, value: BucketValue) -> Self {
+    fn from_parts(key: BucketKey, bucket_interval: u64, value: BucketValue) -> Self {
         Self {
             timestamp: key.timestamp,
+            width: bucket_interval,
             name: key.metric_name,
             unit: key.metric_unit,
             value,
@@ -726,6 +728,7 @@ struct BucketKey {
 
 /// Parameters used by the [`Aggregator`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct AggregatorConfig {
     /// Determines the wall clock time interval for buckets in seconds.
     ///
@@ -746,6 +749,16 @@ pub struct AggregatorConfig {
     /// before sending such a backdated bucket to the upsteam. This should be lower than
     /// `initial_delay`.
     pub debounce_delay: u64,
+
+    /// The age in seconds of the oldest allowed bucket timestamp.
+    ///
+    /// Defaults to 5 days.
+    pub max_secs_in_past: u64,
+
+    /// The time in seconds that a timestamp may be in the future.
+    ///
+    /// Defaults to 1 minute.
+    pub max_secs_in_future: u64,
 }
 
 impl AggregatorConfig {
@@ -762,6 +775,37 @@ impl AggregatorConfig {
     /// The delay to debounce backdated flushes.
     fn debounce_delay(&self) -> Duration {
         Duration::from_secs(self.debounce_delay)
+    }
+
+    /// Determines the target bucket for an incoming bucket timestamp and bucket width.
+    ///
+    /// We select the output bucket which overlaps with the center of the incoming bucket.
+    /// Fails if timestamp is too old or too far into the future.
+    fn get_bucket_timestamp(
+        &self,
+        timestamp: UnixTimestamp,
+        bucket_width: u64,
+    ) -> Result<UnixTimestamp, AggregateMetricsError> {
+        // We know this must be UNIX timestamp because we need reliable match even with system
+        // clock skew over time.
+
+        let now = UnixTimestamp::now().as_secs();
+        let min_timestamp = UnixTimestamp::from_secs(now.saturating_sub(self.max_secs_in_past));
+        let max_timestamp = UnixTimestamp::from_secs(now.saturating_add(self.max_secs_in_future));
+
+        // Find middle of the input bucket to select a target
+        let ts = timestamp.as_secs().saturating_add(bucket_width / 2);
+
+        // Align target_timestamp to output bucket width
+        let ts = (ts / self.bucket_interval) * self.bucket_interval;
+
+        let output_timestamp = UnixTimestamp::from_secs(ts);
+
+        if output_timestamp < min_timestamp || output_timestamp > max_timestamp {
+            return Err(AggregateMetricsError);
+        }
+
+        Ok(output_timestamp)
     }
 
     /// Returns the instant at which a bucket should be flushed.
@@ -792,6 +836,8 @@ impl Default for AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 30,
             debounce_delay: 10,
+            max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
+            max_secs_in_future: 60,             // 1 minute
         }
     }
 }
@@ -945,16 +991,6 @@ impl Aggregator {
         }
     }
 
-    /// Determines which bucket a timestamp is assigned to.
-    ///
-    /// The bucket timestamp is the input timestamp rounded by the configured `bucket_interval`.
-    fn get_bucket_timestamp(&self, timestamp: UnixTimestamp) -> UnixTimestamp {
-        // We know this must be UNIX timestamp because we need reliable match even with system
-        // clock skew over time.
-        let ts = (timestamp.as_secs() / self.config.bucket_interval) * self.config.bucket_interval;
-        UnixTimestamp::from_secs(ts)
-    }
-
     /// Merges any mergeable value into the bucket at the given `key`.
     ///
     /// If no bucket exists for the given bucket key, a new bucket will be created.
@@ -988,7 +1024,7 @@ impl Aggregator {
     ) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
             project_key,
-            timestamp: self.get_bucket_timestamp(metric.timestamp),
+            timestamp: self.config.get_bucket_timestamp(metric.timestamp, 0)?,
             metric_name: metric.name,
             metric_type: metric.value.ty(),
             metric_unit: metric.unit,
@@ -1007,7 +1043,9 @@ impl Aggregator {
     ) -> Result<(), AggregateMetricsError> {
         let key = BucketKey {
             project_key,
-            timestamp: bucket.timestamp,
+            timestamp: self
+                .config
+                .get_bucket_timestamp(bucket.timestamp, bucket.width)?,
             metric_name: bucket.name,
             metric_type: bucket.value.ty(),
             metric_unit: bucket.unit,
@@ -1043,11 +1081,12 @@ impl Aggregator {
         let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
 
         relay_statsd::metric!(timer(MetricTimers::BucketsScanDuration), {
+            let bucket_interval = self.config.bucket_interval;
             self.buckets.retain(|key, entry| {
                 if entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
                     let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
-                    let bucket = Bucket::from_parts(key.clone(), value);
+                    let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets.entry(key.project_key).or_default().push(bucket);
                     false
                 } else {
@@ -1264,12 +1303,22 @@ mod tests {
         }
     }
 
+    fn test_config() -> AggregatorConfig {
+        AggregatorConfig {
+            bucket_interval: 1,
+            initial_delay: 0,
+            debounce_delay: 0,
+            max_secs_in_past: 50 * 365 * 24 * 60 * 60,
+            max_secs_in_future: 50 * 365 * 24 * 60 * 60,
+        }
+    }
+
     fn some_metric() -> Metric {
         Metric {
             name: "foo".to_owned(),
             unit: MetricUnit::None,
             value: MetricValue::Counter(42.),
-            timestamp: UnixTimestamp::from_secs(4711),
+            timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
         }
     }
@@ -1356,6 +1405,7 @@ mod tests {
             "value": [36, 49, 57, 68],
             "type": "d",
             "timestamp": 1615889440,
+            "width": 10,
             "tags": {
                 "route": "user_index"
             }
@@ -1367,6 +1417,7 @@ mod tests {
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
+                width: 10,
                 name: "endpoint.response_time",
                 unit: Duration(
                     MilliSecond,
@@ -1394,7 +1445,8 @@ mod tests {
             "name": "endpoint.hits",
             "value": 4,
             "type": "c",
-            "timestamp": 1615889440
+            "timestamp": 1615889440,
+            "width": 10
           }
         ]"#;
 
@@ -1403,6 +1455,7 @@ mod tests {
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
+                width: 10,
                 name: "endpoint.hits",
                 unit: None,
                 value: Counter(
@@ -1419,6 +1472,7 @@ mod tests {
         let json = r#"[
   {
     "timestamp": 1615889440,
+    "width": 10,
     "name": "endpoint.response_time",
     "type": "d",
     "value": [
@@ -1433,6 +1487,7 @@ mod tests {
   },
   {
     "timestamp": 1615889440,
+    "width": 10,
     "name": "endpoint.hits",
     "type": "c",
     "value": 4.0,
@@ -1442,6 +1497,7 @@ mod tests {
   },
   {
     "timestamp": 1615889440,
+    "width": 10,
     "name": "endpoint.parallel_requests",
     "type": "g",
     "value": {
@@ -1454,6 +1510,7 @@ mod tests {
   },
   {
     "timestamp": 1615889440,
+    "width": 10,
     "name": "endpoint.users",
     "type": "s",
     "value": [
@@ -1562,9 +1619,8 @@ mod tests {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let config = AggregatorConfig::default();
         let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(config, receiver);
+        let mut aggregator = Aggregator::new(test_config(), receiver);
 
         let metric1 = some_metric();
 
@@ -1584,7 +1640,7 @@ mod tests {
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    timestamp: UnixTimestamp(4710),
+                    timestamp: UnixTimestamp(999994711),
                     metric_name: "foo",
                     metric_type: Counter,
                     metric_unit: None,
@@ -1603,7 +1659,7 @@ mod tests {
         relay_test::setup();
         let config = AggregatorConfig {
             bucket_interval: 10,
-            ..AggregatorConfig::default()
+            ..test_config()
         };
         let receiver = TestReceiver::start_default().recipient();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -1613,10 +1669,10 @@ mod tests {
         let metric1 = some_metric();
 
         let mut metric2 = metric1.clone();
-        metric2.timestamp = UnixTimestamp::from_secs(4712);
+        metric2.timestamp = UnixTimestamp::from_secs(999994712);
 
         let mut metric3 = metric1.clone();
-        metric3.timestamp = UnixTimestamp::from_secs(4721);
+        metric3.timestamp = UnixTimestamp::from_secs(999994721);
         aggregator.insert(project_key, metric1).unwrap();
         aggregator.insert(project_key, metric2).unwrap();
         aggregator.insert(project_key, metric3).unwrap();
@@ -1633,7 +1689,7 @@ mod tests {
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    timestamp: UnixTimestamp(4710),
+                    timestamp: UnixTimestamp(999994710),
                     metric_name: "foo",
                     metric_type: Counter,
                     metric_unit: None,
@@ -1646,7 +1702,7 @@ mod tests {
             (
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    timestamp: UnixTimestamp(4720),
+                    timestamp: UnixTimestamp(999994720),
                     metric_name: "foo",
                     metric_type: Counter,
                     metric_unit: None,
@@ -1666,7 +1722,7 @@ mod tests {
 
         let config = AggregatorConfig {
             bucket_interval: 10,
-            ..AggregatorConfig::default()
+            ..test_config()
         };
 
         let receiver = TestReceiver::start_default().recipient();
@@ -1691,7 +1747,7 @@ mod tests {
 
         let config = AggregatorConfig {
             bucket_interval: 10,
-            ..AggregatorConfig::default()
+            ..test_config()
         };
 
         let receiver = TestReceiver::start_default().recipient();
@@ -1718,7 +1774,7 @@ mod tests {
 
         let config = AggregatorConfig {
             bucket_interval: 10,
-            ..AggregatorConfig::default()
+            ..test_config()
         };
 
         let receiver = TestReceiver::start_default().recipient();
@@ -1743,6 +1799,7 @@ mod tests {
                 bucket_interval: 1,
                 initial_delay: 0,
                 debounce_delay: 0,
+                ..Default::default()
             };
             let recipient = receiver.clone().start().recipient();
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -1791,6 +1848,7 @@ mod tests {
                 bucket_interval: 1,
                 initial_delay: 0,
                 debounce_delay: 0,
+                ..Default::default()
             };
             let recipient = receiver.clone().start().recipient();
             let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -1825,5 +1883,79 @@ mod tests {
                 })
         })
         .ok();
+    }
+
+    #[test]
+    fn test_get_bucket_timestamp_overflow() {
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            initial_delay: 0,
+            debounce_delay: 0,
+            ..Default::default()
+        };
+
+        assert!(matches!(
+            config.get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2),
+            Err(AggregateMetricsError)
+        ));
+    }
+
+    #[test]
+    fn test_get_bucket_timestamp_zero() {
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            initial_delay: 0,
+            debounce_delay: 0,
+            ..Default::default()
+        };
+
+        let now = UnixTimestamp::now().as_secs();
+        let rounded_now = UnixTimestamp::from_secs(now / 10 * 10);
+        assert_eq!(
+            config
+                .get_bucket_timestamp(UnixTimestamp::from_secs(now), 0)
+                .unwrap(),
+            rounded_now
+        );
+    }
+
+    #[test]
+    fn test_get_bucket_timestamp_multiple() {
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            initial_delay: 0,
+            debounce_delay: 0,
+            ..Default::default()
+        };
+
+        let rounded_now = UnixTimestamp::now().as_secs() / 10 * 10;
+        let now = rounded_now + 3;
+        assert_eq!(
+            config
+                .get_bucket_timestamp(UnixTimestamp::from_secs(now), 20)
+                .unwrap()
+                .as_secs(),
+            rounded_now + 10
+        );
+    }
+
+    #[test]
+    fn test_get_bucket_timestamp_non_multiple() {
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            initial_delay: 0,
+            debounce_delay: 0,
+            ..Default::default()
+        };
+
+        let rounded_now = UnixTimestamp::now().as_secs() / 10 * 10;
+        let now = rounded_now + 3;
+        assert_eq!(
+            config
+                .get_bucket_timestamp(UnixTimestamp::from_secs(now), 23)
+                .unwrap()
+                .as_secs(),
+            rounded_now + 10
+        );
     }
 }

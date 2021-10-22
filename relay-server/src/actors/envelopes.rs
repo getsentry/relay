@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::cmp::max;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::rc::Rc;
@@ -19,7 +20,7 @@ use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
 
 use relay_auth::RelayVersion;
-use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
+use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp, Uuid};
 use relay_config::{Config, HttpEncoding, RelayMode};
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -464,11 +465,23 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     }
 }
 
+/// Convert contained nil UUIDs to None
+fn nil_to_none(distinct_id: &Option<String>) -> Option<&String> {
+    let distinct_id = distinct_id.as_ref()?;
+    if let Ok(uuid) = distinct_id.parse::<Uuid>() {
+        if uuid.is_nil() {
+            return None;
+        }
+    }
+
+    Some(distinct_id)
+}
+
 fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
-    let timestamp = match UnixTimestamp::from_datetime(session.timestamp) {
+    let timestamp = match UnixTimestamp::from_datetime(session.started) {
         Some(ts) => ts,
         None => {
-            relay_log::error!("invalid session timestamp: {}", session.timestamp);
+            relay_log::error!("invalid session started timestamp: {}", session.started);
             return;
         }
     };
@@ -511,7 +524,7 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
             tags: tags.clone(),
         });
 
-        if let Some(ref distinct_id) = session.distinct_id {
+        if let Some(distinct_id) = nil_to_none(&session.distinct_id) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -533,7 +546,7 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
             tags: with_tag(&tags, "session.status", session.status),
         });
 
-        if let Some(ref distinct_id) = session.distinct_id {
+        if let Some(distinct_id) = nil_to_none(&session.distinct_id) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -1863,7 +1876,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
         } = message;
 
         let received = relay_common::instant_to_date_time(start_time);
-        let default_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
+        let received_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
 
         let project_cache = ProjectCache::from_registry();
         let clock_drift_processor =
@@ -1872,15 +1885,22 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
         for item in items {
             let payload = item.payload();
             if item.ty() == ItemType::Metrics {
-                let timestamp = item.timestamp().unwrap_or(default_timestamp);
-                let metrics = Metric::parse_all(&payload, timestamp).filter_map(|result| {
-                    let mut metric = result.ok()?;
-                    clock_drift_processor.process_timestamp(&mut metric.timestamp);
-                    Some(metric)
-                });
+                let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
+                clock_drift_processor.process_timestamp(&mut timestamp);
 
-                relay_log::trace!("inserting metrics into project cache");
-                project_cache.do_send(InsertMetrics::new(public_key, metrics));
+                let min_timestamp = max(
+                    0,
+                    received.timestamp() - self.config.max_session_secs_in_past(),
+                ) as u64;
+                let max_timestamp =
+                    (received.timestamp() + self.config.max_secs_in_future()) as u64;
+                if min_timestamp <= timestamp.as_secs() && timestamp.as_secs() <= max_timestamp {
+                    let metrics =
+                        Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
+
+                    relay_log::trace!("inserting metrics into project cache");
+                    project_cache.do_send(InsertMetrics::new(public_key, metrics));
+                }
             } else if item.ty() == ItemType::MetricBuckets {
                 if let Ok(mut buckets) = Bucket::parse_all(&payload) {
                     for bucket in &mut buckets {
@@ -1889,6 +1909,8 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 
                     relay_log::trace!("merging metric buckets into project cache");
                     project_cache.do_send(MergeBuckets::new(public_key, buckets));
+                } else {
+                    metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
                 }
             } else {
                 relay_log::error!(
@@ -3021,6 +3043,27 @@ mod tests {
         assert!(envelope_response.envelope.is_none());
     }
 
+    fn started() -> UnixTimestamp {
+        UnixTimestamp::from_secs(1619420400)
+    }
+
+    #[test]
+    fn test_nil_to_none() {
+        assert!(nil_to_none(&None).is_none());
+
+        let asdf = Some("asdf".to_owned());
+        assert_eq!(nil_to_none(&asdf).unwrap(), "asdf");
+
+        let nil = Some("00000000-0000-0000-0000-000000000000".to_owned());
+        assert!(nil_to_none(&nil).is_none());
+
+        let nil2 = Some("00000000000000000000000000000000".to_owned());
+        assert!(nil_to_none(&nil2).is_none());
+
+        let not_nil = Some("00000000-0000-0000-0000-000000000123".to_owned());
+        assert_eq!(nil_to_none(&not_nil).unwrap(), not_nil.as_ref().unwrap());
+    }
+
     #[test]
     #[cfg(feature = "processing")]
     fn test_extract_session_metrics() {
@@ -3044,12 +3087,14 @@ mod tests {
         assert_eq!(metrics.len(), 2);
 
         let session_metric = &metrics[0];
+        assert_eq!(session_metric.timestamp, started());
         assert_eq!(session_metric.name, "session");
         assert!(matches!(session_metric.value, MetricValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(session_metric.tags["release"], "1.0.0");
 
         let user_metric = &metrics[1];
+        assert_eq!(session_metric.timestamp, started());
         assert_eq!(user_metric.name, "user");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
@@ -3147,11 +3192,13 @@ mod tests {
             assert_eq!(metrics.len(), expected_metrics);
 
             let session_metric = &metrics[expected_metrics - 2];
+            assert_eq!(session_metric.timestamp, started());
             assert_eq!(session_metric.name, "session.error");
             assert!(matches!(session_metric.value, MetricValue::Set(_)));
             assert_eq!(session_metric.tags.len(), 1); // Only the release tag
 
             let user_metric = &metrics[expected_metrics - 1];
+            assert_eq!(session_metric.timestamp, started());
             assert_eq!(user_metric.name, "user");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "errored");
@@ -3187,11 +3234,13 @@ mod tests {
             assert_eq!(metrics[1].tags["session.status"], "errored");
 
             let session_metric = &metrics[2];
+            assert_eq!(session_metric.timestamp, started());
             assert_eq!(session_metric.name, "session");
             assert!(matches!(session_metric.value, MetricValue::Counter(_)));
             assert_eq!(session_metric.tags["session.status"], status.to_string());
 
             let user_metric = &metrics[3];
+            assert_eq!(session_metric.timestamp, started());
             assert_eq!(user_metric.name, "user");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], status.to_string());
