@@ -11,7 +11,7 @@ publish = false
 
 [dependencies]
 actix = "0.7.9"
-actix-web = { version = "0.7.19", default-features = false}
+actix-web = { version = "0.7.19", default-features = false, git = "https://github.com/getsentry/actix-web", rev = "51ca5683c6ccedb0d675ab12ffbbbd9d1981d85f" }
 futures = "0.1.28"
 relay-log = { path = "../relay-log", features = ["test"] }
 tokio-timer = "0.2.13"

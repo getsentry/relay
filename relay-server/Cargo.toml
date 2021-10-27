@@ -26,7 +26,7 @@ processing = [
 
 [dependencies]
 actix = "0.7.9"
-actix-web = { version = "0.7.19", default-features = false, features = ["brotli", "flate2-c"] }
+actix-web = { version = "0.7.19", default-features = false, features = ["brotli", "flate2-c"], git = "https://github.com/getsentry/actix-web", rev = "51ca5683c6ccedb0d675ab12ffbbbd9d1981d85f" }
 base64 = "0.10.1"
 brotli2 = "0.3.2"
 bytes = { version = "0.4.12", features = ["serde"] }
