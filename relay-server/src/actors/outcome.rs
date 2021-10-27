@@ -413,7 +413,11 @@ mod processing {
         pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
             let (future_producer, http_producer) = if config.processing_enabled() {
                 let mut client_config = ClientConfig::new();
-                for config_p in config.kafka_config() {
+                for config_p in config
+                    .kafka_config(KafkaTopic::Outcomes)
+                    .context(ServerErrorKind::KafkaError)?
+                    .1
+                {
                     client_config.set(config_p.name.as_str(), config_p.value.as_str());
                 }
                 let future_producer = client_config

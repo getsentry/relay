@@ -51,6 +51,65 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
     assert start <= event_emission <= end
 
 
+def test_outcomes_custom_topic(
+    mini_sentry, outcomes_consumer, processing_config, relay, get_topic_name
+):
+    """
+    Tests outcomes are sent to the kafka outcome topic, but this
+    time use secondary_kafka_configs to set up the outcomes topic.
+    Since we are unlikely to be able to run multiple kafka clusters,
+    we set the primary/default kafka config to some nonsense that for
+    sure won't work, so asserting that an outcome comes through
+    effectively tests that the secondary config is used.
+    """
+    options = processing_config(None)
+    kafka_config = options["processing"]["kafka_config"]
+
+    # This kafka config becomes invalid, rdkafka warns on stdout that it will drop everything on this client
+    options["processing"]["kafka_config"] = []
+
+    options["processing"]["secondary_kafka_configs"] = {}
+    options["processing"]["secondary_kafka_configs"]["foo"] = kafka_config
+
+    # ...however, we use a custom topic config to make it work again
+    options["processing"]["topics"]["outcomes"] = {
+        "name": get_topic_name("outcomes"),
+        "config": "foo",
+    }
+
+    relay = relay(mini_sentry, options=options)
+
+    outcomes_consumer = outcomes_consumer()
+
+    message_text = "some message {}".format(datetime.now())
+    event_id = "11122233344455566677788899900011"
+    start = datetime.utcnow()
+
+    relay.send_event(
+        42,
+        {
+            "event_id": event_id,
+            "message": message_text,
+            "extra": {"msg_text": message_text},
+        },
+    )
+
+    outcome = outcomes_consumer.get_outcome()
+    assert outcome["project_id"] == 42
+    assert outcome["event_id"] == event_id
+    assert outcome.get("org_id") is None
+    assert outcome.get("key_id") is None
+    assert outcome["outcome"] == 3
+    assert outcome["reason"] == "project_id"
+    assert outcome["remote_addr"] == "127.0.0.1"
+
+    # deal with the timestamp separately (we can't control it exactly)
+    timestamp = outcome.get("timestamp")
+    event_emission = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    end = datetime.utcnow()
+    assert start <= event_emission <= end
+
+
 def _send_event(relay, project_id=42, event_type="error"):
     """
     Send an event to the given project.
