@@ -1670,6 +1670,105 @@
 <span id="1670">1670</span>
 <span id="1671">1671</span>
 <span id="1672">1672</span>
+<span id="1673">1673</span>
+<span id="1674">1674</span>
+<span id="1675">1675</span>
+<span id="1676">1676</span>
+<span id="1677">1677</span>
+<span id="1678">1678</span>
+<span id="1679">1679</span>
+<span id="1680">1680</span>
+<span id="1681">1681</span>
+<span id="1682">1682</span>
+<span id="1683">1683</span>
+<span id="1684">1684</span>
+<span id="1685">1685</span>
+<span id="1686">1686</span>
+<span id="1687">1687</span>
+<span id="1688">1688</span>
+<span id="1689">1689</span>
+<span id="1690">1690</span>
+<span id="1691">1691</span>
+<span id="1692">1692</span>
+<span id="1693">1693</span>
+<span id="1694">1694</span>
+<span id="1695">1695</span>
+<span id="1696">1696</span>
+<span id="1697">1697</span>
+<span id="1698">1698</span>
+<span id="1699">1699</span>
+<span id="1700">1700</span>
+<span id="1701">1701</span>
+<span id="1702">1702</span>
+<span id="1703">1703</span>
+<span id="1704">1704</span>
+<span id="1705">1705</span>
+<span id="1706">1706</span>
+<span id="1707">1707</span>
+<span id="1708">1708</span>
+<span id="1709">1709</span>
+<span id="1710">1710</span>
+<span id="1711">1711</span>
+<span id="1712">1712</span>
+<span id="1713">1713</span>
+<span id="1714">1714</span>
+<span id="1715">1715</span>
+<span id="1716">1716</span>
+<span id="1717">1717</span>
+<span id="1718">1718</span>
+<span id="1719">1719</span>
+<span id="1720">1720</span>
+<span id="1721">1721</span>
+<span id="1722">1722</span>
+<span id="1723">1723</span>
+<span id="1724">1724</span>
+<span id="1725">1725</span>
+<span id="1726">1726</span>
+<span id="1727">1727</span>
+<span id="1728">1728</span>
+<span id="1729">1729</span>
+<span id="1730">1730</span>
+<span id="1731">1731</span>
+<span id="1732">1732</span>
+<span id="1733">1733</span>
+<span id="1734">1734</span>
+<span id="1735">1735</span>
+<span id="1736">1736</span>
+<span id="1737">1737</span>
+<span id="1738">1738</span>
+<span id="1739">1739</span>
+<span id="1740">1740</span>
+<span id="1741">1741</span>
+<span id="1742">1742</span>
+<span id="1743">1743</span>
+<span id="1744">1744</span>
+<span id="1745">1745</span>
+<span id="1746">1746</span>
+<span id="1747">1747</span>
+<span id="1748">1748</span>
+<span id="1749">1749</span>
+<span id="1750">1750</span>
+<span id="1751">1751</span>
+<span id="1752">1752</span>
+<span id="1753">1753</span>
+<span id="1754">1754</span>
+<span id="1755">1755</span>
+<span id="1756">1756</span>
+<span id="1757">1757</span>
+<span id="1758">1758</span>
+<span id="1759">1759</span>
+<span id="1760">1760</span>
+<span id="1761">1761</span>
+<span id="1762">1762</span>
+<span id="1763">1763</span>
+<span id="1764">1764</span>
+<span id="1765">1765</span>
+<span id="1766">1766</span>
+<span id="1767">1767</span>
+<span id="1768">1768</span>
+<span id="1769">1769</span>
+<span id="1770">1770</span>
+<span id="1771">1771</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -1808,6 +1907,9 @@
     <span class="doccomment">/// compiled without the processing feature.</span>
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;was not compiled with processing, cannot enable processing&quot;</span>)]</span>
     <span class="ident">ProcessingNotAvailable</span>,
+    <span class="doccomment">/// The user referenced a kafka config name that does not exist.</span>
+    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;unknown kafka config name&quot;</span>)]</span>
+    <span class="ident">UnknownKafkaConfigName</span>,
 }
 
 <span class="kw">enum</span> <span class="ident">ConfigFormat</span> {
@@ -2375,30 +2477,97 @@
 <span class="doccomment">/// Configuration for topics.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TopicNames</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TopicAssignments</span> {
     <span class="doccomment">/// Simple events topic name.</span>
-    <span class="kw">pub</span> <span class="ident">events</span>: <span class="ident">String</span>,
+    <span class="kw">pub</span> <span class="ident">events</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Events with attachments topic name.</span>
-    <span class="kw">pub</span> <span class="ident">attachments</span>: <span class="ident">String</span>,
+    <span class="kw">pub</span> <span class="ident">attachments</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Transaction events topic name.</span>
-    <span class="kw">pub</span> <span class="ident">transactions</span>: <span class="ident">String</span>,
+    <span class="kw">pub</span> <span class="ident">transactions</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Event outcomes topic name.</span>
-    <span class="kw">pub</span> <span class="ident">outcomes</span>: <span class="ident">String</span>,
+    <span class="kw">pub</span> <span class="ident">outcomes</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Session health topic name.</span>
-    <span class="kw">pub</span> <span class="ident">sessions</span>: <span class="ident">String</span>,
+    <span class="kw">pub</span> <span class="ident">sessions</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Metrics topic name.</span>
-    <span class="kw">pub</span> <span class="ident">metrics</span>: <span class="ident">String</span>,
+    <span class="kw">pub</span> <span class="ident">metrics</span>: <span class="ident">TopicAssignment</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">TopicNames</span> {
+<span class="kw">impl</span> <span class="ident">TopicAssignments</span> {
+    <span class="doccomment">/// Get a topic assignment by KafkaTopic value</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">kafka_topic</span>: <span class="ident">KafkaTopic</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">TopicAssignment</span> {
+        <span class="kw">match</span> <span class="ident">kafka_topic</span> {
+            <span class="ident">KafkaTopic::Attachments</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">attachments</span>,
+            <span class="ident">KafkaTopic::Events</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">events</span>,
+            <span class="ident">KafkaTopic::Transactions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">transactions</span>,
+            <span class="ident">KafkaTopic::Outcomes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcomes</span>,
+            <span class="ident">KafkaTopic::Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sessions</span>,
+            <span class="ident">KafkaTopic::Metrics</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>,
+        }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">TopicAssignments</span> {
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="self">Self</span> {
-            <span class="ident">events</span>: <span class="string">&quot;ingest-events&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">attachments</span>: <span class="string">&quot;ingest-attachments&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">transactions</span>: <span class="string">&quot;ingest-transactions&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">outcomes</span>: <span class="string">&quot;outcomes&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">sessions</span>: <span class="string">&quot;ingest-sessions&quot;</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">metrics</span>: <span class="string">&quot;ingest-metrics&quot;</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">events</span>: <span class="string">&quot;ingest-events&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+            <span class="ident">attachments</span>: <span class="string">&quot;ingest-attachments&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+            <span class="ident">transactions</span>: <span class="string">&quot;ingest-transactions&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+            <span class="ident">outcomes</span>: <span class="string">&quot;outcomes&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+            <span class="ident">sessions</span>: <span class="string">&quot;ingest-sessions&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+            <span class="ident">metrics</span>: <span class="string">&quot;ingest-metrics&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+        }
+    }
+}
+
+<span class="doccomment">/// Configuration for a &quot;logical&quot; topic/datasink that Relay should forward data into.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Can be either a string containing the kafka topic name to produce into (using the default</span>
+<span class="doccomment">/// `kafka_config`), or an object containing keys `topic_name` and `kafka_config_name` for using a</span>
+<span class="doccomment">/// custom kafka cluster.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// See documentation for `secondary_kafka_configs` for more information.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">untagged</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">TopicAssignment</span> {
+    <span class="doccomment">/// String containing the kafka topic name. In this case the default kafka cluster configured</span>
+    <span class="doccomment">/// in `kafka_config` will be used.</span>
+    <span class="ident">Primary</span>(<span class="ident">String</span>),
+    <span class="doccomment">/// Object containing topic name and string identifier of one of the clusters configured in</span>
+    <span class="doccomment">/// `secondary_kafka_configs`. In this case that custom kafkaconfig will be used to produce</span>
+    <span class="doccomment">/// data to the given topic name.</span>
+    <span class="ident">Secondary</span> {
+        <span class="doccomment">/// The topic name to use.</span>
+        <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;name&quot;</span>)]</span>
+        <span class="ident">topic_name</span>: <span class="ident">String</span>,
+        <span class="doccomment">/// An identifier referencing one of the kafka configurations in `secondary_kafka_configs`.</span>
+        <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;config&quot;</span>)]</span>
+        <span class="ident">kafka_config_name</span>: <span class="ident">String</span>,
+    },
+}
+
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">TopicAssignment</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">topic_name</span>: <span class="ident">String</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">TopicAssignment</span> {
+        <span class="ident">TopicAssignment::Primary</span>(<span class="ident">topic_name</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">TopicAssignment</span> {
+    <span class="doccomment">/// Get the topic name from this topic assignment.</span>
+    <span class="kw">fn</span> <span class="ident">topic_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">TopicAssignment::Primary</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">s</span>.<span class="ident">as_str</span>(),
+            <span class="ident">TopicAssignment::Secondary</span> { <span class="kw-2">ref</span> <span class="ident">topic_name</span>, .. } <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topic_name</span>.<span class="ident">as_str</span>(),
+        }
+    }
+
+    <span class="doccomment">/// Get the name of the kafka config to use. `None` means default configuration.</span>
+    <span class="kw">fn</span> <span class="ident">kafka_config_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">TopicAssignment::Primary</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">TopicAssignment::Secondary</span> {
+                <span class="kw-2">ref</span> <span class="ident">kafka_config_name</span>,
+                ..
+            } <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">kafka_config_name</span>.<span class="ident">as_str</span>()),
         }
     }
 }
@@ -2456,9 +2625,30 @@
     <span class="kw">pub</span> <span class="ident">max_session_secs_in_past</span>: <span class="ident">u32</span>,
     <span class="doccomment">/// Kafka producer configurations.</span>
     <span class="kw">pub</span> <span class="ident">kafka_config</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">KafkaConfigParam</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Additional kafka producer configurations.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The `kafka_config` is the default producer configuration used for all topics. A secondary</span>
+    <span class="doccomment">/// kafka config can be referenced in `topics:` like this:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```yaml</span>
+    <span class="doccomment">/// secondary_kafka_configs:</span>
+    <span class="doccomment">///   mycustomcluster:</span>
+    <span class="doccomment">///     - name: &#39;bootstrap.servers&#39;</span>
+    <span class="doccomment">///       value: &#39;sentry_kafka_metrics:9093&#39;</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// topics:</span>
+    <span class="doccomment">///   transactions: ingest-transactions</span>
+    <span class="doccomment">///   metrics:</span>
+    <span class="doccomment">///     name: ingest-metrics</span>
+    <span class="doccomment">///     config: mycustomcluster</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Then metrics will be produced to an entirely different Kafka cluster.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">secondary_kafka_configs</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">KafkaConfigParam</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Kafka topic names.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">topics</span>: <span class="ident">TopicNames</span>,
+    <span class="kw">pub</span> <span class="ident">topics</span>: <span class="ident">TopicAssignments</span>,
     <span class="doccomment">/// Redis hosts to connect to for storing state for rate limits.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="kw">pub</span> <span class="ident">redis</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisConfig</span><span class="op">&gt;</span>,
@@ -2483,7 +2673,8 @@
             <span class="ident">max_secs_in_past</span>: <span class="ident">default_max_secs_in_past</span>(),
             <span class="ident">max_session_secs_in_past</span>: <span class="ident">default_max_session_secs_in_past</span>(),
             <span class="ident">kafka_config</span>: <span class="ident">Vec::new</span>(),
-            <span class="ident">topics</span>: <span class="ident">TopicNames::default</span>(),
+            <span class="ident">secondary_kafka_configs</span>: <span class="ident">BTreeMap::new</span>(),
+            <span class="ident">topics</span>: <span class="ident">TopicAssignments::default</span>(),
             <span class="ident">redis</span>: <span class="prelude-val">None</span>,
             <span class="ident">attachment_chunk_size</span>: <span class="ident">default_chunk_size</span>(),
             <span class="ident">projectconfig_cache_prefix</span>: <span class="ident">default_projectconfig_cache_prefix</span>(),
@@ -3264,21 +3455,28 @@
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">max_session_secs_in_past</span>.<span class="ident">into</span>()
     }
 
-    <span class="doccomment">/// The list of Kafka configuration parameters.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kafka_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">KafkaConfigParam</span>] {
-        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">kafka_config</span>.<span class="ident">as_slice</span>()
+    <span class="doccomment">/// Topic name and list of Kafka configuration parameters for a given topic.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kafka_topic_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">topics</span>.<span class="ident">get</span>(<span class="ident">topic</span>).<span class="ident">topic_name</span>()
     }
 
-    <span class="doccomment">/// Returns the name of the specified Kafka topic.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kafka_topic_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw">let</span> <span class="ident">topics</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">topics</span>;
-        <span class="kw">match</span> <span class="ident">topic</span> {
-            <span class="ident">KafkaTopic::Attachments</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topics</span>.<span class="ident">attachments</span>.<span class="ident">as_str</span>(),
-            <span class="ident">KafkaTopic::Events</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topics</span>.<span class="ident">events</span>.<span class="ident">as_str</span>(),
-            <span class="ident">KafkaTopic::Transactions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topics</span>.<span class="ident">transactions</span>.<span class="ident">as_str</span>(),
-            <span class="ident">KafkaTopic::Outcomes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topics</span>.<span class="ident">outcomes</span>.<span class="ident">as_str</span>(),
-            <span class="ident">KafkaTopic::Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topics</span>.<span class="ident">sessions</span>.<span class="ident">as_str</span>(),
-            <span class="ident">KafkaTopic::Metrics</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topics</span>.<span class="ident">metrics</span>.<span class="ident">as_str</span>(),
+    <span class="doccomment">/// Topic name and list of Kafka configuration parameters for a given topic.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kafka_config</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span>[<span class="ident">KafkaConfigParam</span>]), <span class="ident">ConfigErrorKind</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">config_name</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">topics</span>.<span class="ident">get</span>(<span class="ident">topic</span>).<span class="ident">kafka_config_name</span>() {
+            <span class="prelude-val">Ok</span>((
+                <span class="prelude-val">Some</span>(<span class="ident">config_name</span>),
+                <span class="self">self</span>.<span class="ident">values</span>
+                    .<span class="ident">processing</span>
+                    .<span class="ident">secondary_kafka_configs</span>
+                    .<span class="ident">get</span>(<span class="ident">config_name</span>)
+                    .<span class="ident">ok_or</span>(<span class="ident">ConfigErrorKind::UnknownKafkaConfigName</span>)<span class="question-mark">?</span>
+                    .<span class="ident">as_slice</span>(),
+            ))
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Ok</span>((<span class="prelude-val">None</span>, <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">kafka_config</span>.<span class="ident">as_slice</span>()))
         }
     }
 
