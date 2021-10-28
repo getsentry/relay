@@ -230,7 +230,7 @@ jobs:
       - name: Run tests
         run: pytest tests -n auto -v
         env:
-          RELAY_VERSION_CHAIN: '20.6.0,latest'
+          RELAY_VERSION_CHAIN: "20.6.0,latest"
 
   sentry-relay-integration-tests:
     name: Sentry-Relay Integration Tests
@@ -267,7 +267,7 @@ jobs:
         with:
           workdir: sentry
           cache-files-hash: ${{ hashFiles('sentry/requirements**.txt') }}
-          python-version: 3.6
+          python-version: 3.8
           snuba: true
           kafka: true
 
