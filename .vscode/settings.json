@@ -10,8 +10,8 @@
   "files.insertFinalNewline": true,
 
   // Python configuration
-  "python.pythonPath": ".venv/bin/python",
-  "python.linting.enabled": false,
+  "python.defaultInterpreterPath": ".venv/bin/python",
+  "python.linting.enabled": true,
   "python.formatting.provider": "black",
 
   // Language-specific overrides
