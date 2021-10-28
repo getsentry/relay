@@ -1902,15 +1902,19 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
                     project_cache.do_send(InsertMetrics::new(public_key, metrics));
                 }
             } else if item.ty() == ItemType::MetricBuckets {
-                if let Ok(mut buckets) = Bucket::parse_all(&payload) {
-                    for bucket in &mut buckets {
-                        clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                    }
+                match Bucket::parse_all(&payload) {
+                    Ok(mut buckets) => {
+                        for bucket in &mut buckets {
+                            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+                        }
 
-                    relay_log::trace!("merging metric buckets into project cache");
-                    project_cache.do_send(MergeBuckets::new(public_key, buckets));
-                } else {
-                    metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                        relay_log::trace!("merging metric buckets into project cache");
+                        project_cache.do_send(MergeBuckets::new(public_key, buckets));
+                    }
+                    Err(error) => {
+                        relay_log::error!("failed to parse metric bucket: {}", LogError(&error));
+                        metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                    }
                 }
             } else {
                 relay_log::error!(
