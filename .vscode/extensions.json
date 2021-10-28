@@ -6,6 +6,8 @@
     "bungcip.better-toml",
     // Rust language server
     "matklad.rust-analyzer",
+    // Python including Pylance
+    "ms-python.python",
     // Crates.io dependency versions
     "serayuzgur.crates",
     // Debugger support for Rust and native
