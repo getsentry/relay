@@ -8,6 +8,7 @@
 #[macro_use]
 mod macros;
 
+mod alloc;
 mod cell;
 mod constants;
 mod glob;
@@ -16,6 +17,7 @@ mod retry;
 mod time;
 mod utils;
 
+pub use crate::alloc::*;
 pub use crate::cell::*;
 pub use crate::constants::*;
 pub use crate::glob::*;
