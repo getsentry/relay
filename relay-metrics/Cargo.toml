@@ -18,6 +18,7 @@ relay-log = { path = "../relay-log" }
 relay-statsd = { path = "../relay-statsd" }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
+failure = "0.1.8"
 
 [dev-dependencies]
 criterion = "0.3"
