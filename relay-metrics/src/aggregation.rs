@@ -1,11 +1,11 @@
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 
-use std::error::Error;
 use std::fmt;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 
+use failure::Fail;
 use float_ord::FloatOrd;
 use serde::{Deserialize, Serialize};
 
@@ -559,22 +559,9 @@ impl MergeValue for MetricValue {
 }
 
 /// Error returned when parsing or serializing a [`Bucket`].
-#[derive(Debug)]
-pub struct ParseBucketError {
-    inner: serde_json::Error,
-}
-
-impl fmt::Display for ParseBucketError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("failed to parse metric bucket")
-    }
-}
-
-impl Error for ParseBucketError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Some(&self.inner)
-    }
-}
+#[derive(Debug, Fail)]
+#[fail(display = "failed to parse metric bucket")]
+pub struct ParseBucketError(#[cause] serde_json::Error);
 
 /// An aggregation of metric values by the [`Aggregator`].
 ///
@@ -690,31 +677,24 @@ impl Bucket {
 
     /// Parses a single metric bucket from the JSON protocol.
     pub fn parse(slice: &[u8]) -> Result<Self, ParseBucketError> {
-        serde_json::from_slice(slice).map_err(|inner| ParseBucketError { inner })
+        serde_json::from_slice(slice).map_err(ParseBucketError)
     }
 
     /// Parses a set of metric bucket from the JSON protocol.
     pub fn parse_all(slice: &[u8]) -> Result<Vec<Bucket>, ParseBucketError> {
-        serde_json::from_slice(slice).map_err(|inner| ParseBucketError { inner })
+        serde_json::from_slice(slice).map_err(ParseBucketError)
     }
 
     /// Serializes the given buckets to the JSON protocol.
     pub fn serialize_all(buckets: &[Self]) -> Result<String, ParseBucketError> {
-        serde_json::to_string(&buckets).map_err(|inner| ParseBucketError { inner })
+        serde_json::to_string(&buckets).map_err(ParseBucketError)
     }
 }
 
 /// Any error that may occur during aggregation.
-#[derive(Debug)]
+#[derive(Debug, Fail)]
+#[fail(display = "failed to aggregate metrics")]
 pub struct AggregateMetricsError;
-
-impl fmt::Display for AggregateMetricsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("failed to aggregate metrics")
-    }
-}
-
-impl Error for AggregateMetricsError {}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct BucketKey {
