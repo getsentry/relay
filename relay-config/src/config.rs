@@ -1689,7 +1689,7 @@ impl Config {
         self.values.processing.topics.get(topic).topic_name()
     }
 
-    /// Topic name and list of Kafka configuration parameters for a given topic.
+    /// Configuration name and list of Kafka configuration parameters for a given topic.
     pub fn kafka_config(
         &self,
         topic: KafkaTopic,

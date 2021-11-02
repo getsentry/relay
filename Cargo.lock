@@ -3263,6 +3263,7 @@ version = "21.10.0"
 dependencies = [
  "actix",
  "criterion",
+ "failure",
  "float-ord",
  "futures 0.1.29",
  "hash32",
