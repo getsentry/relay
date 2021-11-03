@@ -1,6 +1,7 @@
 import queue
 import pytest
 import signal
+import subprocess
 
 
 def test_graceful_shutdown(mini_sentry, relay):
@@ -139,8 +140,5 @@ def test_relay_applies_malloc_limit(mini_sentry, relay):
     project_id = 42
     config = mini_sentry.add_basic_project_config(project_id)
 
-    relay = relay(mini_sentry, options={"limits": {"_max_alloc_size": 1}})
-
-    relay.send_event(project_id)
-
-    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+    with pytest.raises(subprocess.CalledProcessError):
+        relay(mini_sentry, options={"limits": {"_max_alloc_size": 1}})
