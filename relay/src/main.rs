@@ -84,6 +84,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+mod alloc;
 mod cli;
 mod cliapp;
 mod setup;
