@@ -6,7 +6,7 @@ use std::rc::Rc;
 use actix::prelude::*;
 use actix_web::http::{header, StatusCode};
 use actix_web::middleware::cors::{Cors, CorsBuilder};
-use actix_web::{HttpRequest, HttpResponse, ResponseError};
+use actix_web::{error::PayloadError, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
 use futures::prelude::*;
 use serde::Deserialize;
@@ -22,7 +22,6 @@ use crate::actors::envelopes::{
 };
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
-use crate::body::StorePayloadError;
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
@@ -74,7 +73,7 @@ pub enum BadStoreRequest {
     QueueFailed(#[cause] QueueEnvelopeError),
 
     #[fail(display = "failed to read request body")]
-    PayloadError(#[cause] StorePayloadError),
+    PayloadError(#[cause] PayloadError),
 
     #[fail(display = "event rejected due to rate limit")]
     RateLimited(RateLimits),
@@ -114,9 +113,10 @@ impl BadStoreRequest {
                 ProjectError::FetchFailed => Outcome::Invalid(DiscardReason::ProjectState),
                 _ => Outcome::Invalid(DiscardReason::Internal),
             },
-            BadStoreRequest::PayloadError(payload_error) => {
-                Outcome::Invalid(payload_error.discard_reason())
-            }
+            BadStoreRequest::PayloadError(payload_error) => match payload_error {
+                PayloadError::Overflow => Outcome::Invalid(DiscardReason::TooLarge),
+                _ => Outcome::Invalid(DiscardReason::Payload),
+            },
 
             // should actually never create an outcome
             BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
@@ -171,7 +171,7 @@ impl ResponseError for BadStoreRequest {
                 // now executed asynchronously in `EnvelopeProcessor`.
                 HttpResponse::Forbidden().json(&body)
             }
-            BadStoreRequest::PayloadError(StorePayloadError::Overflow) => {
+            BadStoreRequest::PayloadError(PayloadError::Overflow) => {
                 HttpResponse::PayloadTooLarge().json(&body)
             }
             _ => {
@@ -398,7 +398,7 @@ where
                 Ok((envelope, checked.rate_limits))
             } else {
                 envelope_context.send_outcomes(Outcome::Invalid(DiscardReason::TooLarge));
-                Err(BadStoreRequest::PayloadError(StorePayloadError::Overflow))
+                Err(BadStoreRequest::PayloadError(PayloadError::Overflow))
             }
         }))
         .and_then(clone!(envelope_context, |(envelope, rate_limits)| {

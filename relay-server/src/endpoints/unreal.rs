@@ -3,7 +3,7 @@ use futures::Future;
 
 use relay_general::protocol::EventId;
 
-use crate::body::ForwardBody;
+use crate::body::RequestBody;
 use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
@@ -17,7 +17,7 @@ fn extract_envelope(
     let user_id = request.query().get("UserID").cloned();
     let max_payload_size = request.state().config().max_attachments_size();
 
-    let future = ForwardBody::new(request, max_payload_size)
+    let future = RequestBody::new(request, max_payload_size)
         .map_err(|_| BadStoreRequest::InvalidUnrealReport)
         .and_then(move |data| {
             let mut envelope = Envelope::from_request(Some(EventId::new()), meta);

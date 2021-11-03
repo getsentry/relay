@@ -11,9 +11,13 @@ use relay_config::RelayInfo;
 use relay_log::Hub;
 
 use crate::actors::relays::{GetRelay, RelayCache};
+use crate::body::RequestBody;
 use crate::middlewares::ActixWebHubExt;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
+
+/// Maximum size of a JSON request body.
+const MAX_JSON_SIZE: usize = 262_144;
 
 #[derive(Debug)]
 pub struct SignedJson<T> {
@@ -91,7 +95,7 @@ impl<T: DeserializeOwned + 'static> FromRequest<ServiceState> for SignedJson<T> 
                     .relay
                     .ok_or_else(|| Error::from(SignatureError::UnknownRelay))
             })
-            .join(req.body().map_err(Error::from))
+            .join(RequestBody::new(req, MAX_JSON_SIZE).map_err(Error::from))
             .and_then(move |(relay, body)| {
                 relay
                     .public_key

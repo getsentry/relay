@@ -5,7 +5,7 @@ use futures::{future, Future, Stream};
 
 use relay_general::protocol::EventId;
 
-use crate::body::ForwardBody;
+use crate::body::RequestBody;
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
@@ -100,7 +100,7 @@ fn extract_envelope(
     // minidump can either be transmitted as request body, or as `upload_file_minidump` in a
     // multipart formdata request.
     if MINIDUMP_RAW_CONTENT_TYPES.contains(&request.content_type()) {
-        let future = ForwardBody::new(request, max_single_size)
+        let future = RequestBody::new(request, max_single_size)
             .map_err(|_| BadStoreRequest::InvalidMinidump)
             .and_then(move |data| {
                 validate_minidump(&data)?;
