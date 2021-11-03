@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["set_max_alloc_size","Set a max allocation size, default is to have none."]],"static":[["GLOBAL",""]],"struct":[["RelayAllocator",""]]});
