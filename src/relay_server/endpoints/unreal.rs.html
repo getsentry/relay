@@ -67,7 +67,7 @@
 
 <span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::body::ForwardBody</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::body::RequestBody</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::constants::UNREAL_USER_HEADER</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::endpoints::common</span>::{<span class="self">self</span>, <span class="ident">BadStoreRequest</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
@@ -81,7 +81,7 @@
     <span class="kw">let</span> <span class="ident">user_id</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">query</span>().<span class="ident">get</span>(<span class="string">&quot;UserID&quot;</span>).<span class="ident">cloned</span>();
     <span class="kw">let</span> <span class="ident">max_payload_size</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">config</span>().<span class="ident">max_attachments_size</span>();
 
-    <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">ForwardBody::new</span>(<span class="ident">request</span>, <span class="ident">max_payload_size</span>)
+    <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">RequestBody::new</span>(<span class="ident">request</span>, <span class="ident">max_payload_size</span>)
         .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">BadStoreRequest::InvalidUnrealReport</span>)
         .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">data</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">Envelope::from_request</span>(<span class="prelude-val">Some</span>(<span class="ident">EventId::new</span>()), <span class="ident">meta</span>);

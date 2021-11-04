@@ -332,7 +332,7 @@
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">SendRequest</span>, <span class="ident">UpstreamRelay</span>, <span class="ident">UpstreamRequest</span>, <span class="ident">UpstreamRequestError</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::body::ForwardBody</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::body::RequestBody</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::endpoints::statics</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::ForwardedFor</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::http</span>::{<span class="ident">HttpError</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
@@ -549,7 +549,7 @@
     <span class="kw">let</span> <span class="ident">headers</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">headers</span>().<span class="ident">clone</span>();
     <span class="kw">let</span> <span class="ident">forwarded_for</span> <span class="op">=</span> <span class="ident">ForwardedFor::from</span>(<span class="ident">request</span>);
 
-    <span class="ident">ForwardBody::new</span>(<span class="ident">request</span>, <span class="ident">limit</span>)
+    <span class="ident">RequestBody::new</span>(<span class="ident">request</span>, <span class="ident">limit</span>)
         .<span class="ident">map_err</span>(<span class="ident">Error::from</span>)
         .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">data</span><span class="op">|</span> {
             <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();

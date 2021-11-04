@@ -223,7 +223,7 @@
 
 <span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::body::ForwardBody</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::body::RequestBody</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::constants</span>::{<span class="ident">ITEM_NAME_BREADCRUMBS1</span>, <span class="ident">ITEM_NAME_BREADCRUMBS2</span>, <span class="ident">ITEM_NAME_EVENT</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::endpoints::common</span>::{<span class="self">self</span>, <span class="ident">BadStoreRequest</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
@@ -318,7 +318,7 @@
     <span class="comment">// minidump can either be transmitted as request body, or as `upload_file_minidump` in a</span>
     <span class="comment">// multipart formdata request.</span>
     <span class="kw">if</span> <span class="ident">MINIDUMP_RAW_CONTENT_TYPES</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">request</span>.<span class="ident">content_type</span>()) {
-        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">ForwardBody::new</span>(<span class="ident">request</span>, <span class="ident">max_single_size</span>)
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">RequestBody::new</span>(<span class="ident">request</span>, <span class="ident">max_single_size</span>)
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">BadStoreRequest::InvalidMinidump</span>)
             .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">data</span><span class="op">|</span> {
                 <span class="ident">validate_minidump</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>)<span class="question-mark">?</span>;

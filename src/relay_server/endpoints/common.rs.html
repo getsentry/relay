@@ -559,7 +559,7 @@
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">actix_web::http</span>::{<span class="ident">header</span>, <span class="ident">StatusCode</span>};
 <span class="kw">use</span> <span class="ident">actix_web::middleware::cors</span>::{<span class="ident">Cors</span>, <span class="ident">CorsBuilder</span>};
-<span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">HttpRequest</span>, <span class="ident">HttpResponse</span>, <span class="ident">ResponseError</span>};
+<span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">error::PayloadError</span>, <span class="ident">HttpRequest</span>, <span class="ident">HttpResponse</span>, <span class="ident">ResponseError</span>};
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">serde::Deserialize</span>;
@@ -575,7 +575,6 @@
 };
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache</span>::{<span class="ident">CheckEnvelope</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::body::StorePayloadError</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">Envelope</span>, <span class="ident">EnvelopeError</span>, <span class="ident">ItemType</span>, <span class="ident">Items</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::RequestMeta</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">ServiceApp</span>, <span class="ident">ServiceState</span>};
@@ -627,7 +626,7 @@
     <span class="ident">QueueFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">QueueEnvelopeError</span>),
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to read request body&quot;</span>)]</span>
-    <span class="ident">PayloadError</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">StorePayloadError</span>),
+    <span class="ident">PayloadError</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">PayloadError</span>),
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;event rejected due to rate limit&quot;</span>)]</span>
     <span class="ident">RateLimited</span>(<span class="ident">RateLimits</span>),
@@ -667,9 +666,10 @@
                 <span class="ident">ProjectError::FetchFailed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProjectState</span>),
                 <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>),
             },
-            <span class="ident">BadStoreRequest::PayloadError</span>(<span class="ident">payload_error</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="ident">Outcome::Invalid</span>(<span class="ident">payload_error</span>.<span class="ident">discard_reason</span>())
-            }
+            <span class="ident">BadStoreRequest::PayloadError</span>(<span class="ident">payload_error</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">payload_error</span> {
+                <span class="ident">PayloadError::Overflow</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::TooLarge</span>),
+                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Payload</span>),
+            },
 
             <span class="comment">// should actually never create an outcome</span>
             <span class="ident">BadStoreRequest::InvalidEventId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>),
@@ -724,7 +724,7 @@
                 <span class="comment">// now executed asynchronously in `EnvelopeProcessor`.</span>
                 <span class="ident">HttpResponse::Forbidden</span>().<span class="ident">json</span>(<span class="kw-2">&amp;</span><span class="ident">body</span>)
             }
-            <span class="ident">BadStoreRequest::PayloadError</span>(<span class="ident">StorePayloadError::Overflow</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">BadStoreRequest::PayloadError</span>(<span class="ident">PayloadError::Overflow</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="ident">HttpResponse::PayloadTooLarge</span>().<span class="ident">json</span>(<span class="kw-2">&amp;</span><span class="ident">body</span>)
             }
             <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {
@@ -951,7 +951,7 @@
                 <span class="prelude-val">Ok</span>((<span class="ident">envelope</span>, <span class="ident">checked</span>.<span class="ident">rate_limits</span>))
             } <span class="kw">else</span> {
                 <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::TooLarge</span>));
-                <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest::PayloadError</span>(<span class="ident">StorePayloadError::Overflow</span>))
+                <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest::PayloadError</span>(<span class="ident">PayloadError::Overflow</span>))
             }
         }))
         .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">rate_limits</span>)<span class="op">|</span> {

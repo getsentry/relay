@@ -103,6 +103,10 @@
 <span id="103">103</span>
 <span id="104">104</span>
 <span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">actix_web::actix</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">actix_web::http::StatusCode</span>;
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">Error</span>, <span class="ident">FromRequest</span>, <span class="ident">HttpMessage</span>, <span class="ident">HttpRequest</span>, <span class="ident">HttpResponse</span>, <span class="ident">ResponseError</span>};
@@ -116,9 +120,13 @@
 <span class="kw">use</span> <span class="ident">relay_log::Hub</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::relays</span>::{<span class="ident">GetRelay</span>, <span class="ident">RelayCache</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::body::RequestBody</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::middlewares::ActixWebHubExt</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServiceState</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::ApiErrorResponse</span>;
+
+<span class="doccomment">/// Maximum size of a JSON request body.</span>
+<span class="kw">const</span> <span class="ident">MAX_JSON_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">262_144</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SignedJson</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
@@ -196,7 +204,7 @@
                     .<span class="ident">relay</span>
                     .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Error::from</span>(<span class="ident">SignatureError::UnknownRelay</span>))
             })
-            .<span class="ident">join</span>(<span class="ident">req</span>.<span class="ident">body</span>().<span class="ident">map_err</span>(<span class="ident">Error::from</span>))
+            .<span class="ident">join</span>(<span class="ident">RequestBody::new</span>(<span class="ident">req</span>, <span class="ident">MAX_JSON_SIZE</span>).<span class="ident">map_err</span>(<span class="ident">Error::from</span>))
             .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">relay</span>, <span class="ident">body</span>)<span class="op">|</span> {
                 <span class="ident">relay</span>
                     .<span class="ident">public_key</span>
