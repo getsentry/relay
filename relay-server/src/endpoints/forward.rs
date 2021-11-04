@@ -23,7 +23,7 @@ use relay_config::Config;
 use relay_log::LogError;
 
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
-use crate::body::ForwardBody;
+use crate::body::RequestBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response};
@@ -240,7 +240,7 @@ pub fn forward_upstream(
     let headers = request.headers().clone();
     let forwarded_for = ForwardedFor::from(request);
 
-    ForwardBody::new(request, limit)
+    RequestBody::new(request, limit)
         .map_err(Error::from)
         .and_then(move |data| {
             let (tx, rx) = oneshot::channel();
