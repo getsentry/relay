@@ -927,6 +927,9 @@ pub struct Outcomes {
     pub emit_outcomes: bool,
     /// Controls wheather client reported outcomes should be emitted.
     pub emit_client_outcomes: bool,
+    /// Controls whether outcomes should be converted to client reports and aggregated before
+    /// sending them to the upstream.
+    pub emit_outcomes_as_client_reports: bool,
     /// The maximum number of outcomes that are batched before being sent
     /// via http to the upstream (only applies to non processing relays).
     pub batch_size: usize,
@@ -943,6 +946,7 @@ impl Default for Outcomes {
         Outcomes {
             emit_outcomes: false,
             emit_client_outcomes: true,
+            emit_outcomes_as_client_reports: false,
             batch_size: 1000,
             batch_interval: 500,
             source: None,
@@ -1434,6 +1438,12 @@ impl Config {
     /// emitting of client outcomes to the kafka topic.
     pub fn emit_client_outcomes(&self) -> bool {
         self.values.outcomes.emit_client_outcomes
+    }
+
+    /// Returns true when generated outcomes should be converted into client reports before
+    /// sending them to the upstream.
+    pub fn emit_outcomes_as_client_reports(&self) -> bool {
+        self.values.outcomes.emit_outcomes_as_client_reports
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent

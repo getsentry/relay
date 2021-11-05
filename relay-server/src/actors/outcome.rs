@@ -18,11 +18,12 @@ use serde::{Deserialize, Serialize};
 use relay_common::{DataCategory, ProjectId};
 use relay_config::Config;
 use relay_filter::FilterStatKey;
-use relay_general::protocol::EventId;
+use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 
+use crate::actors::client_reports::{ClientReportAggregator, SendClientReport};
 use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
 use crate::ServerError;
@@ -35,7 +36,7 @@ pub use self::processing::*;
 #[cfg(feature = "processing")]
 pub type OutcomeProducer = processing::ProcessingOutcomeProducer;
 #[cfg(not(feature = "processing"))]
-pub type OutcomeProducer = HttpOutcomeProducer;
+pub type OutcomeProducer = NonProcessingOutcomeProducer;
 
 /// Defines the structure of the HTTP outcomes requests
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -622,23 +623,11 @@ impl Actor for HttpOutcomeProducer {
     type Context = Context<Self>;
 }
 
-impl Supervised for HttpOutcomeProducer {}
-
-impl SystemService for HttpOutcomeProducer {}
-
-impl Default for HttpOutcomeProducer {
-    fn default() -> Self {
-        unimplemented!("register with the SystemRegistry instead")
-    }
-}
-
 impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
     type Result = Result<(), OutcomeError>;
-    fn handle(&mut self, message: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
-        if self.config.emit_outcomes() {
-            self.send_http_message(message, ctx);
-        }
 
+    fn handle(&mut self, msg: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
+        self.send_http_message(msg, ctx);
         Ok(())
     }
 }
@@ -646,7 +635,103 @@ impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
 impl Handler<TrackOutcome> for HttpOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
-    fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        self.handle(TrackRawOutcome::from_outcome(message, &self.config), _ctx)
+    fn handle(&mut self, msg: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
+        self.handle(TrackRawOutcome::from_outcome(msg, &self.config), ctx)
+    }
+}
+
+struct ClientReportOutcomeProducer {}
+
+impl ClientReportOutcomeProducer {
+    pub fn create() -> Self {
+        Self {}
+    }
+}
+
+impl Actor for ClientReportOutcomeProducer {
+    type Context = Context<Self>;
+}
+
+impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
+    type Result = Result<(), OutcomeError>;
+
+    fn handle(&mut self, msg: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
+        let discarded_event = DiscardedEvent {
+            reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
+            category: msg.category,
+            quantity: msg.quantity,
+        };
+        let client_report = ClientReport {
+            timestamp: None, //msg.timestamp, // TODO
+            discarded_events: vec![discarded_event],
+        };
+
+        ClientReportAggregator::from_registry().do_send(SendClientReport(client_report));
+
+        Ok(())
+    }
+}
+
+enum InnerProducer {
+    Http(HttpOutcomeProducer),
+    ClientReport(ClientReportOutcomeProducer),
+}
+
+struct NonProcessingOutcomeProducer {
+    config: Arc<Config>,
+    inner_producer: Option<Recipient<TrackOutcome>>,
+}
+
+impl NonProcessingOutcomeProducer {
+    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+        let inner_producer = if config.emit_outcomes_as_client_reports() {
+            Some(ClientReportOutcomeProducer::create().start().recipient())
+        } else if config.emit_outcomes() {
+            Some(
+                HttpOutcomeProducer::create(Arc::clone(&config))?
+                    .start()
+                    .recipient(),
+            )
+        } else {
+            None
+        };
+
+        Ok(Self {
+            config: Arc::clone(&config),
+            inner_producer,
+        })
+    }
+}
+
+impl Actor for NonProcessingOutcomeProducer {
+    type Context = Context<Self>;
+}
+
+impl Supervised for NonProcessingOutcomeProducer {}
+
+impl SystemService for NonProcessingOutcomeProducer {}
+
+impl Default for NonProcessingOutcomeProducer {
+    fn default() -> Self {
+        unimplemented!("register with the SystemRegistry instead")
+    }
+}
+
+impl Handler<TrackOutcome> for NonProcessingOutcomeProducer {
+    type Result = Result<(), OutcomeError>;
+    fn handle(&mut self, message: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
+        if let Some(inner_producer) = &self.inner_producer {
+            inner_producer.do_send(message);
+            // TODO: error handling
+        }
+        Ok(())
+    }
+}
+
+impl Handler<TrackRawOutcome> for NonProcessingOutcomeProducer {
+    type Result = Result<(), OutcomeError>;
+
+    fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
+        todo!();
     }
 }
