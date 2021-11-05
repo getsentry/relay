@@ -1,17 +1,14 @@
-use actix::ResponseFuture;
 use actix_web::{error::PayloadError, HttpRequest};
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use futures::prelude::*;
 
-use crate::extractors::SharedPayload;
+use crate::extractors::{Decoder, SharedPayload};
 use crate::utils;
 
 /// Future that resolves to a complete store endpoint body.
 pub struct RequestBody {
-    limit: usize,
-    stream: Option<SharedPayload>,
     err: Option<PayloadError>,
-    fut: Option<ResponseFuture<Bytes, PayloadError>>,
+    stream: Option<(SharedPayload, Decoder)>,
 }
 
 impl RequestBody {
@@ -20,19 +17,15 @@ impl RequestBody {
         if let Some(length) = utils::get_content_length(req) {
             if length > limit {
                 return RequestBody {
-                    limit: 0,
                     stream: None,
-                    fut: None,
                     err: Some(PayloadError::Overflow),
                 };
             }
         }
 
         RequestBody {
-            limit,
-            stream: Some(SharedPayload::get(req)),
+            stream: Some((SharedPayload::get(req), Decoder::new(req, limit))),
             err: None,
-            fut: None,
         }
     }
 }
@@ -42,31 +35,27 @@ impl Future for RequestBody {
     type Error = PayloadError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(ref mut fut) = self.fut {
-            return fut.poll();
-        }
-
         if let Some(err) = self.err.take() {
             return Err(err);
         }
 
-        let limit = self.limit;
-        let future = self
-            .stream
-            .take()
-            .expect("Can not be used second time")
-            .fold(BytesMut::with_capacity(8192), move |mut body, chunk| {
-                if (body.len() + chunk.len()) > limit {
-                    Err(PayloadError::Overflow)
-                } else {
-                    body.extend_from_slice(&chunk);
-                    Ok(body)
-                }
-            })
-            .map(BytesMut::freeze);
+        if let Some((ref mut payload, ref mut decoder)) = self.stream {
+            loop {
+                return match payload.poll() {
+                    Ok(Async::Ready(Some(encoded))) => {
+                        if decoder.decode(encoded)? {
+                            Err(PayloadError::Overflow)
+                        } else {
+                            continue;
+                        }
+                    }
+                    Ok(Async::Ready(None)) => Ok(Async::Ready(decoder.take())),
+                    Ok(Async::NotReady) => Ok(Async::NotReady),
+                    Err(error) => Err(error),
+                };
+            }
+        }
 
-        self.fut = Some(Box::new(future));
-
-        self.poll()
+        panic!("cannot be used second time")
     }
 }

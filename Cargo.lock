@@ -68,13 +68,11 @@ dependencies = [
  "actix-net",
  "base64 0.10.1",
  "bitflags",
- "brotli2",
  "byteorder",
  "bytes 0.4.12",
  "cookie 0.11.3",
  "encoding",
  "failure",
- "flate2",
  "futures 0.1.29",
  "futures-cpupool",
  "h2 0.1.26",
@@ -1189,7 +1187,6 @@ dependencies = [
  "cfg-if 1.0.0",
  "crc32fast",
  "libc",
- "miniz-sys",
  "miniz_oxide",
 ]
 
@@ -2005,16 +2002,6 @@ dependencies = [
  "range-map",
  "scroll",
  "smart-default",
-]
-
-[[package]]
-name = "miniz-sys"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e9e3ae51cea1576ceba0dde3d484d30e6e5b86dee0b2d412fe3a16a15c98202"
-dependencies = [
- "cc",
- "libc",
 ]
 
 [[package]]
