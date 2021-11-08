@@ -10,7 +10,10 @@ use actix::{Actor, AsyncContext, Context, Handler, Recipient, Supervised, System
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_general::protocol::EventId;
 use relay_quotas::Scoping;
+use relay_statsd::metric;
 use std::time::Duration;
+
+use crate::statsd::RelayTimers;
 
 use super::outcome::{Outcome, OutcomeError, TrackOutcome};
 
@@ -56,7 +59,7 @@ impl OutcomeAggregator {
         }
     }
 
-    fn flush(&mut self, _context: &mut <Self as Actor>::Context) {
+    fn do_flush(&mut self) {
         let max_offset = (UnixTimestamp::now().as_secs() - self.flush_delay) / self.bucket_interval;
         let bucket_interval = self.bucket_interval;
         let outcome_producer = self.outcome_producer.clone();
@@ -89,6 +92,12 @@ impl OutcomeAggregator {
             } else {
                 true
             }
+        });
+    }
+
+    fn flush(&mut self, _context: &mut <Self as Actor>::Context) {
+        metric!(timer(RelayTimers::OutcomeAggregatorFlushTime), {
+            self.do_flush();
         });
     }
 }
