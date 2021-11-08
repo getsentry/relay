@@ -130,7 +130,6 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
     type Result = Result<(), OutcomeError>;
 
     fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        // TODO: confugure private agg with 1 minute resolution
         relay_log::trace!("Outcome aggregation requested: {:?}", msg);
 
         let TrackOutcome {
