@@ -31,7 +31,7 @@ impl PeekLine {
     pub fn new<S>(request: &HttpRequest<S>, limit: usize) -> Self {
         Self {
             payload: SharedPayload::get(request),
-            decoder: Decoder::new(request, limit + 1),
+            decoder: Decoder::new(request, limit),
             chunks: SmallVec::new(),
         }
     }
@@ -43,15 +43,17 @@ impl PeekLine {
         }
     }
 
-    fn finish(&mut self) -> Async<Option<Bytes>> {
+    fn finish(&mut self, overflow: bool) -> Async<Option<Bytes>> {
         let buffer = self.decoder.take();
-        let line = buffer
-            .iter()
-            .position(|b| *b == b'\n')
-            .map(|pos| buffer.slice_to(pos));
+
+        let line = match buffer.iter().position(|b| *b == b'\n') {
+            Some(pos) => Some(buffer.slice_to(pos)),
+            None if !overflow => Some(buffer),
+            None => None,
+        };
 
         self.revert_chunks();
-        Async::Ready(line)
+        Async::Ready(line.filter(|line| !line.is_empty()))
     }
 }
 
@@ -63,14 +65,14 @@ impl Future for PeekLine {
         loop {
             let chunk = match self.payload.poll() {
                 Ok(Async::Ready(Some(chunk))) => chunk,
-                Ok(Async::Ready(None)) => return Ok(self.finish()), // fits
+                Ok(Async::Ready(None)) => return Ok(self.finish(false)),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(error) => return Err(error),
             };
 
             self.chunks.push(chunk.clone());
             if self.decoder.decode(chunk)? {
-                return Ok(self.finish()); // overflows
+                return Ok(self.finish(true));
             }
         }
     }
@@ -126,7 +128,7 @@ mod tests {
             .set_payload(payload.to_string())
             .finish();
 
-        let opt = relay_test::block_fn(move || PeekLine::new(&request, 4)).unwrap();
+        let opt = relay_test::block_fn(move || PeekLine::new(&request, 5)).unwrap();
         assert_eq!(opt, Some("test".into()));
     }
 
