@@ -11,7 +11,12 @@ use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
 use flate2::write::{DeflateDecoder, GzDecoder};
 use futures::{Async, Poll, Stream};
+use relay_config::HttpEncoding;
 
+/// Start size for the [`Decoder`]'s internal target buffer.
+///
+/// The allocated buffer will be smaller if the `Decoder`'s limit is set to a lower value. Likewise,
+/// the buffer grows dynamically up to the limit as large payloads are being decompressed.
 const DECODE_BUFFER_SIZE: usize = 8192;
 
 /// A shared reference to an actix request payload.
@@ -85,52 +90,19 @@ impl Stream for SharedPayload {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-enum ContentEncoding {
-    Identity,
-    Br,
-    Gzip,
-    Deflate,
-}
-
-impl ContentEncoding {
-    pub fn parse(str: &str) -> Self {
-        let str = str.trim();
-        if str.eq_ignore_ascii_case("br") {
-            Self::Br
-        } else if str.eq_ignore_ascii_case("gzip") {
-            Self::Gzip
-        } else if str.eq_ignore_ascii_case("deflate") {
-            Self::Deflate
-        } else {
-            Self::Identity
-        }
-    }
-
-    pub fn from_request<S>(request: &HttpRequest<S>) -> Self {
-        request
-            .headers()
-            .get(CONTENT_ENCODING)
-            .and_then(|enc| enc.to_str().ok())
-            .map(ContentEncoding::parse)
-            .unwrap_or_default()
-    }
-}
-
-impl Default for ContentEncoding {
-    fn default() -> Self {
-        Self::Identity
-    }
-}
-
 #[derive(Debug, Default)]
-// TODO: Make not pub
-pub struct Sink {
+/// A plain sink for chunks of binary data with a limit.
+///
+/// The sink will grow to the stated `limit` and then stop writing more data. When used in
+/// combination with [`Write::write_all`], this will result in [`ErrorKind::WriteZero`] when the
+/// sink overflows.
+struct Sink {
     buffer: Vec<u8>,
     remaining: usize,
 }
 
 impl Sink {
+    /// Creates a new `Sink` with the given `limit`.
     pub fn new(limit: usize) -> Self {
         Self {
             buffer: Vec::new(),
@@ -138,6 +110,7 @@ impl Sink {
         }
     }
 
+    /// Returns the sink's full buffer, leaving it empty.
     pub fn take(&mut self) -> Bytes {
         std::mem::take(&mut self.buffer).into()
     }
@@ -163,6 +136,7 @@ impl Write for Sink {
     }
 }
 
+/// Writes data into the given `write`, returning `true` on overflow.
 fn write_overflowing<W: Write>(write: &mut W, slice: &[u8]) -> io::Result<bool> {
     // TODO: flush may not succeed if we're not writing..?
     match write.write_all(slice).and_then(|()| write.flush()) {
@@ -174,25 +148,48 @@ fn write_overflowing<W: Write>(write: &mut W, slice: &[u8]) -> io::Result<bool> 
     }
 }
 
-// #[derive(Debug)]
-pub enum Decoder {
-    // Identity(usize),
+/// Internal dispatch for all supported [`HttpEncoding`]s.
+enum DecoderInner {
     Identity(Box<Sink>),
     Br(Box<BrotliDecoder<Sink>>),
     Gzip(Box<GzDecoder<Sink>>),
     Deflate(Box<DeflateDecoder<Sink>>),
 }
 
+/// Stateful decoder for all supported [`HttpEncoding`]s.
+///
+/// Use [`decode`](Self::decode) to feed data into the decoder's internal buffer. To read the
+/// intermediate buffer, use [`take`](Self::take). Decoding can continue afterwards, but the taken
+/// payload will not be returned again.
+///
+/// To initialize the decoder, assign a `limit`. When the decoded buffer reaches the size limit, it
+/// is truncated and an overflow is returned.
+pub struct Decoder {
+    inner: DecoderInner,
+}
+
 impl Decoder {
+    /// Creates a new `Decoder` with the given size limit.
+    ///
+    /// If the request is not encoded, this decoder is a noop.
     pub fn new<S>(request: &HttpRequest<S>, limit: usize) -> Self {
         let sink = Sink::new(limit);
 
-        match ContentEncoding::from_request(request) {
-            ContentEncoding::Identity => Self::Identity(Box::new(sink)),
-            ContentEncoding::Br => Self::Br(Box::new(BrotliDecoder::new(sink))),
-            ContentEncoding::Gzip => Self::Gzip(Box::new(GzDecoder::new(sink))),
-            ContentEncoding::Deflate => Self::Deflate(Box::new(DeflateDecoder::new(sink))),
-        }
+        let encoding = request
+            .headers()
+            .get(CONTENT_ENCODING)
+            .and_then(|enc| enc.to_str().ok())
+            .map(HttpEncoding::parse)
+            .unwrap_or_default();
+
+        let inner = match encoding {
+            HttpEncoding::Identity => DecoderInner::Identity(Box::new(sink)),
+            HttpEncoding::Br => DecoderInner::Br(Box::new(BrotliDecoder::new(sink))),
+            HttpEncoding::Gzip => DecoderInner::Gzip(Box::new(GzDecoder::new(sink))),
+            HttpEncoding::Deflate => DecoderInner::Deflate(Box::new(DeflateDecoder::new(sink))),
+        };
+
+        Self { inner }
     }
 
     // pub fn decode(&mut self, bytes: Bytes) -> io::Result<(Bytes, bool)> {
@@ -202,53 +199,54 @@ impl Decoder {
     //             let decoded = bytes.slice_to(remaining.min(bytes.len()));
     //             Ok((decoded, overflow))
     //         }
-    //         Decoder::Br(ref mut inner) => {
-    //             let overflow = write_overflowing(inner, &bytes)?;
-    //             Ok((inner.get_mut().take(), overflow))
-    //         }
-    //         Decoder::Gzip(ref mut inner) => {
-    //             let overflow = write_overflowing(inner, &bytes)?;
-    //             Ok((inner.get_mut().take(), overflow))
-    //         }
-    //         Decoder::Deflate(ref mut inner) => {
-    //             let overflow = write_overflowing(inner, &bytes)?;
-    //             Ok((inner.get_mut().take(), overflow))
-    //         }
     //     }
     // }
 
+    /// Decodes a chunk of data.
+    ///
+    /// The decoded bytes are written into the Decoder's buffer, which can be obtained using
+    /// [`take`](Self::take). Returns `Ok(false)` if decoding has completed successfully without an
+    /// overflow. Returns `Ok(true)` if decoding has stopped prematurely due to an overflow. In this
+    /// case, the buffer contains the decoded payload up to the limit. Returns `Err` if there was an
+    /// error decoding.
     pub fn decode(&mut self, bytes: Bytes) -> io::Result<bool> {
         // TODO: Optimize identity?
-        match self {
-            Decoder::Identity(inner) => write_overflowing(inner, &bytes),
-            Decoder::Br(inner) => write_overflowing(inner, &bytes),
-            Decoder::Gzip(inner) => write_overflowing(inner, &bytes),
-            Decoder::Deflate(inner) => write_overflowing(inner, &bytes),
+        match &mut self.inner {
+            DecoderInner::Identity(inner) => write_overflowing(inner, &bytes),
+            DecoderInner::Br(inner) => write_overflowing(inner, &bytes),
+            DecoderInner::Gzip(inner) => write_overflowing(inner, &bytes),
+            DecoderInner::Deflate(inner) => write_overflowing(inner, &bytes),
         }
     }
 
+    /// Returns decoded bytes from the Decoder's buffer.
+    ///
+    /// This can be called at any time during decoding. However, the limit stated during
+    /// initialization remains in effect across the entire decoded payload.
     pub fn take(&mut self) -> Bytes {
-        match self {
-            Decoder::Identity(inner) => inner.take(),
-            Decoder::Br(inner) => inner.get_mut().take(),
-            Decoder::Gzip(inner) => inner.get_mut().take(),
-            Decoder::Deflate(inner) => inner.get_mut().take(),
+        match &mut self.inner {
+            DecoderInner::Identity(inner) => inner.take(),
+            DecoderInner::Br(inner) => inner.get_mut().take(),
+            DecoderInner::Gzip(inner) => inner.get_mut().take(),
+            DecoderInner::Deflate(inner) => inner.get_mut().take(),
         }
     }
 }
 
 impl fmt::Debug for Decoder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Identity(inner) => f.debug_tuple("Identity").field(inner).finish(),
-            Self::Br(_inner) => f.debug_tuple("Br").finish(),
-            Self::Gzip(inner) => f.debug_tuple("Gzip").field(inner).finish(),
-            Self::Deflate(inner) => f.debug_tuple("Deflate").field(inner).finish(),
+        match &self.inner {
+            DecoderInner::Identity(inner) => f.debug_tuple("Identity").field(inner).finish(),
+            DecoderInner::Br(_inner) => f.debug_tuple("Br").finish(),
+            DecoderInner::Gzip(inner) => f.debug_tuple("Gzip").field(inner).finish(),
+            DecoderInner::Deflate(inner) => f.debug_tuple("Deflate").field(inner).finish(),
         }
     }
 }
 
-// NOTE: Not fused.
+/// A payload based on [`SharedPayload`] that decompresses the request body on-the-fly.
+///
+/// Note that this stream is not fused.
 #[derive(Debug)]
 pub struct DecodingPayload {
     payload: SharedPayload,
@@ -256,6 +254,7 @@ pub struct DecodingPayload {
 }
 
 impl DecodingPayload {
+    /// Creates a decoding payload, resolving chunks of uncompressed request payload.
     pub fn new<S>(request: &HttpRequest<S>, limit: usize) -> Self {
         Self {
             payload: SharedPayload::get(request),
@@ -281,7 +280,7 @@ impl Stream for DecodingPayload {
         } else {
             let chunk = self.decoder.take();
             Ok(Async::Ready(if chunk.is_empty() {
-                None // TODO: Continue looping??
+                None
             } else {
                 Some(chunk)
             }))
