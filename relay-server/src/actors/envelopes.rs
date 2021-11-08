@@ -39,6 +39,7 @@ use relay_sampling::{RuleId, SamplingResult};
 use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{
     CheckEnvelope, GetProjectState, InsertMetrics, MergeBuckets, ProjectCache, ProjectError,
@@ -875,7 +876,7 @@ impl EnvelopeProcessor {
             return;
         }
 
-        let producer = OutcomeProducer::from_registry();
+        let producer = OutcomeAggregator::from_registry();
         for ((reason, category), quantity) in discarded_events.into_iter() {
             producer.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),

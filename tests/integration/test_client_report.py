@@ -10,6 +10,8 @@ def test_client_reports(relay, mini_sentry):
             "batch_size": 1,
             "batch_interval": 1,
             "source": "my-layer",
+            "bucket_interval": 1,
+            "flush_delay": 0,
         }
     }
 
@@ -31,7 +33,9 @@ def test_client_reports(relay, mini_sentry):
 
     outcomes = []
     for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=0.2)["outcomes"])
+        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=1.2)["outcomes"])
+
+    outcomes.sort(key=lambda x: x["category"])
 
     timestamp_formatted = timestamp.isoformat().split(".")[0] + ".000000Z"
     assert outcomes == [
@@ -91,4 +95,4 @@ def test_client_reports_bad_timestamps(relay, mini_sentry):
 
     # we should not have received any outcomes because they are too far into the future
     with pytest.raises(Empty):
-        mini_sentry.captured_outcomes.get(timeout=0.5)["outcomes"]
+        mini_sentry.captured_outcomes.get(timeout=1.5)["outcomes"]

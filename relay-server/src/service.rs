@@ -15,6 +15,7 @@ use crate::actors::controller::{Configure, Controller};
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeProcessor};
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::outcome::OutcomeProducer;
+use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
 use crate::actors::upstream::UpstreamRelay;
@@ -118,7 +119,8 @@ impl ServiceState {
         registry.set(Arbiter::start(|_| upstream_relay));
 
         let outcome_producer = OutcomeProducer::create(config.clone())?;
-        registry.set(Arbiter::start(|_| outcome_producer));
+        let outcome_producer = Arbiter::start(|_| outcome_producer);
+        registry.set(outcome_producer.clone());
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
@@ -137,6 +139,13 @@ impl ServiceState {
         registry.set(RelayCache::new(config.clone()).start());
         registry
             .set(Aggregator::new(config.aggregator_config(), project_cache.recipient()).start());
+
+        let outcome_aggregator = OutcomeAggregator::new(
+            config.outcome_bucket_interval(),
+            config.outcome_flush_delay(),
+            outcome_producer.recipient().clone(),
+        );
+        registry.set(outcome_aggregator.start());
 
         Ok(ServiceState { config })
     }
