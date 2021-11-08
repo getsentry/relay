@@ -537,3 +537,49 @@ def test_outcomes_rate_limit(
         outcomes_consumer.assert_rate_limited(reason_code, categories=[category])
     else:
         outcomes_consumer.assert_empty()
+
+
+@pytest.mark.parametrize("event_type", ["error", "transaction"])
+def test_outcome_to_client_report(relay, mini_sentry, event_type):
+
+    upstream = relay(
+        mini_sentry,
+        {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}},
+    )
+
+    downstream = relay(
+        upstream,
+        {
+            "outcomes": {
+                "emit_outcomes_as_client_reports": True,
+                "source": "downstream-layer",
+            }
+        },
+    )
+
+    event_id = _send_event(downstream, event_type=event_type)
+    time.sleep(5)
+
+    # outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+    # assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+
+    # outcomes = outcomes_batch.get("outcomes")
+    # assert len(outcomes) == 1
+
+    # outcome = outcomes[0]
+
+    # del outcome["timestamp"]  # 'timestamp': '2020-06-03T16:18:59.259447Z'
+
+    # expected_outcome = {
+    #     "project_id": 42,
+    #     "outcome": 3,  # invalid
+    #     "reason": "project_id",  # missing project id
+    #     "event_id": event_id,
+    #     "remote_addr": "127.0.0.1",
+    #     "category": 2 if event_type == "transaction" else 1,
+    #     "quantity": 1,
+    # }
+    # assert outcome == expected_outcome
+
+    # # no events received since all have been for an invalid project id
+    # assert mini_sentry.captured_events.empty()

@@ -407,7 +407,7 @@ mod processing {
     pub struct ProcessingOutcomeProducer {
         config: Arc<Config>,
         producer: Option<ThreadedProducer>,
-        http_producer: Option<Addr<HttpOutcomeProducer>>,
+        http_producer: Option<Addr<NonProcessingOutcomeProducer>>,
     }
 
     impl ProcessingOutcomeProducer {
@@ -426,7 +426,7 @@ mod processing {
                     .context(ServerErrorKind::KafkaError)?;
                 (Some(future_producer), None)
             } else {
-                let http_producer = HttpOutcomeProducer::create(config.clone())
+                let http_producer = NonProcessingOutcomeProducer::create(config.clone())
                     .map(|producer| producer.start())
                     .map_err(|error| {
                         relay_log::error!("Failed to start http producer: {}", LogError(&error));
@@ -540,7 +540,7 @@ mod processing {
             relay_log::trace!("handling outcome");
             if self.config.processing_enabled() {
                 self.send_kafka_message(message)
-            } else if self.config.emit_outcomes() {
+            } else if self.config.emit_outcomes() || self.config.emit_outcomes_as_client_reports() {
                 self.send_http_message(message);
                 Ok(())
             } else {
@@ -665,40 +665,37 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
             timestamp: None, //msg.timestamp, // TODO
             discarded_events: vec![discarded_event],
         };
-
         ClientReportAggregator::from_registry().do_send(SendClientReport(client_report));
 
         Ok(())
     }
 }
 
-enum InnerProducer {
-    Http(HttpOutcomeProducer),
-    ClientReport(ClientReportOutcomeProducer),
-}
-
 struct NonProcessingOutcomeProducer {
-    config: Arc<Config>,
-    inner_producer: Option<Recipient<TrackOutcome>>,
+    producer: Option<Recipient<TrackOutcome>>,
+    raw_producer: Option<Recipient<TrackRawOutcome>>,
 }
 
 impl NonProcessingOutcomeProducer {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-        let inner_producer = if config.emit_outcomes_as_client_reports() {
-            Some(ClientReportOutcomeProducer::create().start().recipient())
+        let (producer, raw_producer) = if config.emit_outcomes_as_client_reports() {
+            (
+                Some(ClientReportOutcomeProducer::create().start().recipient()),
+                None,
+            )
         } else if config.emit_outcomes() {
-            Some(
-                HttpOutcomeProducer::create(Arc::clone(&config))?
-                    .start()
-                    .recipient(),
+            let producer = HttpOutcomeProducer::create(Arc::clone(&config))?.start();
+            (
+                Some(producer.clone().recipient()),
+                Some(producer.recipient()),
             )
         } else {
-            None
+            (None, None)
         };
 
         Ok(Self {
-            config: Arc::clone(&config),
-            inner_producer,
+            producer,
+            raw_producer,
         })
     }
 }
@@ -720,8 +717,8 @@ impl Default for NonProcessingOutcomeProducer {
 impl Handler<TrackOutcome> for NonProcessingOutcomeProducer {
     type Result = Result<(), OutcomeError>;
     fn handle(&mut self, message: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
-        if let Some(inner_producer) = &self.inner_producer {
-            inner_producer.do_send(message);
+        if let Some(producer) = &self.producer {
+            producer.do_send(message);
             // TODO: error handling
         }
         Ok(())
@@ -732,6 +729,10 @@ impl Handler<TrackRawOutcome> for NonProcessingOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
     fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        todo!();
+        if let Some(producer) = &self.raw_producer {
+            producer.do_send(message);
+            // TODO: error handling
+        }
+        Ok(())
     }
 }
