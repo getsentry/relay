@@ -13,6 +13,7 @@ use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 use futures::future::Future;
+use relay_statsd::metric;
 use serde::{Deserialize, Serialize};
 
 use relay_common::{DataCategory, ProjectId};
@@ -67,6 +68,11 @@ pub struct SendOutcomesResponse {
     // nothing yet, future features will go here
 }
 
+trait TrackOutcomeLike {
+    fn reason(&self) -> Option<Cow<str>>;
+    fn outcome_id(&self) -> u8;
+}
+
 /// Tracks an outcome of an event.
 ///
 /// See the module level documentation for more information.
@@ -86,6 +92,16 @@ pub struct TrackOutcome {
     pub category: DataCategory,
     /// The number of events or total attachment size in bytes.
     pub quantity: u32,
+}
+
+impl TrackOutcomeLike for TrackOutcome {
+    fn reason(&self) -> Option<Cow<str>> {
+        self.outcome.to_reason()
+    }
+
+    fn outcome_id(&self) -> u8 {
+        self.outcome.to_outcome_id()
+    }
 }
 
 impl Message for TrackOutcome {
@@ -361,6 +377,16 @@ impl TrackRawOutcome {
     }
 }
 
+impl TrackOutcomeLike for TrackRawOutcome {
+    fn reason(&self) -> Option<Cow<str>> {
+        self.reason.map(|s| s.into())
+    }
+
+    fn outcome_id(&self) -> u8 {
+        self.outcome
+    }
+}
+
 impl Message for TrackRawOutcome {
     type Result = Result<(), OutcomeError>;
 }
@@ -391,16 +417,14 @@ mod processing {
         SerializationError(SerdeSerializationError),
     }
 
-    impl TrackRawOutcome {
-        fn tag_name(&self) -> &'static str {
-            match self.outcome {
-                0 => "accepted",
-                1 => "filtered",
-                2 => "rate_limited",
-                3 => "invalid",
-                4 => "abuse",
-                _ => "<unknown>",
-            }
+    fn tag_name<M: TrackOutcomeLike>(message: &M) -> &'static str {
+        match message.outcome_id() {
+            0 => "accepted",
+            1 => "filtered",
+            2 => "rate_limited",
+            3 => "invalid",
+            4 => "abuse",
+            _ => "<unknown>",
         }
     }
 
@@ -457,7 +481,7 @@ mod processing {
             metric!(
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason.as_deref().unwrap_or(""),
-                outcome = message.tag_name(),
+                outcome = tag_name(message),
                 to = "kafka",
             );
 
@@ -477,8 +501,29 @@ mod processing {
             }
         }
 
-        fn send_http_message(&self, message: TrackRawOutcome) {
+        fn send_http_message<M: TrackOutcomeLike>(&self, message: M) {
             relay_log::trace!("Tracking http outcome: {:?}", message);
+
+            let producer = match self.http_producer {
+                Some(ref producer) => producer,
+                None => {
+                    relay_log::error!("send_http_message called with invalid http_producer");
+                    return;
+                }
+            };
+
+            metric!(
+                counter(RelayCounters::Outcomes) += 1,
+                reason = message.reason().as_deref().unwrap_or(""),
+                outcome = tag_name(message),
+                to = "http",
+            );
+
+            producer.do_send(message);
+        }
+
+        fn send_raw_http_message(&self, message: TrackRawOutcome) {
+            relay_log::trace!("Tracking raw http outcome: {:?}", message);
 
             let producer = match self.http_producer {
                 Some(ref producer) => producer,
@@ -530,18 +575,27 @@ mod processing {
         type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            self.handle(TrackRawOutcome::from_outcome(message, &self.config), _ctx)
+            relay_log::trace!("handling raw outcome");
+            if self.config.processing_enabled() {
+                let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
+                self.send_kafka_message(raw_message)
+            } else if self.config.emit_outcomes() || self.config.emit_outcomes_as_client_reports() {
+                self.send_http_message(message);
+                Ok(())
+            } else {
+                Ok(()) // processing not enabled and emit_outcomes disabled
+            }
         }
     }
 
     impl Handler<TrackRawOutcome> for ProcessingOutcomeProducer {
         type Result = Result<(), OutcomeError>;
         fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            relay_log::trace!("handling outcome");
+            relay_log::trace!("handling raw outcome");
             if self.config.processing_enabled() {
                 self.send_kafka_message(message)
-            } else if self.config.emit_outcomes() || self.config.emit_outcomes_as_client_reports() {
-                self.send_http_message(message);
+            } else if self.config.emit_outcomes() {
+                self.send_raw_http_message(message);
                 Ok(())
             } else {
                 Ok(()) // processing not enabled and emit_outcomes disabled
@@ -656,6 +710,7 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
     fn handle(&mut self, msg: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
+        // TODO: full extraction (including outcome ID / rule ID)
         let discarded_event = DiscardedEvent {
             reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
             category: msg.category,
@@ -679,11 +734,17 @@ struct NonProcessingOutcomeProducer {
 impl NonProcessingOutcomeProducer {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let (producer, raw_producer) = if config.emit_outcomes_as_client_reports() {
+            // We emit outcomes as client reports, and we do not
+            // accept any raw outcomes
+            relay_log::info!("Configured to emit outcomes as client reports");
             (
                 Some(ClientReportOutcomeProducer::create().start().recipient()),
                 None,
             )
         } else if config.emit_outcomes() {
+            // We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream
+            // relays.
+            relay_log::info!("Configured to emit outcomes via http");
             let producer = HttpOutcomeProducer::create(Arc::clone(&config))?.start();
             (
                 Some(producer.clone().recipient()),
@@ -717,7 +778,9 @@ impl Default for NonProcessingOutcomeProducer {
 impl Handler<TrackOutcome> for NonProcessingOutcomeProducer {
     type Result = Result<(), OutcomeError>;
     fn handle(&mut self, message: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
+        relay_log::trace!("Outcome emitted");
         if let Some(producer) = &self.producer {
+            relay_log::trace!("Sending outcome to inner producer");
             producer.do_send(message);
             // TODO: error handling
         }
