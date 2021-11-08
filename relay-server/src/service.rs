@@ -143,7 +143,7 @@ impl ServiceState {
         let outcome_aggregator = OutcomeAggregator::new(
             config.outcome_bucket_interval(),
             config.outcome_flush_delay(),
-            outcome_producer.recipient().clone(),
+            outcome_producer.recipient(),
         );
         registry.set(outcome_aggregator.start());
 

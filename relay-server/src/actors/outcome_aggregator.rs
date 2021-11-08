@@ -1,4 +1,5 @@
-//! TODO: doc
+//! This module contains the outcomes aggregator, which collects similar outcomes into groups
+//! and flushed them periodically.
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -28,7 +29,8 @@ struct BucketKey {
     pub category: DataCategory,
 }
 
-// TODO: doc
+/// Aggregates outcomes into buckets, and flushes them periodically.
+/// Inspired by [`relay_metrics::Aggregator`].
 pub struct OutcomeAggregator {
     /// The width of each aggregated bucket in seconds
     bucket_interval: u64,
@@ -81,7 +83,7 @@ impl OutcomeAggregator {
                     };
 
                     relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
-                    outcome_producer.do_send(outcome);
+                    outcome_producer.do_send(outcome).ok(); // TODO: should we handle send errors here?
                 }
                 false
             } else {
@@ -133,8 +135,8 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
         } = msg;
 
         // TODO: timestamp validation? (min, max)
-
         let offset = timestamp.timestamp() as u64 / self.bucket_interval;
+
         let bucket_key = BucketKey {
             scoping,
             outcome,
@@ -143,7 +145,7 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
             category,
         };
 
-        let time_slot = self.buckets.entry(offset).or_insert(HashMap::new());
+        let time_slot = self.buckets.entry(offset).or_insert_with(HashMap::new);
         let target = time_slot.entry(bucket_key).or_insert(0);
         *target += quantity;
 
