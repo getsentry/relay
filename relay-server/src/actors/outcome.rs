@@ -23,7 +23,6 @@ use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 
-use crate::actors::client_reports::{ClientReportAggregator, SendClientReport};
 use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
 use crate::ServerError;
@@ -719,7 +718,7 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
             timestamp: None, //msg.timestamp, // TODO
             discarded_events: vec![discarded_event],
         };
-        ClientReportAggregator::from_registry().do_send(SendClientReport(client_report));
+        // ClientReportProducer::from_registry().do_send(SendClientReport(client_report));
 
         Ok(())
     }

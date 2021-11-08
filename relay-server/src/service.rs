@@ -11,11 +11,11 @@ use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 
-use crate::actors::client_reports::ClientReportAggregator;
 use crate::actors::controller::{Configure, Controller};
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeProcessor};
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::outcome::OutcomeProducer;
+use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
 use crate::actors::upstream::UpstreamRelay;
@@ -138,7 +138,7 @@ impl ServiceState {
         registry.set(RelayCache::new(config.clone()).start());
         registry
             .set(Aggregator::new(config.aggregator_config(), project_cache.recipient()).start());
-        registry.set(ClientReportAggregator {}.start());
+        registry.set(OutcomeAggregator {}.start());
 
         Ok(ServiceState { config })
     }

@@ -54,6 +54,8 @@ use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, SendWithOutcome,
 };
 
+use super::outcome_aggregator::OutcomeAggregator;
+
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
@@ -264,9 +266,9 @@ impl EnvelopeContext {
     ///
     /// This does not send outcomes for empty envelopes or request-only contexts.
     pub fn send_outcomes(&self, outcome: Outcome) {
-        let outcome_producer = OutcomeProducer::from_registry();
+        let outcome_aggregator = OutcomeAggregator::from_registry();
         if let Some(category) = self.summary.event_category {
-            outcome_producer.do_send(TrackOutcome {
+            outcome_aggregator.do_send(TrackOutcome {
                 timestamp: self.received_at,
                 scoping: self.scoping,
                 outcome: outcome.clone(),
@@ -278,7 +280,7 @@ impl EnvelopeContext {
         }
 
         if self.summary.attachment_quantity > 0 {
-            outcome_producer.do_send(TrackOutcome {
+            outcome_aggregator.do_send(TrackOutcome {
                 timestamp: self.received_at,
                 scoping: self.scoping,
                 outcome,
@@ -875,9 +877,9 @@ impl EnvelopeProcessor {
             return;
         }
 
-        let producer = OutcomeProducer::from_registry();
+        let aggregator = OutcomeAggregator::from_registry();
         for ((reason, category), quantity) in discarded_events.into_iter() {
-            producer.do_send(TrackOutcome {
+            aggregator.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
                 scoping: state.envelope_context.scoping,
                 outcome: Outcome::ClientDiscard(reason),
