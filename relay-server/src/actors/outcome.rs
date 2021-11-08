@@ -13,7 +13,6 @@ use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 use futures::future::Future;
-use relay_statsd::metric;
 use serde::{Deserialize, Serialize};
 
 use relay_common::{DataCategory, ProjectId};
@@ -68,7 +67,7 @@ pub struct SendOutcomesResponse {
     // nothing yet, future features will go here
 }
 
-trait TrackOutcomeLike {
+trait TrackOutcomeLike: Message {
     fn reason(&self) -> Option<Cow<str>>;
     fn outcome_id(&self) -> u8;
 }
@@ -379,7 +378,7 @@ impl TrackRawOutcome {
 
 impl TrackOutcomeLike for TrackRawOutcome {
     fn reason(&self) -> Option<Cow<str>> {
-        self.reason.map(|s| s.into())
+        self.reason.as_ref().map(|s| s.into())
     }
 
     fn outcome_id(&self) -> u8 {
@@ -481,7 +480,7 @@ mod processing {
             metric!(
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason.as_deref().unwrap_or(""),
-                outcome = tag_name(message),
+                outcome = tag_name(&message),
                 to = "kafka",
             );
 
@@ -501,8 +500,8 @@ mod processing {
             }
         }
 
-        fn send_http_message<M: TrackOutcomeLike>(&self, message: M) {
-            relay_log::trace!("Tracking http outcome: {:?}", message);
+        fn send_http_message(&self, message: TrackOutcome) {
+            relay_log::trace!("Tracking http outcome: {:?}", &message);
 
             let producer = match self.http_producer {
                 Some(ref producer) => producer,
@@ -515,7 +514,7 @@ mod processing {
             metric!(
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason().as_deref().unwrap_or(""),
-                outcome = tag_name(message),
+                outcome = tag_name(&message),
                 to = "http",
             );
 
@@ -536,7 +535,7 @@ mod processing {
             metric!(
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason.as_deref().unwrap_or(""),
-                outcome = message.tag_name(),
+                outcome = tag_name(&message),
                 to = "http",
             );
 
@@ -726,7 +725,7 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     }
 }
 
-struct NonProcessingOutcomeProducer {
+pub struct NonProcessingOutcomeProducer {
     producer: Option<Recipient<TrackOutcome>>,
     raw_producer: Option<Recipient<TrackRawOutcome>>,
 }
