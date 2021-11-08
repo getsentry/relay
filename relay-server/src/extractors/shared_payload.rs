@@ -57,6 +57,7 @@ impl SharedPayload {
     /// in reverse order from unreading.
     pub fn unread_data(&mut self, chunk: Bytes) {
         self.inner.unread_data(chunk);
+        self.done.store(false, Ordering::Relaxed);
     }
 }
 
