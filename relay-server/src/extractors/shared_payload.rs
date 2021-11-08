@@ -118,6 +118,13 @@ impl Sink {
 
 impl Write for Sink {
     fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
+        if self.remaining == 0 {
+            // This is the error that `Write::write_all` returns when we respond with `Ok(0)` from
+            // this function. However, this is often not checked for `Write::flush`, which is why we
+            // explicitly return an error here.
+            return Err(io::ErrorKind::WriteZero.into());
+        }
+
         if buf.len() > self.remaining {
             buf = &buf[..self.remaining];
         }
@@ -138,7 +145,6 @@ impl Write for Sink {
 
 /// Writes data into the given `write`, returning `true` on overflow.
 fn write_overflowing<W: Write>(write: &mut W, slice: &[u8]) -> io::Result<bool> {
-    // TODO: flush may not succeed if we're not writing..?
     match write.write_all(slice).and_then(|()| write.flush()) {
         Ok(()) => Ok(false),
         Err(e) => match e.kind() {
@@ -210,7 +216,6 @@ impl Decoder {
     /// case, the buffer contains the decoded payload up to the limit. Returns `Err` if there was an
     /// error decoding.
     pub fn decode(&mut self, bytes: Bytes) -> io::Result<bool> {
-        // TODO: Optimize identity?
         match &mut self.inner {
             DecoderInner::Identity(inner) => write_overflowing(inner, &bytes),
             DecoderInner::Br(inner) => write_overflowing(inner, &bytes),
