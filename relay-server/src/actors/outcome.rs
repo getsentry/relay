@@ -69,7 +69,7 @@ pub struct SendOutcomesResponse {
 /// Tracks an outcome of an event.
 ///
 /// See the module level documentation for more information.
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug)]
 pub struct TrackOutcome {
     /// The timespan of the event outcome.
     pub timestamp: DateTime<Utc>,
@@ -92,7 +92,7 @@ impl Message for TrackOutcome {
 }
 
 /// Defines the possible outcomes from processing an event.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Outcome {
     /// The event has been accepted.
     ///
@@ -153,7 +153,7 @@ impl Outcome {
 /// Reason for a discarded invalid event.
 ///
 /// Used in `Outcome::Invalid`. Synchronize overlap with Sentry.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 #[allow(dead_code)]
 pub enum DiscardReason {
     /// [Post Processing] An event with the same id has already been processed for this project.

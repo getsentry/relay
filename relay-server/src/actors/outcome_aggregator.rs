@@ -1,10 +1,7 @@
 //! This module contains the outcomes aggregator, which collects similar outcomes into groups
 //! and flushed them periodically.
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    net::IpAddr,
-};
+use std::{collections::BTreeMap, mem::swap, net::IpAddr};
 
 use actix::{Actor, AsyncContext, Context, Handler, Recipient, Supervised, SystemService};
 use relay_common::{DataCategory, UnixTimestamp};
@@ -18,9 +15,9 @@ use crate::statsd::RelayTimers;
 
 use super::outcome::{Outcome, OutcomeError, TrackOutcome};
 
-/// Contains everything to construct a `TrackOutcome`, except quantity
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct BucketKey {
+/// Contains all non-temporal fields of [`BucketKey`].
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct InnerKey {
     /// Scoping of the request.
     pub scoping: Scoping,
     /// The outcome.
@@ -33,6 +30,14 @@ struct BucketKey {
     pub category: DataCategory,
 }
 
+/// Contains everything to construct a `TrackOutcome`, except quantity
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct BucketKey {
+    /// The time slot for which outcomes are aggregated. timestamp = offset * bucket_interval
+    offset: u64,
+    inner: Option<InnerKey>,
+}
+
 /// Aggregates outcomes into buckets, and flushes them periodically.
 /// Inspired by [`relay_metrics::Aggregator`].
 pub struct OutcomeAggregator {
@@ -42,8 +47,8 @@ pub struct OutcomeAggregator {
     flush_delay: u64,
     /// Maximum capacity of the actor's inbox
     mailbox_size: usize,
-    /// Mapping from offset to bucket key to quantity. timestamp = offset * bucket_interval
-    buckets: BTreeMap<u64, HashMap<BucketKey, u32>>,
+    /// Mapping from bucket key to quantity.
+    buckets: BTreeMap<BucketKey, u32>,
     /// The recipient of the aggregated outcomes
     outcome_producer: Recipient<TrackOutcome>,
 }
@@ -66,36 +71,43 @@ impl OutcomeAggregator {
         let max_offset = (UnixTimestamp::now().as_secs() - self.flush_delay) / self.bucket_interval;
         let bucket_interval = self.bucket_interval;
         let outcome_producer = self.outcome_producer.clone();
-        self.buckets.retain(|offset, mapping| {
-            if offset <= &max_offset {
-                for (bucket_key, quantity) in mapping.drain() {
-                    let BucketKey {
-                        scoping,
-                        outcome,
-                        event_id,
-                        remote_addr,
-                        category,
-                    } = bucket_key;
 
-                    let timestamp = UnixTimestamp::from_secs(offset * bucket_interval);
-                    let outcome = TrackOutcome {
-                        timestamp: timestamp.as_datetime(),
-                        scoping,
-                        outcome,
-                        event_id,
-                        remote_addr,
-                        category,
-                        quantity,
-                    };
+        let cutoff = BucketKey {
+            offset: max_offset + 1,
+            inner: None,
+        };
 
-                    relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
-                    outcome_producer.do_send(outcome).ok(); // TODO: should we handle send errors here?
-                }
-                false
-            } else {
-                true
+        // Only keep items that are equal or newer than cutoff, flush the rest.
+        let mut buckets = self.buckets.split_off(&cutoff);
+        swap(&mut self.buckets, &mut buckets);
+
+        for (bucket_key, quantity) in buckets {
+            let BucketKey { offset, inner } = bucket_key;
+
+            if let Some(inner_key) = inner {
+                let InnerKey {
+                    scoping,
+                    outcome,
+                    event_id,
+                    remote_addr,
+                    category,
+                } = inner_key;
+
+                let timestamp = UnixTimestamp::from_secs(offset * bucket_interval);
+                let outcome = TrackOutcome {
+                    timestamp: timestamp.as_datetime(),
+                    scoping,
+                    outcome,
+                    event_id,
+                    remote_addr,
+                    category,
+                    quantity,
+                };
+
+                relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
+                outcome_producer.do_send(outcome).ok();
             }
-        });
+        }
     }
 
     fn flush(&mut self, _context: &mut <Self as Actor>::Context) {
@@ -151,17 +163,55 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
         let offset = timestamp.timestamp() as u64 / self.bucket_interval;
 
         let bucket_key = BucketKey {
-            scoping,
-            outcome,
-            event_id,
-            remote_addr,
-            category,
+            offset,
+            inner: Some(InnerKey {
+                scoping,
+                outcome,
+                event_id,
+                remote_addr,
+                category,
+            }),
         };
 
-        let time_slot = self.buckets.entry(offset).or_default();
-        let counter = time_slot.entry(bucket_key).or_insert(0);
+        let counter = self.buckets.entry(bucket_key).or_insert(0);
         *counter += quantity;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_common::{ProjectId, ProjectKey};
+    use relay_quotas::Scoping;
+
+    use crate::actors::outcome::{DiscardReason, Outcome};
+
+    use super::{BucketKey, InnerKey};
+
+    /// Verify that an "only time" key is smaller than a full key
+    #[test]
+    fn test_bucket_key_order() {
+        let key1 = BucketKey {
+            offset: 123,
+            inner: None,
+        };
+        let key2 = BucketKey {
+            offset: 123,
+            inner: Some(InnerKey {
+                scoping: Scoping {
+                    organization_id: 0,
+                    project_id: ProjectId::new(1),
+                    project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                    key_id: None,
+                },
+                outcome: Outcome::Invalid(DiscardReason::AuthClient),
+                event_id: None,
+                remote_addr: None,
+                category: relay_common::DataCategory::Attachment,
+            }),
+        };
+
+        assert!(key1 < key2);
     }
 }

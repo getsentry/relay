@@ -9,7 +9,7 @@ use relay_common::{ProjectId, ProjectKey};
 /// Data scoping information.
 ///
 /// This structure holds information of all scopes required for attributing an item to quotas.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Scoping {
     /// The organization id.
     pub organization_id: u64,
@@ -184,7 +184,7 @@ fn default_scope() -> QuotaScope {
 }
 
 /// A machine readable, freeform reason code for rate limits.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, PartialOrd, Ord)]
 pub struct ReasonCode(String);
 
 impl ReasonCode {
