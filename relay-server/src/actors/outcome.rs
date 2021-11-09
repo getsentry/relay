@@ -718,7 +718,9 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
             timestamp: None, //msg.timestamp, // TODO
             discarded_events: vec![discarded_event],
         };
-        // ClientReportProducer::from_registry().do_send(SendClientReport(client_report));
+
+        relay_log::trace!("Request sending client report");
+        // TODO: send via http
 
         Ok(())
     }

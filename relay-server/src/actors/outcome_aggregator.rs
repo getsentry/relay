@@ -25,8 +25,6 @@ struct BucketKey {
     pub scoping: Scoping,
     /// The outcome.
     pub outcome: Outcome,
-    /// The event id.
-    pub event_id: Option<EventId>,
     /// The client ip address.
     pub remote_addr: Option<IpAddr>,
     /// The event's data category.
@@ -72,7 +70,6 @@ impl OutcomeAggregator {
                     let BucketKey {
                         scoping,
                         outcome,
-                        event_id,
                         remote_addr,
                         category,
                     } = bucket_key;
@@ -82,7 +79,7 @@ impl OutcomeAggregator {
                         timestamp: timestamp.as_datetime(),
                         scoping,
                         outcome,
-                        event_id,
+                        event_id: None,
                         remote_addr,
                         category,
                         quantity,
@@ -137,6 +134,12 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
     fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
         relay_log::trace!("Outcome aggregation requested: {:?}", msg);
 
+        if msg.event_id.is_some() {
+            // event_id is too fine-grained to aggregate, simply forward to producer
+            self.outcome_producer.do_send(msg);
+            return Ok(());
+        }
+
         let TrackOutcome {
             timestamp,
             scoping,
@@ -153,7 +156,6 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
         let bucket_key = BucketKey {
             scoping,
             outcome,
-            event_id,
             remote_addr,
             category,
         };
