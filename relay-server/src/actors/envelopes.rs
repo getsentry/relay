@@ -883,7 +883,7 @@ impl EnvelopeProcessor {
                 scoping: state.envelope_context.scoping,
                 outcome: Outcome::ClientDiscard(reason),
                 event_id: None,
-                remote_addr: state.envelope_context.remote_addr,
+                remote_addr: None, // omitting the client address allows for better aggregation
                 category,
                 quantity,
             });
