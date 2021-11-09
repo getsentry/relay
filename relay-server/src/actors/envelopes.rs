@@ -889,6 +889,7 @@ impl EnvelopeProcessor {
                     continue;
                 }
             };
+            // TODO: Should we allow any outcome in a client report? Or only a subset?
 
             producer.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),

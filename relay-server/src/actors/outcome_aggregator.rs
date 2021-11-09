@@ -33,6 +33,8 @@ struct BucketKey {
 /// Aggregates outcomes into buckets, and flushes them periodically.
 /// Inspired by [`relay_metrics::Aggregator`].
 pub struct OutcomeAggregator {
+    /// False if this actor should silently drop all incoming outcomes
+    enabled: bool,
     /// The width of each aggregated bucket in seconds
     bucket_interval: u64,
     /// The time we should wait before flushing a bucket, in seconds
@@ -50,7 +52,13 @@ impl OutcomeAggregator {
         // Set mailbox size to envelope buffer size, as in other global actors
         let mailbox_size = config.envelope_buffer_size() as usize;
 
+        // Do nothing unless one of the following flags is set:
+        let enabled = config.processing_enabled()
+            || config.emit_outcomes()
+            || config.emit_outcomes_as_client_reports();
+
         Self {
+            enabled,
             bucket_interval: config.outcome_bucket_interval(),
             flush_delay: config.outcome_flush_delay(),
             mailbox_size,
@@ -105,11 +113,12 @@ impl Actor for OutcomeAggregator {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.set_mailbox_capacity(self.mailbox_size);
-
         relay_log::info!("outcome aggregator started");
+        if self.enabled {
+            ctx.set_mailbox_capacity(self.mailbox_size);
 
-        ctx.run_interval(Duration::from_secs(self.bucket_interval), Self::flush);
+            ctx.run_interval(Duration::from_secs(self.bucket_interval), Self::flush);
+        }
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -132,6 +141,10 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
 
     fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
         relay_log::trace!("Outcome aggregation requested: {:?}", msg);
+
+        if !self.enabled {
+            return Ok(());
+        }
 
         if msg.event_id.is_some() {
             // event_id is too fine-grained to aggregate, simply forward to producer
