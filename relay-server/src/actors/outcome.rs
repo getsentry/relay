@@ -113,12 +113,9 @@ impl Message for TrackOutcome {
 /// Defines the possible outcomes from processing an event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
-    /// The event has been accepted.
-    ///
-    /// This is never emitted by Relay as the event may be discarded by the processing pipeline
-    /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
-    #[allow(dead_code)]
-    Accepted,
+    /// The outcome state "Accepted" is never emitted by Relay as the event may be discarded
+    /// by the processing pipeline after Relay.
+    /// Only the `save_event` task in Sentry finally accepts an event.
 
     /// The event has been filtered due to a configured filter.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
@@ -144,7 +141,6 @@ pub enum Outcome {
 impl Outcome {
     fn to_outcome_id(&self) -> u8 {
         match self {
-            Outcome::Accepted => 0,
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => 1,
             Outcome::RateLimited(_) => 2,
             Outcome::Invalid(_) => 3,
@@ -155,7 +151,6 @@ impl Outcome {
 
     fn to_reason(&self) -> Option<Cow<str>> {
         match self {
-            Outcome::Accepted => None,
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
             Outcome::FilteredSampling(rule_id) => Some(Cow::Owned(format!("Sampled:{}", rule_id))),
@@ -439,7 +434,6 @@ mod processing {
 
     fn tag_name<M: TrackOutcomeLike>(message: &M) -> &'static str {
         match message.outcome_id() {
-            0 => "accepted",
             1 => "filtered",
             2 => "rate_limited",
             3 => "invalid",
