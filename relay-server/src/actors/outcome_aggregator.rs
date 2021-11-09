@@ -30,11 +30,20 @@ struct BucketKey {
     pub category: DataCategory,
 }
 
+#[derive(PartialEq)]
+enum AggregationMode {
+    /// Aggregator drops all outcomes
+    DropEverything,
+    /// Aggregator keeps all outcome fields intact
+    Lossless,
+    /// Aggregator removes fields to improve aggregation
+    Lossy,
+}
+
 /// Aggregates outcomes into buckets, and flushes them periodically.
 /// Inspired by [`relay_metrics::Aggregator`].
 pub struct OutcomeAggregator {
-    /// False if this actor should silently drop all incoming outcomes
-    enabled: bool,
+    mode: AggregationMode,
     /// The width of each aggregated bucket in seconds
     bucket_interval: u64,
     /// The time we should wait before flushing a bucket, in seconds
@@ -52,13 +61,17 @@ impl OutcomeAggregator {
         // Set mailbox size to envelope buffer size, as in other global actors
         let mailbox_size = config.envelope_buffer_size() as usize;
 
-        // Do nothing unless one of the following flags is set:
-        let enabled = config.processing_enabled()
-            || config.emit_outcomes()
-            || config.emit_outcomes_as_client_reports();
+        let mode = if config.emit_outcomes_as_client_reports() {
+            AggregationMode::Lossy
+        } else if config.emit_outcomes() || config.processing_enabled() {
+            AggregationMode::Lossless
+        } else {
+            // Outcomes are completely disabled, so no need to keep anything
+            AggregationMode::DropEverything
+        };
 
         Self {
-            enabled,
+            mode,
             bucket_interval: config.outcome_bucket_interval(),
             flush_delay: config.outcome_flush_delay(),
             mailbox_size,
@@ -114,7 +127,7 @@ impl Actor for OutcomeAggregator {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         relay_log::info!("outcome aggregator started");
-        if self.enabled {
+        if self.mode != AggregationMode::DropEverything {
             ctx.set_mailbox_capacity(self.mailbox_size);
 
             ctx.run_interval(Duration::from_secs(self.bucket_interval), Self::flush);
@@ -142,11 +155,17 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
     fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
         relay_log::trace!("Outcome aggregation requested: {:?}", msg);
 
-        if !self.enabled {
+        if self.mode == AggregationMode::DropEverything {
             return Ok(());
         }
 
-        if msg.event_id.is_some() {
+        // For lossy aggregation, erase some fields to have fewer buckets
+        let (event_id, remote_addr) = match self.mode {
+            AggregationMode::Lossy => (None, None),
+            _ => (msg.event_id, msg.remote_addr),
+        };
+
+        if event_id.is_some() {
             // event_id is too fine-grained to aggregate, simply forward to producer
             self.outcome_producer.do_send(msg).ok();
             return Ok(());
@@ -157,7 +176,7 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
             scoping,
             outcome,
             event_id: _,
-            remote_addr,
+            remote_addr: _,
             category,
             quantity,
         } = msg;
