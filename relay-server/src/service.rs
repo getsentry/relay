@@ -119,7 +119,8 @@ impl ServiceState {
         registry.set(Arbiter::start(|_| upstream_relay));
 
         let outcome_producer = OutcomeProducer::create(config.clone())?;
-        registry.set(Arbiter::start(|_| outcome_producer));
+        let outcome_producer = Arbiter::start(|_| outcome_producer);
+        registry.set(outcome_producer.clone());
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
@@ -138,7 +139,9 @@ impl ServiceState {
         registry.set(RelayCache::new(config.clone()).start());
         registry
             .set(Aggregator::new(config.aggregator_config(), project_cache.recipient()).start());
-        registry.set(OutcomeAggregator {}.start());
+
+        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
+        registry.set(outcome_aggregator.start());
 
         Ok(ServiceState { config })
     }

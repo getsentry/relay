@@ -939,6 +939,10 @@ pub struct Outcomes {
     /// Defines the source string registered in the outcomes originating from
     /// this Relay (typically something like the region or the layer).
     pub source: Option<String>,
+    /// Defines the width of the buckets into which outcomes are aggregated, in seconds.
+    pub bucket_interval: u64,
+    /// Defines the number of seconds after which a a bucket is flushed by the outcome aggregator.
+    pub flush_delay: u64,
 }
 
 impl Default for Outcomes {
@@ -950,6 +954,8 @@ impl Default for Outcomes {
             batch_size: 1000,
             batch_interval: 500,
             source: None,
+            bucket_interval: 60,
+            flush_delay: 30,
         }
     }
 }
@@ -1459,6 +1465,16 @@ impl Config {
     /// The originating source of the outcome
     pub fn outcome_source(&self) -> Option<&str> {
         self.values.outcomes.source.as_deref()
+    }
+
+    /// Returns the width of the buckets into which outcomes are aggregated, in seconds.
+    pub fn outcome_bucket_interval(&self) -> u64 {
+        self.values.outcomes.bucket_interval
+    }
+
+    /// Returns the number of seconds after which a a bucket is flushed by the outcome aggregator.
+    pub fn outcome_flush_delay(&self) -> u64 {
+        self.values.outcomes.flush_delay
     }
 
     /// Returns logging configuration.

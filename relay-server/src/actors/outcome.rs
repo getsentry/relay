@@ -74,7 +74,7 @@ trait TrackOutcomeLike: Message {
 /// Tracks an outcome of an event.
 ///
 /// See the module level documentation for more information.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct TrackOutcome {
     /// The timespan of the event outcome.
     pub timestamp: DateTime<Utc>,
@@ -107,7 +107,7 @@ impl Message for TrackOutcome {
 }
 
 /// Defines the possible outcomes from processing an event.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
     /// The event has been accepted.
     ///

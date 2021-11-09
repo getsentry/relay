@@ -39,6 +39,7 @@ use relay_sampling::{RuleId, SamplingResult};
 use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{
     CheckEnvelope, GetProjectState, InsertMetrics, MergeBuckets, ProjectCache, ProjectError,
@@ -53,8 +54,6 @@ use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, SendWithOutcome,
 };
-
-use super::outcome_aggregator::OutcomeAggregator;
 
 #[cfg(feature = "processing")]
 use {
@@ -877,9 +876,9 @@ impl EnvelopeProcessor {
             return;
         }
 
-        let aggregator = OutcomeAggregator::from_registry();
+        let producer = OutcomeAggregator::from_registry();
         for ((reason, category), quantity) in discarded_events.into_iter() {
-            aggregator.do_send(TrackOutcome {
+            producer.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
                 scoping: state.envelope_context.scoping,
                 outcome: Outcome::ClientDiscard(reason),
