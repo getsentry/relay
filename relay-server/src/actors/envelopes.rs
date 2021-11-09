@@ -1993,7 +1993,7 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
 }
 
 #[derive(Debug)]
-struct SendEnvelope {
+pub(super) struct SendEnvelope {
     envelope_body: Vec<u8>,
     envelope_meta: RequestMeta,
     scoping: Scoping,
@@ -2635,6 +2635,50 @@ impl Handler<SendMetrics> for EnvelopeManager {
         let future = self
             .send_envelope(project_key, envelope, scoping, Instant::now())
             .map_err(|_| buckets);
+
+        Box::new(future)
+    }
+}
+
+/// Sends a client report to the upstream
+pub struct SendClientReport {
+    /// The client report to be sent.
+    pub client_report: ClientReport,
+    /// Scoping information for the client report.
+    pub scoping: Scoping,
+}
+
+impl Message for SendClientReport {
+    type Result = Result<(), ()>;
+}
+
+impl Handler<SendClientReport> for EnvelopeManager {
+    type Result = ResponseFuture<(), ()>;
+
+    fn handle(&mut self, message: SendClientReport, _context: &mut Self::Context) -> Self::Result {
+        let SendClientReport {
+            client_report,
+            scoping,
+        } = message;
+
+        let upstream = self.config.upstream_descriptor();
+        let dsn = PartialDsn {
+            scheme: upstream.scheme(),
+            public_key: scoping.project_key,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: "".to_owned(),
+            project_id: Some(scoping.project_id),
+        };
+
+        let mut item = Item::new(ItemType::ClientReport);
+        item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
+        let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
+        envelope.add_item(item);
+
+        let future = self
+            .send_envelope(scoping.project_key, envelope, scoping, Instant::now())
+            .map_err(|_| ());
 
         Box::new(future)
     }

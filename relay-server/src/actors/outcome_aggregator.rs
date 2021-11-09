@@ -144,7 +144,7 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
             timestamp,
             scoping,
             outcome,
-            event_id,
+            event_id: _,
             remote_addr,
             category,
             quantity,

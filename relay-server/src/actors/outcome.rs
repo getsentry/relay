@@ -15,16 +15,20 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
 
+use super::envelopes::SendEnvelope;
 use relay_common::{DataCategory, ProjectId};
-use relay_config::Config;
+use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 
-use crate::actors::upstream::SendQuery;
+use crate::actors::envelopes::{EnvelopeManager, SendClientReport};
+use crate::actors::upstream::{SendQuery, SendRequest};
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
+use crate::envelope::{ContentType, Envelope, Item, ItemType};
+use crate::extractors::{PartialDsn, RequestMeta};
 use crate::ServerError;
 
 // Choose the outcome module implementation (either processing or non-processing).
@@ -692,11 +696,13 @@ impl Handler<TrackOutcome> for HttpOutcomeProducer {
     }
 }
 
-struct ClientReportOutcomeProducer {}
+struct ClientReportOutcomeProducer {
+    config: Arc<Config>,
+}
 
 impl ClientReportOutcomeProducer {
-    pub fn create() -> Self {
-        Self {}
+    pub fn create(config: Arc<Config>) -> Self {
+        Self { config }
     }
 }
 
@@ -707,7 +713,7 @@ impl Actor for ClientReportOutcomeProducer {
 impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
-    fn handle(&mut self, msg: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
         // TODO: full extraction (including outcome ID / rule ID)
         let discarded_event = DiscardedEvent {
             reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
@@ -719,8 +725,13 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
             discarded_events: vec![discarded_event],
         };
 
-        relay_log::trace!("Request sending client report");
-        // TODO: send via http
+        relay_log::trace!("Sending client report");
+        // Assuming it is not necessary to batch requests here (like HttpOutcomeProducer does),
+        // because outcomes were already aggregated by `OutcomeAggregator`
+        EnvelopeManager::from_registry().do_send(SendClientReport {
+            client_report,
+            scoping: msg.scoping,
+        });
 
         Ok(())
     }
@@ -738,7 +749,11 @@ impl NonProcessingOutcomeProducer {
             // accept any raw outcomes
             relay_log::info!("Configured to emit outcomes as client reports");
             (
-                Some(ClientReportOutcomeProducer::create().start().recipient()),
+                Some(
+                    ClientReportOutcomeProducer::create(config)
+                        .start()
+                        .recipient(),
+                ),
                 None,
             )
         } else if config.emit_outcomes() {
@@ -777,7 +792,7 @@ impl Default for NonProcessingOutcomeProducer {
 
 impl Handler<TrackOutcome> for NonProcessingOutcomeProducer {
     type Result = Result<(), OutcomeError>;
-    fn handle(&mut self, message: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
         relay_log::trace!("Outcome emitted");
         if let Some(producer) = &self.producer {
             relay_log::trace!("Sending outcome to inner producer");
