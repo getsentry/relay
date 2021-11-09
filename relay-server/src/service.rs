@@ -140,11 +140,7 @@ impl ServiceState {
         registry
             .set(Aggregator::new(config.aggregator_config(), project_cache.recipient()).start());
 
-        let outcome_aggregator = OutcomeAggregator::new(
-            config.outcome_bucket_interval(),
-            config.outcome_flush_delay(),
-            outcome_producer.recipient(),
-        );
+        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
         registry.set(outcome_aggregator.start());
 
         Ok(ServiceState { config })

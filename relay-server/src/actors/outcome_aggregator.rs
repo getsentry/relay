@@ -8,6 +8,7 @@ use std::{
 
 use actix::{Actor, AsyncContext, Context, Handler, Recipient, Supervised, SystemService};
 use relay_common::{DataCategory, UnixTimestamp};
+use relay_config::Config;
 use relay_general::protocol::EventId;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -39,6 +40,8 @@ pub struct OutcomeAggregator {
     bucket_interval: u64,
     /// The time we should wait before flushing a bucket, in seconds
     flush_delay: u64,
+    /// Maximum capacity of the actor's inbox
+    mailbox_size: usize,
     /// Mapping from offset to bucket key to quantity. timestamp = offset * bucket_interval
     buckets: BTreeMap<u64, HashMap<BucketKey, u32>>,
     /// The recipient of the aggregated outcomes
@@ -46,14 +49,14 @@ pub struct OutcomeAggregator {
 }
 
 impl OutcomeAggregator {
-    pub fn new(
-        bucket_interval: u64,
-        flush_delay: u64,
-        outcome_producer: Recipient<TrackOutcome>,
-    ) -> Self {
+    pub fn new(config: &Config, outcome_producer: Recipient<TrackOutcome>) -> Self {
+        // Set mailbox size to envelope buffer size, as in other global actors
+        let mailbox_size = config.envelope_buffer_size() as usize;
+
         Self {
-            bucket_interval,
-            flush_delay,
+            bucket_interval: config.outcome_bucket_interval(),
+            flush_delay: config.outcome_flush_delay(),
+            mailbox_size,
             buckets: BTreeMap::new(),
             outcome_producer,
         }
@@ -106,6 +109,8 @@ impl Actor for OutcomeAggregator {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        ctx.set_mailbox_capacity(self.mailbox_size);
+
         relay_log::info!("outcome aggregator started");
 
         ctx.run_interval(Duration::from_secs(self.bucket_interval), Self::flush);
