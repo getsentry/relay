@@ -7,6 +7,10 @@
 - Add bucket width to bucket protocol. ([#1103](https://github.com/getsentry/relay/pull/1103))
 - Support multiple kafka cluster configurations ([#1101](https://github.com/getsentry/relay/pull/1101))
 
+**Bug Fixes**:
+
+- Avoid unbounded decompression of encoded requests. A particular request crafted to inflate to large amounts of memory, such as a zip bomb, could put Relay out of memory. ([#1117](https://github.com/getsentry/relay/pull/1117))
+
 ## 21.10.0
 
 **Bug Fixes**:

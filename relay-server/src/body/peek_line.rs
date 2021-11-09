@@ -128,6 +128,7 @@ mod tests {
             .set_payload(payload.to_string())
             .finish();
 
+        // NOTE: Newline fits into the size limit.
         let opt = relay_test::block_fn(move || PeekLine::new(&request, 5)).unwrap();
         assert_eq!(opt, Some("test".into()));
     }
@@ -141,7 +142,9 @@ mod tests {
             .set_payload(payload.to_string())
             .finish();
 
-        let opt = relay_test::block_fn(move || PeekLine::new(&request, 3)).unwrap();
+        // NOTE: newline is not found within the size limit. even though the payload would fit,
+        // according to the doc comment we return `None`.
+        let opt = relay_test::block_fn(move || PeekLine::new(&request, 4)).unwrap();
         assert_eq!(opt, None);
     }
 
