@@ -834,7 +834,11 @@ impl EnvelopeProcessor {
                             continue;
                         }
                         *discarded_events
-                            .entry((discarded_event.reason, discarded_event.category))
+                            .entry((
+                                discarded_event.outcome,
+                                discarded_event.reason,
+                                discarded_event.category,
+                            ))
                             .or_insert(0) += discarded_event.quantity;
                     }
                     if let Some(ts) = report.timestamp {
@@ -877,11 +881,11 @@ impl EnvelopeProcessor {
         }
 
         let producer = OutcomeAggregator::from_registry();
-        for ((reason, category), quantity) in discarded_events.into_iter() {
+        for ((outcome, reason, category), quantity) in discarded_events.into_iter() {
             producer.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
                 scoping: state.envelope_context.scoping,
-                outcome: Outcome::ClientDiscard(reason),
+                outcome: Outcome::from_reason(&reason),
                 event_id: None,
                 remote_addr: state.envelope_context.remote_addr,
                 category,

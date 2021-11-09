@@ -16,7 +16,7 @@ use futures::future::Future;
 use serde::{Deserialize, Serialize};
 
 use super::envelopes::SendEnvelope;
-use relay_common::{DataCategory, ProjectId};
+use relay_common::{DataCategory, ProjectId, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
@@ -721,13 +721,14 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
             quantity: msg.quantity,
         };
         let client_report = ClientReport {
-            timestamp: None, //msg.timestamp, // TODO
+            timestamp: Some(UnixTimestamp::from_secs(msg.timestamp.timestamp())),
             discarded_events: vec![discarded_event],
         };
 
         relay_log::trace!("Sending client report");
         // Assuming it is not necessary to batch requests here (like HttpOutcomeProducer does),
         // because outcomes were already aggregated by `OutcomeAggregator`
+        // TODO: verify that client report actually lands in upstream
         EnvelopeManager::from_registry().do_send(SendClientReport {
             client_report,
             scoping: msg.scoping,

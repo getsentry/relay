@@ -544,7 +544,14 @@ def test_outcome_to_client_report(relay, mini_sentry, event_type):
 
     upstream = relay(
         mini_sentry,
-        {"outcomes": {"emit_outcomes": True, "batch_size": 1, "batch_interval": 1}},
+        {
+            "outcomes": {
+                "emit_outcomes": True,
+                "emit_client_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            }
+        },
     )
 
     downstream = relay(

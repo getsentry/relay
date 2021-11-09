@@ -136,7 +136,7 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
 
         if msg.event_id.is_some() {
             // event_id is too fine-grained to aggregate, simply forward to producer
-            self.outcome_producer.do_send(msg);
+            self.outcome_producer.do_send(msg).ok();
             return Ok(());
         }
 
