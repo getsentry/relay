@@ -9,7 +9,6 @@ use std::{
 use actix::{Actor, AsyncContext, Context, Handler, Recipient, Supervised, SystemService};
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_config::Config;
-use relay_general::protocol::EventId;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use std::time::Duration;

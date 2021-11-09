@@ -882,10 +882,18 @@ impl EnvelopeProcessor {
 
         let producer = OutcomeAggregator::from_registry();
         for ((outcome, reason, category), quantity) in discarded_events.into_iter() {
+            let outcome = match Outcome::from_outcome_id(outcome, &reason) {
+                Ok(outcome) => outcome,
+                Err(_) => {
+                    relay_log::trace!("Invalid outcome_id / reason: ({}, {})", outcome, reason);
+                    continue;
+                }
+            };
+
             producer.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
                 scoping: state.envelope_context.scoping,
-                outcome: Outcome::from_reason(&reason),
+                outcome,
                 event_id: None,
                 remote_addr: state.envelope_context.remote_addr,
                 category,

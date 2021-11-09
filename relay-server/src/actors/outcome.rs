@@ -4,16 +4,16 @@
 //! must be emitted in the entire ingestion pipeline. Since Relay is only one part in this pipeline,
 //! outcomes may not be emitted if the event is accepted.
 
-use std::borrow::Cow;
-use std::mem;
-use std::net::IpAddr;
-use std::sync::Arc;
-
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::convert::{TryFrom, TryInto};
+use std::mem;
+use std::net::IpAddr;
+use std::sync::Arc;
 
 use super::envelopes::SendEnvelope;
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
@@ -165,6 +165,24 @@ impl Outcome {
                 .map(|code| Cow::Owned(code.as_str().into())),
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
+        }
+    }
+
+    /// Parse an outcome from an outcome ID and a reason string.
+    /// Currently only used to reconstruct outcomes encoded in client reports.
+    pub fn from_outcome_id(outcome_id: u8, reason: &str) -> Result<Self, ()> {
+        match outcome_id {
+            1 => {
+                if reason.starts_with("Sampled:") {
+                    let rule_id = RuleId(reason[8..].parse().map_err(|_| ())?);
+                    Ok(Self::FilteredSampling(rule_id))
+                } else {
+                    Err(())
+                }
+            }
+            // TODO: other types we want to support via client reports
+            5 => Ok(Self::ClientDiscard(reason.into())),
+            _ => Err(()),
         }
     }
 }
@@ -719,9 +737,12 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
             reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
             category: msg.category,
             quantity: msg.quantity,
+            outcome: msg.outcome.to_outcome_id(),
         };
         let client_report = ClientReport {
-            timestamp: Some(UnixTimestamp::from_secs(msg.timestamp.timestamp())),
+            timestamp: Some(UnixTimestamp::from_secs(
+                msg.timestamp.timestamp().try_into().unwrap_or(0),
+            )),
             discarded_events: vec![discarded_event],
         };
 

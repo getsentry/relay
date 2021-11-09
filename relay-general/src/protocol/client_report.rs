@@ -1,11 +1,24 @@
 use relay_common::{DataCategory, UnixTimestamp};
 use serde::{Deserialize, Serialize};
 
+fn default_outcome_id() -> u8 {
+    5
+}
+
+fn is_default_outcome_id(outcome_id: &u8) -> bool {
+    *outcome_id == 5
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DiscardedEvent {
     pub reason: String,
     pub category: DataCategory,
     pub quantity: u32,
+    #[serde(
+        default = "default_outcome_id",
+        skip_serializing_if = "is_default_outcome_id"
+    )]
+    pub outcome: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -38,7 +51,7 @@ mod tests {
   "timestamp": "2020-02-07T15:17:00Z",
   "discarded_events": [
     {"reason": "foo_reason", "category": "error", "quantity": 42},
-    {"reason": "foo_reason", "category": "transaction", "quantity": 23}
+    {"reason": "foo_reason", "category": "transaction", "quantity": 23, "outcome": 123}
   ]
 }"#;
 
@@ -53,7 +66,8 @@ mod tests {
     {
       "reason": "foo_reason",
       "category": "transaction",
-      "quantity": 23
+      "quantity": 23,
+      "outcome": 123
     }
   ]
 }"#;
@@ -65,11 +79,13 @@ mod tests {
                     reason: "foo_reason".into(),
                     category: DataCategory::Error,
                     quantity: 42,
+                    outcome: 5,
                 },
                 DiscardedEvent {
                     reason: "foo_reason".into(),
                     category: DataCategory::Transaction,
                     quantity: 23,
+                    outcome: 123,
                 },
             ],
         };
