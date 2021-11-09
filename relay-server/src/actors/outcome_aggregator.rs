@@ -158,9 +158,9 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
             category,
         };
 
-        let time_slot = self.buckets.entry(offset).or_insert_with(HashMap::new);
-        let target = time_slot.entry(bucket_key).or_insert(0);
-        *target += quantity;
+        let time_slot = self.buckets.entry(offset).or_default();
+        let counter = time_slot.entry(bucket_key).or_insert(0);
+        *counter += quantity;
 
         Ok(())
     }
