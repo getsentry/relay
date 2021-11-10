@@ -10,13 +10,14 @@ def test_client_reports(relay, mini_sentry):
             "batch_size": 1,
             "batch_interval": 1,
             "source": "my-layer",
+            "aggregator": {"bucket_interval": 1, "flush_interval": 1,},
         }
     }
 
     relay = relay(mini_sentry, config)
 
     project_id = 42
-    timestamp = datetime.now(tz=timezone.utc)
+    timestamp = datetime.now(tz=timezone.utc).replace(microsecond=123)
 
     report_payload = {
         "timestamp": timestamp.isoformat(),
@@ -27,11 +28,18 @@ def test_client_reports(relay, mini_sentry):
     }
 
     mini_sentry.add_full_project_config(project_id)
+
+    # Send outcomes twice to see if they are aggregated
+    relay.send_client_report(project_id, report_payload)
+    report_payload["timestamp"] = (timestamp + timedelta(milliseconds=100)).isoformat()
     relay.send_client_report(project_id, report_payload)
 
     outcomes = []
     for _ in range(2):
-        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=0.2)["outcomes"])
+        outcomes.extend(mini_sentry.captured_outcomes.get(timeout=1.2)["outcomes"])
+    assert mini_sentry.captured_outcomes.qsize() == 0
+
+    outcomes.sort(key=lambda x: x["category"])
 
     timestamp_formatted = timestamp.isoformat().split(".")[0] + ".000000Z"
     assert outcomes == [
@@ -42,10 +50,9 @@ def test_client_reports(relay, mini_sentry):
             "key_id": 123,
             "outcome": 5,
             "reason": "queue_overflow",
-            "remote_addr": "127.0.0.1",
             "source": "my-layer",
             "category": 1,
-            "quantity": 42,
+            "quantity": 84,
         },
         {
             "timestamp": timestamp_formatted,
@@ -54,10 +61,9 @@ def test_client_reports(relay, mini_sentry):
             "key_id": 123,
             "outcome": 5,
             "reason": "queue_overflow",
-            "remote_addr": "127.0.0.1",
             "source": "my-layer",
             "category": 2,
-            "quantity": 1231,
+            "quantity": 2462,
         },
     ]
 
@@ -69,6 +75,7 @@ def test_client_reports_bad_timestamps(relay, mini_sentry):
             "batch_size": 1,
             "batch_interval": 1,
             "source": "my-layer",
+            "aggregator": {"bucket_interval": 1, "flush_interval": 1,},
         },
     }
 
@@ -91,4 +98,4 @@ def test_client_reports_bad_timestamps(relay, mini_sentry):
 
     # we should not have received any outcomes because they are too far into the future
     with pytest.raises(Empty):
-        mini_sentry.captured_outcomes.get(timeout=0.5)["outcomes"]
+        mini_sentry.captured_outcomes.get(timeout=1.5)["outcomes"]
