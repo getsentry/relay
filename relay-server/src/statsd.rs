@@ -267,6 +267,8 @@ pub enum RelayTimers {
     ///  - `category`: The data category of the payload. Can be one of: `event`, `transaction`,
     ///    `security`, or `session`.
     TimestampDelay,
+    /// The time it takes the outcome aggregator to flush aggregated outcomes.
+    OutcomeAggregatorFlushTime,
 }
 
 impl TimerMetric for RelayTimers {
@@ -291,6 +293,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
             RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
+            RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
         }
     }
 }

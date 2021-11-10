@@ -285,7 +285,7 @@ impl RuleCondition {
 }
 
 /// Sampling rule Id
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct RuleId(pub u32);
 
 impl Display for RuleId {

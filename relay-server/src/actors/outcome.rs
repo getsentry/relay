@@ -92,7 +92,7 @@ impl Message for TrackOutcome {
 }
 
 /// Defines the possible outcomes from processing an event.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
     /// The event has been accepted.
     ///
