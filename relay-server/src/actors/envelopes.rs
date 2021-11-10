@@ -1913,7 +1913,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
                         project_cache.do_send(MergeBuckets::new(public_key, buckets));
                     }
                     Err(error) => {
-                        relay_log::error!("failed to parse metric bucket: {}", LogError(&error));
+                        relay_log::debug!("failed to parse metric bucket: {}", LogError(&error));
                         metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
                     }
                 }
