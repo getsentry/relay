@@ -107,14 +107,18 @@ impl Decoder {
     ///
     /// If the request is not encoded, this decoder is a noop.
     pub fn new<S>(request: &HttpRequest<S>, limit: usize) -> Self {
-        let sink = Sink::new(limit);
-
         let encoding = request
             .headers()
             .get(CONTENT_ENCODING)
             .and_then(|enc| enc.to_str().ok())
             .map(HttpEncoding::parse)
             .unwrap_or_default();
+
+        Self::from_encoding(encoding, limit)
+    }
+
+    fn from_encoding(encoding: HttpEncoding, limit: usize) -> Self {
+        let sink = Sink::new(limit);
 
         let inner = match encoding {
             HttpEncoding::Identity => DecoderInner::Identity(Box::new(sink)),
@@ -208,5 +212,25 @@ impl Stream for DecodingPayload {
                 Some(chunk)
             }))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_decoder_overflow() {
+        let mut decoder = Decoder::from_encoding(HttpEncoding::Gzip, 10);
+        assert!(decoder
+            .decode(include_bytes!("../../../tests/integration/fixtures/10GB.gz")[..].into())
+            .unwrap());
+    }
+
+    #[test]
+    fn test_decoder_basic() {
+        let mut decoder = Decoder::from_encoding(HttpEncoding::Gzip, 10000);
+        assert!(!decoder.decode(b"\x1f\x8b\x08\x00\x06\xb4\x8ba\x00\x03\xcbH\xcd\xc9\xc9\xe7\x02\x00 0:6\x06\x00\x00\x00"[..].into()).unwrap());
+        assert_eq!(&*decoder.take(), b"hello\n");
     }
 }
