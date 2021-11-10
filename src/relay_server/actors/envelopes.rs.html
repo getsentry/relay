@@ -5239,7 +5239,7 @@
                         <span class="ident">project_cache</span>.<span class="ident">do_send</span>(<span class="ident">MergeBuckets::new</span>(<span class="ident">public_key</span>, <span class="ident">buckets</span>));
                     }
                     <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to parse metric bucket: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
+                        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to parse metric bucket: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
                         <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::MetricBucketsParsingFailed</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
                     }
                 }
