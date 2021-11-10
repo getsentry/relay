@@ -38,7 +38,7 @@ use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
 use relay_statsd::metric;
 
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{
@@ -2691,7 +2691,9 @@ impl Handler<SendClientReport> for EnvelopeManager {
 
         let future = self
             .send_envelope(scoping.project_key, envelope, scoping, Instant::now())
-            .map_err(|_| ());
+            .map_err(|e| {
+                relay_log::trace!("Failed to send envelope for client report: {:?}", e);
+            });
 
         Box::new(future)
     }

@@ -154,7 +154,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "version": version,
         }
 
-        process = background_process(relay_bin + ["-c", str(dir), "run"])
+        process = background_process(relay_bin + ["-c", str(dir), "run"],)
 
         relay = Relay(
             (host, port),

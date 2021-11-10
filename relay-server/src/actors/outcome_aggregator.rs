@@ -161,12 +161,15 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
 
         // For lossy aggregation, erase some fields to have fewer buckets
         let (event_id, remote_addr) = match self.mode {
-            AggregationMode::Lossy => (None, None),
+            AggregationMode::Lossy => {
+                relay_log::trace!("Erasing event_id, remote_addr for aggregation: {:?}", msg);
+                (None, None)
+            }
             _ => (msg.event_id, msg.remote_addr),
         };
 
-        if event_id.is_some() {
-            // event_id is too fine-grained to aggregate, simply forward to producer
+        if let Some(event_id) = event_id {
+            relay_log::trace!("Forwarding outcome without aggregation: {}", event_id);
             self.outcome_producer.do_send(msg).ok();
             return Ok(());
         }

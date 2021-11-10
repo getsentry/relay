@@ -542,6 +542,20 @@ def test_outcomes_rate_limit(
 @pytest.mark.parametrize("event_type", ["error", "transaction"])
 def test_outcome_to_client_report(relay, mini_sentry, event_type):
 
+    # Create project config
+    project_id = 42
+    category = "error"
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "id": "drop-everything",
+            "categories": [category],
+            "limit": 0,
+            "window": 1600,
+            "reasonCode": "rate_limited",
+        }
+    ]
+
     upstream = relay(
         mini_sentry,
         {
@@ -560,33 +574,34 @@ def test_outcome_to_client_report(relay, mini_sentry, event_type):
             "outcomes": {
                 "emit_outcomes_as_client_reports": True,
                 "source": "downstream-layer",
+                "bucket_interval": 1,
+                "flush_delay": 0,
             }
         },
     )
 
     event_id = _send_event(downstream, event_type=event_type)
-    time.sleep(5)
 
-    # outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
-    # assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=1.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
 
-    # outcomes = outcomes_batch.get("outcomes")
-    # assert len(outcomes) == 1
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
 
-    # outcome = outcomes[0]
+    outcome = outcomes[0]
 
     # del outcome["timestamp"]  # 'timestamp': '2020-06-03T16:18:59.259447Z'
 
-    # expected_outcome = {
-    #     "project_id": 42,
-    #     "outcome": 3,  # invalid
-    #     "reason": "project_id",  # missing project id
-    #     "event_id": event_id,
-    #     "remote_addr": "127.0.0.1",
-    #     "category": 2 if event_type == "transaction" else 1,
-    #     "quantity": 1,
-    # }
-    # assert outcome == expected_outcome
+    expected_outcome = {
+        "project_id": 42,
+        "outcome": 2,  # rate limited
+        "reason": "rate_limited",  # missing project id
+        "event_id": None,
+        "remote_addr": None,
+        "category": 2 if event_type == "transaction" else 1,
+        "quantity": 1,
+    }
+    assert outcome == expected_outcome
 
-    # # no events received since all have been for an invalid project id
-    # assert mini_sentry.captured_events.empty()
+    # no events received since all have been for an invalid project id
+    assert mini_sentry.captured_events.empty()

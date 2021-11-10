@@ -168,8 +168,8 @@ impl Outcome {
     pub fn from_outcome_id(outcome_id: u8, reason: &str) -> Result<Self, ()> {
         match outcome_id {
             1 => {
-                if reason.starts_with("Sampled:") {
-                    let rule_id = RuleId(reason[8..].parse().map_err(|_| ())?);
+                if let Some(rule_id) = reason.strip_prefix("Sampled:") {
+                    let rule_id = RuleId(rule_id.parse().map_err(|_| ())?);
                     Ok(Self::FilteredSampling(rule_id))
                 } else {
                     Err(())
@@ -589,7 +589,7 @@ mod processing {
         type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            relay_log::trace!("handling raw outcome");
+            relay_log::trace!("handling outcome");
             if self.config.processing_enabled() {
                 let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
                 self.send_kafka_message(raw_message)
@@ -725,7 +725,7 @@ impl Actor for ClientReportOutcomeProducer {
 impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
-    fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
         // TODO: full extraction (including outcome ID / rule ID)
         let discarded_event = DiscardedEvent {
             reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
@@ -748,7 +748,6 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
             client_report,
             scoping: msg.scoping,
         });
-
         Ok(())
     }
 }
