@@ -92,7 +92,7 @@ impl Message for TrackOutcome {
 }
 
 /// Defines the possible outcomes from processing an event.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
     /// The event has been accepted.
     ///
@@ -153,7 +153,7 @@ impl Outcome {
 /// Reason for a discarded invalid event.
 ///
 /// Used in `Outcome::Invalid`. Synchronize overlap with Sentry.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[allow(dead_code)]
 pub enum DiscardReason {
     /// [Post Processing] An event with the same id has already been processed for this project.

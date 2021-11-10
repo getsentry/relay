@@ -10,8 +10,7 @@ def test_client_reports(relay, mini_sentry):
             "batch_size": 1,
             "batch_interval": 1,
             "source": "my-layer",
-            "bucket_interval": 1,
-            "flush_delay": 0,
+            "aggregator": {"bucket_interval": 1, "flush_interval": 1,},
         }
     }
 
@@ -76,6 +75,7 @@ def test_client_reports_bad_timestamps(relay, mini_sentry):
             "batch_size": 1,
             "batch_interval": 1,
             "source": "my-layer",
+            "aggregator": {"bucket_interval": 1, "flush_interval": 1,},
         },
     }
 
