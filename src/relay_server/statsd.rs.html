@@ -462,6 +462,9 @@
 <span id="462">462</span>
 <span id="463">463</span>
 <span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -731,6 +734,8 @@
     <span class="doccomment">///  - `category`: The data category of the payload. Can be one of: `event`, `transaction`,</span>
     <span class="doccomment">///    `security`, or `session`.</span>
     <span class="ident">TimestampDelay</span>,
+    <span class="doccomment">/// The time it takes the outcome aggregator to flush aggregated outcomes.</span>
+    <span class="ident">OutcomeAggregatorFlushTime</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TimerMetric</span> <span class="kw">for</span> <span class="ident">RelayTimers</span> {
@@ -755,6 +760,7 @@
             <span class="ident">RelayTimers::AttachmentScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
             <span class="ident">RelayTimers::UpstreamRequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.requests.duration&quot;</span>,
             <span class="ident">RelayTimers::TimestampDelay</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests.timestamp_delay&quot;</span>,
+            <span class="ident">RelayTimers::OutcomeAggregatorFlushTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;outcomes.aggregator.flush_time&quot;</span>,
         }
     }
 }

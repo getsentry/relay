@@ -744,7 +744,7 @@
 }
 
 <span class="doccomment">/// Defines the possible outcomes from processing an event.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Outcome</span> {
     <span class="doccomment">/// The event has been accepted.</span>
     <span class="doccomment">///</span>

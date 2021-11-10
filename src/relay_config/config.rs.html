@@ -1784,6 +1784,33 @@
 <span id="1784">1784</span>
 <span id="1785">1785</span>
 <span id="1786">1786</span>
+<span id="1787">1787</span>
+<span id="1788">1788</span>
+<span id="1789">1789</span>
+<span id="1790">1790</span>
+<span id="1791">1791</span>
+<span id="1792">1792</span>
+<span id="1793">1793</span>
+<span id="1794">1794</span>
+<span id="1795">1795</span>
+<span id="1796">1796</span>
+<span id="1797">1797</span>
+<span id="1798">1798</span>
+<span id="1799">1799</span>
+<span id="1800">1800</span>
+<span id="1801">1801</span>
+<span id="1802">1802</span>
+<span id="1803">1803</span>
+<span id="1804">1804</span>
+<span id="1805">1805</span>
+<span id="1806">1806</span>
+<span id="1807">1807</span>
+<span id="1808">1808</span>
+<span id="1809">1809</span>
+<span id="1810">1810</span>
+<span id="1811">1811</span>
+<span id="1812">1812</span>
+<span id="1813">1813</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2704,6 +2731,25 @@
     }
 }
 
+<span class="doccomment">/// Configuration values for the outcome aggregator</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OutcomeAggregatorConfig</span> {
+    <span class="doccomment">/// Defines the width of the buckets into which outcomes are aggregated, in seconds.</span>
+    <span class="kw">pub</span> <span class="ident">bucket_interval</span>: <span class="ident">u64</span>,
+    <span class="doccomment">/// Defines how often all buckets are flushed, in seconds.</span>
+    <span class="kw">pub</span> <span class="ident">flush_interval</span>: <span class="ident">u64</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">OutcomeAggregatorConfig</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">bucket_interval</span>: <span class="number">60</span>,
+            <span class="ident">flush_interval</span>: <span class="number">120</span>,
+        }
+    }
+}
+
 <span class="doccomment">/// Outcome generation specific configuration values.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
@@ -2722,6 +2768,8 @@
     <span class="doccomment">/// Defines the source string registered in the outcomes originating from</span>
     <span class="doccomment">/// this Relay (typically something like the region or the layer).</span>
     <span class="kw">pub</span> <span class="ident">source</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Configures the outcome aggregator.</span>
+    <span class="kw">pub</span> <span class="ident">aggregator</span>: <span class="ident">OutcomeAggregatorConfig</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Outcomes</span> {
@@ -2732,6 +2780,7 @@
             <span class="ident">batch_size</span>: <span class="number">1000</span>,
             <span class="ident">batch_interval</span>: <span class="number">500</span>,
             <span class="ident">source</span>: <span class="prelude-val">None</span>,
+            <span class="ident">aggregator</span>: <span class="ident">OutcomeAggregatorConfig::default</span>(),
         }
     }
 }
@@ -3235,6 +3284,11 @@
     <span class="doccomment">/// The originating source of the outcome</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_source</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">outcomes</span>.<span class="ident">source</span>.<span class="ident">as_deref</span>()
+    }
+
+    <span class="doccomment">/// Returns the width of the buckets into which outcomes are aggregated, in seconds.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_aggregator</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">OutcomeAggregatorConfig</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">outcomes</span>.<span class="ident">aggregator</span>
     }
 
     <span class="doccomment">/// Returns logging configuration.</span>
