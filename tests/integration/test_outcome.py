@@ -123,6 +123,7 @@ def _send_event(relay, project_id=42, event_type="error"):
         "message": message_text,
         "extra": {"msg_text": message_text},
         "type": event_type,
+        "environment": "production",
     }
 
     try:
@@ -539,22 +540,25 @@ def test_outcomes_rate_limit(
         outcomes_consumer.assert_empty()
 
 
-@pytest.mark.parametrize("event_type", ["error", "transaction"])
-def test_outcome_to_client_report(relay, mini_sentry, event_type):
+def test_outcome_to_client_report(relay, mini_sentry):
 
     # Create project config
     project_id = 42
-    category = "error"
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["quotas"] = [
-        {
-            "id": "drop-everything",
-            "categories": [category],
-            "limit": 0,
-            "window": 1600,
-            "reasonCode": "rate_limited",
-        }
-    ]
+    project_config["config"]["dynamicSampling"] = {
+        "rules": [
+            {
+                "id": 1,
+                "sampleRate": 0.0,
+                "type": "error",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.environment",
+                    "value": "production",
+                },
+            }
+        ]
+    }
 
     upstream = relay(
         mini_sentry,
@@ -572,6 +576,7 @@ def test_outcome_to_client_report(relay, mini_sentry, event_type):
         upstream,
         {
             "outcomes": {
+                "emit_outcomes": True,
                 "emit_outcomes_as_client_reports": True,
                 "source": "downstream-layer",
                 "bucket_interval": 1,
@@ -580,7 +585,7 @@ def test_outcome_to_client_report(relay, mini_sentry, event_type):
         },
     )
 
-    event_id = _send_event(downstream, event_type=event_type)
+    _send_event(downstream, event_type="error")
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=1.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -590,18 +595,18 @@ def test_outcome_to_client_report(relay, mini_sentry, event_type):
 
     outcome = outcomes[0]
 
-    # del outcome["timestamp"]  # 'timestamp': '2020-06-03T16:18:59.259447Z'
+    del outcome["timestamp"]
 
     expected_outcome = {
+        "timestamp": "2021-11-11T14:31:50.937817Z",
+        "org_id": 1,
         "project_id": 42,
-        "outcome": 2,  # rate limited
-        "reason": "rate_limited",  # missing project id
-        "event_id": None,
-        "remote_addr": None,
-        "category": 2 if event_type == "transaction" else 1,
+        "key_id": 123,
+        "outcome": 1,
+        "reason": "Sampled:1",
+        "event_id": None,  # erased by aggregator
+        "remote_addr": None,  # erased by aggregator
+        "category": 1,
         "quantity": 1,
     }
     assert outcome == expected_outcome
-
-    # no events received since all have been for an invalid project id
-    assert mini_sentry.captured_events.empty()
