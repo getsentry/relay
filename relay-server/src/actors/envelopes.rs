@@ -18,7 +18,6 @@ use flate2::Compression;
 use futures::{future, prelude::*, sync::oneshot};
 use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
-use symbolic::unreal::{Unreal4Error, Unreal4ErrorKind};
 
 use relay_auth::RelayVersion;
 use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp, Uuid};
@@ -65,6 +64,7 @@ use {
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    symbolic::unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 /// The minimum clock drift for correction to apply.
@@ -86,7 +86,7 @@ enum ProcessingError {
 
     #[cfg(feature = "processing")]
     #[fail(display = "invalid unreal crash report")]
-    InvalidUnrealReport(#[cause] symbolic::unreal::Unreal4Error),
+    InvalidUnrealReport(#[cause] Unreal4Error),
 
     #[fail(display = "event payload too large")]
     PayloadTooLarge,
@@ -203,6 +203,7 @@ impl ProcessingError {
     }
 }
 
+#[cfg(feature = "processing")]
 impl From<Unreal4Error> for ProcessingError {
     fn from(err: Unreal4Error) -> Self {
         match err.kind() {
