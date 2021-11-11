@@ -3324,6 +3324,12 @@
 <span id="3324">3324</span>
 <span id="3325">3325</span>
 <span id="3326">3326</span>
+<span id="3327">3327</span>
+<span id="3328">3328</span>
+<span id="3329">3329</span>
+<span id="3330">3330</span>
+<span id="3331">3331</span>
+<span id="3332">3332</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3390,6 +3396,7 @@
     <span class="ident">relay_filter::FilterStatKey</span>,
     <span class="ident">relay_general::store</span>::{<span class="ident">GeoIpLookup</span>, <span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>},
     <span class="ident">relay_quotas</span>::{<span class="ident">RateLimitingError</span>, <span class="ident">RedisRateLimiter</span>},
+    <span class="ident">symbolic::unreal</span>::{<span class="ident">Unreal4Error</span>, <span class="ident">Unreal4ErrorKind</span>},
 };
 
 <span class="doccomment">/// The minimum clock drift for correction to apply.</span>
@@ -3411,7 +3418,7 @@
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;invalid unreal crash report&quot;</span>)]</span>
-    <span class="ident">InvalidUnrealReport</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">symbolic::unreal::Unreal4Error</span>),
+    <span class="ident">InvalidUnrealReport</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">Unreal4Error</span>),
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;event payload too large&quot;</span>)]</span>
     <span class="ident">PayloadTooLarge</span>,
@@ -3524,6 +3531,16 @@
             <span class="ident"><span class="self">Self</span>::UpstreamRequestFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::EnvelopeBuildFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::BodyEncodingFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+        }
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Unreal4Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProcessingError</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">Unreal4Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="kw">match</span> <span class="ident">err</span>.<span class="ident">kind</span>() {
+            <span class="ident">Unreal4ErrorKind::TooLarge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::PayloadTooLarge</span>,
+            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ProcessingError::InvalidUnrealReport</span>(<span class="ident">err</span>),
         }
     }
 }
@@ -4285,12 +4302,7 @@
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType::UnrealReport</span>) {
-            <span class="ident">utils::expand_unreal_envelope</span>(<span class="ident">item</span>, <span class="ident">envelope</span>)
-                .<span class="ident">map_err</span>(<span class="ident">ProcessingError::InvalidUnrealReport</span>)<span class="question-mark">?</span>;
-
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">utils::check_envelope_size_limits</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>, <span class="ident">envelope</span>) {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::PayloadTooLarge</span>);
-            }
+            <span class="ident">utils::expand_unreal_envelope</span>(<span class="ident">item</span>, <span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
