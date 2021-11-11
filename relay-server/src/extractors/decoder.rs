@@ -6,7 +6,7 @@ use actix_web::http::header::CONTENT_ENCODING;
 use actix_web::{HttpMessage, HttpRequest};
 use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
-use flate2::write::{DeflateDecoder, GzDecoder};
+use flate2::write::{GzDecoder, ZlibDecoder};
 use futures::{Async, Poll, Stream};
 use relay_config::HttpEncoding;
 
@@ -87,7 +87,7 @@ enum DecoderInner {
     Identity(Box<Sink>),
     Br(Box<BrotliDecoder<Sink>>),
     Gzip(Box<GzDecoder<Sink>>),
-    Deflate(Box<DeflateDecoder<Sink>>),
+    Deflate(Box<ZlibDecoder<Sink>>),
 }
 
 /// Stateful decoder for all supported [`HttpEncoding`]s.
@@ -124,7 +124,7 @@ impl Decoder {
             HttpEncoding::Identity => DecoderInner::Identity(Box::new(sink)),
             HttpEncoding::Br => DecoderInner::Br(Box::new(BrotliDecoder::new(sink))),
             HttpEncoding::Gzip => DecoderInner::Gzip(Box::new(GzDecoder::new(sink))),
-            HttpEncoding::Deflate => DecoderInner::Deflate(Box::new(DeflateDecoder::new(sink))),
+            HttpEncoding::Deflate => DecoderInner::Deflate(Box::new(ZlibDecoder::new(sink))),
         };
 
         Self { inner }
