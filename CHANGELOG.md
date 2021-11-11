@@ -11,6 +11,10 @@
 
 - Avoid unbounded decompression of encoded requests. A particular request crafted to inflate to large amounts of memory, such as a zip bomb, could put Relay out of memory. ([#1117](https://github.com/getsentry/relay/pull/1117))
 
+**Internal**:
+
+- Aggregate client reports before sending them onwards. ([#1118](https://github.com/getsentry/relay/pull/1118))
+
 ## 21.10.0
 
 **Bug Fixes**:

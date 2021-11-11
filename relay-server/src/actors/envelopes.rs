@@ -39,6 +39,7 @@ use relay_sampling::{RuleId, SamplingResult};
 use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{
     CheckEnvelope, GetProjectState, InsertMetrics, MergeBuckets, ProjectCache, ProjectError,
@@ -875,14 +876,14 @@ impl EnvelopeProcessor {
             return;
         }
 
-        let producer = OutcomeProducer::from_registry();
+        let producer = OutcomeAggregator::from_registry();
         for ((reason, category), quantity) in discarded_events.into_iter() {
             producer.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
                 scoping: state.envelope_context.scoping,
                 outcome: Outcome::ClientDiscard(reason),
                 event_id: None,
-                remote_addr: state.envelope_context.remote_addr,
+                remote_addr: None, // omitting the client address allows for better aggregation
                 category,
                 quantity,
             });
@@ -1912,7 +1913,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
                         project_cache.do_send(MergeBuckets::new(public_key, buckets));
                     }
                     Err(error) => {
-                        relay_log::error!("failed to parse metric bucket: {}", LogError(&error));
+                        relay_log::debug!("failed to parse metric bucket: {}", LogError(&error));
                         metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
                     }
                 }
