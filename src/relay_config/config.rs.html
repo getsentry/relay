@@ -1811,6 +1811,52 @@
 <span id="1811">1811</span>
 <span id="1812">1812</span>
 <span id="1813">1813</span>
+<span id="1814">1814</span>
+<span id="1815">1815</span>
+<span id="1816">1816</span>
+<span id="1817">1817</span>
+<span id="1818">1818</span>
+<span id="1819">1819</span>
+<span id="1820">1820</span>
+<span id="1821">1821</span>
+<span id="1822">1822</span>
+<span id="1823">1823</span>
+<span id="1824">1824</span>
+<span id="1825">1825</span>
+<span id="1826">1826</span>
+<span id="1827">1827</span>
+<span id="1828">1828</span>
+<span id="1829">1829</span>
+<span id="1830">1830</span>
+<span id="1831">1831</span>
+<span id="1832">1832</span>
+<span id="1833">1833</span>
+<span id="1834">1834</span>
+<span id="1835">1835</span>
+<span id="1836">1836</span>
+<span id="1837">1837</span>
+<span id="1838">1838</span>
+<span id="1839">1839</span>
+<span id="1840">1840</span>
+<span id="1841">1841</span>
+<span id="1842">1842</span>
+<span id="1843">1843</span>
+<span id="1844">1844</span>
+<span id="1845">1845</span>
+<span id="1846">1846</span>
+<span id="1847">1847</span>
+<span id="1848">1848</span>
+<span id="1849">1849</span>
+<span id="1850">1850</span>
+<span id="1851">1851</span>
+<span id="1852">1852</span>
+<span id="1853">1853</span>
+<span id="1854">1854</span>
+<span id="1855">1855</span>
+<span id="1856">1856</span>
+<span id="1857">1857</span>
+<span id="1858">1858</span>
+<span id="1859">1859</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2379,18 +2425,64 @@
     }
 }
 
-<span class="doccomment">/// Http content encoding for upstream store requests.</span>
+<span class="doccomment">/// Http content encoding for both incoming and outgoing web requests.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">HttpEncoding</span> {
-    <span class="doccomment">/// Identity function, no compression.</span>
+    <span class="doccomment">/// Identity function without no compression.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is the default encoding and does not require the presence of the `content-encoding`</span>
+    <span class="doccomment">/// HTTP header.</span>
     <span class="ident">Identity</span>,
-    <span class="doccomment">/// Compression using a zlib header with deflate encoding.</span>
+    <span class="doccomment">/// Compression using a [zlib](https://en.wikipedia.org/wiki/Zlib) structure with</span>
+    <span class="doccomment">/// [deflate](https://en.wikipedia.org/wiki/DEFLATE) encoding.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// These structures are defined in [RFC 1950](https://datatracker.ietf.org/doc/html/rfc1950)</span>
+    <span class="doccomment">/// and [RFC 1951](https://datatracker.ietf.org/doc/html/rfc1951).</span>
     <span class="ident">Deflate</span>,
-    <span class="doccomment">/// Compression using gzip.</span>
+    <span class="doccomment">/// A format using the [Lempel-Ziv coding](https://en.wikipedia.org/wiki/LZ77_and_LZ78#LZ77)</span>
+    <span class="doccomment">/// (LZ77), with a 32-bit CRC.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is the original format of the UNIX gzip program. The HTTP/1.1 standard also recommends</span>
+    <span class="doccomment">/// that the servers supporting this content-encoding should recognize `x-gzip` as an alias, for</span>
+    <span class="doccomment">/// compatibility purposes.</span>
     <span class="ident">Gzip</span>,
-    <span class="doccomment">/// Compression using the brotli algorithm.</span>
+    <span class="doccomment">/// A format using the [Brotli](https://en.wikipedia.org/wiki/Brotli) algorithm.</span>
     <span class="ident">Br</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">HttpEncoding</span> {
+    <span class="doccomment">/// Parses a [`HttpEncoding`] from its `content-encoding` header value.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">str</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="kw">let</span> <span class="ident">str</span> <span class="op">=</span> <span class="ident">str</span>.<span class="ident">trim</span>();
+        <span class="kw">if</span> <span class="ident">str</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;br&quot;</span>) {
+            <span class="ident"><span class="self">Self</span>::Br</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">str</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;gzip&quot;</span>) <span class="op">|</span><span class="op">|</span> <span class="ident">str</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;x-gzip&quot;</span>) {
+            <span class="ident"><span class="self">Self</span>::Gzip</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">str</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;deflate&quot;</span>) {
+            <span class="ident"><span class="self">Self</span>::Deflate</span>
+        } <span class="kw">else</span> {
+            <span class="ident"><span class="self">Self</span>::Identity</span>
+        }
+    }
+
+    <span class="doccomment">/// Returns the value for the `content-encoding` HTTP header.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Returns `None` for [`Identity`](Self::Identity), and `Some` for other encodings.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident"><span class="self">Self</span>::Identity</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::Deflate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;deflate&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::Gzip</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;gzip&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::Br</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;br&quot;</span>),
+        }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">HttpEncoding</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::Identity</span>
+    }
 }
 
 <span class="doccomment">/// Controls authentication with upstream.</span>

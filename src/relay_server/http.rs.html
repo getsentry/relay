@@ -191,8 +191,6 @@
 <span id="191">191</span>
 <span id="192">192</span>
 <span id="193">193</span>
-<span id="194">194</span>
-<span id="195">195</span>
 </pre><pre class="rust"><code><span class="doccomment">///! Abstractions for dealing with either actix-web client structs or reqwest structs.</span>
 <span class="doccomment">///!</span>
 <span class="doccomment">///! All of it is implemented as enums because if they were traits, they&#39;d have to be boxed to be</span>
@@ -299,11 +297,9 @@
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">content_encoding</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">encoding</span>: <span class="ident">HttpEncoding</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
-        <span class="kw">match</span> <span class="ident">encoding</span> {
-            <span class="ident">HttpEncoding::Identity</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>,
-            <span class="ident">HttpEncoding::Deflate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;deflate&quot;</span>),
-            <span class="ident">HttpEncoding::Gzip</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;gzip&quot;</span>),
-            <span class="ident">HttpEncoding::Br</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="string">&quot;br&quot;</span>),
+        <span class="kw">match</span> <span class="ident">encoding</span>.<span class="ident">name</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">header</span>(<span class="string">&quot;Content-Encoding&quot;</span>, <span class="ident">name</span>),
+            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>,
         }
     }
 }

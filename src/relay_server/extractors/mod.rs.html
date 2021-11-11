@@ -16,16 +16,20 @@
 <span id="16">16</span>
 <span id="17">17</span>
 <span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">actix_web::State</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServiceState</span>;
 
+<span class="kw">mod</span> <span class="ident">decoder</span>;
 <span class="kw">mod</span> <span class="ident">forwarded_for</span>;
 <span class="kw">mod</span> <span class="ident">request_meta</span>;
 <span class="kw">mod</span> <span class="ident">shared_payload</span>;
 <span class="kw">mod</span> <span class="ident">signed_json</span>;
 <span class="kw">mod</span> <span class="ident">start_time</span>;
 
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::decoder</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::forwarded_for</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::request_meta</span>::<span class="kw-2">*</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::shared_payload</span>::<span class="kw-2">*</span>;

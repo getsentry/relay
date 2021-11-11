@@ -402,7 +402,7 @@
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>, <span class="ident">Items</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::SharedPayload</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::DecodingPayload</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServiceState</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
@@ -415,14 +415,14 @@
 }
 
 <span class="doccomment">/// A wrapper around an actix payload that always ends with a newline.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">struct</span> <span class="ident">TerminatedPayload</span> {
-    <span class="ident">inner</span>: <span class="ident">SharedPayload</span>,
+    <span class="ident">inner</span>: <span class="ident">DecodingPayload</span>,
     <span class="ident">end</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Bytes</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TerminatedPayload</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">payload</span>: <span class="ident">SharedPayload</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">payload</span>: <span class="ident">DecodingPayload</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">inner</span>: <span class="ident">payload</span>,
             <span class="ident">end</span>: <span class="prelude-val">Some</span>(<span class="ident">Bytes::from_static</span>(<span class="string">b&quot;\r\n&quot;</span>)),
@@ -706,7 +706,7 @@
             <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">MultipartError::InvalidMultipart</span>(<span class="ident">error</span>))),
         };
 
-        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">TerminatedPayload::new</span>(<span class="ident">SharedPayload::get</span>(<span class="ident">request</span>));
+        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">TerminatedPayload::new</span>(<span class="ident">DecodingPayload::new</span>(<span class="ident">request</span>, <span class="self">self</span>.<span class="ident">remaining_size</span>));
         <span class="kw">let</span> <span class="ident">multipart</span> <span class="op">=</span> <span class="ident">multipart::Multipart::new</span>(<span class="prelude-val">Ok</span>(<span class="ident">boundary</span>), <span class="ident">payload</span>);
 
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">consume_stream</span>(<span class="self">self</span>, <span class="ident">multipart</span>).<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">multipart</span><span class="op">|</span> {
