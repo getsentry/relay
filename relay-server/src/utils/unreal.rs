@@ -1,5 +1,6 @@
+use relay_config::Config;
 use symbolic::unreal::{
-    Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4FileType, Unreal4LogEntry,
+    Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
 };
 
 use relay_general::protocol::{
@@ -47,9 +48,10 @@ fn get_event_item(data: &[u8]) -> Result<Option<Item>, Unreal4Error> {
 pub fn expand_unreal_envelope(
     unreal_item: Item,
     envelope: &mut Envelope,
+    config: &Config,
 ) -> Result<(), Unreal4Error> {
     let payload = unreal_item.payload();
-    let crash = Unreal4Crash::parse(&payload)?;
+    let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
     let mut has_event = envelope
         .get_item_by(|item| item.ty() == ItemType::Event)
@@ -84,6 +86,10 @@ pub fn expand_unreal_envelope(
         item.set_payload(content_type, file.data());
         item.set_attachment_type(attachment_type);
         envelope.add_item(item);
+    }
+
+    if !super::check_envelope_size_limits(config, envelope) {
+        return Err(Unreal4ErrorKind::TooLarge.into());
     }
 
     Ok(())

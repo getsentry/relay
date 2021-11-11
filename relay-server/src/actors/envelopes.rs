@@ -64,6 +64,7 @@ use {
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    symbolic::unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 /// The minimum clock drift for correction to apply.
@@ -85,7 +86,7 @@ enum ProcessingError {
 
     #[cfg(feature = "processing")]
     #[fail(display = "invalid unreal crash report")]
-    InvalidUnrealReport(#[cause] symbolic::unreal::Unreal4Error),
+    InvalidUnrealReport(#[cause] Unreal4Error),
 
     #[fail(display = "event payload too large")]
     PayloadTooLarge,
@@ -198,6 +199,16 @@ impl ProcessingError {
             Self::UpstreamRequestFailed(_)
             | Self::EnvelopeBuildFailed(_)
             | Self::BodyEncodingFailed(_) => None,
+        }
+    }
+}
+
+#[cfg(feature = "processing")]
+impl From<Unreal4Error> for ProcessingError {
+    fn from(err: Unreal4Error) -> Self {
+        match err.kind() {
+            Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
+            _ => ProcessingError::InvalidUnrealReport(err),
         }
     }
 }
@@ -959,12 +970,7 @@ impl EnvelopeProcessor {
         let envelope = &mut state.envelope;
 
         if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
-            utils::expand_unreal_envelope(item, envelope)
-                .map_err(ProcessingError::InvalidUnrealReport)?;
-
-            if !utils::check_envelope_size_limits(&self.config, envelope) {
-                return Err(ProcessingError::PayloadTooLarge);
-            }
+            utils::expand_unreal_envelope(item, envelope, &self.config)?;
         }
 
         Ok(())
