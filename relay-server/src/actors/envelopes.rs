@@ -18,6 +18,7 @@ use flate2::Compression;
 use futures::{future, prelude::*, sync::oneshot};
 use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
+use symbolic::unreal::{Unreal4Error, Unreal4ErrorKind};
 
 use relay_auth::RelayVersion;
 use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp, Uuid};
@@ -198,6 +199,15 @@ impl ProcessingError {
             Self::UpstreamRequestFailed(_)
             | Self::EnvelopeBuildFailed(_)
             | Self::BodyEncodingFailed(_) => None,
+        }
+    }
+}
+
+impl From<Unreal4Error> for ProcessingError {
+    fn from(err: Unreal4Error) -> Self {
+        match err.kind() {
+            Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
+            _ => ProcessingError::InvalidUnrealReport(err),
         }
     }
 }
@@ -959,12 +969,7 @@ impl EnvelopeProcessor {
         let envelope = &mut state.envelope;
 
         if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
-            utils::expand_unreal_envelope(item, envelope)
-                .map_err(ProcessingError::InvalidUnrealReport)?;
-
-            if !utils::check_envelope_size_limits(&self.config, envelope) {
-                return Err(ProcessingError::PayloadTooLarge);
-            }
+            utils::expand_unreal_envelope(item, envelope, &self.config)?;
         }
 
         Ok(())
