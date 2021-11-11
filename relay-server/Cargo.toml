@@ -26,7 +26,7 @@ processing = [
 
 [dependencies]
 actix = "0.7.9"
-actix-web = { version = "0.7.19", default-features = false, features = ["brotli", "flate2-c"] }
+actix-web = { version = "0.7.19", default-features = false }
 base64 = "0.10.1"
 brotli2 = "0.3.2"
 bytes = { version = "0.4.12", features = ["serde"] }
@@ -64,7 +64,7 @@ serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_urlencoded = "0.7.0"
 smallvec = { version = "1.4.0", features = ["serde"] }
-symbolic = { version = "8.0.4", optional = true, default-features=false, features=["unreal-serde"] }
+symbolic = { version = "8.4.0", optional = true, default-features=false, features=["unreal-serde"] }
 take_mut = "0.2.2"
 tokio = { version = "1.0", features = ["rt-multi-thread"] } # in sync with reqwest
 tokio-timer = "0.2.13"

@@ -566,18 +566,64 @@ impl Default for Limits {
     }
 }
 
-/// Http content encoding for upstream store requests.
+/// Http content encoding for both incoming and outgoing web requests.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HttpEncoding {
-    /// Identity function, no compression.
+    /// Identity function without no compression.
+    ///
+    /// This is the default encoding and does not require the presence of the `content-encoding`
+    /// HTTP header.
     Identity,
-    /// Compression using a zlib header with deflate encoding.
+    /// Compression using a [zlib](https://en.wikipedia.org/wiki/Zlib) structure with
+    /// [deflate](https://en.wikipedia.org/wiki/DEFLATE) encoding.
+    ///
+    /// These structures are defined in [RFC 1950](https://datatracker.ietf.org/doc/html/rfc1950)
+    /// and [RFC 1951](https://datatracker.ietf.org/doc/html/rfc1951).
     Deflate,
-    /// Compression using gzip.
+    /// A format using the [Lempel-Ziv coding](https://en.wikipedia.org/wiki/LZ77_and_LZ78#LZ77)
+    /// (LZ77), with a 32-bit CRC.
+    ///
+    /// This is the original format of the UNIX gzip program. The HTTP/1.1 standard also recommends
+    /// that the servers supporting this content-encoding should recognize `x-gzip` as an alias, for
+    /// compatibility purposes.
     Gzip,
-    /// Compression using the brotli algorithm.
+    /// A format using the [Brotli](https://en.wikipedia.org/wiki/Brotli) algorithm.
     Br,
+}
+
+impl HttpEncoding {
+    /// Parses a [`HttpEncoding`] from its `content-encoding` header value.
+    pub fn parse(str: &str) -> Self {
+        let str = str.trim();
+        if str.eq_ignore_ascii_case("br") {
+            Self::Br
+        } else if str.eq_ignore_ascii_case("gzip") || str.eq_ignore_ascii_case("x-gzip") {
+            Self::Gzip
+        } else if str.eq_ignore_ascii_case("deflate") {
+            Self::Deflate
+        } else {
+            Self::Identity
+        }
+    }
+
+    /// Returns the value for the `content-encoding` HTTP header.
+    ///
+    /// Returns `None` for [`Identity`](Self::Identity), and `Some` for other encodings.
+    pub fn name(&self) -> Option<&'static str> {
+        match self {
+            Self::Identity => None,
+            Self::Deflate => Some("deflate"),
+            Self::Gzip => Some("gzip"),
+            Self::Br => Some("br"),
+        }
+    }
+}
+
+impl Default for HttpEncoding {
+    fn default() -> Self {
+        Self::Identity
+    }
 }
 
 /// Controls authentication with upstream.
@@ -918,6 +964,25 @@ impl Default for Processing {
     }
 }
 
+/// Configuration values for the outcome aggregator
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct OutcomeAggregatorConfig {
+    /// Defines the width of the buckets into which outcomes are aggregated, in seconds.
+    pub bucket_interval: u64,
+    /// Defines how often all buckets are flushed, in seconds.
+    pub flush_interval: u64,
+}
+
+impl Default for OutcomeAggregatorConfig {
+    fn default() -> Self {
+        Self {
+            bucket_interval: 60,
+            flush_interval: 120,
+        }
+    }
+}
+
 /// Outcome generation specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -939,10 +1004,8 @@ pub struct Outcomes {
     /// Defines the source string registered in the outcomes originating from
     /// this Relay (typically something like the region or the layer).
     pub source: Option<String>,
-    /// Defines the width of the buckets into which outcomes are aggregated, in seconds.
-    pub bucket_interval: u64,
-    /// Defines the number of seconds after which a a bucket is flushed by the outcome aggregator.
-    pub flush_delay: u64,
+    /// Configures the outcome aggregator.
+    pub aggregator: OutcomeAggregatorConfig,
 }
 
 impl Default for Outcomes {
@@ -954,8 +1017,7 @@ impl Default for Outcomes {
             batch_size: 1000,
             batch_interval: 500,
             source: None,
-            bucket_interval: 60,
-            flush_delay: 30,
+            aggregator: OutcomeAggregatorConfig::default(),
         }
     }
 }
@@ -1468,13 +1530,8 @@ impl Config {
     }
 
     /// Returns the width of the buckets into which outcomes are aggregated, in seconds.
-    pub fn outcome_bucket_interval(&self) -> u64 {
-        self.values.outcomes.bucket_interval
-    }
-
-    /// Returns the number of seconds after which a a bucket is flushed by the outcome aggregator.
-    pub fn outcome_flush_delay(&self) -> u64 {
-        self.values.outcomes.flush_delay
+    pub fn outcome_aggregator(&self) -> &OutcomeAggregatorConfig {
+        &self.values.outcomes.aggregator
     }
 
     /// Returns logging configuration.

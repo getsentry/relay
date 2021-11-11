@@ -18,7 +18,7 @@ use relay_common::{
 use relay_quotas::Scoping;
 
 use crate::body::PeekLine;
-use crate::extractors::{ForwardedFor, SharedPayload};
+use crate::extractors::ForwardedFor;
 use crate::middlewares::StartTime;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
@@ -549,17 +549,15 @@ impl FromRequest<ServiceState> for EnvelopeMeta {
         }
 
         let partial_meta = PartialMeta::from_headers(request);
-        let future = PeekLine::new(SharedPayload::get(request))
-            .limit(Self::MAX_HEADER_SIZE)
-            .then(move |result| {
-                let request_meta = if let Ok(Some(json)) = result {
-                    serde_json::from_slice(&json).map_err(BadEventMeta::BadEnvelopeAuth)?
-                } else {
-                    return Err(BadEventMeta::MissingAuth);
-                };
+        let future = PeekLine::new(request, Self::MAX_HEADER_SIZE).then(move |result| {
+            let request_meta = if let Ok(Some(json)) = result {
+                serde_json::from_slice(&json).map_err(BadEventMeta::BadEnvelopeAuth)?
+            } else {
+                return Err(BadEventMeta::MissingAuth);
+            };
 
-                Ok(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
-            });
+            Ok(EnvelopeMeta::new(partial_meta.copy_to(request_meta)))
+        });
 
         Ok(Box::new(future))
     }
