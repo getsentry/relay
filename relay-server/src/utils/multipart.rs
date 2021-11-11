@@ -9,7 +9,7 @@ use futures::{future, Async, Future, Poll, Stream};
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
-use crate::extractors::SharedPayload;
+use crate::extractors::DecodingPayload;
 use crate::service::ServiceState;
 
 #[derive(Debug, Fail)]
@@ -22,14 +22,14 @@ pub enum MultipartError {
 }
 
 /// A wrapper around an actix payload that always ends with a newline.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct TerminatedPayload {
-    inner: SharedPayload,
+    inner: DecodingPayload,
     end: Option<Bytes>,
 }
 
 impl TerminatedPayload {
-    pub fn new(payload: SharedPayload) -> Self {
+    pub fn new(payload: DecodingPayload) -> Self {
         Self {
             inner: payload,
             end: Some(Bytes::from_static(b"\r\n")),
@@ -313,7 +313,7 @@ impl MultipartItems {
             Err(error) => return Box::new(future::err(MultipartError::InvalidMultipart(error))),
         };
 
-        let payload = TerminatedPayload::new(SharedPayload::get(request));
+        let payload = TerminatedPayload::new(DecodingPayload::new(request, self.remaining_size));
         let multipart = multipart::Multipart::new(Ok(boundary), payload);
 
         let future = consume_stream(self, multipart).and_then(|multipart| {

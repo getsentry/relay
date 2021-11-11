@@ -1,8 +1,9 @@
-use bytes::{Bytes, BytesMut};
+use actix_web::HttpRequest;
+use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use smallvec::SmallVec;
 
-use crate::extractors::SharedPayload;
+use crate::extractors::{Decoder, SharedPayload};
 
 /// A request body adapter that peeks the first line of a multi-line body.
 ///
@@ -18,39 +19,21 @@ use crate::extractors::SharedPayload;
 /// are returned without change.
 pub struct PeekLine {
     payload: SharedPayload,
+    decoder: Decoder,
     chunks: SmallVec<[Bytes; 3]>,
-    len: usize,
-    limit: Option<usize>,
 }
 
 impl PeekLine {
     /// Creates a new peek line future from the given payload.
-    pub fn new(payload: SharedPayload) -> Self {
-        Self {
-            payload,
-            chunks: SmallVec::new(),
-            len: 0,
-            limit: None,
-        }
-    }
-
-    /// Adds a maximum size of the future return value.
     ///
     /// Note that the underlying stream may return more data than the configured limit. The future
     /// will still never resolve more than the limit set.
-    pub fn limit(mut self, limit: usize) -> Self {
-        self.limit = Some(limit);
-        self
-    }
-
-    fn len_exceeded(&self, len: usize) -> bool {
-        if let Some(limit) = self.limit {
-            if len > limit {
-                return true;
-            }
+    pub fn new<S>(request: &HttpRequest<S>, limit: usize) -> Self {
+        Self {
+            payload: SharedPayload::get(request),
+            decoder: Decoder::new(request, limit),
+            chunks: SmallVec::new(),
         }
-
-        false
     }
 
     fn revert_chunks(&mut self) {
@@ -58,33 +41,19 @@ impl PeekLine {
         while let Some(chunk) = self.chunks.pop() {
             self.payload.unread_data(chunk);
         }
-
-        self.len = 0;
     }
 
-    fn concatenate(&self, mut len: usize) -> Bytes {
-        let mut bytes = BytesMut::with_capacity(len);
-        for chunk in &self.chunks {
-            let remaining = if len > chunk.len() { chunk.len() } else { len };
-            bytes.extend_from_slice(&chunk[..remaining]);
-            len -= remaining;
-        }
-        bytes.freeze()
-    }
+    fn finish(&mut self, overflow: bool) -> Async<Option<Bytes>> {
+        let buffer = self.decoder.take();
 
-    fn finish(&mut self, len: usize) -> Async<Option<Bytes>> {
-        if len == 0 {
-            return Async::Ready(None);
-        }
-
-        let line = if len == 0 || self.len_exceeded(len) {
-            None
-        } else {
-            Some(self.concatenate(len))
+        let line = match buffer.iter().position(|b| *b == b'\n') {
+            Some(pos) => Some(buffer.slice_to(pos)),
+            None if !overflow => Some(buffer),
+            None => None,
         };
 
         self.revert_chunks();
-        Async::Ready(line)
+        Async::Ready(line.filter(|line| !line.is_empty()))
     }
 }
 
@@ -96,19 +65,14 @@ impl Future for PeekLine {
         loop {
             let chunk = match self.payload.poll() {
                 Ok(Async::Ready(Some(chunk))) => chunk,
-                Ok(Async::Ready(None)) => return Ok(self.finish(self.len)),
-                result => return result,
+                Ok(Async::Ready(None)) => return Ok(self.finish(false)),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(error) => return Err(error),
             };
 
             self.chunks.push(chunk.clone());
-            if let Some(pos) = chunk.iter().position(|b| *b == b'\n') {
-                return Ok(self.finish(self.len + pos));
-            }
-
-            self.len += chunk.len();
-            if self.len_exceeded(self.len) {
-                self.revert_chunks();
-                return Ok(Async::Ready(None));
+            if self.decoder.decode(chunk)? {
+                return Ok(self.finish(true));
             }
         }
     }
@@ -127,8 +91,7 @@ mod tests {
             .set_payload("".to_string())
             .finish();
 
-        let opt =
-            relay_test::block_fn(move || PeekLine::new(SharedPayload::get(&request))).unwrap();
+        let opt = relay_test::block_fn(move || PeekLine::new(&request, 10)).unwrap();
         assert_eq!(opt, None);
     }
 
@@ -140,8 +103,7 @@ mod tests {
             .set_payload("test".to_string())
             .finish();
 
-        let opt =
-            relay_test::block_fn(move || PeekLine::new(SharedPayload::get(&request))).unwrap();
+        let opt = relay_test::block_fn(move || PeekLine::new(&request, 10)).unwrap();
         assert_eq!(opt, Some("test".into()));
     }
 
@@ -153,8 +115,7 @@ mod tests {
             .set_payload("test\ndone".to_string())
             .finish();
 
-        let opt =
-            relay_test::block_fn(move || PeekLine::new(SharedPayload::get(&request))).unwrap();
+        let opt = relay_test::block_fn(move || PeekLine::new(&request, 10)).unwrap();
         assert_eq!(opt, Some("test".into()));
     }
 
@@ -167,9 +128,8 @@ mod tests {
             .set_payload(payload.to_string())
             .finish();
 
-        let opt =
-            relay_test::block_fn(move || PeekLine::new(SharedPayload::get(&request)).limit(4))
-                .unwrap();
+        // NOTE: Newline fits into the size limit.
+        let opt = relay_test::block_fn(move || PeekLine::new(&request, 5)).unwrap();
         assert_eq!(opt, Some("test".into()));
     }
 
@@ -182,9 +142,9 @@ mod tests {
             .set_payload(payload.to_string())
             .finish();
 
-        let opt =
-            relay_test::block_fn(move || PeekLine::new(SharedPayload::get(&request)).limit(3))
-                .unwrap();
+        // NOTE: newline is not found within the size limit. even though the payload would fit,
+        // according to the doc comment we return `None`.
+        let opt = relay_test::block_fn(move || PeekLine::new(&request, 4)).unwrap();
         assert_eq!(opt, None);
     }
 

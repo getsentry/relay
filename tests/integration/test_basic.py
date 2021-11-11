@@ -1,4 +1,5 @@
 import queue
+import os
 import pytest
 import signal
 import subprocess
@@ -142,3 +143,43 @@ def test_relay_applies_malloc_limit(mini_sentry, relay):
 
     with pytest.raises(subprocess.CalledProcessError):
         relay(mini_sentry, options={"limits": {"_max_alloc_size": 1}})
+
+
+@pytest.mark.parametrize(
+    "route,status_code",
+    [
+        ("/api/42/store/", 413),
+        ("/api/42/envelope/", 413),
+        ("/api/42/attachment/", 413),
+        # Minidumps attempt to read the first line (using dedicated limits) and parse it
+        ("/api/42/minidump/", 400),
+    ],
+)
+def test_zipbomb_content_encoding(mini_sentry, relay, route, status_code):
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {
+                "max_event_size": "20MB",
+                "max_attachment_size": "20MB",
+                "max_envelope_size": "20MB",
+                "max_api_payload_size": "20MB",
+            },
+        },
+    )
+    max_size = 20_000_000
+
+    path = f"{os.path.dirname(__file__)}/fixtures/10GB.gz"
+    size = os.path.getsize(path)
+    assert size < max_size
+
+    with open(path, "rb") as f:
+        response = relay.post(
+            "%s?sentry_key=%s" % (route, mini_sentry.get_dsn_public_key(project_id),),
+            headers={"content-encoding": "gzip", "content-length": str(size)},
+            data=f,
+        )
+
+    assert response.status_code == status_code

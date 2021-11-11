@@ -104,11 +104,9 @@ impl RequestBuilder {
     }
 
     pub fn content_encoding(&mut self, encoding: HttpEncoding) -> &mut Self {
-        match encoding {
-            HttpEncoding::Identity => self,
-            HttpEncoding::Deflate => self.header("Content-Encoding", "deflate"),
-            HttpEncoding::Gzip => self.header("Content-Encoding", "gzip"),
-            HttpEncoding::Br => self.header("Content-Encoding", "br"),
+        match encoding.name() {
+            Some(name) => self.header("Content-Encoding", name),
+            None => self,
         }
     }
 }
