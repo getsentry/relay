@@ -568,6 +568,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
                 "emit_client_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
+                "aggregator": {"bucket_interval": 1, "flush_interval": 1,},
             }
         },
     )
@@ -578,15 +579,14 @@ def test_outcome_to_client_report(relay, mini_sentry):
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
-                "bucket_interval": 1,
-                "flush_delay": 0,
+                "aggregator": {"bucket_interval": 1, "flush_interval": 1,},
             }
         },
     )
 
     _send_event(downstream, event_type="error")
 
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=1.2)
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=2.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
 
     outcomes = outcomes_batch.get("outcomes")
@@ -602,8 +602,6 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "event_id": None,  # erased by aggregator
-        "remote_addr": None,  # erased by aggregator
         "category": 1,
         "quantity": 1,
     }
