@@ -43,8 +43,8 @@ impl PeekLine {
         }
     }
 
-    fn finish(&mut self, overflow: bool) -> Async<Option<Bytes>> {
-        let buffer = self.decoder.take();
+    fn finish(&mut self, overflow: bool) -> std::io::Result<Option<Bytes>> {
+        let buffer = self.decoder.finish()?;
 
         let line = match buffer.iter().position(|b| *b == b'\n') {
             Some(pos) => Some(buffer.slice_to(pos)),
@@ -53,7 +53,7 @@ impl PeekLine {
         };
 
         self.revert_chunks();
-        Async::Ready(line.filter(|line| !line.is_empty()))
+        Ok(line.filter(|line| !line.is_empty()))
     }
 }
 
@@ -63,16 +63,15 @@ impl Future for PeekLine {
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
-            let chunk = match self.payload.poll() {
-                Ok(Async::Ready(Some(chunk))) => chunk,
-                Ok(Async::Ready(None)) => return Ok(self.finish(false)),
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(error) => return Err(error),
+            let chunk = match self.payload.poll()? {
+                Async::Ready(Some(chunk)) => chunk,
+                Async::Ready(None) => return Ok(Async::Ready(self.finish(false)?)),
+                Async::NotReady => return Ok(Async::NotReady),
             };
 
             self.chunks.push(chunk.clone());
             if self.decoder.decode(chunk)? {
-                return Ok(self.finish(true));
+                return Ok(Async::Ready(self.finish(true)?));
             }
         }
     }

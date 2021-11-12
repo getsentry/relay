@@ -41,17 +41,16 @@ impl Future for RequestBody {
 
         if let Some((ref mut payload, ref mut decoder)) = self.stream {
             loop {
-                return match payload.poll() {
-                    Ok(Async::Ready(Some(encoded))) => {
+                return match payload.poll()? {
+                    Async::Ready(Some(encoded)) => {
                         if decoder.decode(encoded)? {
                             Err(PayloadError::Overflow)
                         } else {
                             continue;
                         }
                     }
-                    Ok(Async::Ready(None)) => Ok(Async::Ready(decoder.take())),
-                    Ok(Async::NotReady) => Ok(Async::NotReady),
-                    Err(error) => Err(error),
+                    Async::Ready(None) => Ok(Async::Ready(decoder.finish()?)),
+                    Async::NotReady => Ok(Async::NotReady),
                 };
             }
         }
