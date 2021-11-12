@@ -151,7 +151,6 @@
 <span id="151">151</span>
 <span id="152">152</span>
 <span id="153">153</span>
-<span id="154">154</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">actix_web::HttpRequest</span>;
 <span class="kw">use</span> <span class="ident">bytes::Bytes</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">Async</span>, <span class="ident">Future</span>, <span class="ident">Poll</span>, <span class="ident">Stream</span>};
@@ -197,8 +196,8 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">finish</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">overflow</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Async</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Bytes</span><span class="op">&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">decoder</span>.<span class="ident">take</span>();
+    <span class="kw">fn</span> <span class="ident">finish</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">overflow</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">std::io::Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Bytes</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">decoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">line</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">buffer</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">b</span> <span class="op">=</span><span class="op">=</span> <span class="string">b&#39;\n&#39;</span>) {
             <span class="prelude-val">Some</span>(<span class="ident">pos</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">buffer</span>.<span class="ident">slice_to</span>(<span class="ident">pos</span>)),
@@ -207,7 +206,7 @@
         };
 
         <span class="self">self</span>.<span class="ident">revert_chunks</span>();
-        <span class="ident">Async::Ready</span>(<span class="ident">line</span>.<span class="ident">filter</span>(<span class="op">|</span><span class="ident">line</span><span class="op">|</span> <span class="op">!</span><span class="ident">line</span>.<span class="ident">is_empty</span>()))
+        <span class="prelude-val">Ok</span>(<span class="ident">line</span>.<span class="ident">filter</span>(<span class="op">|</span><span class="ident">line</span><span class="op">|</span> <span class="op">!</span><span class="ident">line</span>.<span class="ident">is_empty</span>()))
     }
 }
 
@@ -217,16 +216,15 @@
 
     <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Poll</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span>, <span class="ident"><span class="self">Self</span>::Error</span><span class="op">&gt;</span> {
         <span class="kw">loop</span> {
-            <span class="kw">let</span> <span class="ident">chunk</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">payload</span>.<span class="ident">poll</span>() {
-                <span class="prelude-val">Ok</span>(<span class="ident">Async::Ready</span>(<span class="prelude-val">Some</span>(<span class="ident">chunk</span>))) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">chunk</span>,
-                <span class="prelude-val">Ok</span>(<span class="ident">Async::Ready</span>(<span class="prelude-val">None</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">finish</span>(<span class="bool-val">false</span>)),
-                <span class="prelude-val">Ok</span>(<span class="ident">Async::NotReady</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async::NotReady</span>),
-                <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>),
+            <span class="kw">let</span> <span class="ident">chunk</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">payload</span>.<span class="ident">poll</span>()<span class="question-mark">?</span> {
+                <span class="ident">Async::Ready</span>(<span class="prelude-val">Some</span>(<span class="ident">chunk</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">chunk</span>,
+                <span class="ident">Async::Ready</span>(<span class="prelude-val">None</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async::Ready</span>(<span class="self">self</span>.<span class="ident">finish</span>(<span class="bool-val">false</span>)<span class="question-mark">?</span>)),
+                <span class="ident">Async::NotReady</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async::NotReady</span>),
             };
 
             <span class="self">self</span>.<span class="ident">chunks</span>.<span class="ident">push</span>(<span class="ident">chunk</span>.<span class="ident">clone</span>());
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">decoder</span>.<span class="ident">decode</span>(<span class="ident">chunk</span>)<span class="question-mark">?</span> {
-                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">finish</span>(<span class="bool-val">true</span>));
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async::Ready</span>(<span class="self">self</span>.<span class="ident">finish</span>(<span class="bool-val">true</span>)<span class="question-mark">?</span>));
             }
         }
     }
