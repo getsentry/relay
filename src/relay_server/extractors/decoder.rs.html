@@ -242,7 +242,7 @@
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">HttpMessage</span>, <span class="ident">HttpRequest</span>};
 <span class="kw">use</span> <span class="ident">brotli2::write::BrotliDecoder</span>;
 <span class="kw">use</span> <span class="ident">bytes::Bytes</span>;
-<span class="kw">use</span> <span class="ident">flate2::write</span>::{<span class="ident">DeflateDecoder</span>, <span class="ident">GzDecoder</span>};
+<span class="kw">use</span> <span class="ident">flate2::write</span>::{<span class="ident">GzDecoder</span>, <span class="ident">ZlibDecoder</span>};
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">Async</span>, <span class="ident">Poll</span>, <span class="ident">Stream</span>};
 <span class="kw">use</span> <span class="ident">relay_config::HttpEncoding</span>;
 
@@ -323,7 +323,7 @@
     <span class="ident">Identity</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Sink</span><span class="op">&gt;</span>),
     <span class="ident">Br</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">BrotliDecoder</span><span class="op">&lt;</span><span class="ident">Sink</span><span class="op">&gt;</span><span class="op">&gt;</span>),
     <span class="ident">Gzip</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">GzDecoder</span><span class="op">&lt;</span><span class="ident">Sink</span><span class="op">&gt;</span><span class="op">&gt;</span>),
-    <span class="ident">Deflate</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">DeflateDecoder</span><span class="op">&lt;</span><span class="ident">Sink</span><span class="op">&gt;</span><span class="op">&gt;</span>),
+    <span class="ident">Deflate</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ZlibDecoder</span><span class="op">&lt;</span><span class="ident">Sink</span><span class="op">&gt;</span><span class="op">&gt;</span>),
 }
 
 <span class="doccomment">/// Stateful decoder for all supported [`HttpEncoding`]s.</span>
@@ -360,7 +360,7 @@
             <span class="ident">HttpEncoding::Identity</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">DecoderInner::Identity</span>(<span class="ident">Box::new</span>(<span class="ident">sink</span>)),
             <span class="ident">HttpEncoding::Br</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">DecoderInner::Br</span>(<span class="ident">Box::new</span>(<span class="ident">BrotliDecoder::new</span>(<span class="ident">sink</span>))),
             <span class="ident">HttpEncoding::Gzip</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">DecoderInner::Gzip</span>(<span class="ident">Box::new</span>(<span class="ident">GzDecoder::new</span>(<span class="ident">sink</span>))),
-            <span class="ident">HttpEncoding::Deflate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">DecoderInner::Deflate</span>(<span class="ident">Box::new</span>(<span class="ident">DeflateDecoder::new</span>(<span class="ident">sink</span>))),
+            <span class="ident">HttpEncoding::Deflate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">DecoderInner::Deflate</span>(<span class="ident">Box::new</span>(<span class="ident">ZlibDecoder::new</span>(<span class="ident">sink</span>))),
         };
 
         <span class="self">Self</span> { <span class="ident">inner</span> }
