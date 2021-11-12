@@ -7,7 +7,7 @@ use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 
 fn send_outcomes(state: CurrentServiceState, body: SignedJson<SendOutcomes>) -> HttpResponse {
-    if !body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::Boolean(true) {
+    if !body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {
         return HttpResponse::Forbidden().finish();
     }
 

@@ -785,7 +785,7 @@ pub struct NonProcessingOutcomeProducer {
 impl NonProcessingOutcomeProducer {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let (producer, raw_producer) = match config.emit_outcomes() {
-            EmitOutcomes::Boolean(true) => {
+            EmitOutcomes::AsOutcomes => {
                 // We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream
                 // relays.
                 relay_log::info!("Configured to emit outcomes via http");
@@ -795,7 +795,6 @@ impl NonProcessingOutcomeProducer {
                     Some(producer.recipient()),
                 )
             }
-            EmitOutcomes::Boolean(false) => (None, None),
             EmitOutcomes::AsClientReports => {
                 // We emit outcomes as client reports, and we do not
                 // accept any raw outcomes
@@ -808,6 +807,10 @@ impl NonProcessingOutcomeProducer {
                     ),
                     None,
                 )
+            }
+            EmitOutcomes::None => {
+                relay_log::info!("Configured to drop all outcomes");
+                (None, None)
             }
         };
 

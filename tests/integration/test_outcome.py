@@ -576,8 +576,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         upstream,
         {
             "outcomes": {
-                "emit_outcomes": True,
-                "emit_outcomes_as_client_reports": True,
+                "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
                 "bucket_interval": 1,
                 "flush_delay": 0,
@@ -598,7 +597,6 @@ def test_outcome_to_client_report(relay, mini_sentry):
     del outcome["timestamp"]
 
     expected_outcome = {
-        "timestamp": "2021-11-11T14:31:50.937817Z",
         "org_id": 1,
         "project_id": 42,
         "key_id": 123,

@@ -56,9 +56,9 @@ pub struct OutcomeAggregator {
 impl OutcomeAggregator {
     pub fn new(config: &Config, outcome_producer: Recipient<TrackOutcome>) -> Self {
         let mode = match config.emit_outcomes() {
-            EmitOutcomes::Boolean(true) => AggregationMode::Lossless,
+            EmitOutcomes::AsOutcomes => AggregationMode::Lossless,
             EmitOutcomes::AsClientReports => AggregationMode::Lossy,
-            EmitOutcomes::Boolean(false) => AggregationMode::DropEverything,
+            EmitOutcomes::None => AggregationMode::DropEverything,
         };
 
         Self {

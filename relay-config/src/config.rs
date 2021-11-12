@@ -10,6 +10,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use failure::{Backtrace, Context, Fail};
+use serde::de::{Unexpected, Visitor};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
@@ -985,26 +986,81 @@ impl Default for OutcomeAggregatorConfig {
 
 /// Determines how to emit outcomes.
 /// For compatibility reasons, this can either be true, false or AsClientReports
-#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+
 pub enum EmitOutcomes {
-    /// Emit outcomes yes / no?
-    Boolean(bool),
+    /// Do not emit any outcomes
+    None,
     /// Emit outcomes as client reports
     AsClientReports,
+    /// Emit outcomes as outcomes
+    AsOutcomes,
 }
 
 impl EmitOutcomes {
-    /// Returns true of outcomes are emitted via http, kafka, or client reports.
-    pub fn any(&self) -> bool {
-        match self {
-            EmitOutcomes::Boolean(value) => *value,
-            EmitOutcomes::AsClientReports => true,
-        }
-    }
-
     /// Returns true if outcomes are not emitted at all.
     pub fn is_false(&self) -> bool {
-        !self.any()
+        matches!(self, EmitOutcomes::None)
+    }
+
+    /// Returns true of outcomes are emitted via http, kafka, or client reports.
+    pub fn any(&self) -> bool {
+        !self.is_false()
+    }
+}
+
+impl Serialize for EmitOutcomes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // For compatibility, serialize None and AsOutcomes as booleans.
+        match self {
+            Self::None => serializer.serialize_bool(false),
+            Self::AsClientReports => serializer.serialize_str("as_client_reports"),
+            Self::AsOutcomes => serializer.serialize_bool(true),
+        }
+    }
+}
+
+struct EmitOutcomesVisitor {}
+
+impl<'de> Visitor<'de> for EmitOutcomesVisitor {
+    type Value = EmitOutcomes;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("true, false, or 'as_client_reports'")
+    }
+
+    fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(if v {
+            EmitOutcomes::AsOutcomes
+        } else {
+            EmitOutcomes::None
+        })
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        if v == "as_client_reports" {
+            Ok(EmitOutcomes::AsClientReports)
+        } else {
+            Err(E::invalid_value(Unexpected::Str(v), &"as_client_reports"))
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for EmitOutcomes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(EmitOutcomesVisitor {})
     }
 }
 
@@ -1034,7 +1090,7 @@ pub struct Outcomes {
 impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
-            emit_outcomes: EmitOutcomes::Boolean(false),
+            emit_outcomes: EmitOutcomes::None,
             emit_client_outcomes: true,
             batch_size: 1000,
             batch_interval: 500,
@@ -1515,7 +1571,7 @@ impl Config {
     /// in processing mode.
     pub fn emit_outcomes(&self) -> EmitOutcomes {
         if self.processing_enabled() {
-            return EmitOutcomes::Boolean(true);
+            return EmitOutcomes::AsOutcomes;
         }
         self.values.outcomes.emit_outcomes
     }
@@ -1884,5 +1940,26 @@ cache:
         let values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(values.cache.envelope_buffer_size, 1_000_000);
         assert_eq!(values.cache.envelope_expiry, 1800);
+    }
+
+    #[test]
+    fn test_emit_outcomes() {
+        for (serialized, deserialized) in &[
+            ("true", EmitOutcomes::AsOutcomes),
+            ("false", EmitOutcomes::None),
+            ("\"as_client_reports\"", EmitOutcomes::AsClientReports),
+        ] {
+            let value: EmitOutcomes = serde_json::from_str(serialized).unwrap();
+            assert_eq!(value, *deserialized);
+            assert_eq!(serde_json::to_string(&value).unwrap(), *serialized);
+        }
+    }
+
+    #[test]
+    fn test_emit_outcomes_invalid() {
+        assert!(matches!(
+            serde_json::from_str::<EmitOutcomes>("asdf"),
+            Err(_)
+        ));
     }
 }
