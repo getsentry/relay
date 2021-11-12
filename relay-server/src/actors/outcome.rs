@@ -107,6 +107,21 @@ impl Message for TrackOutcome {
     type Result = Result<(), OutcomeError>;
 }
 
+/// A simpler version of the [`Outcome`] enum without content.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum OutcomeType {
+    Filtered,
+
+    /// The event has been filtered by a Sampling Rule
+    FilteredSampling,
+
+    /// The event has been rate limited.
+    RateLimited,
+
+    /// The event has already been discarded on the client side.
+    ClientDiscard,
+}
+
 /// Defines the possible outcomes from processing an event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
@@ -162,9 +177,9 @@ impl Outcome {
 
     /// Parse an outcome from an outcome ID and a reason string.
     /// Currently only used to reconstruct outcomes encoded in client reports.
-    pub fn from_outcome_id(outcome_id: u8, reason: &str) -> Result<Self, ()> {
-        match outcome_id {
-            1 => {
+    pub fn from_outcome_type(outcome_type: OutcomeType, reason: &str) -> Result<Self, ()> {
+        match outcome_type {
+            OutcomeType::FilteredSampling => {
                 if let Some(rule_id) = reason.strip_prefix("Sampled:") {
                     let rule_id = RuleId(rule_id.parse().map_err(|_| ())?);
                     Ok(Self::FilteredSampling(rule_id))
@@ -173,7 +188,7 @@ impl Outcome {
                 }
             }
             // TODO: other types we want to support via client reports
-            5 => Ok(Self::ClientDiscard(reason.into())),
+            OutcomeType::ClientDiscard => Ok(Self::ClientDiscard(reason.into())),
             _ => Err(()),
         }
     }
@@ -429,7 +444,7 @@ mod processing {
         SerializationError(SerdeSerializationError),
     }
 
-    fn tag_name(message: &TrackRawOutcome) -> &'static str {
+    fn tag_name<M: TrackOutcomeLike>(message: &M) -> &'static str {
         match message.outcome_id() {
             1 => "filtered",
             2 => "rate_limited",
@@ -724,19 +739,31 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
     fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        // TODO: full extraction (including outcome ID / rule ID)
+        let mut client_report = ClientReport {
+            timestamp: Some(UnixTimestamp::from_secs(
+                msg.timestamp.timestamp().try_into().unwrap_or(0),
+            )),
+            ..Default::default()
+        };
+
+        // The outcome type determines what field to place the outcome in:
+        let discarded_events = match msg.outcome {
+            Outcome::Filtered(_) => &mut client_report._server_filtered,
+            Outcome::FilteredSampling(_) => &mut client_report._server_filtered_sampling,
+            Outcome::RateLimited(_) => &mut client_report._server_rate_limited,
+            _ => {
+                // Cannot convert this outcome to a client report.
+                return Ok(());
+            }
+        };
+
+        // Now that we know where to put it, let's create a DiscardedEvent
         let discarded_event = DiscardedEvent {
             reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
             category: msg.category,
             quantity: msg.quantity,
-            outcome: msg.outcome.to_outcome_id(),
         };
-        let client_report = ClientReport {
-            timestamp: Some(UnixTimestamp::from_secs(
-                msg.timestamp.timestamp().try_into().unwrap_or(0),
-            )),
-            discarded_events: vec![discarded_event],
-        };
+        discarded_events.push(discarded_event);
 
         relay_log::trace!("Sending client report");
         // Assuming it is not necessary to batch requests here (like HttpOutcomeProducer does),

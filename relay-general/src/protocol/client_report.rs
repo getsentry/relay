@@ -1,32 +1,29 @@
 use relay_common::{DataCategory, UnixTimestamp};
 use serde::{Deserialize, Serialize};
 
-fn default_outcome_id() -> u8 {
-    5
-}
-
-fn is_default_outcome_id(outcome_id: &u8) -> bool {
-    *outcome_id == 5
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DiscardedEvent {
     pub reason: String,
     pub category: DataCategory,
     pub quantity: u32,
-    #[serde(
-        default = "default_outcome_id",
-        skip_serializing_if = "is_default_outcome_id"
-    )]
-    pub outcome: u8,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ClientReport {
     /// The timestamp of when the report was created.
     pub timestamp: Option<UnixTimestamp>,
-    /// Discard reason counters.
+    /// Counters for events discarded by the client.
     pub discarded_events: Vec<DiscardedEvent>,
+    /// Counters for events rate limited by a relay configured to emit outcomes as client reports
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub _server_rate_limited: Vec<DiscardedEvent>,
+    /// Counters for events filtered by a relay configured to emit outcomes as client reports
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub _server_filtered: Vec<DiscardedEvent>,
+    /// Counters for events filtered by a sampling rule,
+    /// by a relay configured to emit outcomes as client reports
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub _server_filtered_sampling: Vec<DiscardedEvent>,
 }
 
 impl ClientReport {

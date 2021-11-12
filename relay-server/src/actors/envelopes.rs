@@ -38,7 +38,7 @@ use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
 use relay_statsd::metric;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::actors::outcome::{DiscardReason, Outcome, OutcomeType, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{
@@ -839,14 +839,32 @@ impl EnvelopeProcessor {
             };
             match ClientReport::parse(&item.payload()) {
                 Ok(report) => {
-                    for discarded_event in report.discarded_events.into_iter() {
+                    // Glue all discarded events together and give them the appropriate outcome type
+                    let all_events =
+                        report
+                            .discarded_events
+                            .into_iter()
+                            .map(|discarded_event| (OutcomeType::ClientDiscard, discarded_event))
+                            .chain(
+                                report._server_filtered.into_iter().map(|discarded_event| {
+                                    (OutcomeType::Filtered, discarded_event)
+                                }),
+                            )
+                            .chain(report._server_filtered_sampling.into_iter().map(
+                                |discarded_event| (OutcomeType::FilteredSampling, discarded_event),
+                            ))
+                            .chain(report._server_rate_limited.into_iter().map(
+                                |discarded_event| (OutcomeType::RateLimited, discarded_event),
+                            ));
+
+                    for (outcome_type, discarded_event) in all_events {
                         if discarded_event.reason.len() > 200 {
                             relay_log::trace!("ignored client outcome with an overlong reason");
                             continue;
                         }
                         *discarded_events
                             .entry((
-                                discarded_event.outcome,
+                                outcome_type,
                                 discarded_event.reason,
                                 discarded_event.category,
                             ))
@@ -892,15 +910,18 @@ impl EnvelopeProcessor {
         }
 
         let producer = OutcomeAggregator::from_registry();
-        for ((outcome, reason, category), quantity) in discarded_events.into_iter() {
-            let outcome = match Outcome::from_outcome_id(outcome, &reason) {
+        for ((outcome_type, reason, category), quantity) in discarded_events.into_iter() {
+            let outcome = match Outcome::from_outcome_type(outcome_type, &reason) {
                 Ok(outcome) => outcome,
                 Err(_) => {
-                    relay_log::trace!("Invalid outcome_id / reason: ({}, {})", outcome, reason);
+                    relay_log::trace!(
+                        "Invalid outcome_type / reason: ({:?}, {})",
+                        outcome_type,
+                        reason
+                    );
                     continue;
                 }
             };
-            // TODO: Should we allow any outcome in a client report? Or only a subset?
 
             producer.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
