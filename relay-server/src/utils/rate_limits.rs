@@ -7,7 +7,7 @@ use relay_quotas::{
     ReasonCode, Scoping,
 };
 
-use crate::actors::outcome::{Outcome, OutcomeProducer, TrackOutcome};
+use crate::actors::outcome::{Outcome, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::envelope::{Envelope, Item, ItemType};
 

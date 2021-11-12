@@ -156,29 +156,19 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
             return Ok(());
         }
 
-        let TrackOutcome {
-            timestamp,
-            scoping,
-            outcome,
-            event_id: _,
-            remote_addr,
-            category,
-            quantity,
-        } = msg;
-
         // TODO: timestamp validation? (min, max)
-        let offset = timestamp.timestamp() as u64 / self.bucket_interval;
+        let offset = msg.timestamp.timestamp() as u64 / self.bucket_interval;
 
         let bucket_key = BucketKey {
             offset,
-            scoping,
-            outcome,
+            scoping: msg.scoping,
+            outcome: msg.outcome,
             remote_addr,
-            category,
+            category: msg.category,
         };
 
         let counter = self.buckets.entry(bucket_key).or_insert(0);
-        *counter += quantity;
+        *counter += msg.quantity;
 
         Ok(())
     }

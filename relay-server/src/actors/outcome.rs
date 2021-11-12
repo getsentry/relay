@@ -10,14 +10,13 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
 
-use super::envelopes::SendEnvelope;
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
-use relay_config::{Config, EmitOutcomes, HttpEncoding};
+use relay_config::{Config, EmitOutcomes};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_log::LogError;
@@ -25,10 +24,8 @@ use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReport};
-use crate::actors::upstream::{SendQuery, SendRequest};
+use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::{PartialDsn, RequestMeta};
 use crate::ServerError;
 
 // Choose the outcome module implementation (either processing or non-processing).
@@ -725,7 +722,7 @@ impl Actor for ClientReportOutcomeProducer {
 impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
-    fn handle(&mut self, msg: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
         // TODO: full extraction (including outcome ID / rule ID)
         let discarded_event = DiscardedEvent {
             reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
@@ -813,8 +810,7 @@ impl Handler<TrackOutcome> for NonProcessingOutcomeProducer {
         relay_log::trace!("Outcome emitted");
         if let Some(producer) = &self.producer {
             relay_log::trace!("Sending outcome to inner producer");
-            producer.do_send(message);
-            // TODO: error handling
+            producer.do_send(message).ok();
         }
         Ok(())
     }
@@ -825,8 +821,7 @@ impl Handler<TrackRawOutcome> for NonProcessingOutcomeProducer {
 
     fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
         if let Some(producer) = &self.raw_producer {
-            producer.do_send(message);
-            // TODO: error handling
+            producer.do_send(message).ok();
         }
         Ok(())
     }
