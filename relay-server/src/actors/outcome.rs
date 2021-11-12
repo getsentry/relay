@@ -429,12 +429,13 @@ mod processing {
         SerializationError(SerdeSerializationError),
     }
 
-    fn tag_name<M: TrackOutcomeLike>(message: &M) -> &'static str {
+    fn tag_name(message: &TrackRawOutcome) -> &'static str {
         match message.outcome_id() {
             1 => "filtered",
             2 => "rate_limited",
             3 => "invalid",
             4 => "abuse",
+            5 => "client_discard",
             _ => "<unknown>",
         }
     }
