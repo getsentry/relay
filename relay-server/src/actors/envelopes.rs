@@ -814,7 +814,7 @@ impl EnvelopeProcessor {
     fn process_client_reports(&self, state: &mut ProcessEnvelopeState) {
         // if client outcomes are disabled we leave the the client reports unprocessed
         // and pass them on.
-        if !self.config.emit_outcomes() || !self.config.emit_client_outcomes() {
+        if self.config.emit_outcomes().is_false() || !self.config.emit_client_outcomes() {
             // if a processing relay has client outcomes disabled we drop them.
             if self.config.processing_enabled() {
                 state

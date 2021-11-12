@@ -983,18 +983,41 @@ impl Default for OutcomeAggregatorConfig {
     }
 }
 
+/// Determines how to emit outcomes.
+/// For compatibility reasons, this can either be true, false or AsClientReports
+#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub enum EmitOutcomes {
+    /// Emit outcomes yes / no?
+    Boolean(bool),
+    /// Emit outcomes as client reports
+    AsClientReports,
+}
+
+impl EmitOutcomes {
+    /// Returns true of outcomes are emitted via http, kafka, or client reports.
+    pub fn any(&self) -> bool {
+        match self {
+            EmitOutcomes::Boolean(value) => *value,
+            EmitOutcomes::AsClientReports => true,
+        }
+    }
+
+    /// Returns true if outcomes are not emitted at all.
+    pub fn is_false(&self) -> bool {
+        !self.any()
+    }
+}
+
 /// Outcome generation specific configuration values.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Outcomes {
     /// Controls whether outcomes will be emitted when processing is disabled.
     /// Processing relays always emit outcomes (for backwards compatibility).
-    pub emit_outcomes: bool,
+    /// Can take the following values: false, "as_client_reports", true
+    pub emit_outcomes: EmitOutcomes,
     /// Controls wheather client reported outcomes should be emitted.
     pub emit_client_outcomes: bool,
-    /// Controls whether outcomes should be converted to client reports and aggregated before
-    /// sending them to the upstream.
-    pub emit_outcomes_as_client_reports: bool,
     /// The maximum number of outcomes that are batched before being sent
     /// via http to the upstream (only applies to non processing relays).
     pub batch_size: usize,
@@ -1011,9 +1034,8 @@ pub struct Outcomes {
 impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
-            emit_outcomes: false,
+            emit_outcomes: EmitOutcomes::Boolean(false),
             emit_client_outcomes: true,
-            emit_outcomes_as_client_reports: false,
             batch_size: 1000,
             batch_interval: 500,
             source: None,
@@ -1491,8 +1513,11 @@ impl Config {
     ///
     /// This is `true` either if `outcomes.emit_outcomes` is explicitly enabled, or if this Relay is
     /// in processing mode.
-    pub fn emit_outcomes(&self) -> bool {
-        self.values.outcomes.emit_outcomes || self.values.processing.enabled
+    pub fn emit_outcomes(&self) -> EmitOutcomes {
+        if self.processing_enabled() {
+            return EmitOutcomes::Boolean(true);
+        }
+        self.values.outcomes.emit_outcomes
     }
 
     /// Returns whether this Relay should emit client outcomes
@@ -1506,12 +1531,6 @@ impl Config {
     /// emitting of client outcomes to the kafka topic.
     pub fn emit_client_outcomes(&self) -> bool {
         self.values.outcomes.emit_client_outcomes
-    }
-
-    /// Returns true when generated outcomes should be converted into client reports before
-    /// sending them to the upstream.
-    pub fn emit_outcomes_as_client_reports(&self) -> bool {
-        self.values.outcomes.emit_outcomes_as_client_reports
     }
 
     /// Returns the maximum number of outcomes that are batched before being sent

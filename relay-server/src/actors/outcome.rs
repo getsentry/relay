@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use super::envelopes::SendEnvelope;
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
-use relay_config::{Config, HttpEncoding};
+use relay_config::{Config, EmitOutcomes, HttpEncoding};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_log::LogError;
@@ -593,7 +593,7 @@ mod processing {
             if self.config.processing_enabled() {
                 let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
                 self.send_kafka_message(raw_message)
-            } else if self.config.emit_outcomes() || self.config.emit_outcomes_as_client_reports() {
+            } else if self.config.emit_outcomes().any() {
                 self.send_http_message(message);
                 Ok(())
             } else {
@@ -608,7 +608,7 @@ mod processing {
             relay_log::trace!("handling raw outcome");
             if self.config.processing_enabled() {
                 self.send_kafka_message(message)
-            } else if self.config.emit_outcomes() {
+            } else if self.config.emit_outcomes().any() {
                 self.send_raw_http_message(message);
                 Ok(())
             } else {
@@ -759,29 +759,31 @@ pub struct NonProcessingOutcomeProducer {
 
 impl NonProcessingOutcomeProducer {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-        let (producer, raw_producer) = if config.emit_outcomes_as_client_reports() {
-            // We emit outcomes as client reports, and we do not
-            // accept any raw outcomes
-            relay_log::info!("Configured to emit outcomes as client reports");
-            (
-                Some(
-                    ClientReportOutcomeProducer::create(config)
-                        .start()
-                        .recipient(),
-                ),
-                None,
-            )
-        } else if config.emit_outcomes() {
-            // We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream
-            // relays.
-            relay_log::info!("Configured to emit outcomes via http");
-            let producer = HttpOutcomeProducer::create(Arc::clone(&config))?.start();
-            (
-                Some(producer.clone().recipient()),
-                Some(producer.recipient()),
-            )
-        } else {
-            (None, None)
+        let (producer, raw_producer) = match config.emit_outcomes() {
+            EmitOutcomes::Boolean(true) => {
+                // We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream
+                // relays.
+                relay_log::info!("Configured to emit outcomes via http");
+                let producer = HttpOutcomeProducer::create(Arc::clone(&config))?.start();
+                (
+                    Some(producer.clone().recipient()),
+                    Some(producer.recipient()),
+                )
+            }
+            EmitOutcomes::Boolean(false) => (None, None),
+            EmitOutcomes::AsClientReports => {
+                // We emit outcomes as client reports, and we do not
+                // accept any raw outcomes
+                relay_log::info!("Configured to emit outcomes as client reports");
+                (
+                    Some(
+                        ClientReportOutcomeProducer::create(config)
+                            .start()
+                            .recipient(),
+                    ),
+                    None,
+                )
+            }
         };
 
         Ok(Self {

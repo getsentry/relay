@@ -5,7 +5,7 @@ use std::{collections::HashMap, net::IpAddr};
 
 use actix::{Actor, AsyncContext, Context, Handler, Recipient, Supervised, SystemService};
 use relay_common::{DataCategory, UnixTimestamp};
-use relay_config::Config;
+use relay_config::{Config, EmitOutcomes};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use std::time::Duration;
@@ -55,13 +55,10 @@ pub struct OutcomeAggregator {
 
 impl OutcomeAggregator {
     pub fn new(config: &Config, outcome_producer: Recipient<TrackOutcome>) -> Self {
-        let mode = if config.emit_outcomes_as_client_reports() {
-            AggregationMode::Lossy
-        } else if config.emit_outcomes() || config.processing_enabled() {
-            AggregationMode::Lossless
-        } else {
-            // Outcomes are completely disabled, so no need to keep anything
-            AggregationMode::DropEverything
+        let mode = match config.emit_outcomes() {
+            EmitOutcomes::Boolean(true) => AggregationMode::Lossless,
+            EmitOutcomes::AsClientReports => AggregationMode::Lossy,
+            EmitOutcomes::Boolean(false) => AggregationMode::DropEverything,
         };
 
         Self {
@@ -115,7 +112,7 @@ impl Actor for OutcomeAggregator {
     fn started(&mut self, ctx: &mut Self::Context) {
         relay_log::info!("outcome aggregator started");
         if self.mode != AggregationMode::DropEverything {
-            ctx.run_interval(Duration::from_secs(self.bucket_interval), Self::flush);
+            ctx.run_interval(Duration::from_secs(self.flush_interval), Self::flush);
         }
     }
 
