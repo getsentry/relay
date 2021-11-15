@@ -16,14 +16,14 @@ pub struct ClientReport {
     pub discarded_events: Vec<DiscardedEvent>,
     /// Counters for events rate limited by a relay configured to emit outcomes as client reports
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub _server_rate_limited: Vec<DiscardedEvent>,
+    pub _server_rate_limited_events: Vec<DiscardedEvent>,
     /// Counters for events filtered by a relay configured to emit outcomes as client reports
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub _server_filtered: Vec<DiscardedEvent>,
+    pub _server_filtered_events: Vec<DiscardedEvent>,
     /// Counters for events filtered by a sampling rule,
     /// by a relay configured to emit outcomes as client reports
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub _server_filtered_sampling: Vec<DiscardedEvent>,
+    pub _server_filtered_sampling_events: Vec<DiscardedEvent>,
 }
 
 impl ClientReport {
@@ -48,7 +48,10 @@ mod tests {
   "timestamp": "2020-02-07T15:17:00Z",
   "discarded_events": [
     {"reason": "foo_reason", "category": "error", "quantity": 42},
-    {"reason": "foo_reason", "category": "transaction", "quantity": 23, "outcome": 123}
+    {"reason": "foo_reason", "category": "transaction", "quantity": 23}
+  ],
+  "_server_rate_limited_events" : [
+      {"reason": "bar_reason", "category": "session", "quantity": 456}
   ]
 }"#;
 
@@ -63,8 +66,14 @@ mod tests {
     {
       "reason": "foo_reason",
       "category": "transaction",
-      "quantity": 23,
-      "outcome": 123
+      "quantity": 23
+    }
+  ],
+  "_server_rate_limited_events": [
+    {
+      "reason": "bar_reason",
+      "category": "session",
+      "quantity": 456
     }
   ]
 }"#;
@@ -76,15 +85,20 @@ mod tests {
                     reason: "foo_reason".into(),
                     category: DataCategory::Error,
                     quantity: 42,
-                    outcome: 5,
                 },
                 DiscardedEvent {
                     reason: "foo_reason".into(),
                     category: DataCategory::Transaction,
                     quantity: 23,
-                    outcome: 123,
                 },
             ],
+            _server_rate_limited_events: vec![DiscardedEvent {
+                reason: "bar_reason".into(),
+                category: DataCategory::Session,
+                quantity: 456,
+            }],
+
+            ..Default::default()
         };
 
         let parsed = ClientReport::parse(json.as_bytes()).unwrap();

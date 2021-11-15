@@ -840,22 +840,25 @@ impl EnvelopeProcessor {
             match ClientReport::parse(&item.payload()) {
                 Ok(report) => {
                     // Glue all discarded events together and give them the appropriate outcome type
-                    let all_events =
-                        report
-                            .discarded_events
-                            .into_iter()
-                            .map(|discarded_event| (OutcomeType::ClientDiscard, discarded_event))
-                            .chain(
-                                report._server_filtered.into_iter().map(|discarded_event| {
-                                    (OutcomeType::Filtered, discarded_event)
-                                }),
-                            )
-                            .chain(report._server_filtered_sampling.into_iter().map(
-                                |discarded_event| (OutcomeType::FilteredSampling, discarded_event),
-                            ))
-                            .chain(report._server_rate_limited.into_iter().map(
-                                |discarded_event| (OutcomeType::RateLimited, discarded_event),
-                            ));
+                    let all_events = report
+                        .discarded_events
+                        .into_iter()
+                        .map(|discarded_event| (OutcomeType::ClientDiscard, discarded_event))
+                        .chain(
+                            report
+                                ._server_filtered_events
+                                .into_iter()
+                                .map(|discarded_event| (OutcomeType::Filtered, discarded_event)),
+                        )
+                        .chain(report._server_filtered_sampling_events.into_iter().map(
+                            |discarded_event| (OutcomeType::FilteredSampling, discarded_event),
+                        ))
+                        .chain(
+                            report
+                                ._server_rate_limited_events
+                                .into_iter()
+                                .map(|discarded_event| (OutcomeType::RateLimited, discarded_event)),
+                        );
 
                     for (outcome_type, discarded_event) in all_events {
                         if discarded_event.reason.len() > 200 {

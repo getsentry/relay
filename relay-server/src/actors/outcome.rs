@@ -721,15 +721,7 @@ impl Handler<TrackOutcome> for HttpOutcomeProducer {
     }
 }
 
-struct ClientReportOutcomeProducer {
-    config: Arc<Config>,
-}
-
-impl ClientReportOutcomeProducer {
-    pub fn create(config: Arc<Config>) -> Self {
-        Self { config }
-    }
-}
+struct ClientReportOutcomeProducer {}
 
 impl Actor for ClientReportOutcomeProducer {
     type Context = Context<Self>;
@@ -748,9 +740,9 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
 
         // The outcome type determines what field to place the outcome in:
         let discarded_events = match msg.outcome {
-            Outcome::Filtered(_) => &mut client_report._server_filtered,
-            Outcome::FilteredSampling(_) => &mut client_report._server_filtered_sampling,
-            Outcome::RateLimited(_) => &mut client_report._server_rate_limited,
+            Outcome::Filtered(_) => &mut client_report._server_filtered_events,
+            Outcome::FilteredSampling(_) => &mut client_report._server_filtered_sampling_events,
+            Outcome::RateLimited(_) => &mut client_report._server_rate_limited_events,
             _ => {
                 // Cannot convert this outcome to a client report.
                 return Ok(());
@@ -800,11 +792,7 @@ impl NonProcessingOutcomeProducer {
                 // accept any raw outcomes
                 relay_log::info!("Configured to emit outcomes as client reports");
                 (
-                    Some(
-                        ClientReportOutcomeProducer::create(config)
-                            .start()
-                            .recipient(),
-                    ),
+                    Some(ClientReportOutcomeProducer {}.start().recipient()),
                     None,
                 )
             }
