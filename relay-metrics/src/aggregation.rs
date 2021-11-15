@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
-use crate::statsd::{MetricGauges, MetricHistograms, MetricTimers};
+use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricTimers};
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
 /// A snapshot of values within a [`Bucket`].
@@ -983,9 +983,19 @@ impl Aggregator {
 
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
+                relay_statsd::metric!(
+                    counter(MetricCounters::MergeHit) += 1,
+                    metric_type = &entry.key().metric_type.as_str(),
+                    metric_name = &entry.key().metric_name
+                );
                 value.merge_into(&mut entry.get_mut().value)?;
             }
             Entry::Vacant(entry) => {
+                relay_statsd::metric!(
+                    counter(MetricCounters::MergeMiss) += 1,
+                    metric_type = &entry.key().metric_type.as_str(),
+                    metric_name = &entry.key().metric_name
+                );
                 let flush_at = self.config.get_flush_time(timestamp);
                 entry.insert(QueuedBucket::new(flush_at, value.into()));
             }
@@ -1002,6 +1012,11 @@ impl Aggregator {
         project_key: ProjectKey,
         metric: Metric,
     ) -> Result<(), AggregateMetricsError> {
+        relay_statsd::metric!(
+            counter(MetricCounters::InsertMetric) += 1,
+            metric_type = metric.value.ty().as_str(),
+            metric_name = &metric.name
+        );
         let key = BucketKey {
             project_key,
             timestamp: self.config.get_bucket_timestamp(metric.timestamp, 0)?,
