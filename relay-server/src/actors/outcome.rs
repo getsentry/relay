@@ -9,11 +9,13 @@ use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
+use std::borrow::{Borrow, Cow};
+use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
 use relay_config::{Config, EmitOutcomes};
@@ -23,7 +25,7 @@ use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 
-use crate::actors::envelopes::{EnvelopeManager, SendClientReport};
+use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
 use crate::ServerError;
@@ -721,10 +723,39 @@ impl Handler<TrackOutcome> for HttpOutcomeProducer {
     }
 }
 
-struct ClientReportOutcomeProducer {}
+struct ClientReportOutcomeProducer {
+    flush_interval: Duration,
+    unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
+}
+
+impl ClientReportOutcomeProducer {
+    fn create(config: &Config) -> Self {
+        Self {
+            // Use same batch interval as http outcome producer:
+            flush_interval: config.outcome_batch_interval(),
+            unsent_reports: BTreeMap::new(),
+        }
+    }
+
+    fn flush(&mut self, _ctx: &mut Context<Self>) {
+        relay_log::trace!("Flushing client reports");
+        let unsent_reports = mem::take(&mut self.unsent_reports);
+        let envelope_manager = EnvelopeManager::from_registry();
+        for (scoping, client_reports) in unsent_reports.into_iter() {
+            envelope_manager.do_send(SendClientReports {
+                client_reports,
+                scoping,
+            });
+        }
+    }
+}
 
 impl Actor for ClientReportOutcomeProducer {
     type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        ctx.run_interval(self.flush_interval, Self::flush);
+    }
 }
 
 impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
@@ -757,14 +788,11 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
         };
         discarded_events.push(discarded_event);
 
-        relay_log::trace!("Sending client report");
-        // Assuming it is not necessary to batch requests here (like HttpOutcomeProducer does),
-        // because outcomes were already aggregated by `OutcomeAggregator`
-        // TODO: verify that client report actually lands in upstream
-        EnvelopeManager::from_registry().do_send(SendClientReport {
-            client_report,
-            scoping: msg.scoping,
-        });
+        self.unsent_reports
+            .entry(msg.scoping)
+            .or_default()
+            .push(client_report);
+
         Ok(())
     }
 }
@@ -792,7 +820,11 @@ impl NonProcessingOutcomeProducer {
                 // accept any raw outcomes
                 relay_log::info!("Configured to emit outcomes as client reports");
                 (
-                    Some(ClientReportOutcomeProducer {}.start().recipient()),
+                    Some(
+                        ClientReportOutcomeProducer::create(config.borrow())
+                            .start()
+                            .recipient(),
+                    ),
                     None,
                 )
             }

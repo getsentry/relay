@@ -2686,23 +2686,23 @@ impl Handler<SendMetrics> for EnvelopeManager {
 }
 
 /// Sends a client report to the upstream
-pub struct SendClientReport {
+pub struct SendClientReports {
     /// The client report to be sent.
-    pub client_report: ClientReport,
+    pub client_reports: Vec<ClientReport>,
     /// Scoping information for the client report.
     pub scoping: Scoping,
 }
 
-impl Message for SendClientReport {
+impl Message for SendClientReports {
     type Result = Result<(), ()>;
 }
 
-impl Handler<SendClientReport> for EnvelopeManager {
+impl Handler<SendClientReports> for EnvelopeManager {
     type Result = ResponseFuture<(), ()>;
 
-    fn handle(&mut self, message: SendClientReport, _context: &mut Self::Context) -> Self::Result {
-        let SendClientReport {
-            client_report,
+    fn handle(&mut self, message: SendClientReports, _context: &mut Self::Context) -> Self::Result {
+        let SendClientReports {
+            client_reports,
             scoping,
         } = message;
 
@@ -2716,11 +2716,12 @@ impl Handler<SendClientReport> for EnvelopeManager {
             project_id: Some(scoping.project_id),
         };
 
-        let mut item = Item::new(ItemType::ClientReport);
-        item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
-        envelope.add_item(item);
-
+        for client_report in client_reports {
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
+            envelope.add_item(item);
+        }
         let future = self
             .send_envelope(scoping.project_key, envelope, scoping, Instant::now())
             .map_err(|e| {
