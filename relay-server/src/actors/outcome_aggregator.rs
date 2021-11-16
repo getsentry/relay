@@ -156,7 +156,6 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
             return Ok(());
         }
 
-        // TODO: timestamp validation? (min, max)
         let offset = msg.timestamp.timestamp() as u64 / self.bucket_interval;
 
         let bucket_key = BucketKey {

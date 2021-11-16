@@ -825,7 +825,7 @@ impl EnvelopeProcessor {
         }
 
         let mut timestamp = None;
-        let mut discarded_events = BTreeMap::new();
+        let mut output_events = BTreeMap::new();
         let received = state.envelope_context.received_at;
 
         let clock_drift_processor = ClockDriftProcessor::new(state.envelope.sent_at(), received)
@@ -838,34 +838,36 @@ impl EnvelopeProcessor {
                 return true;
             };
             match ClientReport::parse(&item.payload()) {
-                Ok(report) => {
+                Ok(ClientReport {
+                    timestamp: report_timestamp,
+                    discarded_events,
+                    rate_limited_events,
+                    filtered_events,
+                    filtered_sampling_events,
+                }) => {
                     // Glue all discarded events together and give them the appropriate outcome type
-                    let all_events = report
-                        .discarded_events
-                        .into_iter()
-                        .map(|discarded_event| (OutcomeType::ClientDiscard, discarded_event))
-                        .chain(
-                            report
-                                ._server_filtered_events
-                                .into_iter()
-                                .map(|discarded_event| (OutcomeType::Filtered, discarded_event)),
-                        )
-                        .chain(report._server_filtered_sampling_events.into_iter().map(
-                            |discarded_event| (OutcomeType::FilteredSampling, discarded_event),
-                        ))
-                        .chain(
-                            report
-                                ._server_rate_limited_events
-                                .into_iter()
-                                .map(|discarded_event| (OutcomeType::RateLimited, discarded_event)),
-                        );
+                    let input_events =
+                        discarded_events
+                            .into_iter()
+                            .map(|discarded_event| (OutcomeType::ClientDiscard, discarded_event))
+                            .chain(
+                                filtered_events.into_iter().map(|discarded_event| {
+                                    (OutcomeType::Filtered, discarded_event)
+                                }),
+                            )
+                            .chain(filtered_sampling_events.into_iter().map(|discarded_event| {
+                                (OutcomeType::FilteredSampling, discarded_event)
+                            }))
+                            .chain(rate_limited_events.into_iter().map(|discarded_event| {
+                                (OutcomeType::RateLimited, discarded_event)
+                            }));
 
-                    for (outcome_type, discarded_event) in all_events {
+                    for (outcome_type, discarded_event) in input_events {
                         if discarded_event.reason.len() > 200 {
                             relay_log::trace!("ignored client outcome with an overlong reason");
                             continue;
                         }
-                        *discarded_events
+                        *output_events
                             .entry((
                                 outcome_type,
                                 discarded_event.reason,
@@ -873,7 +875,7 @@ impl EnvelopeProcessor {
                             ))
                             .or_insert(0) += discarded_event.quantity;
                     }
-                    if let Some(ts) = report.timestamp {
+                    if let Some(ts) = report_timestamp {
                         timestamp.get_or_insert(ts);
                     }
                 }
@@ -882,7 +884,7 @@ impl EnvelopeProcessor {
             false
         });
 
-        if discarded_events.is_empty() {
+        if output_events.is_empty() {
             return;
         }
 
@@ -913,7 +915,7 @@ impl EnvelopeProcessor {
         }
 
         let producer = OutcomeAggregator::from_registry();
-        for ((outcome_type, reason, category), quantity) in discarded_events.into_iter() {
+        for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
             let outcome = match Outcome::from_outcome_type(outcome_type, &reason) {
                 Ok(outcome) => outcome,
                 Err(_) => {
@@ -2036,7 +2038,7 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
 }
 
 #[derive(Debug)]
-pub(super) struct SendEnvelope {
+struct SendEnvelope {
     envelope_body: Vec<u8>,
     envelope_meta: RequestMeta,
     scoping: Scoping,

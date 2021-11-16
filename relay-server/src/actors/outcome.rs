@@ -70,6 +70,17 @@ pub struct SendOutcomesResponse {
 trait TrackOutcomeLike: Message {
     fn reason(&self) -> Option<Cow<str>>;
     fn outcome_id(&self) -> u8;
+
+    fn tag_name(&self) -> &'static str {
+        match self.outcome_id() {
+            1 => "filtered",
+            2 => "rate_limited",
+            3 => "invalid",
+            4 => "abuse",
+            5 => "client_discard",
+            _ => "<unknown>",
+        }
+    }
 }
 
 /// Tracks an outcome of an event.
@@ -187,7 +198,7 @@ impl Outcome {
                     Err(())
                 }
             }
-            // TODO: other types we want to support via client reports
+            // FIXME: other types we want to support via client reports + unit tests
             OutcomeType::ClientDiscard => Ok(Self::ClientDiscard(reason.into())),
             _ => Err(()),
         }
@@ -444,26 +455,15 @@ mod processing {
         SerializationError(SerdeSerializationError),
     }
 
-    fn tag_name<M: TrackOutcomeLike>(message: &M) -> &'static str {
-        match message.outcome_id() {
-            1 => "filtered",
-            2 => "rate_limited",
-            3 => "invalid",
-            4 => "abuse",
-            5 => "client_discard",
-            _ => "<unknown>",
-        }
-    }
-
     pub struct ProcessingOutcomeProducer {
         config: Arc<Config>,
         producer: Option<ThreadedProducer>,
-        http_producer: Option<Addr<NonProcessingOutcomeProducer>>,
+        non_processing_producer: Option<Addr<NonProcessingOutcomeProducer>>,
     }
 
     impl ProcessingOutcomeProducer {
         pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-            let (future_producer, http_producer) = if config.processing_enabled() {
+            let (future_producer, non_processing_producer) = if config.processing_enabled() {
                 let mut client_config = ClientConfig::new();
                 for config_p in config
                     .kafka_config(KafkaTopic::Outcomes)
@@ -477,20 +477,20 @@ mod processing {
                     .context(ServerErrorKind::KafkaError)?;
                 (Some(future_producer), None)
             } else {
-                let http_producer = NonProcessingOutcomeProducer::create(config.clone())
+                let non_processing_producer = NonProcessingOutcomeProducer::create(config.clone())
                     .map(|producer| producer.start())
                     .map_err(|error| {
                         relay_log::error!("Failed to start http producer: {}", LogError(&error));
                         error
                     })
                     .ok();
-                (None, http_producer)
+                (None, non_processing_producer)
             };
 
             Ok(Self {
                 config,
                 producer: future_producer,
-                http_producer,
+                non_processing_producer,
             })
         }
 
@@ -508,7 +508,7 @@ mod processing {
             metric!(
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason.as_deref().unwrap_or(""),
-                outcome = tag_name(&message),
+                outcome = message.tag_name(),
                 to = "kafka",
             );
 
@@ -531,7 +531,7 @@ mod processing {
         fn send_http_message(&self, message: TrackOutcome) {
             relay_log::trace!("Tracking http outcome: {:?}", &message);
 
-            let producer = match self.http_producer {
+            let producer = match self.non_processing_producer {
                 Some(ref producer) => producer,
                 None => {
                     relay_log::error!("send_http_message called with invalid http_producer");
@@ -542,7 +542,7 @@ mod processing {
             metric!(
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason().as_deref().unwrap_or(""),
-                outcome = tag_name(&message),
+                outcome = message.tag_name(),
                 to = "http",
             );
 
@@ -552,7 +552,7 @@ mod processing {
         fn send_raw_http_message(&self, message: TrackRawOutcome) {
             relay_log::trace!("Tracking raw http outcome: {:?}", message);
 
-            let producer = match self.http_producer {
+            let producer = match self.non_processing_producer {
                 Some(ref producer) => producer,
                 None => {
                     relay_log::error!("send_http_message called with invalid http_producer");
@@ -563,7 +563,7 @@ mod processing {
             metric!(
                 counter(RelayCounters::Outcomes) += 1,
                 reason = message.reason.as_deref().unwrap_or(""),
-                outcome = tag_name(&message),
+                outcome = message.tag_name(),
                 to = "http",
             );
 
@@ -637,7 +637,7 @@ mod processing {
 #[derive(Debug)]
 pub enum OutcomeError {}
 
-pub struct HttpOutcomeProducer {
+struct HttpOutcomeProducer {
     pub(super) config: Arc<Config>,
     pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
     pub(super) pending_flush_handle: Option<SpawnHandle>,
@@ -740,9 +740,9 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
 
         // The outcome type determines what field to place the outcome in:
         let discarded_events = match msg.outcome {
-            Outcome::Filtered(_) => &mut client_report._server_filtered_events,
-            Outcome::FilteredSampling(_) => &mut client_report._server_filtered_sampling_events,
-            Outcome::RateLimited(_) => &mut client_report._server_rate_limited_events,
+            Outcome::Filtered(_) => &mut client_report.filtered_events,
+            Outcome::FilteredSampling(_) => &mut client_report.filtered_sampling_events,
+            Outcome::RateLimited(_) => &mut client_report.rate_limited_events,
             _ => {
                 // Cannot convert this outcome to a client report.
                 return Ok(());
