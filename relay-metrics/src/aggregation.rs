@@ -985,7 +985,7 @@ impl Aggregator {
             Entry::Occupied(mut entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeHit) += 1,
-                    metric_type = &entry.key().metric_type.as_str(),
+                    metric_type = entry.key().metric_type.as_str(),
                     metric_name = &entry.key().metric_name
                 );
                 value.merge_into(&mut entry.get_mut().value)?;
@@ -993,7 +993,7 @@ impl Aggregator {
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeMiss) += 1,
-                    metric_type = &entry.key().metric_type.as_str(),
+                    metric_type = entry.key().metric_type.as_str(),
                     metric_name = &entry.key().metric_name
                 );
                 let flush_at = self.config.get_flush_time(timestamp);
