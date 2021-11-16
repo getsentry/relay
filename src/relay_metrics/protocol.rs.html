@@ -753,6 +753,13 @@
 <span id="753">753</span>
 <span id="754">754</span>
 <span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::iter::FusedIterator</span>;
@@ -926,14 +933,21 @@
     <span class="ident">Gauge</span>,
 }
 
+<span class="kw">impl</span> <span class="ident">MetricType</span> {
+    <span class="doccomment">/// Return the shortcode for this metric type.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident">MetricType::Counter</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;c&quot;</span>,
+            <span class="ident">MetricType::Distribution</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;d&quot;</span>,
+            <span class="ident">MetricType::Set</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;s&quot;</span>,
+            <span class="ident">MetricType::Gauge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;g&quot;</span>,
+        }
+    }
+}
+
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricType</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">MetricType::Counter</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;c&quot;</span>),
-            <span class="ident">MetricType::Distribution</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;d&quot;</span>),
-            <span class="ident">MetricType::Set</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;s&quot;</span>),
-            <span class="ident">MetricType::Gauge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;g&quot;</span>),
-        }
+        <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="self">self</span>.<span class="ident">as_str</span>())
     }
 }
 

@@ -53,7 +53,63 @@
 <span id="53">53</span>
 <span id="54">54</span>
 <span id="55">55</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">TimerMetric</span>};
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">TimerMetric</span>};
+
+<span class="doccomment">/// Counter metrics for Relay Metrics.</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricCounters</span> {
+    <span class="doccomment">/// Incremented for every metric that is inserted.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Tagged by metric type and name.</span>
+    <span class="ident">InsertMetric</span>,
+
+    <span class="doccomment">/// Incremented every time two buckets or two metrics are merged.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Tagged by metric type and name.</span>
+    <span class="ident">MergeHit</span>,
+
+    <span class="doccomment">/// Incremented every time a bucket is created.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Tagged by metric type and name.</span>
+    <span class="ident">MergeMiss</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">CounterMetric</span> <span class="kw">for</span> <span class="ident">MetricCounters</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident"><span class="self">Self</span>::InsertMetric</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.insert&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::MergeHit</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.buckets.merge.hit&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::MergeMiss</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.buckets.merge.miss&quot;</span>,
+        }
+    }
+}
 
 <span class="doccomment">/// Timer metrics for Relay Metrics.</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricTimers</span> {
