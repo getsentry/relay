@@ -218,6 +218,15 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
     let log = sentry::integrations::log::SentryLogger::with_dest(dest_log);
     log::set_boxed_logger(Box::new(log)).ok();
 
+    let release = sentry::release_name!();
+    #[cfg(feature = "relay-crash")]
+    {
+        relay_crash::init(
+            sentry.dsn.as_ref().map(|d| d.to_string()),
+            release.as_deref(),
+        );
+    }
+
     let guard = sentry::init(sentry::ClientOptions {
         dsn: sentry.dsn.clone().filter(|_| sentry.enabled),
         in_app_include: vec![
@@ -232,7 +241,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             "relay::",
         ],
         integrations: vec![Arc::new(FailureIntegration::new())],
-        release: sentry::release_name!(),
+        release,
         attach_stacktrace: config.enable_backtraces,
         ..Default::default()
     });

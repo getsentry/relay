@@ -34,6 +34,7 @@
 //!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Configuration for the CLI and server.
+//!  - [`relay-crash`]: Crash reporting for the Relay server.
 //!  - [`relay-ffi`]: Utilities for error handling in FFI bindings.
 //!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
 //!  - [`relay-filter`]: Inbound data filters.
@@ -62,6 +63,7 @@
 //! [`relay-cabi`]: ../relay_cabi/index.html
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
+//! [`relay-crash`]: ../relay_crash/index.html
 //! [`relay-ffi`]: ../relay_ffi/index.html
 //! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
 //! [`relay-filter`]: ../relay_filter/index.html

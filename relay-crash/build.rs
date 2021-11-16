@@ -1,0 +1,51 @@
+use std::path::PathBuf;
+
+fn main() {
+    // sentry-native dependencies
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
+    match target_os.as_str() {
+        "macos" => {
+            println!("cargo:rustc-link-lib=curl");
+            println!("cargo:rustc-link-lib=dylib=c++");
+        }
+        "linux" => {
+            println!("cargo:rustc-link-lib=curl");
+            println!("cargo:rustc-link-lib=dylib=stdc++");
+        }
+        _ => {
+            unimplemented!("crash-handler is not supported on this platform");
+        }
+    }
+
+    let destination = cmake::Config::new("sentry-native")
+        // we never need a debug build of sentry-native
+        .profile("RelWithDebInfo")
+        // simplest option, breakpad is functional on all platforms
+        .define("SENTRY_BACKEND", "breakpad")
+        // build a static library
+        .define("BUILD_SHARED_LIBS", "OFF")
+        // disable additional targets
+        .define("SENTRY_BUILD_TESTS", "OFF")
+        .define("SENTRY_BUILD_EXAMPLES", "OFF")
+        .build();
+
+    println!(
+        "cargo:rustc-link-search=native={}",
+        destination.join("lib").display()
+    );
+    println!("cargo:rustc-link-lib=static=breakpad_client");
+    println!("cargo:rustc-link-lib=static=sentry");
+
+    let bindings = bindgen::Builder::default()
+        .header("sentry-native/include/sentry.h")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .generate()
+        .expect("Unable to generate bindings");
+
+    let out_path = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    bindings
+        .write_to_file(out_path.join("bindings.rs"))
+        .expect("Couldn't write bindings!");
+
+    println!("cargo:rerun-if-changed=sentry-native/include/sentry.h");
+}
