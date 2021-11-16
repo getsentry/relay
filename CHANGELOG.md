@@ -15,6 +15,7 @@
 **Internal**:
 
 - Aggregate client reports before sending them onwards. ([#1118](https://github.com/getsentry/relay/pull/1118))
+- Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124))
 
 ## 21.10.0
 

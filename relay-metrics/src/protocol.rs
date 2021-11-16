@@ -171,14 +171,21 @@ pub enum MetricType {
     Gauge,
 }
 
+impl MetricType {
+    /// Return the shortcode for this metric type.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MetricType::Counter => "c",
+            MetricType::Distribution => "d",
+            MetricType::Set => "s",
+            MetricType::Gauge => "g",
+        }
+    }
+}
+
 impl fmt::Display for MetricType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MetricType::Counter => f.write_str("c"),
-            MetricType::Distribution => f.write_str("d"),
-            MetricType::Set => f.write_str("s"),
-            MetricType::Gauge => f.write_str("g"),
-        }
+        f.write_str(self.as_str())
     }
 }
 
