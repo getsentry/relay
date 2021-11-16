@@ -459,9 +459,8 @@ def test_transaction_metrics(
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
         "project_id": 42,
-        'tags': {'transaction': '/organizations/:orgId/performance/:eventSlug/'},
+        "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
     }
-
 
     assert metrics["measurement.foo"] == {
         **common,
