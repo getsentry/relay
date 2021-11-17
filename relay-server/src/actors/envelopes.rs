@@ -471,7 +471,7 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
             let name = format!("measurement.{}", name);
             tags.insert(
                 "measurement_rating".to_owned(),
-                get_measurement_rating(name, measurement),
+                get_measurement_rating(&name, measurement),
             );
 
             target.push(Metric {
@@ -3319,13 +3319,16 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 4);
+        assert_eq!(metrics.len(), 5);
 
         assert_eq!(metrics[0].name, "measurement.foo");
         assert_eq!(metrics[1].name, "measurement.lcp");
-        assert_eq!(metrics[1].name, "breakdown.breakdown1.bar");
-        assert_eq!(metrics[2].name, "breakdown.breakdown2.baz");
-        assert_eq!(metrics[3].name, "breakdown.breakdown2.zap");
+        assert_eq!(metrics[2].name, "breakdown.breakdown1.bar");
+        assert_eq!(metrics[3].name, "breakdown.breakdown2.baz");
+        assert_eq!(metrics[4].name, "breakdown.breakdown2.zap");
+
+        assert_eq!(metrics[0].tags["measurement_rating"], "unknown");
+        assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
         for metric in metrics {
             assert!(matches!(metric.value, MetricValue::Distribution(_)));
@@ -3333,9 +3336,6 @@ mod tests {
             assert_eq!(metric.tags["environment"], "fake_environment");
             assert_eq!(metric.tags["transaction"], "mytransaction");
         }
-
-        assert_eq!(metrics[0].tags["measurement_rating"], "unknown");
-        assert_eq!(metrics[1].tags["measurement_rating"], "meh");
     }
 
     #[test]
