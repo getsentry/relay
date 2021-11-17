@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Another statsd metric to measure bucket duplication. ([#1128](https://github.com/getsentry/relay/pull/1128))
+
 ## 21.11.0
 
 **Features**:
