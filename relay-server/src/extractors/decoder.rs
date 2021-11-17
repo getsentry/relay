@@ -6,7 +6,7 @@ use actix_web::http::header::CONTENT_ENCODING;
 use actix_web::{HttpMessage, HttpRequest};
 use brotli2::write::BrotliDecoder;
 use bytes::Bytes;
-use flate2::write::{DeflateDecoder, GzDecoder};
+use flate2::write::{GzDecoder, ZlibDecoder};
 use futures::{Async, Poll, Stream};
 use relay_config::HttpEncoding;
 
@@ -76,6 +76,7 @@ fn write_overflowing<W: Write>(write: &mut W, slice: &[u8]) -> io::Result<bool> 
     match write.write_all(slice).and_then(|()| write.flush()) {
         Ok(()) => Ok(false),
         Err(e) => match e.kind() {
+            io::ErrorKind::WouldBlock => Ok(false), // effectively continue
             io::ErrorKind::WriteZero => Ok(true),
             _ => Err(e),
         },
@@ -87,7 +88,7 @@ enum DecoderInner {
     Identity(Box<Sink>),
     Br(Box<BrotliDecoder<Sink>>),
     Gzip(Box<GzDecoder<Sink>>),
-    Deflate(Box<DeflateDecoder<Sink>>),
+    Deflate(Box<ZlibDecoder<Sink>>),
 }
 
 /// Stateful decoder for all supported [`HttpEncoding`]s.
@@ -124,7 +125,7 @@ impl Decoder {
             HttpEncoding::Identity => DecoderInner::Identity(Box::new(sink)),
             HttpEncoding::Br => DecoderInner::Br(Box::new(BrotliDecoder::new(sink))),
             HttpEncoding::Gzip => DecoderInner::Gzip(Box::new(GzDecoder::new(sink))),
-            HttpEncoding::Deflate => DecoderInner::Deflate(Box::new(DeflateDecoder::new(sink))),
+            HttpEncoding::Deflate => DecoderInner::Deflate(Box::new(ZlibDecoder::new(sink))),
         };
 
         Self { inner }
@@ -146,11 +147,30 @@ impl Decoder {
         }
     }
 
+    /// Finish decoding the output stream and validate checksums, returning the final bytes.
+    ///
+    /// This may only be called a single time at the end of decoding. Attempts to write data to this
+    /// decoder may result in a panic after this function is called.
+    pub fn finish(&mut self) -> io::Result<Bytes> {
+        Ok(match &mut self.inner {
+            DecoderInner::Identity(inner) => inner.take(),
+            DecoderInner::Br(inner) => inner.finish()?.take(),
+            DecoderInner::Gzip(inner) => {
+                inner.try_finish()?;
+                inner.get_mut().take()
+            }
+            DecoderInner::Deflate(inner) => {
+                inner.try_finish()?;
+                inner.get_mut().take()
+            }
+        })
+    }
+
     /// Returns decoded bytes from the Decoder's buffer.
     ///
     /// This can be called at any time during decoding. However, the limit stated during
     /// initialization remains in effect across the entire decoded payload.
-    pub fn take(&mut self) -> Bytes {
+    fn take(&mut self) -> Bytes {
         match &mut self.inner {
             DecoderInner::Identity(inner) => inner.take(),
             DecoderInner::Br(inner) => inner.get_mut().take(),
@@ -195,22 +215,26 @@ impl Stream for DecodingPayload {
     type Error = <SharedPayload as Stream>::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        let encoded = match self.payload.poll() {
-            Ok(Async::Ready(Some(encoded))) => encoded,
-            Ok(Async::Ready(None)) => return Ok(Async::Ready(None)),
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
-            Err(error) => return Err(error),
-        };
+        loop {
+            let encoded = match self.payload.poll()? {
+                Async::Ready(Some(encoded)) => encoded,
+                Async::Ready(None) => {
+                    let chunk = self.decoder.finish()?;
+                    return Ok(Async::Ready(Some(chunk).filter(|c| !c.is_empty())));
+                }
+                Async::NotReady => return Ok(Async::NotReady),
+            };
 
-        if self.decoder.decode(encoded)? {
-            Err(PayloadError::Overflow)
-        } else {
+            if self.decoder.decode(encoded)? {
+                return Err(PayloadError::Overflow);
+            }
+
             let chunk = self.decoder.take();
-            Ok(Async::Ready(if chunk.is_empty() {
-                None
-            } else {
-                Some(chunk)
-            }))
+            if !chunk.is_empty() {
+                return Ok(Async::Ready(Some(chunk)));
+            }
+
+            // loop until the input stream is exhausted
         }
     }
 }

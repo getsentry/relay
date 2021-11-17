@@ -434,6 +434,9 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
     }
+    if let Some(transaction) = event.transaction.as_str() {
+        tags.insert("transaction".to_owned(), transaction.to_owned());
+    }
 
     if let Some(measurements) = event.measurements.value() {
         for (name, annotated) in measurements.iter() {
@@ -3352,6 +3355,7 @@ mod tests {
             "timestamp": "2021-04-26T08:00:00+0100",
             "release": "1.2.3",
             "environment": "fake_environment",
+            "transaction": "mytransaction",
             "measurements": {
                 "foo": {"value": 420.69}
             },
@@ -3382,6 +3386,7 @@ mod tests {
             assert!(matches!(metric.value, MetricValue::Distribution(_)));
             assert_eq!(metric.tags["release"], "1.2.3");
             assert_eq!(metric.tags["environment"], "fake_environment");
+            assert_eq!(metric.tags["transaction"], "mytransaction");
         }
     }
 

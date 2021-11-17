@@ -1,7 +1,9 @@
 import queue
 import os
+import gzip
 import pytest
 import signal
+import zlib
 import subprocess
 
 
@@ -183,3 +185,19 @@ def test_zipbomb_content_encoding(mini_sentry, relay, route, status_code):
         )
 
     assert response.status_code == status_code
+
+
+@pytest.mark.parametrize("content_encoding", ["gzip", "deflate"])
+def test_compression(mini_sentry, relay, content_encoding):
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        "/api/42/store/?sentry_key=%s" % mini_sentry.get_dsn_public_key(project_id),
+        headers={"content-encoding": content_encoding},
+        data={"deflate": zlib.compress, "gzip": gzip.compress,}[content_encoding](
+            b'{"message": "hello world"}'
+        ),
+    )
+    response.raise_for_status()

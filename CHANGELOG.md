@@ -1,21 +1,22 @@
 # Changelog
 
-## Unreleased
+## 21.11.0
 
 **Features**:
 
 - Add bucket width to bucket protocol. ([#1103](https://github.com/getsentry/relay/pull/1103))
-- Support multiple kafka cluster configurations ([#1101](https://github.com/getsentry/relay/pull/1101))
+- Support multiple kafka cluster configurations. ([#1101](https://github.com/getsentry/relay/pull/1101))
+- Tag metrics by transaction name. ([#1126](https://github.com/getsentry/relay/pull/1126))
 
 **Bug Fixes**:
 
-- Avoid unbounded decompression of encoded requests. A particular request crafted to inflate to large amounts of memory, such as a zip bomb, could put Relay out of memory. ([#1117](https://github.com/getsentry/relay/pull/1117))
+- Avoid unbounded decompression of encoded requests. A particular request crafted to inflate to large amounts of memory, such as a zip bomb, could put Relay out of memory. ([#1117](https://github.com/getsentry/relay/pull/1117), [#1122](https://github.com/getsentry/relay/pull/1122), [#1123](https://github.com/getsentry/relay/pull/1123))
 - Avoid unbounded decompression of UE4 crash reports. Some crash reports could inflate to large amounts of memory before being checked for size, which could put Relay out of memory. ([#1121](https://github.com/getsentry/relay/pull/1121))
-
 
 **Internal**:
 
 - Aggregate client reports before sending them onwards. ([#1118](https://github.com/getsentry/relay/pull/1118))
+- Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124))
 
 ## 21.10.0
 
