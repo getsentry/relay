@@ -1,4 +1,24 @@
-use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
+
+pub enum MetricSets {
+    /// Count the number of unique buckets created.
+    ///
+    /// This is a set of bucketing keys. The metric is basically equivalent to
+    /// `metrics.buckets.merge.miss` for a single Relay, but could be useful to determine how much
+    /// duplicate buckets there are when multiple instances are running.
+    ///
+    /// The hashing is platform-dependent at the moment, so all your relays that send this metric
+    /// should run on the same CPU architecture, otherwise this metric is not reliable.
+    UniqueBucketsCreated,
+}
+
+impl SetMetric for MetricSets {
+    fn name(&self) -> &'static str {
+        match *self {
+            Self::UniqueBucketsCreated => "metrics.buckets.created.unique",
+        }
+    }
+}
 
 /// Counter metrics for Relay Metrics.
 pub enum MetricCounters {

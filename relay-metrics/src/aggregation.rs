@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
-use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricTimers};
+use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
 
 /// A snapshot of values within a [`Bucket`].
@@ -706,6 +706,24 @@ struct BucketKey {
     tags: BTreeMap<String, String>,
 }
 
+impl BucketKey {
+    /// An extremely hamfisted way to hash a bucket key into an integer.
+    ///
+    /// This is necessary for (and probably only useful for) reporting unique bucket keys in a
+    /// cadence set metric, as cadence set metrics can only be constructed from values that
+    /// implement [`cadence::ext::ToSetValue`].  This type is only implemented for [`i64`], and
+    /// while we could implement it directly for [`BucketKey`] the documentation advises us not to
+    /// interact with this trait.
+    ///
+    fn as_integer_lossy(&self) -> i64 {
+        // XXX: The way this hasher is used may be platform-dependent. If we want to produce the
+        // same hash across platforms, the `deterministic_hash` crate may be useful.
+        let mut hasher = crc32fast::Hasher::new();
+        std::hash::Hash::hash(self, &mut hasher);
+        hasher.finalize() as i64
+    }
+}
+
 /// Parameters used by the [`Aggregator`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
@@ -996,6 +1014,12 @@ impl Aggregator {
                     metric_type = entry.key().metric_type.as_str(),
                     metric_name = &entry.key().metric_name
                 );
+                relay_statsd::metric!(
+                    set(MetricSets::UniqueBucketsCreated) = entry.key().as_integer_lossy(),
+                    metric_type = entry.key().metric_type.as_str(),
+                    metric_name = &entry.key().metric_name
+                );
+
                 let flush_at = self.config.get_flush_time(timestamp);
                 entry.insert(QueuedBucket::new(flush_at, value.into()));
             }
