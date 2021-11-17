@@ -736,8 +736,8 @@ struct ClientReportOutcomeProducer {
 impl ClientReportOutcomeProducer {
     fn create(config: &Config) -> Self {
         Self {
-            // Use same batch interval as http outcome producer:
-            flush_interval: config.outcome_batch_interval(),
+            // Use same batch interval as outcome aggregator
+            flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
             unsent_reports: BTreeMap::new(),
         }
     }

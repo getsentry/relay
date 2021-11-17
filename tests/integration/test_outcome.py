@@ -586,7 +586,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
 
     _send_event(downstream, event_type="error")
 
-    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=2.2)
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
 
     outcomes = outcomes_batch.get("outcomes")
