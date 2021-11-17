@@ -470,7 +470,7 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
             let name = format!("measurement.{}", name);
             let mut tags = tags.clone();
             if let Some(rating) = get_measurement_rating(&name, measurement) {
-                tags.insert("measurement_rating".to_owned());
+                tags.insert("measurement_rating".to_owned(), rating);
             }
 
             target.push(Metric {
