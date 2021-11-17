@@ -11,7 +11,7 @@ use futures::future::Future;
 use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, Cow};
 use std::collections::BTreeMap;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -200,9 +200,14 @@ impl Outcome {
                     Err(())
                 }
             }
-            // FIXME: other types we want to support via client reports + unit tests
             OutcomeType::ClientDiscard => Ok(Self::ClientDiscard(reason.into())),
-            _ => Err(()),
+            OutcomeType::Filtered => Ok(Self::Filtered(
+                FilterStatKey::try_from(reason).map_err(|_| ())?,
+            )),
+            OutcomeType::RateLimited => Ok(Self::RateLimited(match reason {
+                "" => None,
+                other => Some(ReasonCode::new(other)),
+            })),
         }
     }
 }
@@ -875,5 +880,61 @@ impl Handler<TrackRawOutcome> for NonProcessingOutcomeProducer {
             producer.do_send(message).ok();
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_from_outcome_type_sampled() {
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "adsf"),
+            Err(_)
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:"),
+            Err(_)
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:foo"),
+            Err(_)
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(RuleId(123)))
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_filtered() {
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::Filtered, "error-message"),
+            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::Filtered, "adsf"),
+            Err(_)
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_client_discard() {
+        assert_eq!(
+            Outcome::from_outcome_type(OutcomeType::ClientDiscard, "foo_reason").unwrap(),
+            Outcome::ClientDiscard("foo_reason".into())
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_rate_limited() {
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::RateLimited, ""),
+            Ok(Outcome::RateLimited(None))
+        ));
+        assert_eq!(
+            Outcome::from_outcome_type(OutcomeType::RateLimited, "foo_reason").unwrap(),
+            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
+        );
     }
 }
