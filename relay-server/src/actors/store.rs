@@ -18,7 +18,7 @@ use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_log::LogError;
-use relay_metrics::{Bucket, BucketValue, MetricUnit};
+use relay_metrics::{Bucket, BucketValue, MetricUnit, Str as MetricStr};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 
@@ -565,13 +565,13 @@ struct SessionKafkaMessage {
 struct MetricKafkaMessage {
     org_id: u64,
     project_id: ProjectId,
-    name: String,
+    name: MetricStr,
     unit: MetricUnit,
     #[serde(flatten)]
     value: BucketValue,
     timestamp: UnixTimestamp,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    tags: BTreeMap<String, String>,
+    tags: BTreeMap<MetricStr, MetricStr>,
 }
 
 /// An enum over all possible ingest messages.

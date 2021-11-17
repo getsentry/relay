@@ -427,15 +427,15 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
         None => return,
     };
 
-    let mut tags = BTreeMap::new();
+    let mut tags: BTreeMap<MetricStr, MetricStr> = BTreeMap::new();
     if let Some(release) = event.release.as_str() {
-        tags.insert("release".to_owned(), release.to_owned());
+        tags.insert("release".into(), release.to_owned().into());
     }
     if let Some(environment) = event.environment.as_str() {
-        tags.insert("environment".to_owned(), environment.to_owned());
+        tags.insert("environment".into(), environment.to_owned().into());
     }
     if let Some(transaction) = event.transaction.as_str() {
-        tags.insert("transaction".to_owned(), transaction.to_owned());
+        tags.insert("transaction".into(), transaction.to_owned().into());
     }
 
     if let Some(measurements) = event.measurements.value() {
@@ -446,7 +446,7 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
             };
 
             target.push(Metric {
-                name: format!("measurement.{}", name),
+                name: format!("measurement.{}", name).into(),
                 unit: MetricUnit::None,
                 value: MetricValue::Distribution(measurement),
                 timestamp,
@@ -469,7 +469,7 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
                 };
 
                 target.push(Metric {
-                    name: format!("breakdown.{}.{}", breakdown, name),
+                    name: format!("breakdown.{}.{}", breakdown, name).into(),
                     unit: MetricUnit::None,
                     value: MetricValue::Distribution(measurement),
                     timestamp,
