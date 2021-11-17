@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::iter::FusedIterator;
@@ -6,6 +7,10 @@ use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
 
 pub use relay_common::UnixTimestamp;
+
+/// Use this instead of String. A lot of our tag keys and metric names come directly from string
+/// literals.
+pub type Str = Cow<'static, str>;
 
 /// Time duration units used in [`MetricUnit::Duration`].
 ///
@@ -289,14 +294,14 @@ fn parse_name_unit_value(
 /// Parses tags in the format `tag1,tag2:value`.
 ///
 /// Tag values are optional. For tags with missing values, an empty `""` value is assumed.
-fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
+fn parse_tags(string: &str) -> Option<BTreeMap<Str, Str>> {
     let mut map = BTreeMap::new();
 
     for pair in string.split(',') {
         let mut name_value = pair.splitn(2, ':');
         let name = name_value.next()?;
         let value = name_value.next().unwrap_or_default();
-        map.insert(name.to_owned(), value.to_owned());
+        map.insert(Cow::Owned(name.to_owned()), Cow::Owned(value.to_owned()));
     }
 
     Some(map)
@@ -372,7 +377,7 @@ pub struct Metric {
     ///
     /// Metric names cannot be empty, must start with a letter and can consist of ASCII
     /// alphanumerics, underscores and periods.
-    pub name: String,
+    pub name: Str,
     /// The unit of the metric value.
     ///
     /// Units augment metric values by giving them a magnitude and semantics. There are certain
@@ -403,7 +408,7 @@ pub struct Metric {
     ///
     /// Tags are optional and can be omitted.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub tags: BTreeMap<String, String>,
+    pub tags: BTreeMap<Str, Str>,
 }
 
 impl Metric {
@@ -415,7 +420,7 @@ impl Metric {
         let (name, unit, value) = parse_name_unit_value(name_value_str, ty)?;
 
         let mut metric = Self {
-            name,
+            name: Cow::Owned(name),
             unit,
             value,
             timestamp,

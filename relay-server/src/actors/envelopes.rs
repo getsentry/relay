@@ -32,7 +32,7 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, DurationPrecision, Metric, MetricUnit, MetricValue};
+use relay_metrics::{Bucket, DurationPrecision, Metric, MetricUnit, MetricValue, Str as MetricStr};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
@@ -407,12 +407,12 @@ impl ProcessEnvelopeState {
 }
 
 fn with_tag(
-    tags: &BTreeMap<String, String>,
-    name: &str,
-    value: impl fmt::Display,
-) -> BTreeMap<String, String> {
+    tags: &BTreeMap<MetricStr, MetricStr>,
+    name: &'static str,
+    value: MetricStr,
+) -> BTreeMap<MetricStr, MetricStr> {
     let mut tags = tags.clone();
-    tags.insert(name.to_owned(), value.to_string());
+    tags.insert(name.into(), value);
     tags
 }
 
@@ -501,30 +501,30 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
         }
     };
 
-    let mut tags = BTreeMap::new();
-    tags.insert("release".to_owned(), session.attributes.release.clone());
+    let mut tags: BTreeMap<MetricStr, MetricStr> = BTreeMap::new();
+    tags.insert("release".into(), session.attributes.release.clone().into());
     if let Some(ref environment) = session.attributes.environment {
-        tags.insert("environment".to_owned(), environment.clone());
+        tags.insert("environment".into(), environment.to_owned().into());
     }
 
     // Always capture with "init" tag for the first session update of a session. This is used
     // for adoption and as baseline for crash rates.
     if session.init {
         target.push(Metric {
-            name: "session".to_owned(),
+            name: "session".into(),
             unit: MetricUnit::None,
             value: MetricValue::Counter(1.0),
             timestamp,
-            tags: with_tag(&tags, "session.status", "init"),
+            tags: with_tag(&tags, "session.status", "init".into()),
         });
 
         if let Some(ref distinct_id) = session.distinct_id {
             target.push(Metric {
-                name: "user".to_owned(),
+                name: "user".into(),
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_str(distinct_id),
                 timestamp,
-                tags: with_tag(&tags, "session.status", "init"),
+                tags: with_tag(&tags, "session.status", "init".into()),
             });
         }
     }
@@ -532,7 +532,7 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
     // Mark the session as errored, which includes fatal sessions.
     if session.errors > 0 || session.status.is_error() {
         target.push(Metric {
-            name: "session.error".to_owned(),
+            name: "session.error".into(),
             unit: MetricUnit::None,
             value: MetricValue::set_from_display(session.session_id),
             timestamp,
@@ -541,11 +541,11 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
 
         if let Some(distinct_id) = nil_to_none(&session.distinct_id) {
             target.push(Metric {
-                name: "user".to_owned(),
+                name: "user".into(),
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_str(distinct_id),
                 timestamp,
-                tags: with_tag(&tags, "session.status", "errored"),
+                tags: with_tag(&tags, "session.status", "errored".into()),
             });
         }
     }
@@ -554,20 +554,20 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
     // sessions above.
     if session.status.is_fatal() {
         target.push(Metric {
-            name: "session".to_owned(),
+            name: "session".into(),
             unit: MetricUnit::None,
             value: MetricValue::Counter(1.0),
             timestamp,
-            tags: with_tag(&tags, "session.status", session.status),
+            tags: with_tag(&tags, "session.status", session.status.as_str().into()),
         });
 
         if let Some(distinct_id) = nil_to_none(&session.distinct_id) {
             target.push(Metric {
-                name: "user".to_owned(),
+                name: "user".into(),
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_str(distinct_id),
                 timestamp,
-                tags: with_tag(&tags, "session.status", session.status),
+                tags: with_tag(&tags, "session.status", session.status.as_str().into()),
             });
         }
     }
@@ -578,11 +578,11 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
     if session.status.is_terminal() {
         if let Some(duration) = session.duration {
             target.push(Metric {
-                name: "session.duration".to_owned(),
+                name: "session.duration".into(),
                 unit: MetricUnit::Duration(DurationPrecision::Second),
                 value: MetricValue::Distribution(duration),
                 timestamp,
-                tags: with_tag(&tags, "session.status", session.status),
+                tags: with_tag(&tags, "session.status", session.status.as_str().into()),
             });
         }
     }

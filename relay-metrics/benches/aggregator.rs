@@ -46,7 +46,7 @@ impl MetricInput {
             let key_id = i % self.num_project_keys;
             let metric_name = format!("foo{}", i % self.num_metric_names);
             let mut metric = self.metric.clone();
-            metric.name = metric_name;
+            metric.name = metric_name.into();
             let key = ProjectKey::parse(&format!("{:0width$x}", key_id, width = 32)).unwrap();
             rv.push((key, metric));
         }
@@ -70,7 +70,7 @@ impl fmt::Display for MetricInput {
 
 lazy_static::lazy_static! {
     static ref COUNTER_METRIC: Metric = Metric {
-        name: "foo".to_owned(),
+        name: "foo".into(),
         unit: MetricUnit::None,
         value: MetricValue::Counter(42.),
         timestamp: UnixTimestamp::now(),

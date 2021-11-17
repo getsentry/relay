@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricTimers};
-use crate::{Metric, MetricType, MetricUnit, MetricValue};
+use crate::{Metric, MetricType, MetricUnit, MetricValue, Str};
 
 /// A snapshot of values within a [`Bucket`].
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
@@ -645,7 +645,7 @@ pub struct Bucket {
     /// The name of the metric without its unit.
     ///
     /// See [`Metric::name`].
-    pub name: String,
+    pub name: Str,
     /// The unit of the metric value.
     ///
     /// See [`Metric::unit`].
@@ -660,7 +660,7 @@ pub struct Bucket {
     ///
     /// See [`Metric::tags`]. Every combination of tags results in a different bucket.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub tags: BTreeMap<String, String>,
+    pub tags: BTreeMap<Str, Str>,
 }
 
 impl Bucket {
@@ -700,10 +700,10 @@ pub struct AggregateMetricsError;
 struct BucketKey {
     project_key: ProjectKey,
     timestamp: UnixTimestamp,
-    metric_name: String,
+    metric_name: Str,
     metric_type: MetricType,
     metric_unit: MetricUnit,
-    tags: BTreeMap<String, String>,
+    tags: BTreeMap<Str, Str>,
 }
 
 /// Parameters used by the [`Aggregator`].
@@ -1310,7 +1310,7 @@ mod tests {
 
     fn some_metric() -> Metric {
         Metric {
-            name: "foo".to_owned(),
+            name: "foo".into(),
             unit: MetricUnit::None,
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
