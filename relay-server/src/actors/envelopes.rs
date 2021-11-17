@@ -3326,7 +3326,6 @@ mod tests {
         assert_eq!(metrics[3].name, "breakdown.breakdown2.baz");
         assert_eq!(metrics[4].name, "breakdown.breakdown2.zap");
 
-        assert_eq!(metrics[0].tags["measurement_rating"], "unknown");
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
         for metric in metrics {
