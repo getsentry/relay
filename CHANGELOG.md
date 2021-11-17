@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Extract measurement ratings, port from frontend. ([#1130](https://github.com/getsentry/relay/pull/1130))
+
 ## 21.11.0
 
 **Features**:
