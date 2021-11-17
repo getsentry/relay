@@ -417,15 +417,15 @@ fn with_tag(
 }
 
 #[cfg(feature = "processing")]
-fn get_measurement_rating(name: &str, value: f64) -> String {
+fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
     let rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
         debug_assert!(meh_ceiling < poor_ceiling);
         if value < meh_ceiling {
-            "good".to_owned()
+            Some("good".to_owned())
         } else if value < poor_ceiling {
-            "meh".to_owned()
+            Some("meh".to_owned())
         } else {
-            "poor".to_owned()
+            Some("poor".to_owned())
         }
     };
 
@@ -434,7 +434,7 @@ fn get_measurement_rating(name: &str, value: f64) -> String {
         "measurement.fcp" => rate_range(1000.0, 3000.0),
         "measurement.fid" => rate_range(100.0, 300.0),
         "measurement.cls" => rate_range(0.1, 0.25),
-        _ => "unknown".to_owned(),
+        _ => None,
     }
 }
 
@@ -467,12 +467,11 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
                 None => continue,
             };
 
-            let mut tags = tags.clone();
             let name = format!("measurement.{}", name);
-            tags.insert(
-                "measurement_rating".to_owned(),
-                get_measurement_rating(&name, measurement),
-            );
+            let mut tags = tags.clone();
+            if let Some(rating) = get_measurement_rating(&name, measurement) {
+                tags.insert("measurement_rating".to_owned());
+            }
 
             target.push(Metric {
                 name,
