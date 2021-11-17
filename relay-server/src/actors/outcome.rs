@@ -536,12 +536,14 @@ mod processing {
         }
 
         fn send_http_message(&self, message: TrackOutcome) {
-            relay_log::trace!("Tracking http outcome: {:?}", &message);
+            relay_log::trace!("Tracking outcome: {:?}", &message);
 
             let producer = match self.non_processing_producer {
                 Some(ref producer) => producer,
                 None => {
-                    relay_log::error!("send_http_message called with invalid http_producer");
+                    relay_log::error!(
+                        "send_http_message called with invalid non_processing_producer"
+                    );
                     return;
                 }
             };
@@ -557,12 +559,14 @@ mod processing {
         }
 
         fn send_raw_http_message(&self, message: TrackRawOutcome) {
-            relay_log::trace!("Tracking raw http outcome: {:?}", message);
+            relay_log::trace!("Tracking raw outcome: {:?}", message);
 
             let producer = match self.non_processing_producer {
                 Some(ref producer) => producer,
                 None => {
-                    relay_log::error!("send_http_message called with invalid http_producer");
+                    relay_log::error!(
+                        "send_raw_http_message called with invalid non_processing_producer"
+                    );
                     return;
                 }
             };

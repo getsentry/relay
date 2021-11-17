@@ -998,14 +998,9 @@ pub enum EmitOutcomes {
 }
 
 impl EmitOutcomes {
-    /// Returns true if outcomes are not emitted at all.
-    pub fn is_false(&self) -> bool {
-        matches!(self, EmitOutcomes::None)
-    }
-
     /// Returns true of outcomes are emitted via http, kafka, or client reports.
     pub fn any(&self) -> bool {
-        !self.is_false()
+        !matches!(self, EmitOutcomes::None)
     }
 }
 
@@ -1023,7 +1018,7 @@ impl Serialize for EmitOutcomes {
     }
 }
 
-struct EmitOutcomesVisitor {}
+struct EmitOutcomesVisitor;
 
 impl<'de> Visitor<'de> for EmitOutcomesVisitor {
     type Value = EmitOutcomes;
@@ -1060,7 +1055,7 @@ impl<'de> Deserialize<'de> for EmitOutcomes {
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_any(EmitOutcomesVisitor {})
+        deserializer.deserialize_any(EmitOutcomesVisitor)
     }
 }
 
@@ -1090,7 +1085,7 @@ pub struct Outcomes {
 impl Default for Outcomes {
     fn default() -> Self {
         Outcomes {
-            emit_outcomes: EmitOutcomes::None,
+            emit_outcomes: EmitOutcomes::AsClientReports,
             emit_client_outcomes: true,
             batch_size: 1000,
             batch_interval: 500,
