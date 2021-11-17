@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+** Features **
+- External Relays perform dynamic sampling and emit outcomes as client reports. ([#1119](https://github.com/getsentry/relay/pull/1119))
+
 ## 21.11.0
 
 **Features**:
