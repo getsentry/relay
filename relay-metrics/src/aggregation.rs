@@ -711,7 +711,7 @@ impl BucketKey {
     ///
     /// This is necessary for (and probably only useful for) reporting unique bucket keys in a
     /// cadence set metric, as cadence set metrics can only be constructed from values that
-    /// implement [`cadence::ext::ToSetValue`].  This type is only implemented for [`i64`], and
+    /// implement [`cadence::ext::ToSetValue`].  This trait is only implemented for [`i64`], and
     /// while we could implement it directly for [`BucketKey`] the documentation advises us not to
     /// interact with this trait.
     ///
