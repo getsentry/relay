@@ -121,6 +121,7 @@ pub struct LimitedProjectConfig {
     pub trusted_relays: Vec<PublicKey>,
     pub pii_config: Option<PiiConfig>,
     pub datascrubbing_settings: DataScrubbingConfig,
+    pub dynamic_sampling: Option<SamplingConfig>,
     pub features: BTreeSet<Feature>,
 }
 

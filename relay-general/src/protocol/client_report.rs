@@ -8,12 +8,22 @@ pub struct DiscardedEvent {
     pub quantity: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ClientReport {
     /// The timestamp of when the report was created.
     pub timestamp: Option<UnixTimestamp>,
-    /// Discard reason counters.
+    /// Counters for events discarded by the client.
     pub discarded_events: Vec<DiscardedEvent>,
+    /// Counters for events rate limited by a relay configured to emit outcomes as client reports
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rate_limited_events: Vec<DiscardedEvent>,
+    /// Counters for events filtered by a relay configured to emit outcomes as client reports
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub filtered_events: Vec<DiscardedEvent>,
+    /// Counters for events filtered by a sampling rule,
+    /// by a relay configured to emit outcomes as client reports
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub filtered_sampling_events: Vec<DiscardedEvent>,
 }
 
 impl ClientReport {
@@ -39,6 +49,9 @@ mod tests {
   "discarded_events": [
     {"reason": "foo_reason", "category": "error", "quantity": 42},
     {"reason": "foo_reason", "category": "transaction", "quantity": 23}
+  ],
+  "rate_limited_events" : [
+      {"reason": "bar_reason", "category": "session", "quantity": 456}
   ]
 }"#;
 
@@ -54,6 +67,13 @@ mod tests {
       "reason": "foo_reason",
       "category": "transaction",
       "quantity": 23
+    }
+  ],
+  "rate_limited_events": [
+    {
+      "reason": "bar_reason",
+      "category": "session",
+      "quantity": 456
     }
   ]
 }"#;
@@ -72,6 +92,13 @@ mod tests {
                     quantity: 23,
                 },
             ],
+            rate_limited_events: vec![DiscardedEvent {
+                reason: "bar_reason".into(),
+                category: DataCategory::Session,
+                quantity: 456,
+            }],
+
+            ..Default::default()
         };
 
         let parsed = ClientReport::parse(json.as_bytes()).unwrap();

@@ -123,6 +123,7 @@ def _send_event(relay, project_id=42, event_type="error"):
         "message": message_text,
         "extra": {"msg_text": message_text},
         "type": event_type,
+        "environment": "production",
     }
 
     try:
@@ -537,3 +538,71 @@ def test_outcomes_rate_limit(
         outcomes_consumer.assert_rate_limited(reason_code, categories=[category])
     else:
         outcomes_consumer.assert_empty()
+
+
+def test_outcome_to_client_report(relay, mini_sentry):
+
+    # Create project config
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["dynamicSampling"] = {
+        "rules": [
+            {
+                "id": 1,
+                "sampleRate": 0.0,
+                "type": "error",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.environment",
+                    "value": "production",
+                },
+            }
+        ]
+    }
+
+    upstream = relay(
+        mini_sentry,
+        {
+            "outcomes": {
+                "emit_outcomes": True,
+                "emit_client_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+                "aggregator": {"bucket_interval": 1, "flush_interval": 1,},
+            }
+        },
+    )
+
+    downstream = relay(
+        upstream,
+        {
+            "outcomes": {
+                "emit_outcomes": "as_client_reports",
+                "source": "downstream-layer",
+                "aggregator": {"bucket_interval": 1, "flush_interval": 1,},
+            }
+        },
+    )
+
+    _send_event(downstream, event_type="error")
+
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
+
+    outcome = outcomes[0]
+
+    del outcome["timestamp"]
+
+    expected_outcome = {
+        "org_id": 1,
+        "project_id": 42,
+        "key_id": 123,
+        "outcome": 1,
+        "reason": "Sampled:1",
+        "category": 1,
+        "quantity": 1,
+    }
+    assert outcome == expected_outcome

@@ -9,7 +9,7 @@ use relay_common::{ProjectId, ProjectKey};
 /// Data scoping information.
 ///
 /// This structure holds information of all scopes required for attributing an item to quotas.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Scoping {
     /// The organization id.
     pub organization_id: u64,
