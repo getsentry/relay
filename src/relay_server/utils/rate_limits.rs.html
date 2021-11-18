@@ -814,6 +814,7 @@
 <span id="814">814</span>
 <span id="815">815</span>
 <span id="816">816</span>
+<span id="817">817</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
 <span class="kw">use</span> <span class="ident">actix::SystemService</span>;
@@ -823,7 +824,8 @@
     <span class="ident">ReasonCode</span>, <span class="ident">Scoping</span>,
 };
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">Outcome</span>, <span class="ident">OutcomeProducer</span>, <span class="ident">TrackOutcome</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">Outcome</span>, <span class="ident">TrackOutcome</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
 
 <span class="doccomment">/// Name of the rate limits header.</span>
@@ -1058,7 +1060,7 @@
         <span class="kw">for</span> <span class="ident">limit</span> <span class="kw">in</span> <span class="ident">std::array::IntoIter::new</span>([<span class="self">self</span>.<span class="ident">event</span>, <span class="self">self</span>.<span class="ident">attachments</span>]) {
             <span class="kw">if</span> <span class="ident">limit</span>.<span class="ident">is_active</span>() {
                 <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">start_time</span>());
-                <span class="ident">OutcomeProducer::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
+                <span class="ident">OutcomeAggregator::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
                     <span class="ident">timestamp</span>,
                     <span class="ident">scoping</span>: <span class="kw-2">*</span><span class="ident">scoping</span>,
                     <span class="ident">outcome</span>: <span class="ident">Outcome::RateLimited</span>(<span class="ident">limit</span>.<span class="ident">reason_code</span>),
