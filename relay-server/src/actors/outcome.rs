@@ -649,9 +649,9 @@ mod processing {
 pub enum OutcomeError {}
 
 struct HttpOutcomeProducer {
-    pub(super) config: Arc<Config>,
-    pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
-    pub(super) pending_flush_handle: Option<SpawnHandle>,
+    config: Arc<Config>,
+    unsent_outcomes: Vec<TrackRawOutcome>,
+    pending_flush_handle: Option<SpawnHandle>,
 }
 
 impl HttpOutcomeProducer {
