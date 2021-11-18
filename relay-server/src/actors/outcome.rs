@@ -724,14 +724,6 @@ impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
     }
 }
 
-impl Handler<TrackOutcome> for HttpOutcomeProducer {
-    type Result = Result<(), OutcomeError>;
-
-    fn handle(&mut self, msg: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
-        self.handle(TrackRawOutcome::from_outcome(msg, &self.config), ctx)
-    }
-}
-
 struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
@@ -806,47 +798,43 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     }
 }
 
+enum NonProcessingInner {
+    AsClientReports(Addr<ClientReportOutcomeProducer>),
+    AsHttpOutcomes(Addr<HttpOutcomeProducer>),
+    Disabled,
+}
+
 pub struct NonProcessingOutcomeProducer {
-    producer: Option<Recipient<TrackOutcome>>,
-    raw_producer: Option<Recipient<TrackRawOutcome>>,
+    config: Arc<Config>,
+    producer: NonProcessingInner,
 }
 
 impl NonProcessingOutcomeProducer {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-        let (producer, raw_producer) = match config.emit_outcomes() {
+        let producer = match config.emit_outcomes() {
             EmitOutcomes::AsOutcomes => {
                 // We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream
                 // relays.
                 relay_log::info!("Configured to emit outcomes via http");
-                let producer = HttpOutcomeProducer::create(Arc::clone(&config))?.start();
-                (
-                    Some(producer.clone().recipient()),
-                    Some(producer.recipient()),
+                NonProcessingInner::AsHttpOutcomes(
+                    HttpOutcomeProducer::create(Arc::clone(&config))?.start(),
                 )
             }
             EmitOutcomes::AsClientReports => {
                 // We emit outcomes as client reports, and we do not
                 // accept any raw outcomes
                 relay_log::info!("Configured to emit outcomes as client reports");
-                (
-                    Some(
-                        ClientReportOutcomeProducer::create(config.borrow())
-                            .start()
-                            .recipient(),
-                    ),
-                    None,
+                NonProcessingInner::AsClientReports(
+                    ClientReportOutcomeProducer::create(config.borrow()).start(),
                 )
             }
             EmitOutcomes::None => {
                 relay_log::info!("Configured to drop all outcomes");
-                (None, None)
+                NonProcessingInner::Disabled
             }
         };
 
-        Ok(Self {
-            producer,
-            raw_producer,
-        })
+        Ok(Self { config, producer })
     }
 }
 
@@ -868,10 +856,18 @@ impl Handler<TrackOutcome> for NonProcessingOutcomeProducer {
     type Result = Result<(), OutcomeError>;
     fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
         relay_log::trace!("Outcome emitted");
-        if let Some(producer) = &self.producer {
-            relay_log::trace!("Sending outcome to inner producer");
-            producer.do_send(message).ok();
+        match &self.producer {
+            NonProcessingInner::AsClientReports(ref producer) => {
+                relay_log::trace!("Sending outcome to inner producer");
+                producer.do_send(message);
+            }
+            NonProcessingInner::AsHttpOutcomes(ref producer) => {
+                relay_log::trace!("Sending outcome to inner producer");
+                producer.do_send(TrackRawOutcome::from_outcome(message, &self.config));
+            }
+            NonProcessingInner::Disabled => (),
         }
+
         Ok(())
     }
 }
@@ -880,8 +876,13 @@ impl Handler<TrackRawOutcome> for NonProcessingOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
     fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        if let Some(producer) = &self.raw_producer {
-            producer.do_send(message).ok();
+        match &self.producer {
+            NonProcessingInner::AsHttpOutcomes(ref producer) => {
+                relay_log::trace!("Sending outcome to inner producer");
+                producer.do_send(message);
+            }
+            NonProcessingInner::AsClientReports(_) => (),
+            NonProcessingInner::Disabled => (),
         }
         Ok(())
     }
