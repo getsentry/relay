@@ -7,6 +7,8 @@
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
+#[cfg(feature = "processing")]
+use failure::Fail;
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, Cow};
@@ -441,11 +443,9 @@ impl Message for TrackRawOutcome {
 mod processing {
     use super::*;
 
-    use failure::{Fail, ResultExt};
-    use rdkafka::error::KafkaError;
+    use failure::ResultExt;
     use rdkafka::producer::BaseRecord;
     use rdkafka::ClientConfig;
-    use serde_json::Error as SerdeSerializationError;
 
     use relay_config::KafkaTopic;
     use relay_statsd::metric;
@@ -453,14 +453,6 @@ mod processing {
     use crate::service::ServerErrorKind;
     use crate::statsd::RelayCounters;
     use crate::utils::{CaptureErrorContext, ThreadedProducer};
-
-    #[derive(Fail, Debug)]
-    pub enum OutcomeError {
-        #[fail(display = "failed to send kafka message")]
-        SendFailed(KafkaError),
-        #[fail(display = "json serialization error")]
-        SerializationError(SerdeSerializationError),
-    }
 
     pub struct ProcessingOutcomeProducer {
         config: Arc<Config>,
@@ -642,11 +634,16 @@ mod processing {
     }
 }
 
-/// This is the Outcome processing implementation for Relays that are compiled without processing
-/// There is no access to kafka, we can only send outcomes to the upstream Relay
-#[cfg(not(feature = "processing"))]
 #[derive(Debug)]
-pub enum OutcomeError {}
+#[cfg_attr(feature = "processing", derive(Fail))]
+pub enum OutcomeError {
+    #[fail(display = "failed to send kafka message")]
+    #[cfg(feature = "processing")]
+    SendFailed(rdkafka::error::KafkaError),
+    #[fail(display = "json serialization error")]
+    #[cfg(feature = "processing")]
+    SerializationError(serde_json::Error),
+}
 
 struct HttpOutcomeProducer {
     config: Arc<Config>,
