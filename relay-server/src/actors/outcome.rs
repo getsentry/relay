@@ -498,13 +498,6 @@ impl HttpOutcomeProducer {
     }
 
     fn send_http_message(&mut self, message: TrackRawOutcome, context: &mut Context<Self>) {
-        metric!(
-            counter(RelayCounters::Outcomes) += 1,
-            reason = message.reason.as_deref().unwrap_or(""),
-            outcome = message.tag_name(),
-            to = "http",
-        );
-
         relay_log::trace!("Batching outcome");
         self.unsent_outcomes.push(message);
 
@@ -681,13 +674,6 @@ impl OutcomeProducer {
 
         let payload = serde_json::to_string(&message).map_err(OutcomeError::SerializationError)?;
 
-        metric!(
-            counter(RelayCounters::Outcomes) += 1,
-            reason = message.reason.as_deref().unwrap_or(""),
-            outcome = message.tag_name(),
-            to = "kafka",
-        );
-
         // At the moment, we support outcomes with optional EventId.
         // Here we create a fake EventId, when we don't have the real one, so that we can
         // create a kafka message key that spreads the events nicely over all the
@@ -702,6 +688,15 @@ impl OutcomeProducer {
             Ok(_) => Ok(()),
             Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
         }
+    }
+
+    fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
+        metric!(
+            counter(RelayCounters::Outcomes) += 1,
+            reason = message.reason().as_deref().unwrap_or(""),
+            outcome = message.tag_name(),
+            to = to,
+        );
     }
 }
 
@@ -731,20 +726,20 @@ impl Default for OutcomeProducer {
 impl Handler<TrackOutcome> for OutcomeProducer {
     type Result = Result<(), OutcomeError>;
     fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        relay_log::trace!("Outcome emitted");
         match &self.producer {
             #[cfg(feature = "processing")]
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
+                Self::send_outcome_metric(&message, "kafka");
                 let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
                 self.send_kafka_message(kafka_producer, raw_message)
             }
             ProducerInner::AsClientReports(ref producer) => {
-                relay_log::trace!("Sending outcome to inner producer");
+                Self::send_outcome_metric(&message, "client_report");
                 producer.do_send(message);
                 Ok(())
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
-                relay_log::trace!("Sending outcome to inner producer");
+                Self::send_outcome_metric(&message, "http");
                 producer.do_send(TrackRawOutcome::from_outcome(message, &self.config));
                 Ok(())
             }
@@ -760,10 +755,11 @@ impl Handler<TrackRawOutcome> for OutcomeProducer {
         match &self.producer {
             #[cfg(feature = "processing")]
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
+                Self::send_outcome_metric(&message, "kafka");
                 self.send_kafka_message(kafka_producer, message)
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
-                relay_log::trace!("Sending outcome to inner producer");
+                Self::send_outcome_metric(&message, "http");
                 producer.do_send(message);
                 Ok(())
             }
