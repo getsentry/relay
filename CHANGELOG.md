@@ -7,6 +7,10 @@
 - Extract measurement ratings, port from frontend. ([#1130](https://github.com/getsentry/relay/pull/1130))
 - External Relays perform dynamic sampling and emit outcomes as client reports. This feature is now enabled *by default*. ([#1119](https://github.com/getsentry/relay/pull/1119))
 
+**Bug Fixes**:
+
+- Support Unreal Engine 5 crash reports. ([#1132](https://github.com/getsentry/relay/pull/1132))
+
 **Internal**:
 
 - Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124), [#1128](https://github.com/getsentry/relay/pull/1128))
