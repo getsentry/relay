@@ -44,11 +44,6 @@ use crate::statsd::RelayCounters;
 use crate::utils::{CaptureErrorContext, ThreadedProducer};
 use crate::ServerError;
 
-// Choose the outcome module implementation (either processing or non-processing).
-// Processing outcome implementation
-#[cfg(feature = "processing")]
-pub use self::processing::*;
-
 /// Defines the structure of the HTTP outcomes requests
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct SendOutcomes {
