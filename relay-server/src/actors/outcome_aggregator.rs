@@ -5,8 +5,7 @@ use std::{collections::HashMap, net::IpAddr};
 
 use actix::{Actor, AsyncContext, Context, Handler, Recipient, Supervised, SystemService};
 use relay_common::{DataCategory, UnixTimestamp};
-use relay_config::Config;
-use relay_general::protocol::EventId;
+use relay_config::{Config, EmitOutcomes};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use std::time::Duration;
@@ -24,17 +23,26 @@ struct BucketKey {
     pub scoping: Scoping,
     /// The outcome.
     pub outcome: Outcome,
-    /// The event id.
-    pub event_id: Option<EventId>,
     /// The client ip address.
     pub remote_addr: Option<IpAddr>,
     /// The event's data category.
     pub category: DataCategory,
 }
 
+#[derive(PartialEq)]
+enum AggregationMode {
+    /// Aggregator drops all outcomes
+    DropEverything,
+    /// Aggregator keeps all outcome fields intact
+    Lossless,
+    /// Aggregator removes fields to improve aggregation
+    Lossy,
+}
+
 /// Aggregates outcomes into buckets, and flushes them periodically.
 /// Inspired by [`relay_metrics::Aggregator`].
 pub struct OutcomeAggregator {
+    mode: AggregationMode,
     /// The width of each aggregated bucket in seconds
     bucket_interval: u64,
     /// The number of seconds between flushes of all buckets
@@ -47,7 +55,14 @@ pub struct OutcomeAggregator {
 
 impl OutcomeAggregator {
     pub fn new(config: &Config, outcome_producer: Recipient<TrackOutcome>) -> Self {
+        let mode = match config.emit_outcomes() {
+            EmitOutcomes::AsOutcomes => AggregationMode::Lossless,
+            EmitOutcomes::AsClientReports => AggregationMode::Lossy,
+            EmitOutcomes::None => AggregationMode::DropEverything,
+        };
+
         Self {
+            mode,
             bucket_interval: config.outcome_aggregator().bucket_interval,
             flush_interval: config.outcome_aggregator().flush_interval,
             buckets: HashMap::new(),
@@ -64,7 +79,6 @@ impl OutcomeAggregator {
                 offset,
                 scoping,
                 outcome,
-                event_id,
                 remote_addr,
                 category,
             } = bucket_key;
@@ -74,7 +88,7 @@ impl OutcomeAggregator {
                 timestamp: timestamp.as_datetime(),
                 scoping,
                 outcome,
-                event_id,
+                event_id: None,
                 remote_addr,
                 category,
                 quantity,
@@ -97,7 +111,9 @@ impl Actor for OutcomeAggregator {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         relay_log::info!("outcome aggregator started");
-        ctx.run_interval(Duration::from_secs(self.flush_interval), Self::flush);
+        if self.mode != AggregationMode::DropEverything {
+            ctx.run_interval(Duration::from_secs(self.flush_interval), Self::flush);
+        }
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -121,30 +137,37 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
     fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
         relay_log::trace!("Outcome aggregation requested: {:?}", msg);
 
-        let TrackOutcome {
-            timestamp,
-            scoping,
-            outcome,
-            event_id,
-            remote_addr,
-            category,
-            quantity,
-        } = msg;
+        if self.mode == AggregationMode::DropEverything {
+            return Ok(());
+        }
 
-        // TODO: timestamp validation? (min, max)
-        let offset = timestamp.timestamp() as u64 / self.bucket_interval;
+        // For lossy aggregation, erase some fields to have fewer buckets
+        let (event_id, remote_addr) = match self.mode {
+            AggregationMode::Lossy => {
+                relay_log::trace!("Erasing event_id, remote_addr for aggregation: {:?}", msg);
+                (None, None)
+            }
+            _ => (msg.event_id, msg.remote_addr),
+        };
+
+        if let Some(event_id) = event_id {
+            relay_log::trace!("Forwarding outcome without aggregation: {}", event_id);
+            self.outcome_producer.do_send(msg).ok();
+            return Ok(());
+        }
+
+        let offset = msg.timestamp.timestamp() as u64 / self.bucket_interval;
 
         let bucket_key = BucketKey {
             offset,
-            scoping,
-            outcome,
-            event_id,
+            scoping: msg.scoping,
+            outcome: msg.outcome,
             remote_addr,
-            category,
+            category: msg.category,
         };
 
         let counter = self.buckets.entry(bucket_key).or_insert(0);
-        *counter += quantity;
+        *counter += msg.quantity;
 
         Ok(())
     }

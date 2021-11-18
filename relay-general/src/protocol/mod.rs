@@ -33,7 +33,7 @@ pub use sentry_release_parser::{validate_environment, validate_release};
 
 pub use self::breadcrumb::Breadcrumb;
 pub use self::breakdowns::Breakdowns;
-pub use self::client_report::ClientReport;
+pub use self::client_report::{ClientReport, DiscardedEvent};
 pub use self::clientsdk::{ClientSdkInfo, ClientSdkPackage};
 pub use self::constants::VALID_PLATFORMS;
 pub use self::contexts::{

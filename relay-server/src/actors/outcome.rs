@@ -4,25 +4,28 @@
 //! must be emitted in the entire ingestion pipeline. Since Relay is only one part in this pipeline,
 //! outcomes may not be emitted if the event is accepted.
 
-use std::borrow::Cow;
-use std::mem;
-use std::net::IpAddr;
-use std::sync::Arc;
-
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
+use std::borrow::{Borrow, Cow};
+use std::collections::BTreeMap;
+use std::convert::{TryFrom, TryInto};
+use std::mem;
+use std::net::IpAddr;
+use std::sync::Arc;
+use std::time::Duration;
 
-use relay_common::{DataCategory, ProjectId};
-use relay_config::Config;
+use relay_common::{DataCategory, ProjectId, UnixTimestamp};
+use relay_config::{Config, EmitOutcomes};
 use relay_filter::FilterStatKey;
-use relay_general::protocol::EventId;
+use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 
+use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
 use crate::ServerError;
@@ -35,7 +38,7 @@ pub use self::processing::*;
 #[cfg(feature = "processing")]
 pub type OutcomeProducer = processing::ProcessingOutcomeProducer;
 #[cfg(not(feature = "processing"))]
-pub type OutcomeProducer = HttpOutcomeProducer;
+pub type OutcomeProducer = NonProcessingOutcomeProducer;
 
 /// Defines the structure of the HTTP outcomes requests
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -66,10 +69,26 @@ pub struct SendOutcomesResponse {
     // nothing yet, future features will go here
 }
 
+trait TrackOutcomeLike: Message {
+    fn reason(&self) -> Option<Cow<str>>;
+    fn outcome_id(&self) -> u8;
+
+    fn tag_name(&self) -> &'static str {
+        match self.outcome_id() {
+            1 => "filtered",
+            2 => "rate_limited",
+            3 => "invalid",
+            4 => "abuse",
+            5 => "client_discard",
+            _ => "<unknown>",
+        }
+    }
+}
+
 /// Tracks an outcome of an event.
 ///
 /// See the module level documentation for more information.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct TrackOutcome {
     /// The timespan of the event outcome.
     pub timestamp: DateTime<Utc>,
@@ -87,19 +106,41 @@ pub struct TrackOutcome {
     pub quantity: u32,
 }
 
+impl TrackOutcomeLike for TrackOutcome {
+    fn reason(&self) -> Option<Cow<str>> {
+        self.outcome.to_reason()
+    }
+
+    fn outcome_id(&self) -> u8 {
+        self.outcome.to_outcome_id()
+    }
+}
+
 impl Message for TrackOutcome {
     type Result = Result<(), OutcomeError>;
+}
+
+/// A simpler version of the [`Outcome`] enum without content.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum OutcomeType {
+    Filtered,
+
+    /// The event has been filtered by a Sampling Rule
+    FilteredSampling,
+
+    /// The event has been rate limited.
+    RateLimited,
+
+    /// The event has already been discarded on the client side.
+    ClientDiscard,
 }
 
 /// Defines the possible outcomes from processing an event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
-    /// The event has been accepted.
-    ///
-    /// This is never emitted by Relay as the event may be discarded by the processing pipeline
-    /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
-    #[allow(dead_code)]
-    Accepted,
+    /// The outcome state "Accepted" is never emitted by Relay as the event may be discarded
+    /// by the processing pipeline after Relay.
+    /// Only the `save_event` task in Sentry finally accepts an event.
 
     /// The event has been filtered due to a configured filter.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
@@ -125,7 +166,6 @@ pub enum Outcome {
 impl Outcome {
     fn to_outcome_id(&self) -> u8 {
         match self {
-            Outcome::Accepted => 0,
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => 1,
             Outcome::RateLimited(_) => 2,
             Outcome::Invalid(_) => 3,
@@ -136,7 +176,6 @@ impl Outcome {
 
     fn to_reason(&self) -> Option<Cow<str>> {
         match self {
-            Outcome::Accepted => None,
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
             Outcome::FilteredSampling(rule_id) => Some(Cow::Owned(format!("Sampled:{}", rule_id))),
@@ -146,6 +185,29 @@ impl Outcome {
                 .map(|code| Cow::Owned(code.as_str().into())),
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
+        }
+    }
+
+    /// Parse an outcome from an outcome ID and a reason string.
+    /// Currently only used to reconstruct outcomes encoded in client reports.
+    pub fn from_outcome_type(outcome_type: OutcomeType, reason: &str) -> Result<Self, ()> {
+        match outcome_type {
+            OutcomeType::FilteredSampling => {
+                if let Some(rule_id) = reason.strip_prefix("Sampled:") {
+                    let rule_id = RuleId(rule_id.parse().map_err(|_| ())?);
+                    Ok(Self::FilteredSampling(rule_id))
+                } else {
+                    Err(())
+                }
+            }
+            OutcomeType::ClientDiscard => Ok(Self::ClientDiscard(reason.into())),
+            OutcomeType::Filtered => Ok(Self::Filtered(
+                FilterStatKey::try_from(reason).map_err(|_| ())?,
+            )),
+            OutcomeType::RateLimited => Ok(Self::RateLimited(match reason {
+                "" => None,
+                other => Some(ReasonCode::new(other)),
+            })),
         }
     }
 }
@@ -360,6 +422,16 @@ impl TrackRawOutcome {
     }
 }
 
+impl TrackOutcomeLike for TrackRawOutcome {
+    fn reason(&self) -> Option<Cow<str>> {
+        self.reason.as_ref().map(|s| s.into())
+    }
+
+    fn outcome_id(&self) -> u8 {
+        self.outcome
+    }
+}
+
 impl Message for TrackRawOutcome {
     type Result = Result<(), OutcomeError>;
 }
@@ -390,28 +462,15 @@ mod processing {
         SerializationError(SerdeSerializationError),
     }
 
-    impl TrackRawOutcome {
-        fn tag_name(&self) -> &'static str {
-            match self.outcome {
-                0 => "accepted",
-                1 => "filtered",
-                2 => "rate_limited",
-                3 => "invalid",
-                4 => "abuse",
-                _ => "<unknown>",
-            }
-        }
-    }
-
     pub struct ProcessingOutcomeProducer {
         config: Arc<Config>,
         producer: Option<ThreadedProducer>,
-        http_producer: Option<Addr<HttpOutcomeProducer>>,
+        non_processing_producer: Option<Addr<NonProcessingOutcomeProducer>>,
     }
 
     impl ProcessingOutcomeProducer {
         pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-            let (future_producer, http_producer) = if config.processing_enabled() {
+            let (future_producer, non_processing_producer) = if config.processing_enabled() {
                 let mut client_config = ClientConfig::new();
                 for config_p in config
                     .kafka_config(KafkaTopic::Outcomes)
@@ -425,20 +484,20 @@ mod processing {
                     .context(ServerErrorKind::KafkaError)?;
                 (Some(future_producer), None)
             } else {
-                let http_producer = HttpOutcomeProducer::create(config.clone())
+                let non_processing_producer = NonProcessingOutcomeProducer::create(config.clone())
                     .map(|producer| producer.start())
                     .map_err(|error| {
                         relay_log::error!("Failed to start http producer: {}", LogError(&error));
                         error
                     })
                     .ok();
-                (None, http_producer)
+                (None, non_processing_producer)
             };
 
             Ok(Self {
                 config,
                 producer: future_producer,
-                http_producer,
+                non_processing_producer,
             })
         }
 
@@ -476,13 +535,38 @@ mod processing {
             }
         }
 
-        fn send_http_message(&self, message: TrackRawOutcome) {
-            relay_log::trace!("Tracking http outcome: {:?}", message);
+        fn send_http_message(&self, message: TrackOutcome) {
+            relay_log::trace!("Tracking outcome: {:?}", &message);
 
-            let producer = match self.http_producer {
+            let producer = match self.non_processing_producer {
                 Some(ref producer) => producer,
                 None => {
-                    relay_log::error!("send_http_message called with invalid http_producer");
+                    relay_log::error!(
+                        "send_http_message called with invalid non_processing_producer"
+                    );
+                    return;
+                }
+            };
+
+            metric!(
+                counter(RelayCounters::Outcomes) += 1,
+                reason = message.reason().as_deref().unwrap_or(""),
+                outcome = message.tag_name(),
+                to = "http",
+            );
+
+            producer.do_send(message);
+        }
+
+        fn send_raw_http_message(&self, message: TrackRawOutcome) {
+            relay_log::trace!("Tracking raw outcome: {:?}", message);
+
+            let producer = match self.non_processing_producer {
+                Some(ref producer) => producer,
+                None => {
+                    relay_log::error!(
+                        "send_raw_http_message called with invalid non_processing_producer"
+                    );
                     return;
                 }
             };
@@ -529,18 +613,27 @@ mod processing {
         type Result = Result<(), OutcomeError>;
 
         fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            self.handle(TrackRawOutcome::from_outcome(message, &self.config), _ctx)
+            relay_log::trace!("handling outcome");
+            if self.config.processing_enabled() {
+                let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
+                self.send_kafka_message(raw_message)
+            } else if self.config.emit_outcomes().any() {
+                self.send_http_message(message);
+                Ok(())
+            } else {
+                Ok(()) // processing not enabled and emit_outcomes disabled
+            }
         }
     }
 
     impl Handler<TrackRawOutcome> for ProcessingOutcomeProducer {
         type Result = Result<(), OutcomeError>;
         fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            relay_log::trace!("handling outcome");
+            relay_log::trace!("handling raw outcome");
             if self.config.processing_enabled() {
                 self.send_kafka_message(message)
-            } else if self.config.emit_outcomes() {
-                self.send_http_message(message);
+            } else if self.config.emit_outcomes().any() {
+                self.send_raw_http_message(message);
                 Ok(())
             } else {
                 Ok(()) // processing not enabled and emit_outcomes disabled
@@ -555,7 +648,7 @@ mod processing {
 #[derive(Debug)]
 pub enum OutcomeError {}
 
-pub struct HttpOutcomeProducer {
+struct HttpOutcomeProducer {
     pub(super) config: Arc<Config>,
     pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
     pub(super) pending_flush_handle: Option<SpawnHandle>,
@@ -622,23 +715,11 @@ impl Actor for HttpOutcomeProducer {
     type Context = Context<Self>;
 }
 
-impl Supervised for HttpOutcomeProducer {}
-
-impl SystemService for HttpOutcomeProducer {}
-
-impl Default for HttpOutcomeProducer {
-    fn default() -> Self {
-        unimplemented!("register with the SystemRegistry instead")
-    }
-}
-
 impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
     type Result = Result<(), OutcomeError>;
-    fn handle(&mut self, message: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
-        if self.config.emit_outcomes() {
-            self.send_http_message(message, ctx);
-        }
 
+    fn handle(&mut self, msg: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
+        self.send_http_message(msg, ctx);
         Ok(())
     }
 }
@@ -646,7 +727,218 @@ impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
 impl Handler<TrackOutcome> for HttpOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
+    fn handle(&mut self, msg: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
+        self.handle(TrackRawOutcome::from_outcome(msg, &self.config), ctx)
+    }
+}
+
+struct ClientReportOutcomeProducer {
+    flush_interval: Duration,
+    unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
+}
+
+impl ClientReportOutcomeProducer {
+    fn create(config: &Config) -> Self {
+        Self {
+            // Use same batch interval as outcome aggregator
+            flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
+            unsent_reports: BTreeMap::new(),
+        }
+    }
+
+    fn flush(&mut self, _ctx: &mut Context<Self>) {
+        relay_log::trace!("Flushing client reports");
+        let unsent_reports = mem::take(&mut self.unsent_reports);
+        let envelope_manager = EnvelopeManager::from_registry();
+        for (scoping, client_reports) in unsent_reports.into_iter() {
+            envelope_manager.do_send(SendClientReports {
+                client_reports,
+                scoping,
+            });
+        }
+    }
+}
+
+impl Actor for ClientReportOutcomeProducer {
+    type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        ctx.run_interval(self.flush_interval, Self::flush);
+    }
+}
+
+impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
+    type Result = Result<(), OutcomeError>;
+
+    fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
+        let mut client_report = ClientReport {
+            timestamp: Some(UnixTimestamp::from_secs(
+                msg.timestamp.timestamp().try_into().unwrap_or(0),
+            )),
+            ..Default::default()
+        };
+
+        // The outcome type determines what field to place the outcome in:
+        let discarded_events = match msg.outcome {
+            Outcome::Filtered(_) => &mut client_report.filtered_events,
+            Outcome::FilteredSampling(_) => &mut client_report.filtered_sampling_events,
+            Outcome::RateLimited(_) => &mut client_report.rate_limited_events,
+            _ => {
+                // Cannot convert this outcome to a client report.
+                return Ok(());
+            }
+        };
+
+        // Now that we know where to put it, let's create a DiscardedEvent
+        let discarded_event = DiscardedEvent {
+            reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
+            category: msg.category,
+            quantity: msg.quantity,
+        };
+        discarded_events.push(discarded_event);
+
+        self.unsent_reports
+            .entry(msg.scoping)
+            .or_default()
+            .push(client_report);
+
+        Ok(())
+    }
+}
+
+pub struct NonProcessingOutcomeProducer {
+    producer: Option<Recipient<TrackOutcome>>,
+    raw_producer: Option<Recipient<TrackRawOutcome>>,
+}
+
+impl NonProcessingOutcomeProducer {
+    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+        let (producer, raw_producer) = match config.emit_outcomes() {
+            EmitOutcomes::AsOutcomes => {
+                // We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream
+                // relays.
+                relay_log::info!("Configured to emit outcomes via http");
+                let producer = HttpOutcomeProducer::create(Arc::clone(&config))?.start();
+                (
+                    Some(producer.clone().recipient()),
+                    Some(producer.recipient()),
+                )
+            }
+            EmitOutcomes::AsClientReports => {
+                // We emit outcomes as client reports, and we do not
+                // accept any raw outcomes
+                relay_log::info!("Configured to emit outcomes as client reports");
+                (
+                    Some(
+                        ClientReportOutcomeProducer::create(config.borrow())
+                            .start()
+                            .recipient(),
+                    ),
+                    None,
+                )
+            }
+            EmitOutcomes::None => {
+                relay_log::info!("Configured to drop all outcomes");
+                (None, None)
+            }
+        };
+
+        Ok(Self {
+            producer,
+            raw_producer,
+        })
+    }
+}
+
+impl Actor for NonProcessingOutcomeProducer {
+    type Context = Context<Self>;
+}
+
+impl Supervised for NonProcessingOutcomeProducer {}
+
+impl SystemService for NonProcessingOutcomeProducer {}
+
+impl Default for NonProcessingOutcomeProducer {
+    fn default() -> Self {
+        unimplemented!("register with the SystemRegistry instead")
+    }
+}
+
+impl Handler<TrackOutcome> for NonProcessingOutcomeProducer {
+    type Result = Result<(), OutcomeError>;
     fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        self.handle(TrackRawOutcome::from_outcome(message, &self.config), _ctx)
+        relay_log::trace!("Outcome emitted");
+        if let Some(producer) = &self.producer {
+            relay_log::trace!("Sending outcome to inner producer");
+            producer.do_send(message).ok();
+        }
+        Ok(())
+    }
+}
+
+impl Handler<TrackRawOutcome> for NonProcessingOutcomeProducer {
+    type Result = Result<(), OutcomeError>;
+
+    fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
+        if let Some(producer) = &self.raw_producer {
+            producer.do_send(message).ok();
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_from_outcome_type_sampled() {
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "adsf"),
+            Err(_)
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:"),
+            Err(_)
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:foo"),
+            Err(_)
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(RuleId(123)))
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_filtered() {
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::Filtered, "error-message"),
+            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::Filtered, "adsf"),
+            Err(_)
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_client_discard() {
+        assert_eq!(
+            Outcome::from_outcome_type(OutcomeType::ClientDiscard, "foo_reason").unwrap(),
+            Outcome::ClientDiscard("foo_reason".into())
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_rate_limited() {
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::RateLimited, ""),
+            Ok(Outcome::RateLimited(None))
+        ));
+        assert_eq!(
+            Outcome::from_outcome_type(OutcomeType::RateLimited, "foo_reason").unwrap(),
+            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
+        );
     }
 }
