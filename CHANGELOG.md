@@ -14,6 +14,7 @@
 **Internal**:
 
 - Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124), [#1128](https://github.com/getsentry/relay/pull/1128))
+- Fold processing vs non-processing into single actor. ([#1133](https://github.com/getsentry/relay/pull/1133))
 
 ## 21.11.0
 
