@@ -4,7 +4,7 @@
 
 **Internal**:
 
-- Another statsd metric to measure bucket duplication. ([#1128](https://github.com/getsentry/relay/pull/1128))
+- Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124), [#1128](https://github.com/getsentry/relay/pull/1128))
 
 ## 21.11.0
 
@@ -22,7 +22,6 @@
 **Internal**:
 
 - Aggregate client reports before sending them onwards. ([#1118](https://github.com/getsentry/relay/pull/1118))
-- Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124))
 
 ## 21.10.0
 
