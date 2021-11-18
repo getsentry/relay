@@ -417,6 +417,28 @@ fn with_tag(
 }
 
 #[cfg(feature = "processing")]
+fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
+    let rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
+        debug_assert!(meh_ceiling < poor_ceiling);
+        if value < meh_ceiling {
+            Some("good".to_owned())
+        } else if value < poor_ceiling {
+            Some("meh".to_owned())
+        } else {
+            Some("poor".to_owned())
+        }
+    };
+
+    match name {
+        "measurement.lcp" => rate_range(2500.0, 4000.0),
+        "measurement.fcp" => rate_range(1000.0, 3000.0),
+        "measurement.fid" => rate_range(100.0, 300.0),
+        "measurement.cls" => rate_range(0.1, 0.25),
+        _ => None,
+    }
+}
+
+#[cfg(feature = "processing")]
 fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     let timestamp = match event
         .timestamp
@@ -445,12 +467,18 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
                 None => continue,
             };
 
+            let name = format!("measurement.{}", name);
+            let mut tags = tags.clone();
+            if let Some(rating) = get_measurement_rating(&name, measurement) {
+                tags.insert("measurement_rating".to_owned(), rating);
+            }
+
             target.push(Metric {
-                name: format!("measurement.{}", name),
+                name,
                 unit: MetricUnit::None,
                 value: MetricValue::Distribution(measurement),
                 timestamp,
-                tags: tags.clone(),
+                tags,
             });
         }
     }
@@ -3357,7 +3385,8 @@ mod tests {
             "environment": "fake_environment",
             "transaction": "mytransaction",
             "measurements": {
-                "foo": {"value": 420.69}
+                "foo": {"value": 420.69},
+                "lcp": {"value": 3000.0}
             },
             "breakdowns": {
                 "breakdown1": {
@@ -3375,12 +3404,15 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 4);
+        assert_eq!(metrics.len(), 5);
 
         assert_eq!(metrics[0].name, "measurement.foo");
-        assert_eq!(metrics[1].name, "breakdown.breakdown1.bar");
-        assert_eq!(metrics[2].name, "breakdown.breakdown2.baz");
-        assert_eq!(metrics[3].name, "breakdown.breakdown2.zap");
+        assert_eq!(metrics[1].name, "measurement.lcp");
+        assert_eq!(metrics[2].name, "breakdown.breakdown1.bar");
+        assert_eq!(metrics[3].name, "breakdown.breakdown2.baz");
+        assert_eq!(metrics[4].name, "breakdown.breakdown2.zap");
+
+        assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
         for metric in metrics {
             assert!(matches!(metric.value, MetricValue::Distribution(_)));
