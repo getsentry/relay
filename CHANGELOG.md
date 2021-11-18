@@ -6,6 +6,10 @@
 
 - Extract measurement ratings, port from frontend. ([#1130](https://github.com/getsentry/relay/pull/1130))
 
+**Internal**
+
+- Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124))
+
 ## 21.11.0
 
 **Features**:
@@ -22,7 +26,6 @@
 **Internal**:
 
 - Aggregate client reports before sending them onwards. ([#1118](https://github.com/getsentry/relay/pull/1118))
-- Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124))
 
 ## 21.10.0
 
