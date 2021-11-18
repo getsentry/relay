@@ -2,8 +2,13 @@
 
 ## Unreleased
 
-** Features **
+**Features**
+
 - External Relays perform dynamic sampling and emit outcomes as client reports. This feature is now enabled *by default*. ([#1119](https://github.com/getsentry/relay/pull/1119))
+
+**Internal**
+
+- Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124))
 
 ## 21.11.0
 
@@ -21,7 +26,6 @@
 **Internal**:
 
 - Aggregate client reports before sending them onwards. ([#1118](https://github.com/getsentry/relay/pull/1118))
-- Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124))
 
 ## 21.10.0
 
