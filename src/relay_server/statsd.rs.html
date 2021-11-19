@@ -463,8 +463,6 @@
 <span id="463">463</span>
 <span id="464">464</span>
 <span id="465">465</span>
-<span id="466">466</span>
-<span id="467">467</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -801,7 +799,6 @@
     <span class="doccomment">///    the Sentry plan quota. The reason contains the rate limit or quota that was exceeded.</span>
     <span class="doccomment">///  - `invalid`: Data was considered invalid and could not be recovered. The reason indicates</span>
     <span class="doccomment">///    the validation that failed.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">Outcomes</span>,
     <span class="doccomment">/// Number of times a project state is looked up from the cache.</span>
     <span class="doccomment">///</span>
@@ -912,7 +909,6 @@
             <span class="ident">RelayCounters::EventCorrupted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.corrupted&quot;</span>,
             <span class="ident">RelayCounters::EnvelopeAccepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.accepted&quot;</span>,
             <span class="ident">RelayCounters::EnvelopeRejected</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.rejected&quot;</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">RelayCounters::Outcomes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;events.outcomes&quot;</span>,
             <span class="ident">RelayCounters::ProjectStateGet</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.get&quot;</span>,
             <span class="ident">RelayCounters::ProjectStateRequest</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request&quot;</span>,

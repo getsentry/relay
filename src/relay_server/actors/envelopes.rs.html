@@ -5210,7 +5210,7 @@
         <span class="kw-2">mut</span> <span class="ident">state</span>: <span class="ident">ProcessEnvelopeState</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeResponse</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="macro">macro_rules!</span> <span class="ident">if_processing</span> {
-            (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">if_true</span>:<span class="ident">block</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">if_not</span>:<span class="ident">block</span>)<span class="question-mark">?</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">if_true</span>:<span class="ident">block</span>) <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span> {
                     <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() <span class="macro-nonterminal">$</span><span class="macro-nonterminal">if_true</span>
                 }
