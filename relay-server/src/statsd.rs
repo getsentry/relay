@@ -334,7 +334,6 @@ pub enum RelayCounters {
     ///    the Sentry plan quota. The reason contains the rate limit or quota that was exceeded.
     ///  - `invalid`: Data was considered invalid and could not be recovered. The reason indicates
     ///    the validation that failed.
-    #[cfg(feature = "processing")]
     Outcomes,
     /// Number of times a project state is looked up from the cache.
     ///
@@ -445,7 +444,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
-            #[cfg(feature = "processing")]
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
