@@ -558,14 +558,16 @@ impl Actor for ClientReportOutcomeProducer {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(self.flush_interval, Self::flush);
+        if self.flush_interval > Duration::ZERO {
+            ctx.run_interval(self.flush_interval, Self::flush);
+        }
     }
 }
 
 impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
-    fn handle(&mut self, msg: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
         let mut client_report = ClientReport {
             timestamp: Some(UnixTimestamp::from_secs(
                 msg.timestamp.timestamp().try_into().unwrap_or(0),
@@ -596,6 +598,11 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
             .entry(msg.scoping)
             .or_default()
             .push(client_report);
+
+        if self.flush_interval == Duration::ZERO {
+            // Flush immediately. Useful for integration tests.
+            self.flush(ctx);
+        }
 
         Ok(())
     }
