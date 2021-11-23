@@ -10,7 +10,7 @@ use relay_quotas::Scoping;
 use relay_statsd::metric;
 use std::time::Duration;
 
-use crate::statsd::RelayTimers;
+use crate::{actors::outcome::DiscardReason, statsd::RelayTimers};
 
 use super::outcome::{Outcome, OutcomeError, TrackOutcome};
 
@@ -99,6 +99,19 @@ impl OutcomeAggregator {
         }
     }
 
+    /// Return true if event_id and remote_addr should be erased
+    fn erase_high_cardinality_fields(&self, msg: &TrackOutcome) -> bool {
+        // In lossy mode, always erase
+        matches!(self.mode, AggregationMode::Lossy)
+            || matches!(
+                // Always erase high-cardinality fields for specific outcomes:
+                msg.outcome,
+                Outcome::RateLimited(_)
+                    | Outcome::Invalid(DiscardReason::ProjectId)
+                    | Outcome::FilteredSampling(_)
+            )
+    }
+
     fn flush(&mut self, _context: &mut <Self as Actor>::Context) {
         metric!(timer(RelayTimers::OutcomeAggregatorFlushTime), {
             self.do_flush();
@@ -111,7 +124,7 @@ impl Actor for OutcomeAggregator {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         relay_log::info!("outcome aggregator started");
-        if self.mode != AggregationMode::DropEverything {
+        if self.mode != AggregationMode::DropEverything && self.flush_interval > 0 {
             ctx.run_interval(Duration::from_secs(self.flush_interval), Self::flush);
         }
     }
@@ -141,13 +154,11 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
             return Ok(());
         }
 
-        // For lossy aggregation, erase some fields to have fewer buckets
-        let (event_id, remote_addr) = match self.mode {
-            AggregationMode::Lossy => {
-                relay_log::trace!("Erasing event_id, remote_addr for aggregation: {:?}", msg);
-                (None, None)
-            }
-            _ => (msg.event_id, msg.remote_addr),
+        let (event_id, remote_addr) = if self.erase_high_cardinality_fields(&msg) {
+            relay_log::trace!("Erasing event_id, remote_addr for aggregation: {:?}", msg);
+            (None, None)
+        } else {
+            (msg.event_id, msg.remote_addr)
         };
 
         if let Some(event_id) = event_id {
@@ -168,6 +179,11 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
 
         let counter = self.buckets.entry(bucket_key).or_insert(0);
         *counter += msg.quantity;
+
+        if self.flush_interval == 0 {
+            // Flush immediately. This is useful for integration tests.
+            self.do_flush();
+        }
 
         Ok(())
     }
