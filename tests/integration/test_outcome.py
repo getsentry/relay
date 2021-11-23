@@ -568,9 +568,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
             "outcomes": {
                 "emit_outcomes": "as_client_reports",
                 "source": "downstream-layer",
-                "aggregator": {
-                    "flush_interval": 1,
-                },
+                "aggregator": {"flush_interval": 1,},
             }
         },
     )
@@ -626,9 +624,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
                 "emit_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
-                "aggregator": {
-                    "flush_interval": 1,
-                },
+                "aggregator": {"flush_interval": 1,},
             }
         },
     )
@@ -672,9 +668,7 @@ def test_outcomes_do_not_aggregate(
                 "emit_outcomes": True,
                 "batch_size": 1,
                 "batch_interval": 1,
-                "aggregator": {
-                    "flush_interval": 1,
-                },
+                "aggregator": {"flush_interval": 1,},
             }
         },
     )
