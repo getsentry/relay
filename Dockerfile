@@ -17,6 +17,8 @@ ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
     curl build-essential git zip cmake \
+    # below required for sentry-native
+    clang libcurl4-openssl-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -29,7 +31,7 @@ WORKDIR /work
 FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM relay-deps AS relay-builder
 
-ARG RELAY_FEATURES=ssl,processing
+ARG RELAY_FEATURES=ssl,processing,crash-handler
 ENV RELAY_FEATURES=${RELAY_FEATURES}
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli

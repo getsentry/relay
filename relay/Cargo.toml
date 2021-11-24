@@ -14,6 +14,7 @@ publish = false
 default = ["ssl"]
 ssl = ["relay-server/ssl"]
 processing = ["relay-server/processing"]
+crash-handler = ["relay-log/crash-handler"]
 
 # Direct dependencies of the main application in `src/`
 [dependencies]

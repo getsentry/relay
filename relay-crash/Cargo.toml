@@ -1,0 +1,17 @@
+[package]
+name = "relay-crash"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Native crash reporting for Relay"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "21.11.0"
+edition = "2018"
+build = "build.rs"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+
+[build-dependencies]
+bindgen = "0.59.1"
+cmake = { version = "0.1.46" }

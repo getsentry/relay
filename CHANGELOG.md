@@ -14,6 +14,7 @@
 **Internal**:
 
 - Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124), [#1128](https://github.com/getsentry/relay/pull/1128))
+- Add an internal option to capture minidumps for hard crashes. This has to be enabled via the `sentry._crash_db` config parameter. ([#1127](https://github.com/getsentry/relay/pull/1127))
 - Fold processing vs non-processing into single actor. ([#1133](https://github.com/getsentry/relay/pull/1133))
 - Aggregate outcomes for dynamic sampling, invalid project ID, and rate limits. ([#1134](https://github.com/getsentry/relay/pull/1134))
 

@@ -1,5 +1,6 @@
 use std::env;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -77,6 +78,17 @@ pub struct SentryConfig {
 
     /// Enables reporting to Sentry.
     pub enabled: bool,
+
+    /// Internal. Enables crash handling and sets the absolute path to where minidumps should be
+    /// cached on disk. The path is created if it doesn't exist. Path must be UTF-8.
+    pub _crash_db: Option<PathBuf>,
+}
+
+impl SentryConfig {
+    /// Returns a reference to the [`DSN`](sentry::types::Dsn) if Sentry is enabled.
+    pub fn enabled_dsn(&self) -> Option<&Dsn> {
+        self.dsn.as_ref().filter(|_| self.enabled)
+    }
 }
 
 impl Default for SentryConfig {
@@ -86,6 +98,7 @@ impl Default for SentryConfig {
                 .parse()
                 .ok(),
             enabled: false,
+            _crash_db: None,
         }
     }
 }
@@ -218,8 +231,20 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
     let log = sentry::integrations::log::SentryLogger::with_dest(dest_log);
     log::set_boxed_logger(Box::new(log)).ok();
 
+    let release = sentry::release_name!();
+    #[cfg(feature = "relay-crash")]
+    {
+        if let Some(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
+            if let Some(db) = sentry._crash_db.as_deref() {
+                relay_crash::CrashHandler::new(dsn.as_ref(), db)
+                    .release(release.as_deref())
+                    .install();
+            }
+        }
+    }
+
     let guard = sentry::init(sentry::ClientOptions {
-        dsn: sentry.dsn.clone().filter(|_| sentry.enabled),
+        dsn: sentry.enabled_dsn().cloned(),
         in_app_include: vec![
             "relay_auth::",
             "relay_common::",
@@ -232,7 +257,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             "relay::",
         ],
         integrations: vec![Arc::new(FailureIntegration::new())],
-        release: sentry::release_name!(),
+        release,
         attach_stacktrace: config.enable_backtraces,
         ..Default::default()
     });
