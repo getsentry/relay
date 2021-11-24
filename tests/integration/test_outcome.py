@@ -686,8 +686,8 @@ def test_outcomes_do_not_aggregate(
         del outcome["timestamp"]
 
     # Results in two outcomes, nothing aggregated:
-    expected_outcomes = [
-        {
+    expected_outcomes = {
+        event_id1: {
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
@@ -698,7 +698,7 @@ def test_outcomes_do_not_aggregate(
             "category": 1,
             "quantity": 1,
         },
-        {
+        event_id2: {
             "org_id": 1,
             "project_id": 42,
             "key_id": 123,
@@ -709,5 +709,6 @@ def test_outcomes_do_not_aggregate(
             "category": 1,
             "quantity": 1,
         },
-    ]
-    assert outcomes == expected_outcomes
+    }
+    # Convert to dict to ignore sort order:
+    assert {x["event_id"]: x for x in outcomes} == expected_outcomes
