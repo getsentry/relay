@@ -6,11 +6,14 @@ fn main() {
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
     match target_os.as_str() {
         "macos" => {
-            println!("cargo:rustc-link-lib=curl");
+            println!("cargo:rustc-link-lib=static=z");
+            println!("cargo:rustc-link-lib=static=curl");
             println!("cargo:rustc-link-lib=dylib=c++");
+            println!("cargo:rustc-link-lib=framework=SystemConfiguration");
         }
         "linux" => {
-            println!("cargo:rustc-link-lib=curl");
+            println!("cargo:rustc-link-lib=static=z");
+            println!("cargo:rustc-link-lib=static=curl");
             println!("cargo:rustc-link-lib=dylib=stdc++");
         }
         os => unimplemented!("crash-handler is not supported on {}", os),
