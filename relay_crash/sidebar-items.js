@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["CrashHandler","Captures process crashes and reports them to Sentry."]]});

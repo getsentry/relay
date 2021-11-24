@@ -7,6 +7,7 @@ sourcesIndex["relay_auth"] = {"name":"","files":["lib.rs"]};
 sourcesIndex["relay_cabi"] = {"name":"","files":["auth.rs","constants.rs","core.rs","ffi.rs","lib.rs","processing.rs"]};
 sourcesIndex["relay_common"] = {"name":"","files":["cell.rs","constants.rs","glob.rs","lib.rs","macros.rs","project.rs","retry.rs","time.rs","utils.rs"]};
 sourcesIndex["relay_config"] = {"name":"","files":["byte_size.rs","config.rs","lib.rs","upstream.rs"]};
+sourcesIndex["relay_crash"] = {"name":"","files":["lib.rs"]};
 sourcesIndex["relay_ffi"] = {"name":"","files":["lib.rs"]};
 sourcesIndex["relay_ffi_macros"] = {"name":"","files":["lib.rs"]};
 sourcesIndex["relay_filter"] = {"name":"","files":["browser_extensions.rs","client_ips.rs","common.rs","config.rs","csp.rs","error_messages.rs","legacy_browsers.rs","lib.rs","localhost.rs","releases.rs","web_crawlers.rs"]};
