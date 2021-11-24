@@ -38,7 +38,7 @@ use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
 use relay_statsd::metric;
 
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+use crate::actors::outcome::{DiscardReason, Outcome, OutcomeType, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{
@@ -276,9 +276,9 @@ impl EnvelopeContext {
     ///
     /// This does not send outcomes for empty envelopes or request-only contexts.
     pub fn send_outcomes(&self, outcome: Outcome) {
-        let outcome_producer = OutcomeProducer::from_registry();
+        let outcome_aggregator = OutcomeAggregator::from_registry();
         if let Some(category) = self.summary.event_category {
-            outcome_producer.do_send(TrackOutcome {
+            outcome_aggregator.do_send(TrackOutcome {
                 timestamp: self.received_at,
                 scoping: self.scoping,
                 outcome: outcome.clone(),
@@ -290,7 +290,7 @@ impl EnvelopeContext {
         }
 
         if self.summary.attachment_quantity > 0 {
-            outcome_producer.do_send(TrackOutcome {
+            outcome_aggregator.do_send(TrackOutcome {
                 timestamp: self.received_at,
                 scoping: self.scoping,
                 outcome,
@@ -417,6 +417,28 @@ fn with_tag(
 }
 
 #[cfg(feature = "processing")]
+fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
+    let rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
+        debug_assert!(meh_ceiling < poor_ceiling);
+        if value < meh_ceiling {
+            Some("good".to_owned())
+        } else if value < poor_ceiling {
+            Some("meh".to_owned())
+        } else {
+            Some("poor".to_owned())
+        }
+    };
+
+    match name {
+        "measurement.lcp" => rate_range(2500.0, 4000.0),
+        "measurement.fcp" => rate_range(1000.0, 3000.0),
+        "measurement.fid" => rate_range(100.0, 300.0),
+        "measurement.cls" => rate_range(0.1, 0.25),
+        _ => None,
+    }
+}
+
+#[cfg(feature = "processing")]
 fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     let timestamp = match event
         .timestamp
@@ -434,6 +456,9 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
     }
+    if let Some(transaction) = event.transaction.as_str() {
+        tags.insert("transaction".to_owned(), transaction.to_owned());
+    }
 
     if let Some(measurements) = event.measurements.value() {
         for (name, annotated) in measurements.iter() {
@@ -442,12 +467,18 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
                 None => continue,
             };
 
+            let name = format!("measurement.{}", name);
+            let mut tags = tags.clone();
+            if let Some(rating) = get_measurement_rating(&name, measurement) {
+                tags.insert("measurement_rating".to_owned(), rating);
+            }
+
             target.push(Metric {
-                name: format!("measurement.{}", name),
+                name,
                 unit: MetricUnit::None,
                 value: MetricValue::Distribution(measurement),
                 timestamp,
-                tags: tags.clone(),
+                tags,
             });
         }
     }
@@ -814,7 +845,7 @@ impl EnvelopeProcessor {
     fn process_client_reports(&self, state: &mut ProcessEnvelopeState) {
         // if client outcomes are disabled we leave the the client reports unprocessed
         // and pass them on.
-        if !self.config.emit_outcomes() || !self.config.emit_client_outcomes() {
+        if !self.config.emit_outcomes().any() || !self.config.emit_client_outcomes() {
             // if a processing relay has client outcomes disabled we drop them.
             if self.config.processing_enabled() {
                 state
@@ -825,7 +856,7 @@ impl EnvelopeProcessor {
         }
 
         let mut timestamp = None;
-        let mut discarded_events = BTreeMap::new();
+        let mut output_events = BTreeMap::new();
         let received = state.envelope_context.received_at;
 
         let clock_drift_processor = ClockDriftProcessor::new(state.envelope.sent_at(), received)
@@ -838,17 +869,44 @@ impl EnvelopeProcessor {
                 return true;
             };
             match ClientReport::parse(&item.payload()) {
-                Ok(report) => {
-                    for discarded_event in report.discarded_events.into_iter() {
+                Ok(ClientReport {
+                    timestamp: report_timestamp,
+                    discarded_events,
+                    rate_limited_events,
+                    filtered_events,
+                    filtered_sampling_events,
+                }) => {
+                    // Glue all discarded events together and give them the appropriate outcome type
+                    let input_events =
+                        discarded_events
+                            .into_iter()
+                            .map(|discarded_event| (OutcomeType::ClientDiscard, discarded_event))
+                            .chain(
+                                filtered_events.into_iter().map(|discarded_event| {
+                                    (OutcomeType::Filtered, discarded_event)
+                                }),
+                            )
+                            .chain(filtered_sampling_events.into_iter().map(|discarded_event| {
+                                (OutcomeType::FilteredSampling, discarded_event)
+                            }))
+                            .chain(rate_limited_events.into_iter().map(|discarded_event| {
+                                (OutcomeType::RateLimited, discarded_event)
+                            }));
+
+                    for (outcome_type, discarded_event) in input_events {
                         if discarded_event.reason.len() > 200 {
                             relay_log::trace!("ignored client outcome with an overlong reason");
                             continue;
                         }
-                        *discarded_events
-                            .entry((discarded_event.reason, discarded_event.category))
+                        *output_events
+                            .entry((
+                                outcome_type,
+                                discarded_event.reason,
+                                discarded_event.category,
+                            ))
                             .or_insert(0) += discarded_event.quantity;
                     }
-                    if let Some(ts) = report.timestamp {
+                    if let Some(ts) = report_timestamp {
                         timestamp.get_or_insert(ts);
                     }
                 }
@@ -857,7 +915,7 @@ impl EnvelopeProcessor {
             false
         });
 
-        if discarded_events.is_empty() {
+        if output_events.is_empty() {
             return;
         }
 
@@ -888,11 +946,23 @@ impl EnvelopeProcessor {
         }
 
         let producer = OutcomeAggregator::from_registry();
-        for ((reason, category), quantity) in discarded_events.into_iter() {
+        for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
+            let outcome = match Outcome::from_outcome_type(outcome_type, &reason) {
+                Ok(outcome) => outcome,
+                Err(_) => {
+                    relay_log::trace!(
+                        "Invalid outcome_type / reason: ({:?}, {})",
+                        outcome_type,
+                        reason
+                    );
+                    continue;
+                }
+            };
+
             producer.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
                 scoping: state.envelope_context.scoping,
-                outcome: Outcome::ClientDiscard(reason),
+                outcome,
                 event_id: None,
                 remote_addr: None, // omitting the client address allows for better aggregation
                 category,
@@ -1685,7 +1755,7 @@ impl EnvelopeProcessor {
         mut state: ProcessEnvelopeState,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         macro_rules! if_processing {
-            ($if_true:block $(, $if_not:block)?) => {
+            ($if_true:block) => {
                 #[cfg(feature = "processing")] {
                     if self.config.processing_enabled() $if_true
                 }
@@ -2646,6 +2716,53 @@ impl Handler<SendMetrics> for EnvelopeManager {
     }
 }
 
+/// Sends a client report to the upstream
+pub struct SendClientReports {
+    /// The client report to be sent.
+    pub client_reports: Vec<ClientReport>,
+    /// Scoping information for the client report.
+    pub scoping: Scoping,
+}
+
+impl Message for SendClientReports {
+    type Result = Result<(), ()>;
+}
+
+impl Handler<SendClientReports> for EnvelopeManager {
+    type Result = ResponseFuture<(), ()>;
+
+    fn handle(&mut self, message: SendClientReports, _context: &mut Self::Context) -> Self::Result {
+        let SendClientReports {
+            client_reports,
+            scoping,
+        } = message;
+
+        let upstream = self.config.upstream_descriptor();
+        let dsn = PartialDsn {
+            scheme: upstream.scheme(),
+            public_key: scoping.project_key,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: "".to_owned(),
+            project_id: Some(scoping.project_id),
+        };
+
+        let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
+        for client_report in client_reports {
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
+            envelope.add_item(item);
+        }
+        let future = self
+            .send_envelope(scoping.project_key, envelope, scoping, Instant::now())
+            .map_err(|e| {
+                relay_log::trace!("Failed to send envelope for client report: {:?}", e);
+            });
+
+        Box::new(future)
+    }
+}
+
 /// Resolves a [`CapturedEnvelope`] by the given `event_id`.
 pub struct GetCapturedEnvelope {
     pub event_id: EventId,
@@ -3266,8 +3383,10 @@ mod tests {
             "timestamp": "2021-04-26T08:00:00+0100",
             "release": "1.2.3",
             "environment": "fake_environment",
+            "transaction": "mytransaction",
             "measurements": {
-                "foo": {"value": 420.69}
+                "foo": {"value": 420.69},
+                "lcp": {"value": 3000.0}
             },
             "breakdowns": {
                 "breakdown1": {
@@ -3285,17 +3404,21 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 4);
+        assert_eq!(metrics.len(), 5);
 
         assert_eq!(metrics[0].name, "measurement.foo");
-        assert_eq!(metrics[1].name, "breakdown.breakdown1.bar");
-        assert_eq!(metrics[2].name, "breakdown.breakdown2.baz");
-        assert_eq!(metrics[3].name, "breakdown.breakdown2.zap");
+        assert_eq!(metrics[1].name, "measurement.lcp");
+        assert_eq!(metrics[2].name, "breakdown.breakdown1.bar");
+        assert_eq!(metrics[3].name, "breakdown.breakdown2.baz");
+        assert_eq!(metrics[4].name, "breakdown.breakdown2.zap");
+
+        assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
         for metric in metrics {
             assert!(matches!(metric.value, MetricValue::Distribution(_)));
             assert_eq!(metric.tags["release"], "1.2.3");
             assert_eq!(metric.tags["environment"], "fake_environment");
+            assert_eq!(metric.tags["transaction"], "mytransaction");
         }
     }
 

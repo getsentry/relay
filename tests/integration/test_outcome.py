@@ -24,7 +24,9 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
 
     message_text = "some message {}".format(datetime.now())
     event_id = "11122233344455566677788899900011"
-    start = datetime.utcnow()
+    start = datetime.utcnow().replace(
+        microsecond=0
+    )  # Outcome aggregator rounds down to seconds
 
     relay.send_event(
         42,
@@ -37,12 +39,12 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
 
     outcome = outcomes_consumer.get_outcome()
     assert outcome["project_id"] == 42
-    assert outcome["event_id"] == event_id
+    assert outcome.get("event_id") is None
     assert outcome.get("org_id") is None
     assert outcome.get("key_id") is None
     assert outcome["outcome"] == 3
     assert outcome["reason"] == "project_id"
-    assert outcome["remote_addr"] == "127.0.0.1"
+    assert outcome.get("remote_addr") is None
 
     # deal with the timestamp separately (we can't control it exactly)
     timestamp = outcome.get("timestamp")
@@ -83,7 +85,9 @@ def test_outcomes_custom_topic(
 
     message_text = "some message {}".format(datetime.now())
     event_id = "11122233344455566677788899900011"
-    start = datetime.utcnow()
+    start = datetime.utcnow().replace(
+        microsecond=0
+    )  # Outcome aggregator rounds down to seconds
 
     relay.send_event(
         42,
@@ -96,12 +100,12 @@ def test_outcomes_custom_topic(
 
     outcome = outcomes_consumer.get_outcome()
     assert outcome["project_id"] == 42
-    assert outcome["event_id"] == event_id
+    assert outcome.get("event_id") is None
     assert outcome.get("org_id") is None
     assert outcome.get("key_id") is None
     assert outcome["outcome"] == 3
     assert outcome["reason"] == "project_id"
-    assert outcome["remote_addr"] == "127.0.0.1"
+    assert outcome.get("remote_addr") is None
 
     # deal with the timestamp separately (we can't control it exactly)
     timestamp = outcome.get("timestamp")
@@ -110,19 +114,21 @@ def test_outcomes_custom_topic(
     assert start <= event_emission <= end
 
 
-def _send_event(relay, project_id=42, event_type="error"):
+def _send_event(relay, project_id=42, event_type="error", event_id=None):
     """
     Send an event to the given project.
 
     If the project doesn't exist, relay should generate INVALID outcome with reason "project_id".
     """
-    event_id = uuid.uuid1().hex
+    event_id = event_id or uuid.uuid1().hex
     message_text = "some message {}".format(datetime.now())
     event_body = {
         "event_id": event_id,
         "message": message_text,
         "extra": {"msg_text": message_text},
         "type": event_type,
+        "environment": "production",
+        "release": "foo@1.2.3",
     }
 
     try:
@@ -160,8 +166,6 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
         "project_id": 42,
         "outcome": 3,  # invalid
         "reason": "project_id",  # missing project id
-        "event_id": event_id,
-        "remote_addr": "127.0.0.1",
         "category": 2 if event_type == "transaction" else 1,
         "quantity": 1,
     }
@@ -224,7 +228,6 @@ def test_outcomes_non_processing_max_batch_time(relay, mini_sentry):
     for batch in batches:
         outcomes = batch.get("outcomes")
         assert len(outcomes) == 1  # one outcome per batch
-        assert outcomes[0].get("event_id") in event_ids  # a known event id
 
 
 def test_outcomes_non_processing_batching(relay, mini_sentry):
@@ -268,11 +271,6 @@ def test_outcomes_non_processing_batching(relay, mini_sentry):
 
     outcomes = outcomes_batch.get("outcomes")
     assert len(outcomes) == batch_size
-
-    received_event_ids = [outcome.get("event_id") for outcome in outcomes]
-
-    for event_id in received_event_ids:
-        assert event_id in event_ids  # the outcome is one of those we sent
 
     # no events received since all have been for an invalid project id
     assert mini_sentry.captured_events.empty()
@@ -360,8 +358,6 @@ def test_outcome_forwarding(
         "outcome": 3,
         "source": "downstream-layer",
         "reason": "project_id",
-        "event_id": event_id,
-        "remote_addr": "127.0.0.1",
         "category": 2 if event_type == "transaction" else 1,
         "quantity": 1,
     }
@@ -423,8 +419,7 @@ def test_outcomes_forwarding_rate_limited(
     ]
 
     # Send an event, it should be dropped in the upstream (processing) relay
-    result = downstream_relay.send_event(project_id, _get_event_payload(category))
-    event_id = result["id"]
+    downstream_relay.send_event(project_id, _get_event_payload(category))
 
     outcome = outcomes_consumer.get_outcome()
     outcome.pop("timestamp")
@@ -434,8 +429,6 @@ def test_outcomes_forwarding_rate_limited(
         "key_id": 123,
         "outcome": 2,
         "project_id": 42,
-        "remote_addr": "127.0.0.1",
-        "event_id": event_id,
         "source": "processing-layer",
         "category": 1,
         "quantity": 1,
@@ -449,11 +442,9 @@ def test_outcomes_forwarding_rate_limited(
 
     expected_outcome_from_downstream = deepcopy(expected_outcome)
     expected_outcome_from_downstream["source"] = "downstream-layer"
-    expected_outcome_from_downstream.pop("event_id")
 
     outcome = outcomes_consumer.get_outcome()
     outcome.pop("timestamp")
-    outcome.pop("event_id")
 
     assert outcome == expected_outcome_from_downstream
 
@@ -537,3 +528,187 @@ def test_outcomes_rate_limit(
         outcomes_consumer.assert_rate_limited(reason_code, categories=[category])
     else:
         outcomes_consumer.assert_empty()
+
+
+def test_outcome_to_client_report(relay, mini_sentry):
+
+    # Create project config
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["dynamicSampling"] = {
+        "rules": [
+            {
+                "id": 1,
+                "sampleRate": 0.0,
+                "type": "error",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.environment",
+                    "value": "production",
+                },
+            }
+        ]
+    }
+
+    upstream = relay(
+        mini_sentry,
+        {
+            "outcomes": {
+                "emit_outcomes": True,
+                "emit_client_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+            }
+        },
+    )
+
+    downstream = relay(
+        upstream,
+        {
+            "outcomes": {
+                "emit_outcomes": "as_client_reports",
+                "source": "downstream-layer",
+                "aggregator": {"flush_interval": 1,},
+            }
+        },
+    )
+
+    _send_event(downstream, event_type="error")
+
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
+
+    outcome = outcomes[0]
+
+    del outcome["timestamp"]
+
+    expected_outcome = {
+        "org_id": 1,
+        "project_id": 42,
+        "key_id": 123,
+        "outcome": 1,
+        "reason": "Sampled:1",
+        "category": 1,
+        "quantity": 1,
+    }
+    assert outcome == expected_outcome
+
+
+def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
+    """Dynamic sampling is aggregated"""
+    # Create project config
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["dynamicSampling"] = {
+        "rules": [
+            {
+                "id": 1,
+                "sampleRate": 0.0,
+                "type": "error",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.environment",
+                    "value": "production",
+                },
+            }
+        ]
+    }
+
+    upstream = relay(
+        mini_sentry,
+        {
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+                "aggregator": {"flush_interval": 1,},
+            }
+        },
+    )
+
+    _send_event(upstream, event_type="error")
+    _send_event(upstream, event_type="error")
+
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=1.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
+
+    outcome = outcomes[0]
+
+    del outcome["timestamp"]
+
+    expected_outcome = {
+        "org_id": 1,
+        "project_id": 42,
+        "key_id": 123,
+        "outcome": 1,
+        "reason": "Sampled:1",
+        "category": 1,
+        "quantity": 2,
+    }
+    assert outcome == expected_outcome
+
+
+def test_outcomes_do_not_aggregate(
+    relay, relay_with_processing, mini_sentry, outcomes_consumer
+):
+    """Make sure that certain types are not aggregated"""
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["filterSettings"]["releases"] = {"releases": ["foo@1.2.3"]}
+
+    relay = relay_with_processing(
+        {
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+                "aggregator": {"flush_interval": 1,},
+            }
+        },
+    )
+
+    outcomes_consumer = outcomes_consumer(timeout=1.2)
+
+    # Send empty body twice
+    event_id1 = _send_event(relay)
+    event_id2 = _send_event(relay)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 2, outcomes
+
+    for outcome in outcomes:
+        del outcome["timestamp"]
+
+    # Results in two outcomes, nothing aggregated:
+    expected_outcomes = {
+        event_id1: {
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,
+            "event_id": event_id1,
+            "remote_addr": "127.0.0.1",
+            "reason": "release-version",
+            "category": 1,
+            "quantity": 1,
+        },
+        event_id2: {
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 1,
+            "event_id": event_id2,
+            "remote_addr": "127.0.0.1",
+            "reason": "release-version",
+            "category": 1,
+            "quantity": 1,
+        },
+    }
+    # Convert to dict to ignore sort order:
+    assert {x["event_id"]: x for x in outcomes} == expected_outcomes

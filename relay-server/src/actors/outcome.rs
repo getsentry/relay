@@ -4,38 +4,45 @@
 //! must be emitted in the entire ingestion pipeline. Since Relay is only one part in this pipeline,
 //! outcomes may not be emitted if the event is accepted.
 
-use std::borrow::Cow;
-use std::mem;
-use std::net::IpAddr;
-use std::sync::Arc;
-
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
+#[cfg(feature = "processing")]
+use failure::{Fail, ResultExt};
 use futures::future::Future;
+#[cfg(feature = "processing")]
+use rdkafka::producer::BaseRecord;
+#[cfg(feature = "processing")]
+use rdkafka::ClientConfig as KafkaClientConfig;
 use serde::{Deserialize, Serialize};
+use std::borrow::{Borrow, Cow};
+use std::collections::BTreeMap;
+use std::convert::{TryFrom, TryInto};
+use std::mem;
+use std::net::IpAddr;
+use std::sync::Arc;
+use std::time::Duration;
 
-use relay_common::{DataCategory, ProjectId};
-use relay_config::Config;
+use relay_common::{DataCategory, ProjectId, UnixTimestamp};
+#[cfg(feature = "processing")]
+use relay_config::KafkaTopic;
+use relay_config::{Config, EmitOutcomes};
 use relay_filter::FilterStatKey;
-use relay_general::protocol::EventId;
+use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
+use relay_statsd::metric;
 
+use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::SendQuery;
 use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
+#[cfg(feature = "processing")]
+use crate::service::ServerErrorKind;
+use crate::statsd::RelayCounters;
+#[cfg(feature = "processing")]
+use crate::utils::{CaptureErrorContext, ThreadedProducer};
 use crate::ServerError;
-
-// Choose the outcome module implementation (either processing or non-processing).
-// Processing outcome implementation
-#[cfg(feature = "processing")]
-pub use self::processing::*;
-
-#[cfg(feature = "processing")]
-pub type OutcomeProducer = processing::ProcessingOutcomeProducer;
-#[cfg(not(feature = "processing"))]
-pub type OutcomeProducer = HttpOutcomeProducer;
 
 /// Defines the structure of the HTTP outcomes requests
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -66,10 +73,26 @@ pub struct SendOutcomesResponse {
     // nothing yet, future features will go here
 }
 
+trait TrackOutcomeLike: Message {
+    fn reason(&self) -> Option<Cow<str>>;
+    fn outcome_id(&self) -> u8;
+
+    fn tag_name(&self) -> &'static str {
+        match self.outcome_id() {
+            1 => "filtered",
+            2 => "rate_limited",
+            3 => "invalid",
+            4 => "abuse",
+            5 => "client_discard",
+            _ => "<unknown>",
+        }
+    }
+}
+
 /// Tracks an outcome of an event.
 ///
 /// See the module level documentation for more information.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct TrackOutcome {
     /// The timespan of the event outcome.
     pub timestamp: DateTime<Utc>,
@@ -87,19 +110,41 @@ pub struct TrackOutcome {
     pub quantity: u32,
 }
 
+impl TrackOutcomeLike for TrackOutcome {
+    fn reason(&self) -> Option<Cow<str>> {
+        self.outcome.to_reason()
+    }
+
+    fn outcome_id(&self) -> u8 {
+        self.outcome.to_outcome_id()
+    }
+}
+
 impl Message for TrackOutcome {
     type Result = Result<(), OutcomeError>;
+}
+
+/// A simpler version of the [`Outcome`] enum without content.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum OutcomeType {
+    Filtered,
+
+    /// The event has been filtered by a Sampling Rule
+    FilteredSampling,
+
+    /// The event has been rate limited.
+    RateLimited,
+
+    /// The event has already been discarded on the client side.
+    ClientDiscard,
 }
 
 /// Defines the possible outcomes from processing an event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
-    /// The event has been accepted.
-    ///
-    /// This is never emitted by Relay as the event may be discarded by the processing pipeline
-    /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
-    #[allow(dead_code)]
-    Accepted,
+    /// The outcome state "Accepted" is never emitted by Relay as the event may be discarded
+    /// by the processing pipeline after Relay.
+    /// Only the `save_event` task in Sentry finally accepts an event.
 
     /// The event has been filtered due to a configured filter.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
@@ -125,7 +170,6 @@ pub enum Outcome {
 impl Outcome {
     fn to_outcome_id(&self) -> u8 {
         match self {
-            Outcome::Accepted => 0,
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => 1,
             Outcome::RateLimited(_) => 2,
             Outcome::Invalid(_) => 3,
@@ -136,7 +180,6 @@ impl Outcome {
 
     fn to_reason(&self) -> Option<Cow<str>> {
         match self {
-            Outcome::Accepted => None,
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
             Outcome::FilteredSampling(rule_id) => Some(Cow::Owned(format!("Sampled:{}", rule_id))),
@@ -146,6 +189,29 @@ impl Outcome {
                 .map(|code| Cow::Owned(code.as_str().into())),
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
+        }
+    }
+
+    /// Parse an outcome from an outcome ID and a reason string.
+    /// Currently only used to reconstruct outcomes encoded in client reports.
+    pub fn from_outcome_type(outcome_type: OutcomeType, reason: &str) -> Result<Self, ()> {
+        match outcome_type {
+            OutcomeType::FilteredSampling => {
+                if let Some(rule_id) = reason.strip_prefix("Sampled:") {
+                    let rule_id = RuleId(rule_id.parse().map_err(|_| ())?);
+                    Ok(Self::FilteredSampling(rule_id))
+                } else {
+                    Err(())
+                }
+            }
+            OutcomeType::ClientDiscard => Ok(Self::ClientDiscard(reason.into())),
+            OutcomeType::Filtered => Ok(Self::Filtered(
+                FilterStatKey::try_from(reason).map_err(|_| ())?,
+            )),
+            OutcomeType::RateLimited => Ok(Self::RateLimited(match reason {
+                "" => None,
+                other => Some(ReasonCode::new(other)),
+            })),
         }
     }
 }
@@ -360,205 +426,35 @@ impl TrackRawOutcome {
     }
 }
 
+impl TrackOutcomeLike for TrackRawOutcome {
+    fn reason(&self) -> Option<Cow<str>> {
+        self.reason.as_ref().map(|s| s.into())
+    }
+
+    fn outcome_id(&self) -> u8 {
+        self.outcome
+    }
+}
+
 impl Message for TrackRawOutcome {
     type Result = Result<(), OutcomeError>;
 }
 
-/// This is the implementation that uses kafka queues and does stuff
-#[cfg(feature = "processing")]
-mod processing {
-    use super::*;
-
-    use failure::{Fail, ResultExt};
-    use rdkafka::error::KafkaError;
-    use rdkafka::producer::BaseRecord;
-    use rdkafka::ClientConfig;
-    use serde_json::Error as SerdeSerializationError;
-
-    use relay_config::KafkaTopic;
-    use relay_statsd::metric;
-
-    use crate::service::ServerErrorKind;
-    use crate::statsd::RelayCounters;
-    use crate::utils::{CaptureErrorContext, ThreadedProducer};
-
-    #[derive(Fail, Debug)]
-    pub enum OutcomeError {
-        #[fail(display = "failed to send kafka message")]
-        SendFailed(KafkaError),
-        #[fail(display = "json serialization error")]
-        SerializationError(SerdeSerializationError),
-    }
-
-    impl TrackRawOutcome {
-        fn tag_name(&self) -> &'static str {
-            match self.outcome {
-                0 => "accepted",
-                1 => "filtered",
-                2 => "rate_limited",
-                3 => "invalid",
-                4 => "abuse",
-                _ => "<unknown>",
-            }
-        }
-    }
-
-    pub struct ProcessingOutcomeProducer {
-        config: Arc<Config>,
-        producer: Option<ThreadedProducer>,
-        http_producer: Option<Addr<HttpOutcomeProducer>>,
-    }
-
-    impl ProcessingOutcomeProducer {
-        pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-            let (future_producer, http_producer) = if config.processing_enabled() {
-                let mut client_config = ClientConfig::new();
-                for config_p in config
-                    .kafka_config(KafkaTopic::Outcomes)
-                    .context(ServerErrorKind::KafkaError)?
-                    .1
-                {
-                    client_config.set(config_p.name.as_str(), config_p.value.as_str());
-                }
-                let future_producer = client_config
-                    .create_with_context(CaptureErrorContext)
-                    .context(ServerErrorKind::KafkaError)?;
-                (Some(future_producer), None)
-            } else {
-                let http_producer = HttpOutcomeProducer::create(config.clone())
-                    .map(|producer| producer.start())
-                    .map_err(|error| {
-                        relay_log::error!("Failed to start http producer: {}", LogError(&error));
-                        error
-                    })
-                    .ok();
-                (None, http_producer)
-            };
-
-            Ok(Self {
-                config,
-                producer: future_producer,
-                http_producer,
-            })
-        }
-
-        fn send_kafka_message(&self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
-            relay_log::trace!("Tracking kafka outcome: {:?}", message);
-
-            let producer = match self.producer {
-                Some(ref producer) => producer,
-                None => return Ok(()),
-            };
-
-            let payload =
-                serde_json::to_string(&message).map_err(OutcomeError::SerializationError)?;
-
-            metric!(
-                counter(RelayCounters::Outcomes) += 1,
-                reason = message.reason.as_deref().unwrap_or(""),
-                outcome = message.tag_name(),
-                to = "kafka",
-            );
-
-            // At the moment, we support outcomes with optional EventId.
-            // Here we create a fake EventId, when we don't have the real one, so that we can
-            // create a kafka message key that spreads the events nicely over all the
-            // kafka consumer groups.
-            let key = message.event_id.unwrap_or_else(EventId::new).0;
-
-            let record = BaseRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
-                .payload(&payload)
-                .key(key.as_bytes().as_ref());
-
-            match producer.send(record) {
-                Ok(_) => Ok(()),
-                Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
-            }
-        }
-
-        fn send_http_message(&self, message: TrackRawOutcome) {
-            relay_log::trace!("Tracking http outcome: {:?}", message);
-
-            let producer = match self.http_producer {
-                Some(ref producer) => producer,
-                None => {
-                    relay_log::error!("send_http_message called with invalid http_producer");
-                    return;
-                }
-            };
-
-            metric!(
-                counter(RelayCounters::Outcomes) += 1,
-                reason = message.reason.as_deref().unwrap_or(""),
-                outcome = message.tag_name(),
-                to = "http",
-            );
-
-            producer.do_send(message);
-        }
-    }
-
-    impl Actor for ProcessingOutcomeProducer {
-        type Context = Context<Self>;
-
-        fn started(&mut self, context: &mut Self::Context) {
-            // Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
-            // should ensure that we're not dropping outcomes unintentionally.
-            let mailbox_size = self.config.envelope_buffer_size() as usize;
-            context.set_mailbox_capacity(mailbox_size);
-
-            relay_log::info!("OutcomeProducer started.");
-        }
-
-        fn stopped(&mut self, _ctx: &mut Self::Context) {
-            relay_log::info!("OutcomeProducer stopped.");
-        }
-    }
-
-    impl Supervised for ProcessingOutcomeProducer {}
-
-    impl SystemService for ProcessingOutcomeProducer {}
-
-    impl Default for ProcessingOutcomeProducer {
-        fn default() -> Self {
-            unimplemented!("register with the SystemRegistry instead")
-        }
-    }
-
-    impl Handler<TrackOutcome> for ProcessingOutcomeProducer {
-        type Result = Result<(), OutcomeError>;
-
-        fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            self.handle(TrackRawOutcome::from_outcome(message, &self.config), _ctx)
-        }
-    }
-
-    impl Handler<TrackRawOutcome> for ProcessingOutcomeProducer {
-        type Result = Result<(), OutcomeError>;
-        fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-            relay_log::trace!("handling outcome");
-            if self.config.processing_enabled() {
-                self.send_kafka_message(message)
-            } else if self.config.emit_outcomes() {
-                self.send_http_message(message);
-                Ok(())
-            } else {
-                Ok(()) // processing not enabled and emit_outcomes disabled
-            }
-        }
-    }
+#[derive(Debug)]
+#[cfg_attr(feature = "processing", derive(Fail))]
+pub enum OutcomeError {
+    #[fail(display = "failed to send kafka message")]
+    #[cfg(feature = "processing")]
+    SendFailed(rdkafka::error::KafkaError),
+    #[fail(display = "json serialization error")]
+    #[cfg(feature = "processing")]
+    SerializationError(serde_json::Error),
 }
 
-/// This is the Outcome processing implementation for Relays that are compiled without processing
-/// There is no access to kafka, we can only send outcomes to the upstream Relay
-#[cfg(not(feature = "processing"))]
-#[derive(Debug)]
-pub enum OutcomeError {}
-
-pub struct HttpOutcomeProducer {
-    pub(super) config: Arc<Config>,
-    pub(super) unsent_outcomes: Vec<TrackRawOutcome>,
-    pub(super) pending_flush_handle: Option<SpawnHandle>,
+struct HttpOutcomeProducer {
+    config: Arc<Config>,
+    unsent_outcomes: Vec<TrackRawOutcome>,
+    pending_flush_handle: Option<SpawnHandle>,
 }
 
 impl HttpOutcomeProducer {
@@ -622,31 +518,316 @@ impl Actor for HttpOutcomeProducer {
     type Context = Context<Self>;
 }
 
-impl Supervised for HttpOutcomeProducer {}
+impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
+    type Result = Result<(), OutcomeError>;
 
-impl SystemService for HttpOutcomeProducer {}
-
-impl Default for HttpOutcomeProducer {
-    fn default() -> Self {
-        unimplemented!("register with the SystemRegistry instead")
+    fn handle(&mut self, msg: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
+        self.send_http_message(msg, ctx);
+        Ok(())
     }
 }
 
-impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
+struct ClientReportOutcomeProducer {
+    flush_interval: Duration,
+    unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
+}
+
+impl ClientReportOutcomeProducer {
+    fn create(config: &Config) -> Self {
+        Self {
+            // Use same batch interval as outcome aggregator
+            flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
+            unsent_reports: BTreeMap::new(),
+        }
+    }
+
+    fn flush(&mut self, _ctx: &mut Context<Self>) {
+        relay_log::trace!("Flushing client reports");
+        let unsent_reports = mem::take(&mut self.unsent_reports);
+        let envelope_manager = EnvelopeManager::from_registry();
+        for (scoping, client_reports) in unsent_reports.into_iter() {
+            envelope_manager.do_send(SendClientReports {
+                client_reports,
+                scoping,
+            });
+        }
+    }
+}
+
+impl Actor for ClientReportOutcomeProducer {
+    type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        if self.flush_interval > Duration::ZERO {
+            ctx.run_interval(self.flush_interval, Self::flush);
+        }
+    }
+}
+
+impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     type Result = Result<(), OutcomeError>;
-    fn handle(&mut self, message: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
-        if self.config.emit_outcomes() {
-            self.send_http_message(message, ctx);
+
+    fn handle(&mut self, msg: TrackOutcome, ctx: &mut Self::Context) -> Self::Result {
+        let mut client_report = ClientReport {
+            timestamp: Some(UnixTimestamp::from_secs(
+                msg.timestamp.timestamp().try_into().unwrap_or(0),
+            )),
+            ..Default::default()
+        };
+
+        // The outcome type determines what field to place the outcome in:
+        let discarded_events = match msg.outcome {
+            Outcome::Filtered(_) => &mut client_report.filtered_events,
+            Outcome::FilteredSampling(_) => &mut client_report.filtered_sampling_events,
+            Outcome::RateLimited(_) => &mut client_report.rate_limited_events,
+            _ => {
+                // Cannot convert this outcome to a client report.
+                return Ok(());
+            }
+        };
+
+        // Now that we know where to put it, let's create a DiscardedEvent
+        let discarded_event = DiscardedEvent {
+            reason: msg.outcome.to_reason().unwrap_or_default().to_string(),
+            category: msg.category,
+            quantity: msg.quantity,
+        };
+        discarded_events.push(discarded_event);
+
+        self.unsent_reports
+            .entry(msg.scoping)
+            .or_default()
+            .push(client_report);
+
+        if self.flush_interval == Duration::ZERO {
+            // Flush immediately. Useful for integration tests.
+            self.flush(ctx);
         }
 
         Ok(())
     }
 }
 
-impl Handler<TrackOutcome> for HttpOutcomeProducer {
+enum ProducerInner {
+    AsClientReports(Addr<ClientReportOutcomeProducer>),
+    AsHttpOutcomes(Addr<HttpOutcomeProducer>),
+    #[cfg(feature = "processing")]
+    AsKafkaOutcomes(ThreadedProducer),
+    Disabled,
+}
+
+pub struct OutcomeProducer {
+    config: Arc<Config>,
+    producer: ProducerInner,
+}
+
+impl OutcomeProducer {
+    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+        let producer = match config.emit_outcomes() {
+            EmitOutcomes::AsOutcomes => {
+                // We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream
+                // relays.
+                if config.processing_enabled() {
+                    #[cfg(feature = "processing")]
+                    {
+                        let mut client_config = KafkaClientConfig::new();
+                        for config_p in config
+                            .kafka_config(KafkaTopic::Outcomes)
+                            .context(ServerErrorKind::KafkaError)?
+                            .1
+                        {
+                            client_config.set(config_p.name.as_str(), config_p.value.as_str());
+                        }
+                        let future_producer = client_config
+                            .create_with_context(CaptureErrorContext)
+                            .context(ServerErrorKind::KafkaError)?;
+
+                        ProducerInner::AsKafkaOutcomes(future_producer)
+                    }
+
+                    #[cfg(not(feature = "processing"))]
+                    unreachable!("config parsing should have failed")
+                } else {
+                    relay_log::info!("Configured to emit outcomes via http");
+                    ProducerInner::AsHttpOutcomes(
+                        HttpOutcomeProducer::create(Arc::clone(&config))?.start(),
+                    )
+                }
+            }
+            EmitOutcomes::AsClientReports => {
+                // We emit outcomes as client reports, and we do not
+                // accept any raw outcomes
+                relay_log::info!("Configured to emit outcomes as client reports");
+                ProducerInner::AsClientReports(
+                    ClientReportOutcomeProducer::create(config.borrow()).start(),
+                )
+            }
+            EmitOutcomes::None => {
+                relay_log::info!("Configured to drop all outcomes");
+                ProducerInner::Disabled
+            }
+        };
+
+        Ok(Self { config, producer })
+    }
+
+    #[cfg(feature = "processing")]
+    fn send_kafka_message(
+        &self,
+        producer: &ThreadedProducer,
+        message: TrackRawOutcome,
+    ) -> Result<(), OutcomeError> {
+        relay_log::trace!("Tracking kafka outcome: {:?}", message);
+
+        let payload = serde_json::to_string(&message).map_err(OutcomeError::SerializationError)?;
+
+        // At the moment, we support outcomes with optional EventId.
+        // Here we create a fake EventId, when we don't have the real one, so that we can
+        // create a kafka message key that spreads the events nicely over all the
+        // kafka consumer groups.
+        let key = message.event_id.unwrap_or_else(EventId::new).0;
+
+        let record = BaseRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
+            .payload(&payload)
+            .key(key.as_bytes().as_ref());
+
+        match producer.send(record) {
+            Ok(_) => Ok(()),
+            Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
+        }
+    }
+
+    fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
+        metric!(
+            counter(RelayCounters::Outcomes) += 1,
+            reason = message.reason().as_deref().unwrap_or(""),
+            outcome = message.tag_name(),
+            to = to,
+        );
+    }
+}
+
+impl Actor for OutcomeProducer {
+    type Context = Context<Self>;
+
+    fn started(&mut self, context: &mut Self::Context) {
+        // Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
+        // should ensure that we're not dropping outcomes unintentionally.
+        let mailbox_size = self.config.envelope_buffer_size() as usize;
+        context.set_mailbox_capacity(mailbox_size);
+
+        relay_log::info!("OutcomeProducer started.");
+    }
+}
+
+impl Supervised for OutcomeProducer {}
+
+impl SystemService for OutcomeProducer {}
+
+impl Default for OutcomeProducer {
+    fn default() -> Self {
+        unimplemented!("register with the SystemRegistry instead")
+    }
+}
+
+impl Handler<TrackOutcome> for OutcomeProducer {
+    type Result = Result<(), OutcomeError>;
+    fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
+        match &self.producer {
+            #[cfg(feature = "processing")]
+            ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
+                Self::send_outcome_metric(&message, "kafka");
+                let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
+                self.send_kafka_message(kafka_producer, raw_message)
+            }
+            ProducerInner::AsClientReports(ref producer) => {
+                Self::send_outcome_metric(&message, "client_report");
+                producer.do_send(message);
+                Ok(())
+            }
+            ProducerInner::AsHttpOutcomes(ref producer) => {
+                Self::send_outcome_metric(&message, "http");
+                producer.do_send(TrackRawOutcome::from_outcome(message, &self.config));
+                Ok(())
+            }
+            ProducerInner::Disabled => Ok(()),
+        }
+    }
+}
+
+impl Handler<TrackRawOutcome> for OutcomeProducer {
     type Result = Result<(), OutcomeError>;
 
-    fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        self.handle(TrackRawOutcome::from_outcome(message, &self.config), _ctx)
+    fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
+        match &self.producer {
+            #[cfg(feature = "processing")]
+            ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
+                Self::send_outcome_metric(&message, "kafka");
+                self.send_kafka_message(kafka_producer, message)
+            }
+            ProducerInner::AsHttpOutcomes(ref producer) => {
+                Self::send_outcome_metric(&message, "http");
+                producer.do_send(message);
+                Ok(())
+            }
+            ProducerInner::AsClientReports(_) => Ok(()),
+            ProducerInner::Disabled => Ok(()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_from_outcome_type_sampled() {
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "adsf"),
+            Err(_)
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:"),
+            Err(_)
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:foo"),
+            Err(_)
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(RuleId(123)))
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_filtered() {
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::Filtered, "error-message"),
+            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
+        ));
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::Filtered, "adsf"),
+            Err(_)
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_client_discard() {
+        assert_eq!(
+            Outcome::from_outcome_type(OutcomeType::ClientDiscard, "foo_reason").unwrap(),
+            Outcome::ClientDiscard("foo_reason".into())
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_rate_limited() {
+        assert!(matches!(
+            Outcome::from_outcome_type(OutcomeType::RateLimited, ""),
+            Ok(Outcome::RateLimited(None))
+        ));
+        assert_eq!(
+            Outcome::from_outcome_type(OutcomeType::RateLimited, "foo_reason").unwrap(),
+            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
+        );
     }
 }

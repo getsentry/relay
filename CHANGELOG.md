@@ -1,11 +1,29 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Extract measurement ratings, port from frontend. ([#1130](https://github.com/getsentry/relay/pull/1130))
+- External Relays perform dynamic sampling and emit outcomes as client reports. This feature is now enabled *by default*. ([#1119](https://github.com/getsentry/relay/pull/1119))
+
+**Bug Fixes**:
+
+- Support Unreal Engine 5 crash reports. ([#1132](https://github.com/getsentry/relay/pull/1132))
+
+**Internal**:
+
+- Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124), [#1128](https://github.com/getsentry/relay/pull/1128))
+- Fold processing vs non-processing into single actor. ([#1133](https://github.com/getsentry/relay/pull/1133))
+- Aggregate outcomes for dynamic sampling, invalid project ID, and rate limits. ([#1134](https://github.com/getsentry/relay/pull/1134))
+
 ## 21.11.0
 
 **Features**:
 
 - Add bucket width to bucket protocol. ([#1103](https://github.com/getsentry/relay/pull/1103))
-- Support multiple kafka cluster configurations ([#1101](https://github.com/getsentry/relay/pull/1101))
+- Support multiple kafka cluster configurations. ([#1101](https://github.com/getsentry/relay/pull/1101))
+- Tag metrics by transaction name. ([#1126](https://github.com/getsentry/relay/pull/1126))
 
 **Bug Fixes**:
 
@@ -15,7 +33,6 @@
 **Internal**:
 
 - Aggregate client reports before sending them onwards. ([#1118](https://github.com/getsentry/relay/pull/1118))
-- Add more statsd metrics for relay metric bucketing. ([#1124](https://github.com/getsentry/relay/pull/1124))
 
 ## 21.10.0
 

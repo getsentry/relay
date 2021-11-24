@@ -455,10 +455,15 @@ def test_transaction_metrics(
 
     metrics = metrics_by_name(metrics_consumer, 3)
 
-    assert metrics["measurement.foo"] == {
+    common = {
+        "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
         "project_id": 42,
-        "timestamp": int(timestamp.timestamp()),
+        "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
+    }
+
+    assert metrics["measurement.foo"] == {
+        **common,
         "name": "measurement.foo",
         "type": "d",
         "unit": "",
@@ -466,9 +471,7 @@ def test_transaction_metrics(
     }
 
     assert metrics["measurement.bar"] == {
-        "org_id": 1,
-        "project_id": 42,
-        "timestamp": int(timestamp.timestamp()),
+        **common,
         "name": "measurement.bar",
         "type": "d",
         "unit": "",
@@ -476,9 +479,7 @@ def test_transaction_metrics(
     }
 
     assert metrics["breakdown.breakdown1.baz"] == {
-        "org_id": 1,
-        "project_id": 42,
-        "timestamp": int(timestamp.timestamp()),
+        **common,
         "name": "breakdown.breakdown1.baz",
         "type": "d",
         "unit": "",

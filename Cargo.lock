@@ -668,11 +668,11 @@ checksum = "338089f42c427b86394a5ee60ff321da23a5c89c9d89514c829687b26359fcff"
 
 [[package]]
 name = "crc32fast"
-version = "1.2.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba125de2af0df55319f41944744ad91c71113bf74a4646efff39afe1f6842db1"
+checksum = "81156fece84ab6a9f2afdb109ce3ae577e42b1228441eded99bd77f627953b1a"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
 ]
 
 [[package]]
@@ -3379,6 +3379,7 @@ name = "relay-metrics"
 version = "21.11.0"
 dependencies = [
  "actix",
+ "crc32fast",
  "criterion",
  "failure",
  "float-ord",
@@ -4189,9 +4190,9 @@ checksum = "502d53007c02d7605a05df1c1a73ee436952781653da5d0bf57ad608f66932c1"
 
 [[package]]
 name = "symbolic"
-version = "8.4.0"
+version = "8.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdee51d8cb63a5bed678d0a1dbb181fb19b8b1ee682ef239e2db1eb544c8c6f6"
+checksum = "bf0b3be4c272aaef995fca595a89355caf49993b84a964013e4a94447f13c779"
 dependencies = [
  "symbolic-common",
  "symbolic-unreal",
@@ -4199,9 +4200,9 @@ dependencies = [
 
 [[package]]
 name = "symbolic-common"
-version = "8.4.0"
+version = "8.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f544125aace169c385db21fc22f38b77710138e90e3f57077c98344b38d5880"
+checksum = "cfc8618f0f31ed048f8e66aa2caecedfbdbbca962ff9ad87107ba4171de0742b"
 dependencies = [
  "debugid",
  "memmap",
@@ -4212,9 +4213,9 @@ dependencies = [
 
 [[package]]
 name = "symbolic-unreal"
-version = "8.4.0"
+version = "8.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f21ca8876cd1288ec18f166a48f6c6cb2eddf88e6978a82d4bbcf85f1df4fed1"
+checksum = "1fd9f80568417c0204980bbf0836693fe91fd40d3d2deb954b767d1bd670d7f2"
 dependencies = [
  "anylog",
  "bytes 1.1.0",

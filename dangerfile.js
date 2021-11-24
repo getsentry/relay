@@ -3,8 +3,15 @@ const PR_URL = danger.github.pr.html_url;
 const PR_LINK = `[#${PR_NUMBER}](${PR_URL})`;
 
 function getCleanTitle() {
-  const title = danger.github.pr.title;
-  return title.split(": ").slice(-1)[0].trim().replace(/\.+$/, "");
+  let title = danger.github.pr.title;
+  // remove fix(component): prefix
+  title = title.split(": ").slice(-1)[0].trim();
+  // remove links to JIRA tickets, i.e. a suffix like [ISSUE-123]
+  title = title.split("[")[0].trim();
+  // remove trailing dots
+  title = title.replace(/\.+$/, "");
+
+  return title;
 }
 
 function getChangelogDetails() {

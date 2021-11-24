@@ -119,6 +119,10 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "logging": {"level": "trace"},
             "http": {"timeout": 2},
             "processing": {"enabled": False, "kafka_config": [], "redis": ""},
+            "outcomes": {
+                # Allow fastest possible aggregation:
+                "aggregator": {"bucket_interval": 1, "flush_interval": 0,},
+            },
         }
 
         if static_relays is not None:
@@ -154,7 +158,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "version": version,
         }
 
-        process = background_process(relay_bin + ["-c", str(dir), "run"])
+        process = background_process(relay_bin + ["-c", str(dir), "run"],)
 
         relay = Relay(
             (host, port),

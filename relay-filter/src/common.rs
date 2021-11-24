@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{convert::TryFrom, fmt};
 
 use globset::GlobBuilder;
 use regex::bytes::{Regex, RegexBuilder};
@@ -159,6 +159,26 @@ impl FilterStatKey {
 impl fmt::Display for FilterStatKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
+    }
+}
+
+impl<'a> TryFrom<&'a str> for FilterStatKey {
+    type Error = &'a str;
+
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+        Ok(match value {
+            "ip-address" => FilterStatKey::IpAddress,
+            "release-version" => FilterStatKey::ReleaseVersion,
+            "error-message" => FilterStatKey::ErrorMessage,
+            "browser-extensions" => FilterStatKey::BrowserExtensions,
+            "legacy-browsers" => FilterStatKey::LegacyBrowsers,
+            "localhost" => FilterStatKey::Localhost,
+            "web-crawlers" => FilterStatKey::WebCrawlers,
+            "invalid-csp" => FilterStatKey::InvalidCsp,
+            other => {
+                return Err(other);
+            }
+        })
     }
 }
 
