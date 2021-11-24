@@ -72,8 +72,8 @@ steps:
     - '-e'
     - '-c'
     - |
-      mkdir onpremise && cd onpremise
-      curl -L "https://github.com/getsentry/onpremise/archive/master.tar.gz" | tar xzf - --strip-components=1
+      mkdir self-hosted && cd self-hosted
+      curl -L "https://github.com/getsentry/self-hosted/archive/master.tar.gz" | tar xzf - --strip-components=1
       # The following trick is from https://stackoverflow.com/a/52400857/90297 with great gratuity
       echo '{"version": "3.4", "networks":{"default":{"external":{"name":"cloudbuild"}}}}' > docker-compose.override.yml
       ./install.sh
