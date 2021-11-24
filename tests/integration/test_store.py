@@ -243,7 +243,9 @@ def test_store_rate_limit(mini_sentry, relay):
             rate_limit_sent = True
             return "", 429, {"retry-after": "2"}
 
-    relay = relay(mini_sentry)
+    # Disable outcomes so client report envelopes do not interfere with the events we are looking for
+    config = {"outcomes": {"emit_outcomes": False}}
+    relay = relay(mini_sentry, config)
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
