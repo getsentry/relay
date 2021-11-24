@@ -6,7 +6,7 @@ fn main() {
     match std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
         "macos" => println!("cargo:rustc-link-lib=dylib=c++"),
         "linux" => println!("cargo:rustc-link-lib=dylib=stdc++"),
-        os => unimplemented!("crash-handler is not supported on {}", os),
+        _ => return, // allow building with --all-features, fail during runtime
     }
 
     println!("cargo:rustc-link-lib=curl");

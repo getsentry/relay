@@ -17,6 +17,9 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
+      - name: Install libcurl-dev
+        run: sudo apt-get install -y libcurl4-openssl-dev
+
       - uses: actions/checkout@v2
         with:
           submodules: recursive
@@ -109,6 +112,9 @@ jobs:
           - 6379:6379
 
     steps:
+      - name: Install libcurl-dev
+        run: sudo apt-get install -y libcurl4-openssl-dev
+
       - uses: actions/checkout@v2
         with:
           submodules: recursive
@@ -200,6 +206,9 @@ jobs:
           - 9092:9092
 
     steps:
+      - name: Install libcurl-dev
+        run: sudo apt-get install -y libcurl4-openssl-dev
+
       - uses: actions/checkout@v2
         with:
           submodules: recursive

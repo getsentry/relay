@@ -17,6 +17,9 @@ jobs:
       RUSTDOCFLAGS: -Dbroken_intra_doc_links
 
     steps:
+      - name: Install libcurl-dev
+        run: sudo apt-get install -y libcurl4-openssl-dev
+
       - uses: actions/checkout@v2
         with:
           submodules: recursive
