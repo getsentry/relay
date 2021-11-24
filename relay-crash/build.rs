@@ -1,4 +1,5 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 fn main() {
     // sentry-native dependencies
@@ -12,15 +13,19 @@ fn main() {
             println!("cargo:rustc-link-lib=curl");
             println!("cargo:rustc-link-lib=dylib=stdc++");
         }
-        _ => {
-            unimplemented!("crash-handler is not supported on this platform");
-        }
+        os => unimplemented!("crash-handler is not supported on {}", os),
+    }
+
+    if !Path::new("sentry-native/.git").exists() {
+        let _ = Command::new("git")
+            .args(&["submodule", "update", "--init", "--recursive"])
+            .status();
     }
 
     let destination = cmake::Config::new("sentry-native")
         // we never need a debug build of sentry-native
         .profile("RelWithDebInfo")
-        // simplest option, breakpad is functional on all platforms
+        // always build breakpad regardless of platform defaults
         .define("SENTRY_BACKEND", "breakpad")
         // build a static library
         .define("BUILD_SHARED_LIBS", "OFF")
@@ -42,10 +47,8 @@ fn main() {
         .generate()
         .expect("Unable to generate bindings");
 
-    let out_path = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     bindings
-        .write_to_file(out_path.join("bindings.rs"))
-        .expect("Couldn't write bindings!");
-
-    println!("cargo:rerun-if-changed=sentry-native/include/sentry.h");
+        .write_to_file(out_dir.join("bindings.rs"))
+        .expect("Couldn't write bindings");
 }
