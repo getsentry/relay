@@ -3,21 +3,13 @@ use std::process::Command;
 
 fn main() {
     // sentry-native dependencies
-    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
-    match target_os.as_str() {
-        "macos" => {
-            println!("cargo:rustc-link-lib=static=z");
-            println!("cargo:rustc-link-lib=static=curl");
-            println!("cargo:rustc-link-lib=dylib=c++");
-            println!("cargo:rustc-link-lib=framework=SystemConfiguration");
-        }
-        "linux" => {
-            println!("cargo:rustc-link-lib=static=z");
-            println!("cargo:rustc-link-lib=static=curl");
-            println!("cargo:rustc-link-lib=dylib=stdc++");
-        }
+    match std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
+        "macos" => println!("cargo:rustc-link-lib=dylib=c++"),
+        "linux" => println!("cargo:rustc-link-lib=dylib=stdc++"),
         os => unimplemented!("crash-handler is not supported on {}", os),
     }
+
+    println!("cargo:rustc-link-lib=curl");
 
     if !Path::new("sentry-native/.git").exists() {
         let _ = Command::new("git")

@@ -830,21 +830,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curl-sys"
-version = "0.4.51+curl-7.80.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d130987e6a6a34fe0889e1083022fa48cd90e6709a84be3fb8dd95801de5af20"
-dependencies = [
- "cc",
- "libc",
- "libz-sys",
- "openssl-sys",
- "pkg-config",
- "vcpkg",
- "winapi 0.3.8",
-]
-
-[[package]]
 name = "curve25519-dalek"
 version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3286,8 +3271,6 @@ version = "21.11.0"
 dependencies = [
  "bindgen",
  "cmake",
- "curl-sys",
- "libz-sys",
 ]
 
 [[package]]
