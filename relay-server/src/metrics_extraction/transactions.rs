@@ -159,6 +159,10 @@ mod tests {
             "release": "1.2.3",
             "environment": "fake_environment",
             "transaction": "mytransaction",
+            "tags": {
+                "fOO": "bar",
+                "bogus": "absolutely"
+            },
             "measurements": {
                 "foo": {"value": 420.69},
                 "lcp": {"value": 3000.0}
@@ -219,6 +223,8 @@ mod tests {
             assert_eq!(metric.tags["release"], "1.2.3");
             assert_eq!(metric.tags["environment"], "fake_environment");
             assert_eq!(metric.tags["transaction"], "mytransaction");
+            assert_eq!(metric.tags["fOO"], "bar");
+            assert!(!metric.tags.contains_key("bogus"));
         }
     }
 }
