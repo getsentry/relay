@@ -37,7 +37,7 @@ tar xf libs.tar
 echo 'Uploading debug information and source bundle...'
 sentry-cli upload-dif ./relay-debug.zip ./relay.src.zip
 
-echo "Uploading system symbols..."
+echo 'Uploading system symbols...'
 sentry-cli upload-dif lib/x86_64-linux-gnu
 
 echo 'Creating a new deploy in Sentry...'
