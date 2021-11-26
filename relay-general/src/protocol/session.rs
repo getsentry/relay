@@ -92,14 +92,6 @@ fn is_false(val: &bool) -> bool {
     !val
 }
 
-/// Generalization of SessionUpdate
-pub trait SessionLike {
-    fn sequence(&self) -> u64;
-    fn started(&self) -> DateTime<Utc>;
-    fn timestamp(&mut self) -> &mut DateTime<Utc>;
-    fn attributes(&mut self) -> &mut SessionAttributes;
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionUpdate {
     /// The session identifier.
@@ -142,24 +134,6 @@ impl SessionUpdate {
     /// Serializes a session update back into JSON.
     pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
         serde_json::to_vec(self)
-    }
-}
-
-impl SessionLike for SessionUpdate {
-    fn sequence(&self) -> u64 {
-        self.sequence
-    }
-
-    fn started(&self) -> DateTime<Utc> {
-        self.started
-    }
-
-    fn timestamp(&mut self) -> &mut DateTime<Utc> {
-        &mut self.timestamp
-    }
-
-    fn attributes(&mut self) -> &mut SessionAttributes {
-        &mut self.attributes
     }
 }
 
