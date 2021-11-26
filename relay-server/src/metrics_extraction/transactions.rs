@@ -199,7 +199,8 @@ mod tests {
                 "breakdown.breakdown1.bar",
                 "breakdown.breakdown2.baz",
                 "breakdown.breakdown2.zap"
-            ]
+            ],
+            "extractCustomTags": ["fOO"]
         }
         "#,
         )
