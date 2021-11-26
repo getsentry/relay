@@ -58,8 +58,9 @@ use crate::utils::{
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
+    crate::metrics_extraction::transactions::extract_transaction_metrics,
     crate::service::ServerErrorKind,
-    crate::utils::EnvelopeLimiter,
+    crate::utils::{EnvelopeLimiter, ErrorBoundary},
     failure::ResultExt,
     relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
@@ -414,98 +415,6 @@ fn with_tag(
     let mut tags = tags.clone();
     tags.insert(name.to_owned(), value.to_string());
     tags
-}
-
-#[cfg(feature = "processing")]
-fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
-    let rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
-        debug_assert!(meh_ceiling < poor_ceiling);
-        if value < meh_ceiling {
-            Some("good".to_owned())
-        } else if value < poor_ceiling {
-            Some("meh".to_owned())
-        } else {
-            Some("poor".to_owned())
-        }
-    };
-
-    match name {
-        "measurement.lcp" => rate_range(2500.0, 4000.0),
-        "measurement.fcp" => rate_range(1000.0, 3000.0),
-        "measurement.fid" => rate_range(100.0, 300.0),
-        "measurement.cls" => rate_range(0.1, 0.25),
-        _ => None,
-    }
-}
-
-#[cfg(feature = "processing")]
-fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
-    let timestamp = match event
-        .timestamp
-        .value()
-        .and_then(|ts| UnixTimestamp::from_datetime(ts.into_inner()))
-    {
-        Some(ts) => ts,
-        None => return,
-    };
-
-    let mut tags = BTreeMap::new();
-    if let Some(release) = event.release.as_str() {
-        tags.insert("release".to_owned(), release.to_owned());
-    }
-    if let Some(environment) = event.environment.as_str() {
-        tags.insert("environment".to_owned(), environment.to_owned());
-    }
-    if let Some(transaction) = event.transaction.as_str() {
-        tags.insert("transaction".to_owned(), transaction.to_owned());
-    }
-
-    if let Some(measurements) = event.measurements.value() {
-        for (name, annotated) in measurements.iter() {
-            let measurement = match annotated.value().and_then(|m| m.value.value()) {
-                Some(measurement) => *measurement,
-                None => continue,
-            };
-
-            let name = format!("measurement.{}", name);
-            let mut tags = tags.clone();
-            if let Some(rating) = get_measurement_rating(&name, measurement) {
-                tags.insert("measurement_rating".to_owned(), rating);
-            }
-
-            target.push(Metric {
-                name,
-                unit: MetricUnit::None,
-                value: MetricValue::Distribution(measurement),
-                timestamp,
-                tags,
-            });
-        }
-    }
-
-    if let Some(breakdowns) = event.breakdowns.value() {
-        for (breakdown, annotated) in breakdowns.iter() {
-            let measurements = match annotated.value() {
-                Some(measurements) => measurements,
-                None => continue,
-            };
-
-            for (name, annotated) in measurements.iter() {
-                let measurement = match annotated.value().and_then(|m| m.value.value()) {
-                    Some(measurement) => *measurement,
-                    None => continue,
-                };
-
-                target.push(Metric {
-                    name: format!("breakdown.{}.{}", breakdown, name),
-                    unit: MetricUnit::None,
-                    value: MetricValue::Distribution(measurement),
-                    timestamp,
-                    tags: tags.clone(),
-                });
-            }
-        }
-    }
 }
 
 /// Convert contained nil UUIDs to None
@@ -1612,13 +1521,14 @@ impl EnvelopeProcessor {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        if !state.project_state.has_feature(Feature::MetricsExtraction) {
-            return Ok(());
-        }
+        let config = match state.project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref config)) => config,
+            None | Some(ErrorBoundary::Err(_)) => return Ok(()),
+        };
 
         if let Some(event) = state.event.value() {
             // Actual logic outsourced for unit tests
-            extract_transaction_metrics(event, &mut state.extracted_metrics);
+            extract_transaction_metrics(config, event, &mut state.extracted_metrics);
             Ok(())
         } else {
             Err(ProcessingError::NoEventPayload)
@@ -3372,53 +3282,6 @@ mod tests {
             assert_eq!(user_metric.name, "user");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], status.to_string());
-        }
-    }
-
-    #[test]
-    #[cfg(feature = "processing")]
-    fn test_extract_transaction_metrics() {
-        let json = r#"
-        {
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "release": "1.2.3",
-            "environment": "fake_environment",
-            "transaction": "mytransaction",
-            "measurements": {
-                "foo": {"value": 420.69},
-                "lcp": {"value": 3000.0}
-            },
-            "breakdowns": {
-                "breakdown1": {
-                    "bar": {"value": 123.4}
-                },
-                "breakdown2": {
-                    "baz": {"value": 123.4},
-                    "zap": {"value": 666}
-                }
-            }
-        }
-        "#;
-
-        let event = Annotated::from_json(json).unwrap();
-        let mut metrics = vec![];
-        extract_transaction_metrics(event.value().unwrap(), &mut metrics);
-
-        assert_eq!(metrics.len(), 5);
-
-        assert_eq!(metrics[0].name, "measurement.foo");
-        assert_eq!(metrics[1].name, "measurement.lcp");
-        assert_eq!(metrics[2].name, "breakdown.breakdown1.bar");
-        assert_eq!(metrics[3].name, "breakdown.breakdown2.baz");
-        assert_eq!(metrics[4].name, "breakdown.breakdown2.zap");
-
-        assert_eq!(metrics[1].tags["measurement_rating"], "meh");
-
-        for metric in metrics {
-            assert!(matches!(metric.value, MetricValue::Distribution(_)));
-            assert_eq!(metric.tags["release"], "1.2.3");
-            assert_eq!(metric.tags["environment"], "fake_environment");
-            assert_eq!(metric.tags["transaction"], "mytransaction");
         }
     }
 

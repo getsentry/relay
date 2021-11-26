@@ -259,6 +259,7 @@ mod endpoints;
 mod envelope;
 mod extractors;
 mod http;
+mod metrics_extraction;
 mod middlewares;
 mod service;
 mod statsd;
