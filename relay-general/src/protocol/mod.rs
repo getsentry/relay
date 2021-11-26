@@ -61,7 +61,7 @@ pub use self::schema::event_json_schema;
 pub use self::security_report::{Csp, ExpectCt, ExpectStaple, Hpkp, SecurityReportType};
 pub use self::session::{
     ParseSessionStatusError, SessionAggregateItem, SessionAggregates, SessionAttributes,
-    SessionLike, SessionStatus, SessionUpdate,
+    SessionError, SessionLike, SessionStatus, SessionUpdate,
 };
 pub use self::span::Span;
 pub use self::stacktrace::{Frame, FrameData, FrameVars, RawStacktrace, Stacktrace};

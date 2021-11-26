@@ -27,7 +27,8 @@ use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
     IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionLike, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
+    SessionAttributes, SessionError, SessionLike, SessionStatus, SessionUpdate, Timestamp,
+    UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -550,7 +551,7 @@ fn extract_session_metrics<T: SessionLike>(
             tags: with_tag(&tags, "session.status", "init"),
         });
 
-        if let Some(distinct_id) = session.distinct_id() {
+        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -562,16 +563,23 @@ fn extract_session_metrics<T: SessionLike>(
     }
 
     // Mark the session as errored, which includes fatal sessions.
-    if let Some(error_ids) = session.error_ids() {
-        for session_id in error_ids {
-            target.push(Metric {
+    if let Some(errors) = session.errors() {
+        target.push(match errors {
+            SessionError::Distinct(session_id) => Metric {
                 name: "session.error".to_owned(),
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_display(session_id),
                 timestamp,
                 tags: tags.clone(),
-            });
-        }
+            },
+            SessionError::Aggregated(count) => Metric {
+                name: "session".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::Counter(count as f64),
+                timestamp,
+                tags: with_tag(&tags, "session.status", "errored_preaggr"),
+            },
+        });
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric {
@@ -766,7 +774,7 @@ impl EnvelopeProcessor {
             return false;
         }
 
-        return true;
+        true
     }
 
     /// Returns true if the item should be kept.
@@ -820,13 +828,13 @@ impl EnvelopeProcessor {
 
         // Validate timestamps
         for t in &[&session.timestamp, &session.started] {
-            if !self.is_valid_session_timestamp(&received, t) {
+            if !self.is_valid_session_timestamp(received, t) {
                 return false;
             }
         }
 
         // Validate attributes
-        match self.validate_attributes(&client_addr, &mut session.attributes) {
+        match self.validate_attributes(client_addr, &mut session.attributes) {
             Err(_) => return false,
             Ok(changed_attributes) => {
                 changed |= changed_attributes;
@@ -886,7 +894,7 @@ impl EnvelopeProcessor {
         // Validate timestamps
         session
             .aggregates
-            .retain(|aggregate| self.is_valid_session_timestamp(&received, &aggregate.started));
+            .retain(|aggregate| self.is_valid_session_timestamp(received, &aggregate.started));
 
         // Aftter timestamp validation, aggregates could now be empty
         if session.aggregates.is_empty() {
@@ -894,7 +902,7 @@ impl EnvelopeProcessor {
         }
 
         // Validate attributes
-        match self.validate_attributes(&client_addr, &mut session.attributes) {
+        match self.validate_attributes(client_addr, &mut session.attributes) {
             Err(_) => return false,
             Ok(changed_attributes) => {
                 changed |= changed_attributes;

@@ -92,6 +92,11 @@ fn is_false(val: &bool) -> bool {
     !val
 }
 
+pub enum SessionError {
+    Distinct(Uuid),
+    Aggregated(u32),
+}
+
 /// Common interface for [`SessionUpdate`] and [`SessionAggregateItem`].
 pub trait SessionLike {
     fn started(&self) -> DateTime<Utc>;
@@ -99,7 +104,7 @@ pub trait SessionLike {
     fn total_count(&self) -> u32;
     fn abnormal_count(&self) -> u32;
     fn crashed_count(&self) -> u32;
-    fn error_ids(&self) -> Option<Vec<Uuid>>;
+    fn errors(&self) -> Option<SessionError>;
     fn final_duration(&self) -> Option<(f64, SessionStatus)>;
 }
 
@@ -179,14 +184,6 @@ impl SessionLike for SessionUpdate {
         }
     }
 
-    fn error_ids(&self) -> Option<Vec<Uuid>> {
-        if self.errors > 0 || self.status.is_error() {
-            Some(vec![self.session_id])
-        } else {
-            None
-        }
-    }
-
     fn final_duration(&self) -> Option<(f64, SessionStatus)> {
         if self.status.is_terminal() {
             if let Some(duration) = self.duration {
@@ -194,6 +191,14 @@ impl SessionLike for SessionUpdate {
             }
         }
         None
+    }
+
+    fn errors(&self) -> Option<SessionError> {
+        if self.errors > 0 || self.status.is_error() {
+            Some(SessionError::Distinct(self.session_id))
+        } else {
+            None
+        }
     }
 }
 
@@ -244,18 +249,16 @@ impl SessionLike for SessionAggregateItem {
         self.crashed
     }
 
-    fn error_ids(&self) -> Option<Vec<Uuid>> {
+    fn final_duration(&self) -> Option<(f64, SessionStatus)> {
+        None
+    }
+
+    fn errors(&self) -> Option<SessionError> {
         if self.errored > 0 {
-            // This is really bad. Generating random UUIDs that will then be converted to u32.
-            // Alternative: Keep a separate counter metric "session.error.anonymous"
-            Some((0..self.errored).map(|_| Uuid::new_v4()).collect())
+            Some(SessionError::Aggregated(self.errored))
         } else {
             None
         }
-    }
-
-    fn final_duration(&self) -> Option<(f64, SessionStatus)> {
-        None
     }
 }
 
