@@ -95,11 +95,10 @@ fn is_false(val: &bool) -> bool {
 /// Common interface for [`SessionUpdate`] and [`SessionAggregateItem`].
 pub trait SessionLike {
     fn started(&self) -> DateTime<Utc>;
-    fn attributes(&self) -> &SessionAttributes;
     fn distinct_id(&self) -> Option<&String>;
-    fn total_count(&self) -> u64;
-    fn abnormal_count(&self) -> u64;
-    fn crashed_count(&self) -> u64;
+    fn total_count(&self) -> u32;
+    fn abnormal_count(&self) -> u32;
+    fn crashed_count(&self) -> u32;
     fn error_ids(&self) -> Option<Vec<Uuid>>;
     fn final_duration(&self) -> Option<(f64, SessionStatus)>;
 }
@@ -154,15 +153,11 @@ impl SessionLike for SessionUpdate {
         self.started
     }
 
-    fn attributes(&self) -> &SessionAttributes {
-        &self.attributes
-    }
-
     fn distinct_id(&self) -> Option<&String> {
         self.distinct_id.as_ref()
     }
 
-    fn total_count(&self) -> u64 {
+    fn total_count(&self) -> u32 {
         if self.init {
             1
         } else {
@@ -170,14 +165,14 @@ impl SessionLike for SessionUpdate {
         }
     }
 
-    fn abnormal_count(&self) -> u64 {
+    fn abnormal_count(&self) -> u32 {
         match self.status {
             SessionStatus::Abnormal => 1,
             _ => 0,
         }
     }
 
-    fn crashed_count(&self) -> u64 {
+    fn crashed_count(&self) -> u32 {
         match self.status {
             SessionStatus::Crashed => 1,
             _ => 0,
@@ -226,6 +221,42 @@ pub struct SessionAggregateItem {
     /// The number of crashed sessions that ocurred.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub crashed: u32,
+}
+
+impl SessionLike for SessionAggregateItem {
+    fn started(&self) -> DateTime<Utc> {
+        self.started
+    }
+
+    fn distinct_id(&self) -> Option<&String> {
+        self.distinct_id.as_ref()
+    }
+
+    fn total_count(&self) -> u32 {
+        self.exited + self.errored + self.abnormal + self.crashed
+    }
+
+    fn abnormal_count(&self) -> u32 {
+        self.abnormal
+    }
+
+    fn crashed_count(&self) -> u32 {
+        self.crashed
+    }
+
+    fn error_ids(&self) -> Option<Vec<Uuid>> {
+        if self.errored > 0 {
+            // This is really bad. Generating random UUIDs that will then be converted to u32.
+            // Alternative: Keep a separate counter metric "session.error.anonymous"
+            Some((0..self.errored).map(|_| Uuid::new_v4()).collect())
+        } else {
+            None
+        }
+    }
+
+    fn final_duration(&self) -> Option<(f64, SessionStatus)> {
+        None
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

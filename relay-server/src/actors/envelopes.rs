@@ -26,8 +26,8 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAttributes, SessionLike,
-    SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
+    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
+    SessionAttributes, SessionLike, SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -520,7 +520,11 @@ fn nil_to_none(distinct_id: Option<&String>) -> Option<&String> {
     Some(distinct_id)
 }
 
-fn extract_session_metrics<T: SessionLike>(session: &T, target: &mut Vec<Metric>) {
+fn extract_session_metrics<T: SessionLike>(
+    attributes: &SessionAttributes,
+    session: &T,
+    target: &mut Vec<Metric>,
+) {
     let timestamp = match UnixTimestamp::from_datetime(session.started()) {
         Some(ts) => ts,
         None => {
@@ -530,8 +534,8 @@ fn extract_session_metrics<T: SessionLike>(session: &T, target: &mut Vec<Metric>
     };
 
     let mut tags = BTreeMap::new();
-    tags.insert("release".to_owned(), session.attributes().release.clone());
-    if let Some(ref environment) = session.attributes().environment {
+    tags.insert("release".to_owned(), attributes.release.clone());
+    if let Some(ref environment) = attributes.environment {
         tags.insert("environment".to_owned(), environment.clone());
     }
 
@@ -831,8 +835,78 @@ impl EnvelopeProcessor {
 
         // Extract metrics
         if metrics_extraction_enabled && !item.metrics_extracted() {
-            extract_session_metrics(&session, extracted_metrics);
+            extract_session_metrics(&session.attributes, &session, extracted_metrics);
             item.set_metrics_extracted(true);
+        }
+
+        if changed {
+            let json_string = match serde_json::to_string(&session) {
+                Ok(json) => json,
+                Err(err) => {
+                    relay_log::error!("failed to serialize session: {}", LogError(&err));
+                    return false;
+                }
+            };
+
+            item.set_payload(ContentType::Json, json_string);
+        }
+
+        true
+    }
+
+    fn process_session_aggregates(
+        &self,
+        metrics_extraction_enabled: bool,
+        clock_drift_processor: &ClockDriftProcessor,
+        received: &DateTime<Utc>,
+        client_addr: &Option<net::IpAddr>,
+        item: &mut Item,
+        extracted_metrics: &mut Vec<Metric>,
+    ) -> bool {
+        let mut changed = false;
+        let payload = item.payload();
+
+        let mut session = match SessionAggregates::parse(&payload) {
+            Ok(session) => session,
+            Err(error) => {
+                relay_log::trace!("skipping invalid sessions payload: {}", LogError(&error));
+                return false;
+            }
+        };
+
+        // timestamp
+        if clock_drift_processor.is_drifted() {
+            relay_log::trace!("applying clock drift correction to session");
+            for aggregate in &mut session.aggregates {
+                clock_drift_processor.process_datetime(&mut aggregate.started);
+            }
+            changed = true;
+        }
+
+        // Validate timestamps
+        session
+            .aggregates
+            .retain(|aggregate| self.is_valid_session_timestamp(&received, &aggregate.started));
+
+        // Aftter timestamp validation, aggregates could now be empty
+        if session.aggregates.is_empty() {
+            return false;
+        }
+
+        // Validate attributes
+        match self.validate_attributes(&client_addr, &mut session.attributes) {
+            Err(_) => return false,
+            Ok(changed_attributes) => {
+                changed |= changed_attributes;
+            }
+        }
+
+        // Extract metrics
+        if metrics_extraction_enabled && !item.metrics_extracted() {
+            for aggregate in &session.aggregates {
+                extract_session_metrics(&session.attributes, aggregate, extracted_metrics);
+                item.set_metrics_extracted(true);
+            }
         }
 
         if changed {
@@ -866,18 +940,25 @@ impl EnvelopeProcessor {
             ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
         envelope.retain_items(|item| {
-            if item.ty() != ItemType::Session {
-                return true;
+            match item.ty() {
+                ItemType::Session => self.process_session(
+                    metrics_extraction_enabled,
+                    &clock_drift_processor,
+                    &received,
+                    &client_addr,
+                    item,
+                    extracted_metrics,
+                ),
+                ItemType::Sessions => self.process_session_aggregates(
+                    metrics_extraction_enabled,
+                    &clock_drift_processor,
+                    &received,
+                    &client_addr,
+                    item,
+                    extracted_metrics,
+                ),
+                _ => true, // Keep all other item types
             }
-
-            return self.process_session(
-                metrics_extraction_enabled,
-                &clock_drift_processor,
-                &received,
-                &client_addr,
-                item,
-                extracted_metrics,
-            );
         });
     }
 
