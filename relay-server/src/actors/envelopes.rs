@@ -26,8 +26,8 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionUpdate, Timestamp,
-    UserReport, Values,
+    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionLike, SessionStatus,
+    SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -509,8 +509,8 @@ fn extract_transaction_metrics(event: &Event, target: &mut Vec<Metric>) {
 }
 
 /// Convert contained nil UUIDs to None
-fn nil_to_none(distinct_id: &Option<String>) -> Option<&String> {
-    let distinct_id = distinct_id.as_ref()?;
+fn nil_to_none(distinct_id: Option<&String>) -> Option<&String> {
+    let distinct_id = distinct_id?;
     if let Ok(uuid) = distinct_id.parse::<Uuid>() {
         if uuid.is_nil() {
             return None;
@@ -520,33 +520,33 @@ fn nil_to_none(distinct_id: &Option<String>) -> Option<&String> {
     Some(distinct_id)
 }
 
-fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
-    let timestamp = match UnixTimestamp::from_datetime(session.started) {
+fn extract_session_metrics<T: SessionLike>(session: &T, target: &mut Vec<Metric>) {
+    let timestamp = match UnixTimestamp::from_datetime(session.started()) {
         Some(ts) => ts,
         None => {
-            relay_log::error!("invalid session started timestamp: {}", session.started);
+            relay_log::error!("invalid session started timestamp: {}", session.started());
             return;
         }
     };
 
     let mut tags = BTreeMap::new();
-    tags.insert("release".to_owned(), session.attributes.release.clone());
-    if let Some(ref environment) = session.attributes.environment {
+    tags.insert("release".to_owned(), session.attributes().release.clone());
+    if let Some(ref environment) = session.attributes().environment {
         tags.insert("environment".to_owned(), environment.clone());
     }
 
     // Always capture with "init" tag for the first session update of a session. This is used
     // for adoption and as baseline for crash rates.
-    if session.init {
+    if session.total_count() > 0 {
         target.push(Metric {
             name: "session".to_owned(),
             unit: MetricUnit::None,
-            value: MetricValue::Counter(1.0),
+            value: MetricValue::Counter(session.total_count() as f64),
             timestamp,
             tags: with_tag(&tags, "session.status", "init"),
         });
 
-        if let Some(ref distinct_id) = session.distinct_id {
+        if let Some(distinct_id) = session.distinct_id() {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -558,16 +558,19 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
     }
 
     // Mark the session as errored, which includes fatal sessions.
-    if session.errors > 0 || session.status.is_error() {
-        target.push(Metric {
-            name: "session.error".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::set_from_display(session.session_id),
-            timestamp,
-            tags: tags.clone(),
-        });
+    // if session.errors > 0 || session.status.is_error() {
+    if let Some(error_ids) = session.error_ids() {
+        for session_id in error_ids {
+            target.push(Metric {
+                name: "session.error".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_display(session_id),
+                timestamp,
+                tags: tags.clone(),
+            });
+        }
 
-        if let Some(distinct_id) = nil_to_none(&session.distinct_id) {
+        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -580,22 +583,41 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
 
     // Record fatal sessions for crash rate computation. This is a strict subset of errored
     // sessions above.
-    if session.status.is_fatal() {
+    if session.abnormal_count() > 0 {
         target.push(Metric {
             name: "session".to_owned(),
             unit: MetricUnit::None,
-            value: MetricValue::Counter(1.0),
+            value: MetricValue::Counter(session.abnormal_count() as f64),
             timestamp,
-            tags: with_tag(&tags, "session.status", session.status),
+            tags: with_tag(&tags, "session.status", SessionStatus::Abnormal),
         });
 
-        if let Some(distinct_id) = nil_to_none(&session.distinct_id) {
+        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_str(distinct_id),
                 timestamp,
-                tags: with_tag(&tags, "session.status", session.status),
+                tags: with_tag(&tags, "session.status", SessionStatus::Abnormal),
+            });
+        }
+    }
+    if session.crashed_count() > 0 {
+        target.push(Metric {
+            name: "session".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(session.crashed_count() as f64),
+            timestamp,
+            tags: with_tag(&tags, "session.status", SessionStatus::Crashed),
+        });
+
+        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
+            target.push(Metric {
+                name: "user".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(distinct_id),
+                timestamp,
+                tags: with_tag(&tags, "session.status", SessionStatus::Crashed),
             });
         }
     }
@@ -603,17 +625,17 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
     // Count durations for all exited/crashed sessions. Note that right now, in the product we
     // really only use durations from session.status=exited, but decided it may be worth ingesting
     // this data in case we need it. If we need to cut cost, this is one place to start though.
-    if session.status.is_terminal() {
-        if let Some(duration) = session.duration {
-            target.push(Metric {
-                name: "session.duration".to_owned(),
-                unit: MetricUnit::Duration(DurationPrecision::Second),
-                value: MetricValue::Distribution(duration),
-                timestamp,
-                tags: with_tag(&tags, "session.status", session.status),
-            });
-        }
+    // if session.status.is_terminal() {
+    if let Some((duration, status)) = session.final_duration() {
+        target.push(Metric {
+            name: "session.duration".to_owned(),
+            unit: MetricUnit::Duration(DurationPrecision::Second),
+            value: MetricValue::Distribution(duration),
+            timestamp,
+            tags: with_tag(&tags, "session.status", status),
+        });
     }
+    // }
 }
 
 /// Synchronous service for processing envelopes.

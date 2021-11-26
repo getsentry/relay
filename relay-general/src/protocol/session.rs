@@ -92,6 +92,18 @@ fn is_false(val: &bool) -> bool {
     !val
 }
 
+/// Common interface for [`SessionUpdate`] and [`SessionAggregateItem`].
+pub trait SessionLike {
+    fn started(&self) -> DateTime<Utc>;
+    fn attributes(&self) -> &SessionAttributes;
+    fn distinct_id(&self) -> Option<&String>;
+    fn total_count(&self) -> u64;
+    fn abnormal_count(&self) -> u64;
+    fn crashed_count(&self) -> u64;
+    fn error_ids(&self) -> Option<Vec<Uuid>>;
+    fn final_duration(&self) -> Option<(f64, SessionStatus)>;
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionUpdate {
     /// The session identifier.
@@ -134,6 +146,59 @@ impl SessionUpdate {
     /// Serializes a session update back into JSON.
     pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
         serde_json::to_vec(self)
+    }
+}
+
+impl SessionLike for SessionUpdate {
+    fn started(&self) -> DateTime<Utc> {
+        self.started
+    }
+
+    fn attributes(&self) -> &SessionAttributes {
+        &self.attributes
+    }
+
+    fn distinct_id(&self) -> Option<&String> {
+        self.distinct_id.as_ref()
+    }
+
+    fn total_count(&self) -> u64 {
+        if self.init {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn abnormal_count(&self) -> u64 {
+        match self.status {
+            SessionStatus::Abnormal => 1,
+            _ => 0,
+        }
+    }
+
+    fn crashed_count(&self) -> u64 {
+        match self.status {
+            SessionStatus::Crashed => 1,
+            _ => 0,
+        }
+    }
+
+    fn error_ids(&self) -> Option<Vec<Uuid>> {
+        if self.errors > 0 || self.status.is_error() {
+            Some(vec![self.session_id])
+        } else {
+            None
+        }
+    }
+
+    fn final_duration(&self) -> Option<(f64, SessionStatus)> {
+        if self.status.is_terminal() {
+            if let Some(duration) = self.duration {
+                return Some((duration, self.status));
+            }
+        }
+        None
     }
 }
 
