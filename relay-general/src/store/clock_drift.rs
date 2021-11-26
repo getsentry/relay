@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use relay_common::UnixTimestamp;
 
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Event, SessionUpdate, Timestamp};
+use crate::protocol::{Event, Timestamp};
 use crate::types::{Error, ErrorKind, Meta, ProcessingResult};
 
 /// A signed correction that contains the sender's timestamp as well as the drift to the receiver.
@@ -104,10 +104,9 @@ impl ClockDriftProcessor {
     }
 
     /// Processes the given session.
-    pub fn process_session(&self, session: &mut SessionUpdate) {
+    pub fn process_datetime(&self, datetime: &mut DateTime<Utc>) {
         if let Some(correction) = self.correction {
-            session.timestamp = session.timestamp + correction.drift;
-            session.started = session.started + correction.drift;
+            *datetime = *datetime + correction.drift;
         }
     }
 }

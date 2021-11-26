@@ -26,8 +26,8 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionLike, SessionStatus,
-    SessionUpdate, Timestamp, UserReport, Values,
+    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAttributes, SessionLike,
+    SessionStatus, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -558,7 +558,6 @@ fn extract_session_metrics<T: SessionLike>(session: &T, target: &mut Vec<Metric>
     }
 
     // Mark the session as errored, which includes fatal sessions.
-    // if session.errors > 0 || session.status.is_error() {
     if let Some(error_ids) = session.error_ids() {
         for session_id in error_ids {
             target.push(Metric {
@@ -710,13 +709,154 @@ impl EnvelopeProcessor {
         self
     }
 
+    /// Returns Ok(true) if attributes were modified.
+    /// Returns Err if the session should be dropped.
+    fn validate_attributes(
+        &self,
+        client_addr: &Option<net::IpAddr>,
+        attributes: &mut SessionAttributes,
+    ) -> Result<bool, ()> {
+        let mut changed = false;
+
+        let release = &attributes.release;
+        if let Err(e) = protocol::validate_release(release) {
+            relay_log::trace!("skipping session with invalid release '{}': {}", release, e);
+            return Err(());
+        }
+
+        if let Some(ref env) = attributes.environment {
+            if let Err(e) = protocol::validate_environment(env) {
+                relay_log::trace!("removing invalid environment '{}': {}", env, e);
+                attributes.environment = None;
+                changed = true;
+            }
+        }
+
+        if let Some(ref ip_address) = attributes.ip_address {
+            if ip_address.is_auto() {
+                attributes.ip_address = client_addr.map(IpAddr::from);
+                changed = true;
+            }
+        }
+
+        Ok(changed)
+    }
+
+    fn is_valid_session_timestamp(
+        &self,
+        received: &DateTime<Utc>,
+        timestamp: &DateTime<Utc>,
+    ) -> bool {
+        let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
+        if (*received - *timestamp) > max_age {
+            relay_log::trace!("skipping session older than {} days", max_age.num_days());
+            return false;
+        }
+
+        let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
+        if (*timestamp - *received) > max_future {
+            relay_log::trace!(
+                "skipping session more than {}s in the future",
+                max_future.num_seconds()
+            );
+            return false;
+        }
+
+        return true;
+    }
+
+    /// Returns true if the item should be kept.
+    fn process_session(
+        &self,
+        metrics_extraction_enabled: bool,
+        clock_drift_processor: &ClockDriftProcessor,
+        received: &DateTime<Utc>,
+        client_addr: &Option<net::IpAddr>,
+        item: &mut Item,
+        extracted_metrics: &mut Vec<Metric>,
+    ) -> bool {
+        let mut changed = false;
+        let payload = item.payload();
+
+        let mut session = match SessionUpdate::parse(&payload) {
+            Ok(session) => session,
+            Err(error) => {
+                relay_log::trace!("skipping invalid session payload: {}", LogError(&error));
+                return false;
+            }
+        };
+
+        if session.sequence == u64::MAX {
+            relay_log::trace!("skipping session due to sequence overflow");
+            return false;
+        }
+
+        // timestamp
+        if clock_drift_processor.is_drifted() {
+            relay_log::trace!("applying clock drift correction to session");
+            clock_drift_processor.process_datetime(&mut session.started);
+            clock_drift_processor.process_datetime(&mut session.timestamp);
+            changed = true;
+        }
+
+        if session.timestamp < session.started {
+            relay_log::trace!("fixing session timestamp to {}", session.timestamp);
+            session.timestamp = session.started;
+            changed = true;
+        }
+
+        // Log the timestamp delay for all sessions after clock drift correction.
+        let session_delay = *received - session.timestamp;
+        if session_delay > SignedDuration::minutes(1) {
+            metric!(
+                timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
+                category = "session",
+            );
+        }
+
+        // Validate timestamps
+        for t in &[&session.timestamp, &session.started] {
+            if !self.is_valid_session_timestamp(&received, t) {
+                return false;
+            }
+        }
+
+        // Validate attributes
+        match self.validate_attributes(&client_addr, &mut session.attributes) {
+            Err(_) => return false,
+            Ok(changed_attributes) => {
+                changed |= changed_attributes;
+            }
+        }
+
+        // Extract metrics
+        if metrics_extraction_enabled && !item.metrics_extracted() {
+            extract_session_metrics(&session, extracted_metrics);
+            item.set_metrics_extracted(true);
+        }
+
+        if changed {
+            let json_string = match serde_json::to_string(&session) {
+                Ok(json) => json,
+                Err(err) => {
+                    relay_log::error!("failed to serialize session: {}", LogError(&err));
+                    return false;
+                }
+            };
+
+            item.set_payload(ContentType::Json, json_string);
+        }
+
+        true
+    }
+
     /// Validates all sessions in the envelope, if any.
     ///
     /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.envelope_context.received_at;
-        let _extracted_metrics = &mut state.extracted_metrics;
+        let extracted_metrics = &mut state.extracted_metrics;
         let metrics_extraction_enabled =
             state.project_state.has_feature(Feature::MetricsExtraction);
         let envelope = &mut state.envelope;
@@ -730,100 +870,14 @@ impl EnvelopeProcessor {
                 return true;
             }
 
-            let mut changed = false;
-            let payload = item.payload();
-
-            let mut session = match SessionUpdate::parse(&payload) {
-                Ok(session) => session,
-                Err(error) => {
-                    relay_log::trace!("skipping invalid session payload: {}", LogError(&error));
-                    return false;
-                }
-            };
-
-            if session.sequence == u64::MAX {
-                relay_log::trace!("skipping session due to sequence overflow");
-                return false;
-            }
-
-            if clock_drift_processor.is_drifted() {
-                relay_log::trace!("applying clock drift correction to session");
-                clock_drift_processor.process_session(&mut session);
-                changed = true;
-            }
-
-            if session.timestamp < session.started {
-                relay_log::trace!("fixing session timestamp to {}", session.timestamp);
-                session.timestamp = session.started;
-                changed = true;
-            }
-
-            let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
-
-            // Log the timestamp delay for all sessions after clock drift correction.
-            let session_delay = received - session.timestamp;
-            if session_delay > SignedDuration::minutes(1) {
-                metric!(
-                    timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
-                    category = "session",
-                );
-            }
-
-            if (received - session.started) > max_age || (received - session.timestamp) > max_age {
-                relay_log::trace!("skipping session older than {} days", max_age.num_days());
-                return false;
-            }
-
-            let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
-            if (session.started - received) > max_future
-                || (session.timestamp - received) > max_future
-            {
-                relay_log::trace!(
-                    "skipping session more than {}s in the future",
-                    max_future.num_seconds()
-                );
-                return false;
-            }
-
-            let release = &session.attributes.release;
-            if let Err(e) = protocol::validate_release(release) {
-                relay_log::trace!("skipping session with invalid release '{}': {}", release, e);
-                return false;
-            }
-
-            if let Some(ref env) = session.attributes.environment {
-                if let Err(e) = protocol::validate_environment(env) {
-                    relay_log::trace!("removing invalid environment '{}': {}", env, e);
-                    session.attributes.environment = None;
-                    changed = true;
-                }
-            }
-
-            if let Some(ref ip_address) = session.attributes.ip_address {
-                if ip_address.is_auto() {
-                    session.attributes.ip_address = client_addr.map(IpAddr::from);
-                    changed = true;
-                }
-            }
-
-            if metrics_extraction_enabled && !item.metrics_extracted() {
-                extract_session_metrics(&session, _extracted_metrics);
-                item.set_metrics_extracted(true);
-            }
-
-            if changed {
-                let json_string = match serde_json::to_string(&session) {
-                    Ok(json) => json,
-                    Err(err) => {
-                        relay_log::error!("failed to serialize session: {}", LogError(&err));
-                        return false;
-                    }
-                };
-
-                item.set_payload(ContentType::Json, json_string);
-            }
-
-            true
+            return self.process_session(
+                metrics_extraction_enabled,
+                &clock_drift_processor,
+                &received,
+                &client_addr,
+                item,
+                extracted_metrics,
+            );
         });
     }
 
