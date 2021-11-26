@@ -3334,19 +3334,22 @@ mod tests {
 
     #[test]
     fn test_nil_to_none() {
-        assert!(nil_to_none(&None).is_none());
+        assert!(nil_to_none(None).is_none());
 
         let asdf = Some("asdf".to_owned());
-        assert_eq!(nil_to_none(&asdf).unwrap(), "asdf");
+        assert_eq!(nil_to_none(asdf.as_ref()).unwrap(), "asdf");
 
         let nil = Some("00000000-0000-0000-0000-000000000000".to_owned());
-        assert!(nil_to_none(&nil).is_none());
+        assert!(nil_to_none(nil.as_ref()).is_none());
 
         let nil2 = Some("00000000000000000000000000000000".to_owned());
-        assert!(nil_to_none(&nil2).is_none());
+        assert!(nil_to_none(nil2.as_ref()).is_none());
 
         let not_nil = Some("00000000-0000-0000-0000-000000000123".to_owned());
-        assert_eq!(nil_to_none(&not_nil).unwrap(), not_nil.as_ref().unwrap());
+        assert_eq!(
+            nil_to_none(not_nil.as_ref()).unwrap(),
+            not_nil.as_ref().unwrap()
+        );
     }
 
     #[test]
@@ -3367,7 +3370,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, &mut metrics);
 
         assert_eq!(metrics.len(), 2);
 
@@ -3403,7 +3406,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, &mut metrics);
 
         // A none-initial update will not trigger any metric if it's not errored/crashed
         assert_eq!(metrics.len(), 0);
@@ -3472,7 +3475,7 @@ mod tests {
             (update3, 2),
         ] {
             let mut metrics = vec![];
-            extract_session_metrics(&update, &mut metrics);
+            extract_session_metrics(&update.attributes, &update, &mut metrics);
 
             assert_eq!(metrics.len(), expected_metrics);
 
@@ -3510,7 +3513,7 @@ mod tests {
 
             let mut metrics = vec![];
 
-            extract_session_metrics(&session, &mut metrics);
+            extract_session_metrics(&session.attributes, &session, &mut metrics);
 
             assert_eq!(metrics.len(), 4);
 
@@ -3598,7 +3601,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, &mut metrics);
 
         assert_eq!(metrics.len(), 1);
 
