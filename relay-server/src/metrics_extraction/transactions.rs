@@ -1,10 +1,14 @@
+#[cfg(feature = "processing")]
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use relay_common::UnixTimestamp;
-use relay_general::protocol::{AsPair, Event, EventType};
-use relay_metrics::{Metric, MetricUnit, MetricValue};
+#[cfg(feature = "processing")]
+use {
+    relay_common::UnixTimestamp,
+    relay_general::protocol::{AsPair, Event, EventType},
+    relay_metrics::{Metric, MetricUnit, MetricValue},
+};
 
 /// Configuration in relation to extracting metrics from transaction events.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
