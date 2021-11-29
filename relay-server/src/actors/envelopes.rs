@@ -3620,4 +3620,134 @@ mod tests {
             MetricValue::Distribution(_)
         ));
     }
+
+    #[test]
+    fn test_extract_session_metrics_aggregate() {
+        let mut metrics = vec![];
+
+        let session = SessionAggregates::parse(
+            r#"{
+                "aggregates": [
+                    {
+                    "started": "2020-02-07T14:16:00Z",
+                    "exited": 123,
+                    "abnormal": 5,
+                    "crashed": 7
+                    },
+                    {
+                    "started": "2020-02-07T14:16:01Z",
+                    "did": "optional distinct user id",
+                    "exited": 12,
+                    "errored": 3
+                    }
+                ],
+                "attrs": {
+                    "release": "my-project-name@1.0.0",
+                    "environment": "development"
+                }
+            }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        for aggregate in &session.aggregates {
+            extract_session_metrics(&session.attributes, aggregate, &mut metrics);
+        }
+
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "session",
+                unit: None,
+                value: Counter(
+                    135.0,
+                ),
+                timestamp: UnixTimestamp(1581084960),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "init",
+                },
+            },
+            Metric {
+                name: "session",
+                unit: None,
+                value: Counter(
+                    5.0,
+                ),
+                timestamp: UnixTimestamp(1581084960),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "abnormal",
+                },
+            },
+            Metric {
+                name: "session",
+                unit: None,
+                value: Counter(
+                    7.0,
+                ),
+                timestamp: UnixTimestamp(1581084960),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "crashed",
+                },
+            },
+            Metric {
+                name: "session",
+                unit: None,
+                value: Counter(
+                    15.0,
+                ),
+                timestamp: UnixTimestamp(1581084961),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "init",
+                },
+            },
+            Metric {
+                name: "user",
+                unit: None,
+                value: Set(
+                    3097475539,
+                ),
+                timestamp: UnixTimestamp(1581084961),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "init",
+                },
+            },
+            Metric {
+                name: "session",
+                unit: None,
+                value: Counter(
+                    3.0,
+                ),
+                timestamp: UnixTimestamp(1581084961),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "errored_preaggr",
+                },
+            },
+            Metric {
+                name: "user",
+                unit: None,
+                value: Set(
+                    3097475539,
+                ),
+                timestamp: UnixTimestamp(1581084961),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "errored",
+                },
+            },
+        ]
+        "###);
+    }
 }
