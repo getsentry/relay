@@ -61,6 +61,7 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
                     "528049" => Some("4.8".to_string()),
                     "528209" => Some("4.8".to_string()),
                     "528372" => Some("4.8".to_string()),
+                    "528449" => Some("4.8".to_string()),
                     _ => None,
                 };
 
