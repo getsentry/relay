@@ -296,6 +296,37 @@ def test_session_age_discard(mini_sentry, relay_with_processing, sessions_consum
     sessions_consumer.assert_empty()
 
 
+def test_session_age_discard_aggregates(
+    mini_sentry, relay_with_processing, sessions_consumer
+):
+    relay = relay_with_processing()
+    sessions_consumer = sessions_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["eventRetention"] = 17
+
+    timestamp = datetime.now(tz=timezone.utc)
+    started = timestamp - timedelta(days=5, hours=1)
+
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [
+                {
+                    "started": started.isoformat(),
+                    "did": "foobarbaz",
+                    "exited": 2,
+                    "errored": 3,
+                },
+            ],
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+        },
+    )
+
+    sessions_consumer.assert_empty()
+
+
 def test_session_force_errors_on_crash(
     mini_sentry, relay_with_processing, sessions_consumer
 ):
@@ -361,6 +392,36 @@ def test_session_release_required(
             "sid": "8333339f-5675-4f89-a9a0-1c935255ab58",
             "timestamp": timestamp.isoformat(),
             "started": started.isoformat(),
+        },
+    )
+
+    sessions_consumer.assert_empty()
+
+
+def test_session_aggregates_release_required(
+    mini_sentry, relay_with_processing, sessions_consumer
+):
+    relay = relay_with_processing()
+    sessions_consumer = sessions_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["eventRetention"] = 17
+
+    started = datetime.now(tz=timezone.utc)
+
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [
+                {
+                    "started": started.isoformat(),
+                    "did": "foobarbaz",
+                    "exited": 2,
+                    "errored": 3,
+                },
+            ],
+            "attrs": {"environment": "production",},
         },
     )
 
@@ -488,6 +549,35 @@ def test_session_invalid_release(mini_sentry, relay_with_processing, sessions_co
     sessions_consumer.assert_empty()
 
 
+def test_session_aggregates_invalid_release(
+    mini_sentry, relay_with_processing, sessions_consumer
+):
+    relay = relay_with_processing()
+    sessions_consumer = sessions_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["eventRetention"] = 17
+
+    timestamp = datetime.now(tz=timezone.utc)
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [
+                {
+                    "started": timestamp.isoformat(),
+                    "did": "foobarbaz",
+                    "exited": 2,
+                    "errored": 3,
+                },
+            ],
+            "attrs": {"release": "latest"},
+        },
+    )
+
+    sessions_consumer.assert_empty()
+
+
 def test_session_invalid_environment(
     mini_sentry, relay_with_processing, sessions_consumer
 ):
@@ -506,6 +596,36 @@ def test_session_invalid_environment(
             "timestamp": timestamp.isoformat(),
             "started": timestamp.isoformat(),
             "attrs": {"release": "sentry-test@1.0.0", "environment": "none"},
+        },
+    )
+
+    session = sessions_consumer.get_session()
+    assert session.get("environment") is None
+
+
+def test_session_aggregates_invalid_environment(
+    mini_sentry, relay_with_processing, sessions_consumer
+):
+    relay = relay_with_processing()
+    sessions_consumer = sessions_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["eventRetention"] = 17
+
+    timestamp = datetime.now(tz=timezone.utc)
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [
+                {
+                    "started": timestamp.isoformat(),
+                    "did": "foobarbaz",
+                    "exited": 2,
+                    "errored": 3,
+                },
+            ],
+            "attrs": {"release": "sentry-test@1.0.0", "environment": "."},
         },
     )
 
