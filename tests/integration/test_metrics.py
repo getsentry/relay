@@ -462,17 +462,17 @@ def test_transaction_metrics(
         "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
     }
 
-    assert metrics["measurement.foo"] == {
+    assert metrics["measurements.foo"] == {
         **common,
-        "name": "measurement.foo",
+        "name": "measurements.foo",
         "type": "d",
         "unit": "",
         "value": [1.2, 2.2],
     }
 
-    assert metrics["measurement.bar"] == {
+    assert metrics["measurements.bar"] == {
         **common,
-        "name": "measurement.bar",
+        "name": "measurements.bar",
         "type": "d",
         "unit": "",
         "value": [1.3],

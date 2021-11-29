@@ -81,7 +81,7 @@ pub fn extract_transaction_metrics(
                 None => continue,
             };
 
-            let name = format!("measurement.{}", name);
+            let name = format!("measurements.{}", name);
             let mut tags = tags.clone();
             if let Some(rating) = get_measurement_rating(&name, measurement) {
                 tags.insert("measurement_rating".to_owned(), rating);
@@ -136,10 +136,10 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
     };
 
     match name {
-        "measurement.lcp" => rate_range(2500.0, 4000.0),
-        "measurement.fcp" => rate_range(1000.0, 3000.0),
-        "measurement.fid" => rate_range(100.0, 300.0),
-        "measurement.cls" => rate_range(0.1, 0.25),
+        "measurements.lcp" => rate_range(2500.0, 4000.0),
+        "measurements.fcp" => rate_range(1000.0, 3000.0),
+        "measurements.fid" => rate_range(100.0, 300.0),
+        "measurements.cls" => rate_range(0.1, 0.25),
         _ => None,
     }
 }
@@ -194,8 +194,8 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "measurement.foo",
-                "measurement.lcp",
+                "measurements.foo",
+                "measurements.lcp",
                 "breakdown.breakdown1.bar",
                 "breakdown.breakdown2.baz",
                 "breakdown.breakdown2.zap"
@@ -211,8 +211,8 @@ mod tests {
 
         assert_eq!(metrics.len(), 5);
 
-        assert_eq!(metrics[0].name, "measurement.foo");
-        assert_eq!(metrics[1].name, "measurement.lcp");
+        assert_eq!(metrics[0].name, "measurements.foo");
+        assert_eq!(metrics[1].name, "measurements.lcp");
         assert_eq!(metrics[2].name, "breakdown.breakdown1.bar");
         assert_eq!(metrics[3].name, "breakdown.breakdown2.baz");
         assert_eq!(metrics[4].name, "breakdown.breakdown2.zap");
