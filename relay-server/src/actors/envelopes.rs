@@ -27,7 +27,7 @@ use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
     IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionError, SessionLike, SessionStatus, SessionUpdate, Timestamp,
+    SessionAttributes, SessionErrored, SessionLike, SessionStatus, SessionUpdate, Timestamp,
     UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
@@ -565,14 +565,14 @@ fn extract_session_metrics<T: SessionLike>(
     // Mark the session as errored, which includes fatal sessions.
     if let Some(errors) = session.errors() {
         target.push(match errors {
-            SessionError::Distinct(session_id) => Metric {
+            SessionErrored::Individual(session_id) => Metric {
                 name: "session.error".to_owned(),
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_display(session_id),
                 timestamp,
                 tags: tags.clone(),
             },
-            SessionError::Aggregated(count) => Metric {
+            SessionErrored::Aggregated(count) => Metric {
                 name: "session".to_owned(),
                 unit: MetricUnit::None,
                 value: MetricValue::Counter(count as f64),
@@ -803,7 +803,6 @@ impl EnvelopeProcessor {
             return false;
         }
 
-        // timestamp
         if clock_drift_processor.is_drifted() {
             relay_log::trace!("applying clock drift correction to session");
             clock_drift_processor.process_datetime(&mut session.started);
@@ -882,7 +881,6 @@ impl EnvelopeProcessor {
             }
         };
 
-        // timestamp
         if clock_drift_processor.is_drifted() {
             relay_log::trace!("applying clock drift correction to session");
             for aggregate in &mut session.aggregates {
@@ -932,9 +930,9 @@ impl EnvelopeProcessor {
         true
     }
 
-    /// Validates all sessions in the envelope, if any.
+    /// Validates all sessions and session aggregates in the envelope, if any.
     ///
-    /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
+    /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.envelope_context.received_at;

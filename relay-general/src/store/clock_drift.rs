@@ -103,7 +103,7 @@ impl ClockDriftProcessor {
         }
     }
 
-    /// Processes the given session.
+    /// Processes the given [`DateTime`].
     pub fn process_datetime(&self, datetime: &mut DateTime<Utc>) {
         if let Some(correction) = self.correction {
             *datetime = *datetime + correction.drift;
@@ -283,5 +283,18 @@ mod tests {
         processor.process_timestamp(&mut timestamp);
 
         assert_eq!(timestamp.as_secs(), now.timestamp() as u64);
+    }
+
+    #[test]
+    fn test_process_datetime() {
+        let sent_at = Utc.ymd(2000, 1, 2).and_hms(0, 0, 0);
+        let drift = SignedDuration::days(1);
+        let now = sent_at + drift;
+
+        let processor = ClockDriftProcessor::new(Some(sent_at), now);
+        let mut datetime = Utc.ymd(2021, 11, 29).and_hms(0, 0, 0);
+        processor.process_datetime(&mut datetime);
+
+        assert_eq!(datetime, Utc.ymd(2021, 11, 30).and_hms(0, 0, 0));
     }
 }

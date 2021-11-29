@@ -92,8 +92,11 @@ fn is_false(val: &bool) -> bool {
     !val
 }
 
-pub enum SessionError {
-    Distinct(Uuid),
+/// Contains information about errored sessions. See [`SessionLike`].
+pub enum SessionErrored {
+    /// Contains the UUID for a single errored session.
+    Individual(Uuid),
+    /// Contains the number of errored sessions in an aggregate.
     Aggregated(u32),
 }
 
@@ -104,7 +107,7 @@ pub trait SessionLike {
     fn total_count(&self) -> u32;
     fn abnormal_count(&self) -> u32;
     fn crashed_count(&self) -> u32;
-    fn errors(&self) -> Option<SessionError>;
+    fn errors(&self) -> Option<SessionErrored>;
     fn final_duration(&self) -> Option<(f64, SessionStatus)>;
 }
 
@@ -193,9 +196,9 @@ impl SessionLike for SessionUpdate {
         None
     }
 
-    fn errors(&self) -> Option<SessionError> {
+    fn errors(&self) -> Option<SessionErrored> {
         if self.errors > 0 || self.status.is_error() {
-            Some(SessionError::Distinct(self.session_id))
+            Some(SessionErrored::Individual(self.session_id))
         } else {
             None
         }
@@ -253,9 +256,9 @@ impl SessionLike for SessionAggregateItem {
         None
     }
 
-    fn errors(&self) -> Option<SessionError> {
+    fn errors(&self) -> Option<SessionErrored> {
         if self.errored > 0 {
-            Some(SessionError::Aggregated(self.errored))
+            Some(SessionErrored::Aggregated(self.errored))
         } else {
             None
         }
