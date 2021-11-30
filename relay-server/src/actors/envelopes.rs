@@ -1523,7 +1523,7 @@ impl EnvelopeProcessor {
     ) -> Result<(), ProcessingError> {
         let config = match state.project_state.config.transaction_metrics {
             Some(ErrorBoundary::Ok(ref config)) => config,
-            None | Some(ErrorBoundary::Err(_)) => return Ok(()),
+            _ => return Ok(()),
         };
 
         if let Some(event) = state.event.value() {
