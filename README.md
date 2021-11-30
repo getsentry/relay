@@ -201,7 +201,7 @@ The password for the `.pfx` file is `password`.
 
 ### Usage with Sentry
 
-To develop Relay with an existing Sentry devserver, Sentry onpremise
+To develop Relay with an existing Sentry devserver, self-hosted Sentry
 installation, or Sentry SaaS, configure the upstream to the URL of the Sentry
 server in `.relay/config.yml`. For example, in local development set
 `relay.upstream` to `http://localhost:8000/`.
