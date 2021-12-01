@@ -6,6 +6,7 @@
 
 - Extract measurement ratings, port from frontend. ([#1130](https://github.com/getsentry/relay/pull/1130))
 - External Relays perform dynamic sampling and emit outcomes as client reports. This feature is now enabled *by default*. ([#1119](https://github.com/getsentry/relay/pull/1119))
+- Metrics extraction config, custom tags. ([#1141](https://github.com/getsentry/relay/pull/1141))
 - Update the user agent parser (uap-core Feb 2020 to Nov 2021). This allows Relay and Sentry to infer more recent browsers, operating systems, and devices in events containing a user agent header. ([#1143](https://github.com/getsentry/relay/pull/1143))
 
 **Bug Fixes**:
