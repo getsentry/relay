@@ -701,6 +701,12 @@
 <span id="701">701</span>
 <span id="702">702</span>
 <span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -732,8 +738,9 @@
 };
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::RequestMeta</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::transactions::TransactionMetricsConfig</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">EnvelopeLimiter</span>, <span class="ident">Response</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">EnvelopeLimiter</span>, <span class="ident">ErrorBoundary</span>, <span class="ident">Response</span>};
 
 <span class="doccomment">/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
@@ -789,6 +796,9 @@
     <span class="doccomment">/// Configuration for operation breakdown. Will be emitted only if present.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">breakdowns_v2</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BreakdownsConfig</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
+    <span class="doccomment">/// Configuration in relation to extracting metrics from transaction events.</span>
+    <span class="kw">pub</span> <span class="ident">transaction_metrics</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ErrorBoundary</span><span class="op">&lt;</span><span class="ident">TransactionMetricsConfig</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The span attributes configuration.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">span_attributes</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SpanAttribute</span><span class="op">&gt;</span>,
@@ -810,6 +820,7 @@
             <span class="ident">quotas</span>: <span class="ident">Vec::new</span>(),
             <span class="ident">dynamic_sampling</span>: <span class="prelude-val">None</span>,
             <span class="ident">breakdowns_v2</span>: <span class="prelude-val">None</span>,
+            <span class="ident">transaction_metrics</span>: <span class="prelude-val">None</span>,
             <span class="ident">span_attributes</span>: <span class="ident">BTreeSet::new</span>(),
             <span class="ident">features</span>: <span class="ident">BTreeSet::new</span>(),
         }
@@ -825,6 +836,7 @@
     <span class="kw">pub</span> <span class="ident">pii_config</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">datascrubbing_settings</span>: <span class="ident">DataScrubbingConfig</span>,
     <span class="kw">pub</span> <span class="ident">dynamic_sampling</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SamplingConfig</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">transaction_metrics</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ErrorBoundary</span><span class="op">&lt;</span><span class="ident">TransactionMetricsConfig</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">features</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">Feature</span><span class="op">&gt;</span>,
 }
 
