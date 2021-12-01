@@ -403,7 +403,7 @@ def test_session_metrics_processing(
 
 
 @pytest.mark.parametrize(
-    "extract_metrics", [True, False], ids=["extract", "don't extract"]
+    "extract_metrics", [True, False, "corrupted"], ids=["extract", "don't extract", "corrupted config"]
 )
 @pytest.mark.parametrize(
     "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
@@ -426,7 +426,10 @@ def test_transaction_metrics(
         ["organizations:metrics-extraction"] if extract_metrics else []
     )
 
-    if extract_metrics:
+    if extract_metrics == 'corrupted':
+        mini_sentry.project_configs[project_id]['config']['transactionMetrics'] = 42
+
+    elif extract_metrics:
         mini_sentry.project_configs[project_id]['config']['transactionMetrics'] = {
             'extractMetrics': [
                 'measurements.foo',
@@ -434,6 +437,7 @@ def test_transaction_metrics(
                 'breakdown.breakdown1.baz',
             ]
         }
+
 
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
@@ -456,7 +460,7 @@ def test_transaction_metrics(
     transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
     relay.send_transaction(42, transaction, item_headers=item_headers)
 
-    if not extract_metrics:
+    if not extract_metrics or extract_metrics == 'corrupted':
         message = metrics_consumer.poll(timeout=None)
         assert message is None, message.value()
 
