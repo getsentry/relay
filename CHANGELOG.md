@@ -11,6 +11,7 @@
 **Bug Fixes**:
 
 - Support Unreal Engine 5 crash reports. ([#1132](https://github.com/getsentry/relay/pull/1132))
+- Add missing .NET 4.8 release value. ([#1142](https://github.com/getsentry/relay/pull/1142))
 
 **Internal**:
 
