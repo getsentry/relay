@@ -29,8 +29,9 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
+use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::statsd::RelayCounters;
-use crate::utils::{EnvelopeLimiter, Response};
+use crate::utils::{EnvelopeLimiter, ErrorBoundary, Response};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -86,6 +87,9 @@ pub struct ProjectConfig {
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Configuration in relation to extracting metrics from transaction events.
+    pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
     /// The span attributes configuration.
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub span_attributes: BTreeSet<SpanAttribute>,
@@ -107,6 +111,7 @@ impl Default for ProjectConfig {
             quotas: Vec::new(),
             dynamic_sampling: None,
             breakdowns_v2: None,
+            transaction_metrics: None,
             span_attributes: BTreeSet::new(),
             features: BTreeSet::new(),
         }
@@ -122,6 +127,7 @@ pub struct LimitedProjectConfig {
     pub pii_config: Option<PiiConfig>,
     pub datascrubbing_settings: DataScrubbingConfig,
     pub dynamic_sampling: Option<SamplingConfig>,
+    pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
     pub features: BTreeSet<Feature>,
 }
 

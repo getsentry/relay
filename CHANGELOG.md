@@ -6,6 +6,7 @@
 
 - Extract measurement ratings, port from frontend. ([#1130](https://github.com/getsentry/relay/pull/1130))
 - External Relays perform dynamic sampling and emit outcomes as client reports. This feature is now enabled *by default*. ([#1119](https://github.com/getsentry/relay/pull/1119))
+- Metrics extraction config, custom tags. ([#1141](https://github.com/getsentry/relay/pull/1141))
 
 **Bug Fixes**:
 
