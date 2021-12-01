@@ -426,6 +426,15 @@ def test_transaction_metrics(
         ["organizations:metrics-extraction"] if extract_metrics else []
     )
 
+    if extract_metrics:
+        mini_sentry.project_configs[project_id]['config']['transactionMetrics'] = {
+            'extractMetrics': [
+                'measurements.foo',
+                'measurements.bar',
+                'breakdown.breakdown1.baz',
+            ]
+        }
+
     transaction = generate_transaction_item()
     transaction["timestamp"] = timestamp.isoformat()
     transaction["measurements"] = {
