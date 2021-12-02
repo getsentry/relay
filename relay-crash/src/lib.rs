@@ -18,6 +18,7 @@ mod native {
 /// Internally, this uses the Breakpad client to capture crash signals and send minidumps to Sentry.
 /// If no DSN is configured, the crash handler is not initialized.
 #[derive(Debug, Default)]
+#[cfg_attr(not(unix), allow(dead_code))]
 pub struct CrashHandler<'a> {
     dsn: &'a str,
     database: &'a str,
