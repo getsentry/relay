@@ -99,8 +99,7 @@ pub extern "C" fn relay_init() {
 /// If there is no error, 0 is returned.
 #[no_mangle]
 pub extern "C" fn relay_err_get_last_code() -> RelayErrorCode {
-    relay_ffi::with_last_error(|err| RelayErrorCode::from_error(err))
-        .unwrap_or(RelayErrorCode::NoError)
+    relay_ffi::with_last_error(RelayErrorCode::from_error).unwrap_or(RelayErrorCode::NoError)
 }
 
 /// Returns the last error message.
