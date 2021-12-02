@@ -545,6 +545,8 @@ impl EnvelopeProcessor {
 
         #[cfg(feature = "processing")]
         {
+            relay_general::user_agent::init_parser();
+
             let geoip_lookup = match config.geoip_path() {
                 Some(p) => Some(Arc::new(
                     GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
