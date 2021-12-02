@@ -286,13 +286,25 @@
 <span id="286">286</span>
 <span id="287">287</span>
 <span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Duration</span> <span class="kw">as</span> <span class="ident">SignedDuration</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">relay_common::UnixTimestamp</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Event</span>, <span class="ident">SessionUpdate</span>, <span class="ident">Timestamp</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Event</span>, <span class="ident">Timestamp</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Error</span>, <span class="ident">ErrorKind</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>};
 
 <span class="doccomment">/// A signed correction that contains the sender&#39;s timestamp as well as the drift to the receiver.</span>
@@ -391,11 +403,10 @@
         }
     }
 
-    <span class="doccomment">/// Processes the given session.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">process_session</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">session</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SessionUpdate</span>) {
+    <span class="doccomment">/// Processes the given [`DateTime`].</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">process_datetime</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">datetime</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>) {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">correction</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">correction</span> {
-            <span class="ident">session</span>.<span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">session</span>.<span class="ident">timestamp</span> <span class="op">+</span> <span class="ident">correction</span>.<span class="ident">drift</span>;
-            <span class="ident">session</span>.<span class="ident">started</span> <span class="op">=</span> <span class="ident">session</span>.<span class="ident">started</span> <span class="op">+</span> <span class="ident">correction</span>.<span class="ident">drift</span>;
+            <span class="kw-2">*</span><span class="ident">datetime</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">datetime</span> <span class="op">+</span> <span class="ident">correction</span>.<span class="ident">drift</span>;
         }
     }
 }
@@ -572,6 +583,19 @@
         <span class="ident">processor</span>.<span class="ident">process_timestamp</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">timestamp</span>);
 
         <span class="macro">assert_eq!</span>(<span class="ident">timestamp</span>.<span class="ident">as_secs</span>(), <span class="ident">now</span>.<span class="ident">timestamp</span>() <span class="kw">as</span> <span class="ident">u64</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_process_datetime</span>() {
+        <span class="kw">let</span> <span class="ident">sent_at</span> <span class="op">=</span> <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">2</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let</span> <span class="ident">drift</span> <span class="op">=</span> <span class="ident">SignedDuration::days</span>(<span class="number">1</span>);
+        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">sent_at</span> <span class="op">+</span> <span class="ident">drift</span>;
+
+        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">ClockDriftProcessor::new</span>(<span class="prelude-val">Some</span>(<span class="ident">sent_at</span>), <span class="ident">now</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">datetime</span> <span class="op">=</span> <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">11</span>, <span class="number">29</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="ident">processor</span>.<span class="ident">process_datetime</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">datetime</span>);
+
+        <span class="macro">assert_eq!</span>(<span class="ident">datetime</span>, <span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2021</span>, <span class="number">11</span>, <span class="number">30</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>));
     }
 }
 </code></pre></div>
