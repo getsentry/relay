@@ -266,37 +266,37 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Chunk</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="doccomment">/// The text of this chunk.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Chunk::Text</span> { <span class="ident">text</span> } <span class="op">=</span><span class="op">&gt;</span> <span class="ident">text</span>,
-            <span class="ident">Chunk::Redaction</span> { <span class="ident">text</span>, .. } <span class="op">=</span><span class="op">&gt;</span> <span class="ident">text</span>,
+            <span class="ident">Chunk::Text</span> { <span class="ident">text</span> } =&gt; <span class="ident">text</span>,
+            <span class="ident">Chunk::Redaction</span> { <span class="ident">text</span>, .. } =&gt; <span class="ident">text</span>,
         }
     }
 
     <span class="doccomment">/// Effective length of the text in this chunk.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">len</span>()
     }
 
     <span class="doccomment">/// The number of UTF-8 encoded Unicode codepoints in this chunk.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="ident">bytecount::num_chars</span>(<span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">as_bytes</span>())
     }
 
     <span class="doccomment">/// Determines whether this chunk is empty.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">len</span>() <span class="op">=</span><span class="op">=</span> <span class="number">0</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">0</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">Chunk</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">as_str</span>())
     }
 }
 
 <span class="doccomment">/// Chunks the given text based on remarks.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">split_chunks</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>, <span class="ident">remarks</span>: <span class="ident">I</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">split_chunks</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>, <span class="ident">remarks</span>: <span class="ident">I</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Remark</span><span class="op">&gt;</span>,
 {
@@ -305,8 +305,8 @@
 
     <span class="kw">for</span> <span class="ident">remark</span> <span class="kw">in</span> <span class="ident">remarks</span> {
         <span class="kw">let</span> (<span class="ident">from</span>, <span class="ident">to</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">remark</span>.<span class="ident">range</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">range</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="ident">range</span>,
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">continue</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">range</span>) =&gt; <span class="kw-2">*</span><span class="ident">range</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
         };
 
         <span class="kw">if</span> <span class="ident">from</span> <span class="op">&gt;</span> <span class="ident">pos</span> {
@@ -342,7 +342,7 @@
 }
 
 <span class="doccomment">/// Concatenates chunks into a string and emits remarks for redacted sections.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">join_chunks</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">chunks</span>: <span class="ident">I</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">String</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Remark</span><span class="op">&gt;</span>)
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">join_chunks</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">chunks</span>: <span class="ident">I</span>) -&gt; (<span class="ident">String</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Remark</span><span class="op">&gt;</span>)
 <span class="kw">where</span>
     <span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Chunk</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 {
@@ -355,10 +355,10 @@
         <span class="ident">rv</span>.<span class="ident">push_str</span>(<span class="ident">chunk</span>.<span class="ident">as_str</span>());
 
         <span class="kw">match</span> <span class="ident">chunk</span> {
-            <span class="ident">Chunk::Redaction</span> { <span class="ident">rule_id</span>, <span class="ident">ty</span>, .. } <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Chunk::Redaction</span> { <span class="ident">rule_id</span>, <span class="ident">ty</span>, .. } =&gt; {
                 <span class="ident">remarks</span>.<span class="ident">push</span>(<span class="ident">Remark::with_range</span>(<span class="ident">ty</span>, <span class="ident">rule_id</span>.<span class="ident">clone</span>(), (<span class="ident">pos</span>, <span class="ident">new_pos</span>)))
             }
-            <span class="ident">Chunk::Text</span> { .. } <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Chunk::Text</span> { .. } =&gt; {
                 <span class="comment">// Plain text segments do not need remarks</span>
             }
         }
@@ -373,7 +373,7 @@
 <span class="doccomment">/// remarks along the process.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">process_chunked_value</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>, <span class="ident">f</span>: <span class="ident">F</span>)
 <span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&gt;</span>,
+    <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&gt;</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Chunk</span><span class="op">&gt;</span>,
 {
     <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">split_chunks</span>(<span class="ident">value</span>, <span class="ident">meta</span>.<span class="ident">iter_remarks</span>());
     <span class="kw">let</span> (<span class="ident">new_value</span>, <span class="ident">remarks</span>) <span class="op">=</span> <span class="ident">join_chunks</span>(<span class="ident">f</span>(<span class="ident">chunks</span>));

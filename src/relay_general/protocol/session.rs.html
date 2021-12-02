@@ -441,23 +441,23 @@
 
 <span class="kw">impl</span> <span class="ident">SessionStatus</span> {
     <span class="doccomment">/// Returns `true` if the status indicates an ended session.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_terminal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_terminal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="op">!</span><span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident">SessionStatus::Ok</span>)
     }
 
     <span class="doccomment">/// Returns `true` if the status indicates a session with any kind of error or crash.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="op">!</span><span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident">SessionStatus::Ok</span> <span class="op">|</span> <span class="ident">SessionStatus::Exited</span>)
     }
 
     <span class="doccomment">/// Returns `true` if the status indicates a fatal session.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_fatal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_fatal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident">SessionStatus::Crashed</span> <span class="op">|</span> <span class="ident">SessionStatus::Abnormal</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">SessionStatus</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::Ok</span>
     }
 }
@@ -468,11 +468,11 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseSessionStatusError</span>;
 
 <span class="macro">derive_fromstr_and_display!</span>(<span class="ident">SessionStatus</span>, <span class="ident">ParseSessionStatusError</span>, {
-    <span class="ident">SessionStatus::Ok</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;ok&quot;</span>,
-    <span class="ident">SessionStatus::Crashed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;crashed&quot;</span>,
-    <span class="ident">SessionStatus::Abnormal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;abnormal&quot;</span>,
-    <span class="ident">SessionStatus::Exited</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;exited&quot;</span>,
-    <span class="ident">SessionStatus::Errored</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;errored&quot;</span>,
+    <span class="ident">SessionStatus::Ok</span> =&gt; <span class="string">&quot;ok&quot;</span>,
+    <span class="ident">SessionStatus::Crashed</span> =&gt; <span class="string">&quot;crashed&quot;</span>,
+    <span class="ident">SessionStatus::Abnormal</span> =&gt; <span class="string">&quot;abnormal&quot;</span>,
+    <span class="ident">SessionStatus::Exited</span> =&gt; <span class="string">&quot;exited&quot;</span>,
+    <span class="ident">SessionStatus::Errored</span> =&gt; <span class="string">&quot;errored&quot;</span>,
 });
 
 <span class="doccomment">/// Additional attributes for Sessions.</span>
@@ -494,7 +494,7 @@
     <span class="kw">pub</span> <span class="ident">user_agent</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">fn</span> <span class="ident">default_sequence</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u64</span> {
+<span class="kw">fn</span> <span class="ident">default_sequence</span>() -&gt; <span class="ident">u64</span> {
     <span class="ident">SystemTime::now</span>()
         .<span class="ident">duration_since</span>(<span class="ident">SystemTime::UNIX_EPOCH</span>)
         .<span class="ident">unwrap_or_default</span>()
@@ -502,7 +502,7 @@
 }
 
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::trivially_copy_pass_by_ref</span>)]</span>
-<span class="kw">fn</span> <span class="ident">is_false</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">is_false</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">bool</span>) -&gt; <span class="ident">bool</span> {
     <span class="op">!</span><span class="ident">val</span>
 }
 
@@ -516,13 +516,13 @@
 
 <span class="doccomment">/// Common interface for [`SessionUpdate`] and [`SessionAggregateItem`].</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SessionLike</span> {
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>;
-    <span class="kw">fn</span> <span class="ident">distinct_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span>;
-    <span class="kw">fn</span> <span class="ident">total_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span>;
-    <span class="kw">fn</span> <span class="ident">abnormal_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span>;
-    <span class="kw">fn</span> <span class="ident">crashed_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span>;
-    <span class="kw">fn</span> <span class="ident">errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span>;
-    <span class="kw">fn</span> <span class="ident">final_duration</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">f64</span>, <span class="ident">SessionStatus</span>)<span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">distinct_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">total_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span>;
+    <span class="kw">fn</span> <span class="ident">abnormal_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span>;
+    <span class="kw">fn</span> <span class="ident">crashed_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span>;
+    <span class="kw">fn</span> <span class="ident">errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">final_duration</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">f64</span>, <span class="ident">SessionStatus</span>)<span class="op">&gt;</span>;
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
@@ -560,26 +560,26 @@
 
 <span class="kw">impl</span> <span class="ident">SessionUpdate</span> {
     <span class="doccomment">/// Parses a session update from JSON.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">payload</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">payload</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
         <span class="ident">serde_json::from_slice</span>(<span class="ident">payload</span>)
     }
 
     <span class="doccomment">/// Serializes a session update back into JSON.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
         <span class="ident">serde_json::to_vec</span>(<span class="self">self</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">SessionLike</span> <span class="kw">for</span> <span class="ident">SessionUpdate</span> {
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">started</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">distinct_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">distinct_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">distinct_id</span>.<span class="ident">as_ref</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">total_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+    <span class="kw">fn</span> <span class="ident">total_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">init</span> {
             <span class="number">1</span>
         } <span class="kw">else</span> {
@@ -587,21 +587,21 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">abnormal_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+    <span class="kw">fn</span> <span class="ident">abnormal_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">status</span> {
-            <span class="ident">SessionStatus::Abnormal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">1</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">0</span>,
+            <span class="ident">SessionStatus::Abnormal</span> =&gt; <span class="number">1</span>,
+            <span class="kw">_</span> =&gt; <span class="number">0</span>,
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">crashed_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+    <span class="kw">fn</span> <span class="ident">crashed_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">status</span> {
-            <span class="ident">SessionStatus::Crashed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">1</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">0</span>,
+            <span class="ident">SessionStatus::Crashed</span> =&gt; <span class="number">1</span>,
+            <span class="kw">_</span> =&gt; <span class="number">0</span>,
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">final_duration</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">f64</span>, <span class="ident">SessionStatus</span>)<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">final_duration</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">f64</span>, <span class="ident">SessionStatus</span>)<span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">status</span>.<span class="ident">is_terminal</span>() {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">duration</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">duration</span> {
                 <span class="kw">return</span> <span class="prelude-val">Some</span>((<span class="ident">duration</span>, <span class="self">self</span>.<span class="ident">status</span>));
@@ -610,7 +610,7 @@
         <span class="prelude-val">None</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">errors</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">status</span>.<span class="ident">is_error</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">SessionErrored::Individual</span>(<span class="self">self</span>.<span class="ident">session_id</span>))
         } <span class="kw">else</span> {
@@ -620,8 +620,8 @@
 }
 
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::trivially_copy_pass_by_ref</span>)]</span>
-<span class="kw">fn</span> <span class="ident">is_zero</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">u32</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-    <span class="kw-2">*</span><span class="ident">val</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span>
+<span class="kw">fn</span> <span class="ident">is_zero</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">u32</span>) -&gt; <span class="ident">bool</span> {
+    <span class="kw-2">*</span><span class="ident">val</span> <span class="op">==</span> <span class="number">0</span>
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
@@ -646,31 +646,31 @@
 }
 
 <span class="kw">impl</span> <span class="ident">SessionLike</span> <span class="kw">for</span> <span class="ident">SessionAggregateItem</span> {
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">started</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">distinct_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">distinct_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">distinct_id</span>.<span class="ident">as_ref</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">total_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+    <span class="kw">fn</span> <span class="ident">total_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span> {
         <span class="self">self</span>.<span class="ident">exited</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">errored</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">abnormal</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">crashed</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">abnormal_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+    <span class="kw">fn</span> <span class="ident">abnormal_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span> {
         <span class="self">self</span>.<span class="ident">abnormal</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">crashed_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+    <span class="kw">fn</span> <span class="ident">crashed_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span> {
         <span class="self">self</span>.<span class="ident">crashed</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">final_duration</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">f64</span>, <span class="ident">SessionStatus</span>)<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">final_duration</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">f64</span>, <span class="ident">SessionStatus</span>)<span class="op">&gt;</span> {
         <span class="prelude-val">None</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">errored</span> <span class="op">&gt;</span> <span class="number">0</span> {
             <span class="prelude-val">Some</span>(<span class="ident">SessionErrored::Aggregated</span>(<span class="self">self</span>.<span class="ident">errored</span>))
         } <span class="kw">else</span> {
@@ -691,12 +691,12 @@
 
 <span class="kw">impl</span> <span class="ident">SessionAggregates</span> {
     <span class="doccomment">/// Parses a session batch from JSON.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">payload</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">payload</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
         <span class="ident">serde_json::from_slice</span>(<span class="ident">payload</span>)
     }
 
     <span class="doccomment">/// Serializes a session batch back into JSON.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
         <span class="ident">serde_json::to_vec</span>(<span class="self">self</span>)
     }
 }

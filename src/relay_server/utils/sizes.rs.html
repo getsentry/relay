@@ -64,7 +64,7 @@
 <span class="doccomment">///  - `max_attachment_size`</span>
 <span class="doccomment">///  - `max_attachments_size`</span>
 <span class="doccomment">///  - `max_session_count`</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_envelope_size_limits</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>, <span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_envelope_size_limits</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>, <span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) -&gt; <span class="ident">bool</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event_size</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">attachments_size</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">session_count</span> <span class="op">=</span> <span class="number">0</span>;
@@ -76,20 +76,20 @@
             <span class="op">|</span> <span class="ident">ItemType::Transaction</span>
             <span class="op">|</span> <span class="ident">ItemType::Security</span>
             <span class="op">|</span> <span class="ident">ItemType::RawSecurity</span>
-            <span class="op">|</span> <span class="ident">ItemType::FormData</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">event_size</span> <span class="op">+</span><span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>(),
-            <span class="ident">ItemType::Attachment</span> <span class="op">|</span> <span class="ident">ItemType::UnrealReport</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="op">|</span> <span class="ident">ItemType::FormData</span> =&gt; <span class="ident">event_size</span> <span class="op">+</span><span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>(),
+            <span class="ident">ItemType::Attachment</span> <span class="op">|</span> <span class="ident">ItemType::UnrealReport</span> =&gt; {
                 <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">max_attachment_size</span>() {
                     <span class="kw">return</span> <span class="bool-val">false</span>;
                 }
 
                 <span class="ident">attachments_size</span> <span class="op">+</span><span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>()
             }
-            <span class="ident">ItemType::Session</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session_count</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-            <span class="ident">ItemType::Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session_count</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-            <span class="ident">ItemType::UserReport</span> <span class="op">=</span><span class="op">&gt;</span> (),
-            <span class="ident">ItemType::Metrics</span> <span class="op">=</span><span class="op">&gt;</span> (),
-            <span class="ident">ItemType::MetricBuckets</span> <span class="op">=</span><span class="op">&gt;</span> (),
-            <span class="ident">ItemType::ClientReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">client_reports_size</span> <span class="op">+</span><span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>(),
+            <span class="ident">ItemType::Session</span> =&gt; <span class="ident">session_count</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+            <span class="ident">ItemType::Sessions</span> =&gt; <span class="ident">session_count</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+            <span class="ident">ItemType::UserReport</span> =&gt; (),
+            <span class="ident">ItemType::Metrics</span> =&gt; (),
+            <span class="ident">ItemType::MetricBuckets</span> =&gt; (),
+            <span class="ident">ItemType::ClientReport</span> =&gt; <span class="ident">client_reports_size</span> <span class="op">+</span><span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>(),
         }
     }
 

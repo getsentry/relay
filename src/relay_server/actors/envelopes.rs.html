@@ -3775,56 +3775,56 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ProcessingError</span> {
-    <span class="kw">fn</span> <span class="ident">to_outcome</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Outcome</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">to_outcome</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Outcome</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="comment">// General outcomes for invalid events</span>
-            <span class="ident"><span class="self">Self</span>::PayloadTooLarge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::TooLarge</span>)),
-            <span class="ident"><span class="self">Self</span>::InvalidJson</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidJson</span>)),
-            <span class="ident"><span class="self">Self</span>::InvalidMsgpack</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidMsgpack</span>)),
-            <span class="ident"><span class="self">Self</span>::InvalidSecurityType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::SecurityReportType</span>)),
-            <span class="ident"><span class="self">Self</span>::InvalidSecurityReport</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::SecurityReport</span>)),
-            <span class="ident"><span class="self">Self</span>::InvalidTransaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidTransaction</span>)),
-            <span class="ident"><span class="self">Self</span>::DuplicateItem</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::DuplicateItem</span>)),
-            <span class="ident"><span class="self">Self</span>::NoEventPayload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::NoEventPayload</span>)),
+            <span class="ident"><span class="self">Self</span>::PayloadTooLarge</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::TooLarge</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidJson</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidJson</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidMsgpack</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidMsgpack</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidSecurityType</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::SecurityReportType</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidSecurityReport</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::SecurityReport</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidTransaction</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidTransaction</span>)),
+            <span class="ident"><span class="self">Self</span>::DuplicateItem</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::DuplicateItem</span>)),
+            <span class="ident"><span class="self">Self</span>::NoEventPayload</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::NoEventPayload</span>)),
 
             <span class="comment">// Processing-only outcomes (Sentry-internal Relays)</span>
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident"><span class="self">Self</span>::InvalidUnrealReport</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessUnreal</span>)),
+            <span class="ident"><span class="self">Self</span>::InvalidUnrealReport</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessUnreal</span>)),
 
             <span class="comment">// Internal errors</span>
             <span class="ident"><span class="self">Self</span>::SerializeFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::ProjectFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::Timeout</span>
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::ProcessingFailed</span>(<span class="kw">_</span>)
-            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::MissingProjectId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
+            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::MissingProjectId</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident"><span class="self">Self</span>::QuotasFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
+            <span class="ident"><span class="self">Self</span>::QuotasFailed</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
 
             <span class="comment">// These outcomes are emitted at the source.</span>
-            <span class="ident"><span class="self">Self</span>::ScheduleFailed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident"><span class="self">Self</span>::Rejected</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::ScheduleFailed</span> =&gt; <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::Rejected</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident"><span class="self">Self</span>::EventFiltered</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident"><span class="self">Self</span>::TraceSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident"><span class="self">Self</span>::EventSampled</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident"><span class="self">Self</span>::RateLimited</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::EventFiltered</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::TraceSampled</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::EventSampled</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::RateLimited</span> =&gt; <span class="prelude-val">None</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident"><span class="self">Self</span>::StoreFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::StoreFailed</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
 
             <span class="comment">// If we send to an upstream, we don&#39;t emit outcomes.</span>
             <span class="ident"><span class="self">Self</span>::UpstreamRequestFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::EnvelopeBuildFailed</span>(<span class="kw">_</span>)
-            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::BodyEncodingFailed</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::BodyEncodingFailed</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
     }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Unreal4Error</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProcessingError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">Unreal4Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">Unreal4Error</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">match</span> <span class="ident">err</span>.<span class="ident">kind</span>() {
-            <span class="ident">Unreal4ErrorKind::TooLarge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::PayloadTooLarge</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ProcessingError::InvalidUnrealReport</span>(<span class="ident">err</span>),
+            <span class="ident">Unreal4ErrorKind::TooLarge</span> =&gt; <span class="ident"><span class="self">Self</span>::PayloadTooLarge</span>,
+            <span class="kw">_</span> =&gt; <span class="ident">ProcessingError::InvalidUnrealReport</span>(<span class="ident">err</span>),
         }
     }
 }
@@ -3844,7 +3844,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This context contains partial scoping and no envelope summary. There will be no outcomes</span>
     <span class="doccomment">/// logged without updating this context.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_request</span>(<span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_request</span>(<span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">summary</span>: <span class="ident">EnvelopeSummary::empty</span>(),
             <span class="ident">received_at</span>: <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">meta</span>.<span class="ident">start_time</span>()),
@@ -3857,7 +3857,7 @@
     <span class="doccomment">/// Computes an envelope context from the given envelope.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// To provide additional scoping, use [`EnvelopeContext::scope`].</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_envelope</span>(<span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_envelope</span>(<span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::from_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>());
         <span class="ident">context</span>.<span class="ident">update</span>(<span class="ident">envelope</span>);
         <span class="ident">context</span>
@@ -3866,25 +3866,25 @@
     <span class="doccomment">/// Update the context with new envelope information.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This updates the item summary as well as the event id.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
         <span class="self">self</span>.<span class="ident">summary</span> <span class="op">=</span> <span class="ident">EnvelopeSummary::compute</span>(<span class="ident">envelope</span>);
         <span class="self">self</span>
     }
 
     <span class="doccomment">/// Re-scopes this context to the given scoping.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">scoping</span>: <span class="ident">Scoping</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">scoping</span>: <span class="ident">Scoping</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">scoping</span> <span class="op">=</span> <span class="ident">scoping</span>;
         <span class="self">self</span>
     }
 
     <span class="doccomment">/// Returns scoping stored in this context.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scoping</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Scoping</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scoping</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Scoping</span> {
         <span class="self">self</span>.<span class="ident">scoping</span>
     }
 
     <span class="doccomment">/// Returns the event id of this context, if any.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">event_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">event_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">event_id</span>
     }
 
@@ -3985,7 +3985,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is used to branch into the processing pipeline. If this function returns false, only</span>
     <span class="doccomment">/// rate limits are executed.</span>
-    <span class="kw">fn</span> <span class="ident">creates_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">creates_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">envelope</span>.<span class="ident">items</span>().<span class="ident">any</span>(<span class="ident">Item::creates_event</span>)
     }
 
@@ -3993,7 +3993,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The event was previously removed from the Envelope. This returns false if there was an</span>
     <span class="doccomment">/// invalid event item.</span>
-    <span class="kw">fn</span> <span class="ident">has_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">has_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">is_some</span>()
     }
 
@@ -4001,7 +4001,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the event does not have a type, `Some(EventType::Default)` is assumed. If, in contrast, there</span>
     <span class="doccomment">/// is no event, `None` is returned.</span>
-    <span class="kw">fn</span> <span class="ident">event_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventType</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">event_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventType</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">event</span>
             .<span class="ident">value</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">event</span><span class="op">|</span> <span class="ident">event</span>.<span class="ident">ty</span>.<span class="ident">value</span>().<span class="ident">copied</span>().<span class="ident">unwrap_or_default</span>())
@@ -4011,7 +4011,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The data category is computed from the event type. Both `Default` and `Error` events map to</span>
     <span class="doccomment">/// the `Error` data category. If there is no Event, `None` is returned.</span>
-    <span class="kw">fn</span> <span class="ident">event_category</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DataCategory</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">event_category</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DataCategory</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">event_type</span>().<span class="ident">map</span>(<span class="ident">DataCategory::from</span>)
     }
 
@@ -4026,14 +4026,14 @@
     <span class="ident">tags</span>: <span class="kw-2">&amp;</span><span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
     <span class="ident">value</span>: <span class="kw">impl</span> <span class="ident">fmt::Display</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span> {
+) -&gt; <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tags</span> <span class="op">=</span> <span class="ident">tags</span>.<span class="ident">clone</span>();
     <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="ident">name</span>.<span class="ident">to_owned</span>(), <span class="ident">value</span>.<span class="ident">to_string</span>());
     <span class="ident">tags</span>
 }
 
 <span class="doccomment">/// Convert contained nil UUIDs to None</span>
-<span class="kw">fn</span> <span class="ident">nil_to_none</span>(<span class="ident">distinct_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">nil_to_none</span>(<span class="ident">distinct_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">distinct_id</span> <span class="op">=</span> <span class="ident">distinct_id</span><span class="question-mark">?</span>;
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">uuid</span>) <span class="op">=</span> <span class="ident">distinct_id</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span>() {
         <span class="kw">if</span> <span class="ident">uuid</span>.<span class="ident">is_nil</span>() {
@@ -4050,8 +4050,8 @@
     <span class="ident">target</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
 ) {
     <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">UnixTimestamp::from_datetime</span>(<span class="ident">session</span>.<span class="ident">started</span>()) {
-        <span class="prelude-val">Some</span>(<span class="ident">ts</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ts</span>,
-        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Some</span>(<span class="ident">ts</span>) =&gt; <span class="ident">ts</span>,
+        <span class="prelude-val">None</span> =&gt; {
             <span class="macro">relay_log::error!</span>(<span class="string">&quot;invalid session started timestamp: {}&quot;</span>, <span class="ident">session</span>.<span class="ident">started</span>());
             <span class="kw">return</span>;
         }
@@ -4088,14 +4088,14 @@
     <span class="comment">// Mark the session as errored, which includes fatal sessions.</span>
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">errors</span>) <span class="op">=</span> <span class="ident">session</span>.<span class="ident">errors</span>() {
         <span class="ident">target</span>.<span class="ident">push</span>(<span class="kw">match</span> <span class="ident">errors</span> {
-            <span class="ident">SessionErrored::Individual</span>(<span class="ident">session_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Metric</span> {
+            <span class="ident">SessionErrored::Individual</span>(<span class="ident">session_id</span>) =&gt; <span class="ident">Metric</span> {
                 <span class="ident">name</span>: <span class="string">&quot;session.error&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
                 <span class="ident">value</span>: <span class="ident">MetricValue::set_from_display</span>(<span class="ident">session_id</span>),
                 <span class="ident">timestamp</span>,
                 <span class="ident">tags</span>: <span class="ident">tags</span>.<span class="ident">clone</span>(),
             },
-            <span class="ident">SessionErrored::Aggregated</span>(<span class="ident">count</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Metric</span> {
+            <span class="ident">SessionErrored::Aggregated</span>(<span class="ident">count</span>) =&gt; <span class="ident">Metric</span> {
                 <span class="ident">name</span>: <span class="string">&quot;session&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
                 <span class="ident">value</span>: <span class="ident">MetricValue::Counter</span>(<span class="ident">count</span> <span class="kw">as</span> <span class="ident">f64</span>),
@@ -4186,17 +4186,17 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(
         <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
         <span class="ident">_redis</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisPool</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">thread_count</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">cpu_concurrency</span>();
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;starting {} envelope processing workers&quot;</span>, <span class="ident">thread_count</span>);
 
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
         {
             <span class="kw">let</span> <span class="ident">geoip_lookup</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">geoip_path</span>() {
-                <span class="prelude-val">Some</span>(<span class="ident">p</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Arc::new</span>(
+                <span class="prelude-val">Some</span>(<span class="ident">p</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Arc::new</span>(
                     <span class="ident">GeoIpLookup::open</span>(<span class="ident">p</span>).<span class="ident">context</span>(<span class="ident">ServerErrorKind::GeoIpError</span>)<span class="question-mark">?</span>,
                 )),
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+                <span class="prelude-val">None</span> =&gt; <span class="prelude-val">None</span>,
             };
 
             <span class="kw">let</span> <span class="ident">rate_limiter</span> <span class="op">=</span>
@@ -4220,7 +4220,7 @@
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">config</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -4232,14 +4232,14 @@
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">with_rate_limiter</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rate_limiter</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisRateLimiter</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">with_rate_limiter</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rate_limiter</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisRateLimiter</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">rate_limiter</span> <span class="op">=</span> <span class="ident">rate_limiter</span>;
         <span class="self">self</span>
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">with_geoip_lookup</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">geoip_lookup</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">GeoIpLookup</span><span class="op">&gt;</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">with_geoip_lookup</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">geoip_lookup</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">GeoIpLookup</span><span class="op">&gt;</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">geoip_lookup</span> <span class="op">=</span> <span class="ident">geoip_lookup</span>;
         <span class="self">self</span>
     }
@@ -4250,7 +4250,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">client_addr</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">net::IpAddr</span><span class="op">&gt;</span>,
         <span class="ident">attributes</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SessionAttributes</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, ()<span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, ()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">changed</span> <span class="op">=</span> <span class="bool-val">false</span>;
 
         <span class="kw">let</span> <span class="ident">release</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">attributes</span>.<span class="ident">release</span>;
@@ -4281,7 +4281,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">received</span>: <span class="kw-2">&amp;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
         <span class="ident">timestamp</span>: <span class="kw-2">&amp;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    ) -&gt; <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="ident">max_age</span> <span class="op">=</span> <span class="ident">SignedDuration::seconds</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_session_secs_in_past</span>());
         <span class="kw">if</span> (<span class="kw-2">*</span><span class="ident">received</span> <span class="op">-</span> <span class="kw-2">*</span><span class="ident">timestamp</span>) <span class="op">&gt;</span> <span class="ident">max_age</span> {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping session older than {} days&quot;</span>, <span class="ident">max_age</span>.<span class="ident">num_days</span>());
@@ -4309,19 +4309,19 @@
         <span class="ident">client_addr</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">net::IpAddr</span><span class="op">&gt;</span>,
         <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Item</span>,
         <span class="ident">extracted_metrics</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    ) -&gt; <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">changed</span> <span class="op">=</span> <span class="bool-val">false</span>;
         <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">payload</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">session</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">SessionUpdate::parse</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">session</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session</span>,
-            <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">session</span>) =&gt; <span class="ident">session</span>,
+            <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping invalid session payload: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
                 <span class="kw">return</span> <span class="bool-val">false</span>;
             }
         };
 
-        <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">sequence</span> <span class="op">=</span><span class="op">=</span> <span class="ident">u64::MAX</span> {
+        <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">sequence</span> <span class="op">==</span> <span class="ident">u64::MAX</span> {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping session due to sequence overflow&quot;</span>);
             <span class="kw">return</span> <span class="bool-val">false</span>;
         }
@@ -4357,8 +4357,8 @@
 
         <span class="comment">// Validate attributes</span>
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">validate_attributes</span>(<span class="ident">client_addr</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">session</span>.<span class="ident">attributes</span>) {
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="bool-val">false</span>,
-            <span class="prelude-val">Ok</span>(<span class="ident">changed_attributes</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span> <span class="bool-val">false</span>,
+            <span class="prelude-val">Ok</span>(<span class="ident">changed_attributes</span>) =&gt; {
                 <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="ident">changed_attributes</span>;
             }
         }
@@ -4371,8 +4371,8 @@
 
         <span class="kw">if</span> <span class="ident">changed</span> {
             <span class="kw">let</span> <span class="ident">json_string</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>) {
-                <span class="prelude-val">Ok</span>(<span class="ident">json</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">json</span>,
-                <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">json</span>) =&gt; <span class="ident">json</span>,
+                <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize session: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>));
                     <span class="kw">return</span> <span class="bool-val">false</span>;
                 }
@@ -4392,13 +4392,13 @@
         <span class="ident">client_addr</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">net::IpAddr</span><span class="op">&gt;</span>,
         <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Item</span>,
         <span class="ident">extracted_metrics</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    ) -&gt; <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">changed</span> <span class="op">=</span> <span class="bool-val">false</span>;
         <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">payload</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">session</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">SessionAggregates::parse</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">session</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session</span>,
-            <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">session</span>) =&gt; <span class="ident">session</span>,
+            <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">&quot;skipping invalid sessions payload: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
                 <span class="kw">return</span> <span class="bool-val">false</span>;
             }
@@ -4424,8 +4424,8 @@
 
         <span class="comment">// Validate attributes</span>
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">validate_attributes</span>(<span class="ident">client_addr</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">session</span>.<span class="ident">attributes</span>) {
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="bool-val">false</span>,
-            <span class="prelude-val">Ok</span>(<span class="ident">changed_attributes</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span> <span class="bool-val">false</span>,
+            <span class="prelude-val">Ok</span>(<span class="ident">changed_attributes</span>) =&gt; {
                 <span class="ident">changed</span> <span class="op">|</span><span class="op">=</span> <span class="ident">changed_attributes</span>;
             }
         }
@@ -4440,8 +4440,8 @@
 
         <span class="kw">if</span> <span class="ident">changed</span> {
             <span class="kw">let</span> <span class="ident">json_string</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>) {
-                <span class="prelude-val">Ok</span>(<span class="ident">json</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">json</span>,
-                <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">json</span>) =&gt; <span class="ident">json</span>,
+                <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize session: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>));
                     <span class="kw">return</span> <span class="bool-val">false</span>;
                 }
@@ -4470,7 +4470,7 @@
 
         <span class="ident">envelope</span>.<span class="ident">retain_items</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
             <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
-                <span class="ident">ItemType::Session</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">process_session</span>(
+                <span class="ident">ItemType::Session</span> =&gt; <span class="self">self</span>.<span class="ident">process_session</span>(
                     <span class="ident">metrics_extraction_enabled</span>,
                     <span class="kw-2">&amp;</span><span class="ident">clock_drift_processor</span>,
                     <span class="kw-2">&amp;</span><span class="ident">received</span>,
@@ -4478,7 +4478,7 @@
                     <span class="ident">item</span>,
                     <span class="ident">extracted_metrics</span>,
                 ),
-                <span class="ident">ItemType::Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">process_session_aggregates</span>(
+                <span class="ident">ItemType::Sessions</span> =&gt; <span class="self">self</span>.<span class="ident">process_session_aggregates</span>(
                     <span class="ident">metrics_extraction_enabled</span>,
                     <span class="kw-2">&amp;</span><span class="ident">clock_drift_processor</span>,
                     <span class="kw-2">&amp;</span><span class="ident">received</span>,
@@ -4486,7 +4486,7 @@
                     <span class="ident">item</span>,
                     <span class="ident">extracted_metrics</span>,
                 ),
-                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>, <span class="comment">// Keep all other item types</span>
+                <span class="kw">_</span> =&gt; <span class="bool-val">true</span>, <span class="comment">// Keep all other item types</span>
             }
         });
     }
@@ -4503,16 +4503,16 @@
             };
 
             <span class="kw">let</span> <span class="ident">report</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">serde_json::from_slice</span>::<span class="op">&lt;</span><span class="ident">UserReport</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>()) {
-                <span class="prelude-val">Ok</span>(<span class="ident">session</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">session</span>,
-                <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">session</span>) =&gt; <span class="ident">session</span>,
+                <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to store user report: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
                     <span class="kw">return</span> <span class="bool-val">false</span>;
                 }
             };
 
             <span class="kw">let</span> <span class="ident">json_string</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">report</span>) {
-                <span class="prelude-val">Ok</span>(<span class="ident">json</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">json</span>,
-                <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">json</span>) =&gt; <span class="ident">json</span>,
+                <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to serialize user report: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>));
                     <span class="kw">return</span> <span class="bool-val">false</span>;
                 }
@@ -4561,7 +4561,7 @@
                     <span class="ident">rate_limited_events</span>,
                     <span class="ident">filtered_events</span>,
                     <span class="ident">filtered_sampling_events</span>,
-                }) <span class="op">=</span><span class="op">&gt;</span> {
+                }) =&gt; {
                     <span class="comment">// Glue all discarded events together and give them the appropriate outcome type</span>
                     <span class="kw">let</span> <span class="ident">input_events</span> <span class="op">=</span>
                         <span class="ident">discarded_events</span>
@@ -4596,7 +4596,7 @@
                         <span class="ident">timestamp</span>.<span class="ident">get_or_insert</span>(<span class="ident">ts</span>);
                     }
                 }
-                <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">relay_log::trace!</span>(<span class="string">&quot;invalid client report received: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>)),
+                <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; <span class="macro">relay_log::trace!</span>(<span class="string">&quot;invalid client report received: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">err</span>)),
             }
             <span class="bool-val">false</span>
         });
@@ -4634,8 +4634,8 @@
         <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">OutcomeAggregator::from_registry</span>();
         <span class="kw">for</span> ((<span class="ident">outcome_type</span>, <span class="ident">reason</span>, <span class="ident">category</span>), <span class="ident">quantity</span>) <span class="kw">in</span> <span class="ident">output_events</span>.<span class="ident">into_iter</span>() {
             <span class="kw">let</span> <span class="ident">outcome</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">Outcome::from_outcome_type</span>(<span class="ident">outcome_type</span>, <span class="kw-2">&amp;</span><span class="ident">reason</span>) {
-                <span class="prelude-val">Ok</span>(<span class="ident">outcome</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">outcome</span>,
-                <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">outcome</span>) =&gt; <span class="ident">outcome</span>,
+                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
                     <span class="macro">relay_log::trace!</span>(
                         <span class="string">&quot;Invalid outcome_type / reason: ({:?}, {})&quot;</span>,
                         <span class="ident">outcome_type</span>,
@@ -4663,7 +4663,7 @@
     <span class="kw">fn</span> <span class="ident">prepare_state</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeState</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeState</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">ProcessEnvelope</span> {
             <span class="kw-2">mut</span> <span class="ident">envelope</span>,
             <span class="ident">project_state</span>,
@@ -4722,10 +4722,10 @@
     <span class="doccomment">/// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it</span>
     <span class="doccomment">/// processes any other envelopes.</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">expand_unreal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">expand_unreal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType::UnrealReport</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::UnrealReport</span>) {
             <span class="ident">utils::expand_unreal_envelope</span>(<span class="ident">item</span>, <span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>)<span class="question-mark">?</span>;
         }
 
@@ -4736,7 +4736,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">item</span>: <span class="ident">Item</span>,
         <span class="ident">event_type</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventType</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ExtractedEvent</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ExtractedEvent</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span><span class="ident">::from_json_bytes</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>())
             .<span class="ident">map_err</span>(<span class="ident">ProcessingError::InvalidJson</span>)<span class="question-mark">?</span>;
 
@@ -4747,7 +4747,7 @@
         <span class="prelude-val">Ok</span>((<span class="ident">event</span>, <span class="ident">item</span>.<span class="ident">len</span>()))
     }
 
-    <span class="kw">fn</span> <span class="ident">event_from_security_report</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">item</span>: <span class="ident">Item</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ExtractedEvent</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">event_from_security_report</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">item</span>: <span class="ident">Item</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ExtractedEvent</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event::default</span>();
 
@@ -4757,10 +4757,10 @@
             .<span class="ident">ok_or</span>(<span class="ident">ProcessingError::InvalidSecurityType</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">apply_result</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">report_type</span> {
-            <span class="ident">SecurityReportType::Csp</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Csp::apply_to_event</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>),
-            <span class="ident">SecurityReportType::ExpectCt</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ExpectCt::apply_to_event</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>),
-            <span class="ident">SecurityReportType::ExpectStaple</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ExpectStaple::apply_to_event</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>),
-            <span class="ident">SecurityReportType::Hpkp</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Hpkp::apply_to_event</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>),
+            <span class="ident">SecurityReportType::Csp</span> =&gt; <span class="ident">Csp::apply_to_event</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>),
+            <span class="ident">SecurityReportType::ExpectCt</span> =&gt; <span class="ident">ExpectCt::apply_to_event</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>),
+            <span class="ident">SecurityReportType::ExpectStaple</span> =&gt; <span class="ident">ExpectStaple::apply_to_event</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>),
+            <span class="ident">SecurityReportType::Hpkp</span> =&gt; <span class="ident">Hpkp::apply_to_event</span>(<span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>),
         };
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">json_error</span>) <span class="op">=</span> <span class="ident">apply_result</span> {
@@ -4786,10 +4786,10 @@
         <span class="comment">// Explicitly set the event type. This is required so that a `Security` item can be created</span>
         <span class="comment">// instead of a regular `Event` item.</span>
         <span class="ident">event</span>.<span class="ident">ty</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="kw">match</span> <span class="ident">report_type</span> {
-            <span class="ident">SecurityReportType::Csp</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::Csp</span>,
-            <span class="ident">SecurityReportType::ExpectCt</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::ExpectCt</span>,
-            <span class="ident">SecurityReportType::ExpectStaple</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::ExpectStaple</span>,
-            <span class="ident">SecurityReportType::Hpkp</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::Hpkp</span>,
+            <span class="ident">SecurityReportType::Csp</span> =&gt; <span class="ident">EventType::Csp</span>,
+            <span class="ident">SecurityReportType::ExpectCt</span> =&gt; <span class="ident">EventType::ExpectCt</span>,
+            <span class="ident">SecurityReportType::ExpectStaple</span> =&gt; <span class="ident">EventType::ExpectStaple</span>,
+            <span class="ident">SecurityReportType::Hpkp</span> =&gt; <span class="ident">EventType::Hpkp</span>,
         });
 
         <span class="prelude-val">Ok</span>((<span class="ident">Annotated::new</span>(<span class="ident">event</span>), <span class="ident">len</span>))
@@ -4800,12 +4800,12 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">ChunkedFormDataAggregator::new</span>();
 
         <span class="kw">for</span> <span class="ident">entry</span> <span class="kw">in</span> <span class="ident">FormDataIter::new</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>) {
-            <span class="kw">if</span> <span class="ident">entry</span>.<span class="ident">key</span>() <span class="op">=</span><span class="op">=</span> <span class="string">&quot;sentry&quot;</span> <span class="op">|</span><span class="op">|</span> <span class="ident">entry</span>.<span class="ident">key</span>().<span class="ident">starts_with</span>(<span class="string">&quot;sentry___&quot;</span>) {
+            <span class="kw">if</span> <span class="ident">entry</span>.<span class="ident">key</span>() <span class="op">==</span> <span class="string">&quot;sentry&quot;</span> <span class="op">|</span><span class="op">|</span> <span class="ident">entry</span>.<span class="ident">key</span>().<span class="ident">starts_with</span>(<span class="string">&quot;sentry___&quot;</span>) {
                 <span class="comment">// Custom clients can submit longer payloads and should JSON encode event data into</span>
                 <span class="comment">// the optional `sentry` field or a `sentry___&lt;namespace&gt;` field.</span>
                 <span class="kw">match</span> <span class="ident">serde_json::from_str</span>(<span class="ident">entry</span>.<span class="ident">value</span>()) {
-                    <span class="prelude-val">Ok</span>(<span class="ident">event</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">utils::merge_values</span>(<span class="ident">target</span>, <span class="ident">event</span>),
-                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid json event payload in sentry form field&quot;</span>),
+                    <span class="prelude-val">Ok</span>(<span class="ident">event</span>) =&gt; <span class="ident">utils::merge_values</span>(<span class="ident">target</span>, <span class="ident">event</span>),
+                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid json event payload in sentry form field&quot;</span>),
                 }
             } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">index</span>) <span class="op">=</span> <span class="ident">utils::get_sentry_chunk_index</span>(<span class="ident">entry</span>.<span class="ident">key</span>(), <span class="string">&quot;sentry__&quot;</span>) {
                 <span class="comment">// Electron SDK splits up long payloads into chunks starting at sentry__1 with an</span>
@@ -4826,8 +4826,8 @@
 
         <span class="kw">if</span> <span class="op">!</span><span class="ident">aggregator</span>.<span class="ident">is_empty</span>() {
             <span class="kw">match</span> <span class="ident">serde_json::from_str</span>(<span class="kw-2">&amp;</span><span class="ident">aggregator</span>.<span class="ident">join</span>()) {
-                <span class="prelude-val">Ok</span>(<span class="ident">event</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">utils::merge_values</span>(<span class="ident">target</span>, <span class="ident">event</span>),
-                <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid json event payload in sentry__* form fields&quot;</span>),
+                <span class="prelude-val">Ok</span>(<span class="ident">event</span>) =&gt; <span class="ident">utils::merge_values</span>(<span class="ident">target</span>, <span class="ident">event</span>),
+                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid json event payload in sentry__* form fields&quot;</span>),
             }
         }
     }
@@ -4835,10 +4835,10 @@
     <span class="kw">fn</span> <span class="ident">extract_attached_event</span>(
         <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>,
         <span class="ident">item</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">item</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">item</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">is_empty</span>() <span class="op">=</span><span class="op">&gt;</span> <span class="ident">item</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Annotated::new</span>(<span class="ident">Event::default</span>())),
+            <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">is_empty</span>() =&gt; <span class="ident">item</span>,
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Annotated::new</span>(<span class="ident">Event::default</span>())),
         };
 
         <span class="comment">// Protect against blowing up during deserialization. Attachments can have a significantly</span>
@@ -4855,11 +4855,11 @@
     <span class="kw">fn</span> <span class="ident">parse_msgpack_breadcrumbs</span>(
         <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>,
         <span class="ident">item</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Breadcrumb</span><span class="op">&gt;</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Array</span><span class="op">&lt;</span><span class="ident">Breadcrumb</span><span class="op">&gt;</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">breadcrumbs</span> <span class="op">=</span> <span class="ident">Array::new</span>();
         <span class="kw">let</span> <span class="ident">item</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">item</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">is_empty</span>() <span class="op">=</span><span class="op">&gt;</span> <span class="ident">item</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">breadcrumbs</span>),
+            <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">is_empty</span>() =&gt; <span class="ident">item</span>,
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">breadcrumbs</span>),
         };
 
         <span class="comment">// Validate that we do not exceed the maximum breadcrumb payload length. Breadcrumbs are</span>
@@ -4887,7 +4887,7 @@
         <span class="ident">event_item</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>,
         <span class="ident">breadcrumbs_item1</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>,
         <span class="ident">breadcrumbs_item2</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ExtractedEvent</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ExtractedEvent</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">event_item</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="number">0</span>, <span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">len</span>())
             <span class="op">+</span> <span class="ident">breadcrumbs_item1</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="number">0</span>, <span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">len</span>())
             <span class="op">+</span> <span class="ident">breadcrumbs_item2</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="number">0</span>, <span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">len</span>());
@@ -4938,28 +4938,28 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// An item is considered duplicate if it was not removed by sanitation in `process_event` and</span>
     <span class="doccomment">/// `extract_event`. This partially depends on the `processing_enabled` flag.</span>
-    <span class="kw">fn</span> <span class="ident">is_duplicate</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_duplicate</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
             <span class="comment">// These should always be removed by `extract_event`:</span>
-            <span class="ident">ItemType::Event</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-            <span class="ident">ItemType::Transaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-            <span class="ident">ItemType::Security</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-            <span class="ident">ItemType::FormData</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-            <span class="ident">ItemType::RawSecurity</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
+            <span class="ident">ItemType::Event</span> =&gt; <span class="bool-val">true</span>,
+            <span class="ident">ItemType::Transaction</span> =&gt; <span class="bool-val">true</span>,
+            <span class="ident">ItemType::Security</span> =&gt; <span class="bool-val">true</span>,
+            <span class="ident">ItemType::FormData</span> =&gt; <span class="bool-val">true</span>,
+            <span class="ident">ItemType::RawSecurity</span> =&gt; <span class="bool-val">true</span>,
 
             <span class="comment">// These should be removed conditionally:</span>
-            <span class="ident">ItemType::UnrealReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>(),
+            <span class="ident">ItemType::UnrealReport</span> =&gt; <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>(),
 
             <span class="comment">// These may be forwarded to upstream / store:</span>
-            <span class="ident">ItemType::Attachment</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">ItemType::UserReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">ItemType::Attachment</span> =&gt; <span class="bool-val">false</span>,
+            <span class="ident">ItemType::UserReport</span> =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// aggregate data is never considered as part of deduplication</span>
-            <span class="ident">ItemType::Session</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">ItemType::Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">ItemType::Metrics</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">ItemType::MetricBuckets</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">ItemType::ClientReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">ItemType::Session</span> =&gt; <span class="bool-val">false</span>,
+            <span class="ident">ItemType::Sessions</span> =&gt; <span class="bool-val">false</span>,
+            <span class="ident">ItemType::Metrics</span> =&gt; <span class="bool-val">false</span>,
+            <span class="ident">ItemType::MetricBuckets</span> =&gt; <span class="bool-val">false</span>,
+            <span class="ident">ItemType::ClientReport</span> =&gt; <span class="bool-val">false</span>,
         }
     }
 
@@ -4971,23 +4971,23 @@
     <span class="doccomment">///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.</span>
     <span class="doccomment">///  4. A multipart form data body.</span>
     <span class="doccomment">///  5. If none match, `Annotated::empty()`.</span>
-    <span class="kw">fn</span> <span class="ident">extract_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">extract_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
 
         <span class="comment">// Remove all items first, and then process them. After this function returns, only</span>
         <span class="comment">// attachments can remain in the envelope. The event will be added again at the end of</span>
         <span class="comment">// `process_event`.</span>
-        <span class="kw">let</span> <span class="ident">event_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType::Event</span>);
-        <span class="kw">let</span> <span class="ident">transaction_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType::Transaction</span>);
-        <span class="kw">let</span> <span class="ident">security_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType::Security</span>);
-        <span class="kw">let</span> <span class="ident">raw_security_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType::RawSecurity</span>);
-        <span class="kw">let</span> <span class="ident">form_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType::FormData</span>);
+        <span class="kw">let</span> <span class="ident">event_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Event</span>);
+        <span class="kw">let</span> <span class="ident">transaction_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Transaction</span>);
+        <span class="kw">let</span> <span class="ident">security_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Security</span>);
+        <span class="kw">let</span> <span class="ident">raw_security_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::RawSecurity</span>);
+        <span class="kw">let</span> <span class="ident">form_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::FormData</span>);
         <span class="kw">let</span> <span class="ident">attachment_item</span> <span class="op">=</span> <span class="ident">envelope</span>
-            .<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::EventPayload</span>));
+            .<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::EventPayload</span>));
         <span class="kw">let</span> <span class="ident">breadcrumbs1</span> <span class="op">=</span> <span class="ident">envelope</span>
-            .<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::Breadcrumbs</span>));
+            .<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::Breadcrumbs</span>));
         <span class="kw">let</span> <span class="ident">breadcrumbs2</span> <span class="op">=</span> <span class="ident">envelope</span>
-            .<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::Breadcrumbs</span>));
+            .<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::Breadcrumbs</span>));
 
         <span class="comment">// Event items can never occur twice in an envelope.</span>
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">duplicate</span>) <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">is_duplicate</span>(<span class="ident">item</span>)) {
@@ -5045,7 +5045,7 @@
     <span class="doccomment">/// If the event does not contain an unreal context, this function does not perform any action.</span>
     <span class="doccomment">/// If there was no event payload prior to this function, it is created.</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">process_unreal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">process_unreal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="ident">utils::process_unreal_envelope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>)
             .<span class="ident">map_err</span>(<span class="ident">ProcessingError::InvalidUnrealReport</span>)
     }
@@ -5061,9 +5061,9 @@
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
 
         <span class="kw">let</span> <span class="ident">minidump_attachment</span> <span class="op">=</span>
-            <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::Minidump</span>));
+            <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::Minidump</span>));
         <span class="kw">let</span> <span class="ident">apple_crash_report_attachment</span> <span class="op">=</span> <span class="ident">envelope</span>
-            .<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::AppleCrashReport</span>));
+            .<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::AppleCrashReport</span>));
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">minidump_attachment</span> {
             <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">Event::default</span>);
@@ -5076,14 +5076,14 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">finalize_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">is_transaction</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">EventType::Transaction</span>);
+    <span class="kw">fn</span> <span class="ident">finalize_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">is_transaction</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">EventType::Transaction</span>);
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
 
         <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">state</span>.<span class="ident">event</span>.<span class="ident">value_mut</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">event</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">event</span>,
-            <span class="prelude-val">None</span> <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::NoEventPayload</span>),
+            <span class="prelude-val">Some</span>(<span class="ident">event</span>) =&gt; <span class="ident">event</span>,
+            <span class="prelude-val">None</span> <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::NoEventPayload</span>),
         };
 
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
@@ -5119,7 +5119,7 @@
 
             <span class="kw">let</span> <span class="ident">attachment_size</span> <span class="op">=</span> <span class="ident">envelope</span>
                 .<span class="ident">items</span>()
-                .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::Attachment</span>))
+                .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::Attachment</span>))
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>)
                 .<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>();
 
@@ -5146,9 +5146,9 @@
         <span class="comment">// clock drift correction that assumes the event timestamp is the sent_at time. This</span>
         <span class="comment">// should be removed as soon as legacy ingestion has been removed.</span>
         <span class="kw">let</span> <span class="ident">sent_at</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">envelope</span>.<span class="ident">sent_at</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">sent_at</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">sent_at</span>),
-            <span class="prelude-val">None</span> <span class="kw">if</span> <span class="ident">is_transaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">event</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>().<span class="ident">copied</span>().<span class="ident">map</span>(<span class="ident">Timestamp::into_inner</span>),
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">sent_at</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">sent_at</span>),
+            <span class="prelude-val">None</span> <span class="kw">if</span> <span class="ident">is_transaction</span> =&gt; <span class="ident">event</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>().<span class="ident">copied</span>().<span class="ident">map</span>(<span class="ident">Timestamp::into_inner</span>),
+            <span class="prelude-val">None</span> =&gt; <span class="prelude-val">None</span>,
         };
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">ClockDriftProcessor::new</span>(<span class="ident">sent_at</span>, <span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">received_at</span>)
@@ -5174,7 +5174,7 @@
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">store_process_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">store_process_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">ProcessEnvelopeState</span> {
             <span class="kw-2">ref</span> <span class="ident">envelope</span>,
             <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">event</span>,
@@ -5227,10 +5227,10 @@
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">filter_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">filter_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">state</span>.<span class="ident">event</span>.<span class="ident">value_mut</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">event</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">event</span>,
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::NoEventPayload</span>),
+            <span class="prelude-val">Some</span>(<span class="ident">event</span>) =&gt; <span class="ident">event</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::NoEventPayload</span>),
         };
 
         <span class="kw">let</span> <span class="ident">client_ip</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
@@ -5246,10 +5246,10 @@
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">enforce_quotas</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">enforce_quotas</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">rate_limiter</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">rate_limiter</span>.<span class="ident">as_ref</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">rate_limiter</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">rate_limiter</span>,
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Some</span>(<span class="ident">rate_limiter</span>) =&gt; <span class="ident">rate_limiter</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
         };
 
         <span class="kw">let</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">project_state</span>;
@@ -5265,7 +5265,7 @@
         <span class="comment">// remove it from the processing state eventually.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope_limiter</span> <span class="op">=</span> <span class="ident">EnvelopeLimiter::new</span>(<span class="op">|</span><span class="ident">item_scope</span>, <span class="ident">quantity</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">limits</span> <span class="op">=</span> <span class="ident">rate_limiter</span>.<span class="ident">is_rate_limited</span>(<span class="ident">quotas</span>, <span class="ident">item_scope</span>, <span class="ident">quantity</span>)<span class="question-mark">?</span>;
-            <span class="ident">remove_event</span> <span class="op">|</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">item_scope</span>.<span class="ident">category</span>) <span class="op">=</span><span class="op">=</span> <span class="ident">event_category</span> <span class="op">&amp;&amp;</span> <span class="ident">limits</span>.<span class="ident">is_limited</span>();
+            <span class="ident">remove_event</span> <span class="op">|</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">item_scope</span>.<span class="ident">category</span>) <span class="op">==</span> <span class="ident">event_category</span> <span class="op">&amp;&amp;</span> <span class="ident">limits</span>.<span class="ident">is_limited</span>();
             <span class="prelude-val">Ok</span>(<span class="ident">limits</span>)
         });
 
@@ -5297,10 +5297,10 @@
     <span class="kw">fn</span> <span class="ident">extract_transaction_metrics</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">transaction_metrics</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">ErrorBoundary::Ok</span>(<span class="kw-2">ref</span> <span class="ident">config</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Some</span>(<span class="ident">ErrorBoundary::Ok</span>(<span class="kw-2">ref</span> <span class="ident">config</span>)) =&gt; <span class="ident">config</span>,
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
         };
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event</span>.<span class="ident">value</span>() {
@@ -5315,7 +5315,7 @@
     <span class="doccomment">/// Apply data privacy rules to the event payload.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This uses both the general `datascrubbing_settings`, as well as the the PII rules.</span>
-    <span class="kw">fn</span> <span class="ident">scrub_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">scrub_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">event</span>;
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>;
 
@@ -5346,7 +5346,7 @@
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">config</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">pii_config</span> {
             <span class="kw">let</span> <span class="ident">minidump</span> <span class="op">=</span> <span class="ident">envelope</span>
-                .<span class="ident">get_item_by_mut</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::Minidump</span>));
+                .<span class="ident">get_item_by_mut</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">attachment_type</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">AttachmentType::Minidump</span>));
 
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">minidump</span> {
                 <span class="kw">let</span> <span class="ident">filename</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">filename</span>().<span class="ident">unwrap_or_default</span>();
@@ -5360,13 +5360,13 @@
                 <span class="comment">// conditions, this could destroy stack memory.</span>
                 <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
                 <span class="kw">match</span> <span class="ident">processor</span>.<span class="ident">scrub_minidump</span>(<span class="ident">filename</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">payload</span>) {
-                    <span class="prelude-val">Ok</span>(<span class="ident">modified</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="prelude-val">Ok</span>(<span class="ident">modified</span>) =&gt; {
                         <span class="macro">metric!</span>(
                             <span class="ident">timer</span>(<span class="ident">RelayTimers::MinidumpScrubbing</span>) <span class="op">=</span> <span class="ident">start</span>.<span class="ident">elapsed</span>(),
                             <span class="ident">status</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">modified</span> { <span class="string">&quot;ok&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;n/a&quot;</span> },
                         );
                     }
-                    <span class="prelude-val">Err</span>(<span class="ident">scrub_error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="prelude-val">Err</span>(<span class="ident">scrub_error</span>) =&gt; {
                         <span class="macro">metric!</span>(
                             <span class="ident">timer</span>(<span class="ident">RelayTimers::MinidumpScrubbing</span>) <span class="op">=</span> <span class="ident">start</span>.<span class="ident">elapsed</span>(),
                             <span class="ident">status</span> <span class="op">=</span> <span class="string">&quot;error&quot;</span>
@@ -5388,7 +5388,7 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EventProcessingSerialization</span>), {
             <span class="ident">state</span>
                 .<span class="ident">event</span>
@@ -5412,10 +5412,10 @@
     }
 
     <span class="doccomment">/// Run dynamic sampling rules to see if we keep the event or remove it.</span>
-    <span class="kw">fn</span> <span class="ident">sample_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">sample_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">event</span>.<span class="number">0</span> {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()), <span class="comment">// can&#39;t process without an event</span>
-            <span class="prelude-val">Some</span>(<span class="ident">event</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">event</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()), <span class="comment">// can&#39;t process without an event</span>
+            <span class="prelude-val">Some</span>(<span class="ident">event</span>) =&gt; <span class="ident">event</span>,
         };
         <span class="kw">let</span> <span class="ident">client_ip</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
         <span class="kw">match</span> <span class="ident">utils::should_keep_event</span>(
@@ -5424,25 +5424,25 @@
             <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">project_state</span>,
             <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>(),
         ) {
-            <span class="ident">SamplingResult::Drop</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">SamplingResult::Drop</span>(<span class="ident">rule_id</span>) =&gt; {
                 <span class="ident">state</span>
                     .<span class="ident">envelope_context</span>
                     .<span class="ident">send_outcomes</span>(<span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>));
 
                 <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::EventSampled</span>(<span class="ident">rule_id</span>))
             }
-            <span class="ident">SamplingResult::Keep</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="ident">SamplingResult::Keep</span> =&gt; <span class="prelude-val">Ok</span>(()),
             <span class="comment">// Not enough info to make a definite evaluation, keep the event</span>
-            <span class="ident">SamplingResult::NoDecision</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="ident">SamplingResult::NoDecision</span> =&gt; <span class="prelude-val">Ok</span>(()),
         }
     }
 
     <span class="kw">fn</span> <span class="ident">process_state</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="kw-2">mut</span> <span class="ident">state</span>: <span class="ident">ProcessEnvelopeState</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeResponse</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeResponse</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="macro">macro_rules!</span> <span class="ident">if_processing</span> {
-            (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">if_true</span>:<span class="ident">block</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">if_true</span>:<span class="ident">block</span>) =&gt; {
                 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span> {
                     <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() <span class="macro-nonterminal">$</span><span class="macro-nonterminal">if_true</span>
                 }
@@ -5492,7 +5492,7 @@
     <span class="kw">fn</span> <span class="ident">process</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeResponse</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeResponse</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">prepare_state</span>(<span class="ident">message</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_id</span>;
@@ -5525,20 +5525,20 @@
     <span class="kw">fn</span> <span class="ident">encode_envelope_body</span>(
         <span class="ident">body</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
         <span class="ident">http_encoding</span>: <span class="ident">HttpEncoding</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">std::io::Error</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">std::io::Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">envelope_body</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">http_encoding</span> {
-            <span class="ident">HttpEncoding::Identity</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">body</span>,
-            <span class="ident">HttpEncoding::Deflate</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">HttpEncoding::Identity</span> =&gt; <span class="ident">body</span>,
+            <span class="ident">HttpEncoding::Deflate</span> =&gt; {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">ZlibEncoder::new</span>(<span class="ident">Vec::new</span>(), <span class="ident">Compression::default</span>());
                 <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
                 <span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>
             }
-            <span class="ident">HttpEncoding::Gzip</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">HttpEncoding::Gzip</span> =&gt; {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">GzEncoder::new</span>(<span class="ident">Vec::new</span>(), <span class="ident">Compression::default</span>());
                 <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
                 <span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>
             }
-            <span class="ident">HttpEncoding::Br</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">HttpEncoding::Br</span> =&gt; {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BrotliEncoder::new</span>(<span class="ident">Vec::new</span>(), <span class="number">5</span>);
                 <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
                 <span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>
@@ -5553,7 +5553,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="macro">unimplemented!</span>(<span class="string">&quot;register with the SystemRegistry instead&quot;</span>)
     }
 }
@@ -5574,7 +5574,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeState</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProcessEnvelopeResponse</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">state</span>: <span class="ident">ProcessEnvelopeState</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">state</span>: <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">envelope</span>: <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">envelope</span>).<span class="ident">filter</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="op">!</span><span class="ident">e</span>.<span class="ident">is_empty</span>()),
             <span class="ident">rate_limits</span>: <span class="ident">state</span>.<span class="ident">rate_limits</span>,
@@ -5590,7 +5590,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">ProcessEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ProcessEnvelopeResponse</span>, <span class="ident">ProcessingError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EnvelopeWaitTime</span>) <span class="op">=</span> <span class="ident">message</span>.<span class="ident">start_time</span>.<span class="ident">elapsed</span>());
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EnvelopeProcessingTime</span>), {
             <span class="self">self</span>.<span class="ident">process</span>(<span class="ident">message</span>)
@@ -5631,7 +5631,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">ProcessMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">ProcessMetrics</span> {
             <span class="ident">items</span>,
             <span class="ident">project_key</span>: <span class="ident">public_key</span>,
@@ -5648,7 +5648,7 @@
 
         <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">items</span> {
             <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">payload</span>();
-            <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType::Metrics</span> {
+            <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Metrics</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">timestamp</span>().<span class="ident">unwrap_or</span>(<span class="ident">received_timestamp</span>);
                 <span class="ident">clock_drift_processor</span>.<span class="ident">process_timestamp</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">timestamp</span>);
 
@@ -5665,9 +5665,9 @@
                     <span class="macro">relay_log::trace!</span>(<span class="string">&quot;inserting metrics into project cache&quot;</span>);
                     <span class="ident">project_cache</span>.<span class="ident">do_send</span>(<span class="ident">InsertMetrics::new</span>(<span class="ident">public_key</span>, <span class="ident">metrics</span>));
                 }
-            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">ItemType::MetricBuckets</span> {
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::MetricBuckets</span> {
                 <span class="kw">match</span> <span class="ident">Bucket::parse_all</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>) {
-                    <span class="prelude-val">Ok</span>(<span class="kw-2">mut</span> <span class="ident">buckets</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="prelude-val">Ok</span>(<span class="kw-2">mut</span> <span class="ident">buckets</span>) =&gt; {
                         <span class="kw">for</span> <span class="ident">bucket</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buckets</span> {
                             <span class="ident">clock_drift_processor</span>.<span class="ident">process_timestamp</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">bucket</span>.<span class="ident">timestamp</span>);
                         }
@@ -5675,7 +5675,7 @@
                         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;merging metric buckets into project cache&quot;</span>);
                         <span class="ident">project_cache</span>.<span class="ident">do_send</span>(<span class="ident">MergeBuckets::new</span>(<span class="ident">public_key</span>, <span class="ident">buckets</span>));
                     }
-                    <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
                         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to parse metric bucket: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
                         <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::MetricBucketsParsingFailed</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
                     }
@@ -5723,7 +5723,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">EncodeEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">EncodeEnvelope</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">EncodeEnvelope</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">EncodeEnvelope</span> {
             <span class="ident">envelope_body</span>,
             <span class="ident">envelope_meta</span>,
@@ -5733,14 +5733,14 @@
             <span class="ident">project_key</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
         <span class="kw">match</span> <span class="ident"><span class="self">Self</span>::encode_envelope_body</span>(<span class="ident">envelope_body</span>, <span class="ident">http_encoding</span>) {
-            <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
                 <span class="ident">response_sender</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sender</span><span class="op">|</span> {
                     <span class="ident">sender</span>
                         .<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">SendEnvelopeError::BodyEncodingFailed</span>(<span class="ident">e</span>)))
                         .<span class="ident">ok</span>()
                 });
             }
-            <span class="prelude-val">Ok</span>(<span class="ident">envelope_body</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">envelope_body</span>) =&gt; {
                 <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">SendEnvelope</span> {
                     <span class="ident">envelope_body</span>,
                     <span class="ident">envelope_meta</span>,
@@ -5766,15 +5766,15 @@
 }
 
 <span class="kw">impl</span> <span class="ident">UpstreamRequest</span> <span class="kw">for</span> <span class="ident">SendEnvelope</span> {
-    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Method</span> {
+    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Method</span> {
         <span class="ident">Method::POST</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">str</span><span class="op">&gt;</span> {
         <span class="macro">format!</span>(<span class="string">&quot;/api/{}/envelope/&quot;</span>, <span class="self">self</span>.<span class="ident">scoping</span>.<span class="ident">project_id</span>).<span class="ident">into</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">build</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">builder</span>: <span class="ident">RequestBuilder</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">build</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">builder</span>: <span class="ident">RequestBuilder</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">envelope_meta</span>;
         <span class="ident">builder</span>
             .<span class="ident">content_encoding</span>(<span class="self">self</span>.<span class="ident">http_encoding</span>)
@@ -5789,11 +5789,11 @@
     <span class="kw">fn</span> <span class="ident">respond</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">UpstreamRequestError</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    ) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">sender</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">response_sender</span>.<span class="ident">take</span>();
 
         <span class="kw">match</span> <span class="ident">result</span> {
-            <span class="prelude-val">Ok</span>(<span class="ident">response</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">response</span>) =&gt; {
                 <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">response</span>
                     .<span class="ident">consume</span>()
                     .<span class="ident">map_err</span>(<span class="ident">UpstreamRequestError::Http</span>)
@@ -5809,9 +5809,9 @@
 
                 <span class="ident">Box::new</span>(<span class="ident">future</span>)
             }
-            <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; {
                 <span class="kw">match</span> <span class="ident">error</span> {
-                    <span class="ident">UpstreamRequestError::RateLimited</span>(<span class="ident">upstream_limits</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">UpstreamRequestError::RateLimited</span>(<span class="ident">upstream_limits</span>) =&gt; {
                         <span class="ident">ProjectCache::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">UpdateRateLimits::new</span>(
                             <span class="self">self</span>.<span class="ident">project_key</span>,
                             <span class="ident">upstream_limits</span>.<span class="ident">clone</span>().<span class="ident">scope</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scoping</span>),
@@ -5824,7 +5824,7 @@
                                 .<span class="ident">ok</span>();
                         }
                     }
-                    <span class="ident">error</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">error</span> =&gt; {
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sender</span>) <span class="op">=</span> <span class="ident">sender</span> {
                             <span class="ident">sender</span>
                                 .<span class="ident">send</span>(<span class="prelude-val">Err</span>(<span class="ident">SendEnvelopeError::UpstreamRequestFailed</span>(<span class="ident">error</span>)))
@@ -5851,7 +5851,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(
         <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
         <span class="ident">processor</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeProcessor</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
         <span class="kw">let</span> <span class="ident">store_forwarder</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
             <span class="kw">let</span> <span class="ident">actor</span> <span class="op">=</span> <span class="ident">StoreForwarder::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
@@ -5877,7 +5877,7 @@
         <span class="kw-2">mut</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
         <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
         <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_variables</span>)]</span> <span class="ident">start_time</span>: <span class="ident">Instant</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">SendEnvelopeError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">SendEnvelopeError</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
         {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">store_forwarder</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">store_forwarder</span> {
@@ -5896,7 +5896,7 @@
         }
 
         <span class="comment">// if we are in capture mode, we stash away the event instead of forwarding it.</span>
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">RelayMode::Capture</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode::Capture</span> {
             <span class="comment">// XXX: this is wrong because captured_events does not take envelopes without</span>
             <span class="comment">// event_id into account.</span>
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_id</span>) <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>() {
@@ -5920,14 +5920,14 @@
         <span class="kw">let</span> <span class="ident">envelope_meta</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>();
 
         <span class="kw">let</span> <span class="ident">original_body</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">envelope</span>.<span class="ident">to_vec</span>() {
-            <span class="prelude-val">Ok</span>(<span class="ident">v</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">v</span>,
-            <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">SendEnvelopeError::EnvelopeBuildFailed</span>(<span class="ident">e</span>))),
+            <span class="prelude-val">Ok</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>,
+            <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">SendEnvelopeError::EnvelopeBuildFailed</span>(<span class="ident">e</span>))),
         };
         <span class="kw">let</span> <span class="ident">http_encoding</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">http_encoding</span>();
 
         <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
         <span class="kw">match</span> <span class="ident">http_encoding</span> {
-            <span class="ident">HttpEncoding::Identity</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">HttpEncoding::Identity</span> =&gt; {
                 <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">SendEnvelope</span> {
                     <span class="ident">envelope_body</span>: <span class="ident">original_body</span>,
                     <span class="ident">envelope_meta</span>: <span class="ident">envelope_meta</span>.<span class="ident">to_owned</span>(),
@@ -5938,7 +5938,7 @@
                 };
                 <span class="ident">UpstreamRelay::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">SendRequest</span>(<span class="ident">request</span>));
             }
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="kw">_</span> =&gt; {
                 <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">EncodeEnvelope</span> {
                     <span class="ident">envelope_body</span>: <span class="ident">original_body</span>,
                     <span class="ident">envelope_meta</span>: <span class="ident">envelope_meta</span>.<span class="ident">to_owned</span>(),
@@ -5982,7 +5982,7 @@
 <span class="kw">impl</span> <span class="ident">SystemService</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {}
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="macro">unimplemented!</span>(<span class="string">&quot;register with the SystemRegistry instead&quot;</span>)
     }
 }
@@ -6016,7 +6016,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">QueueEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>, <span class="ident">QueueEnvelopeError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">QueueEnvelope</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">QueueEnvelope</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="macro">metric!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms::EnvelopeQueueSize</span>) <span class="op">=</span> <span class="ident">u64::from</span>(<span class="self">self</span>.<span class="ident">active_envelopes</span>));
 
         <span class="macro">metric!</span>(
@@ -6114,7 +6114,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">HandleEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseActFuture</span><span class="op">&lt;</span><span class="self">Self</span>, (), ()<span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">HandleEnvelope</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">HandleEnvelope</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="comment">// We measure three timers while handling envelopes, once they have been initially accepted:</span>
         <span class="comment">//</span>
         <span class="comment">// 1. `event.wait_time`: The time we take to get all dependencies for envelopes before they</span>
@@ -6132,7 +6132,7 @@
         <span class="comment">//    the total time an envelope spent in this Relay, corrected by incoming network delays.</span>
 
         <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">processor</span>.<span class="ident">clone</span>();
-        <span class="kw">let</span> <span class="ident">capture</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">RelayMode::Capture</span>;
+        <span class="kw">let</span> <span class="ident">capture</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode::Capture</span>;
         <span class="kw">let</span> <span class="ident">processing_enabled</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>();
 
         <span class="kw">let</span> <span class="ident">HandleEnvelope</span> {
@@ -6174,12 +6174,12 @@
                 })<span class="question-mark">?</span>;
 
                 <span class="kw">match</span> <span class="ident">checked</span>.<span class="ident">envelope</span> {
-                    <span class="prelude-val">Some</span>(<span class="ident">envelope</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="prelude-val">Some</span>(<span class="ident">envelope</span>) =&gt; {
                         <span class="ident">envelope_context</span>.<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
                         <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>)
                     }
                     <span class="comment">// errors from rate limiting already produced outcomes nothing more to do</span>
-                    <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::RateLimited</span>),
+                    <span class="prelude-val">None</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::RateLimited</span>),
                 }
             }))
             .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">envelope</span><span class="op">|</span> {
@@ -6245,11 +6245,11 @@
                 }
 
                 <span class="kw">match</span> <span class="ident">processed</span>.<span class="ident">envelope</span> {
-                    <span class="prelude-val">Some</span>(<span class="ident">envelope</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="prelude-val">Some</span>(<span class="ident">envelope</span>) =&gt; {
                         <span class="ident">envelope_context</span>.<span class="ident">borrow_mut</span>().<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
                         <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>)
                     }
-                    <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::RateLimited</span>),
+                    <span class="prelude-val">None</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::RateLimited</span>),
                 }
             }))
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
@@ -6263,28 +6263,28 @@
 
                             <span class="kw">match</span> <span class="ident">error</span> {
                                 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-                                <span class="ident">SendEnvelopeError::ScheduleFailed</span> <span class="op">=</span><span class="op">&gt;</span> {
+                                <span class="ident">SendEnvelopeError::ScheduleFailed</span> =&gt; {
                                     <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
                                     <span class="ident">ProcessingError::ScheduleFailed</span>
                                 }
 
                                 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-                                <span class="ident">SendEnvelopeError::StoreFailed</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                                <span class="ident">SendEnvelopeError::StoreFailed</span>(<span class="ident">e</span>) =&gt; {
                                     <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
                                     <span class="ident">ProcessingError::StoreFailed</span>(<span class="ident">e</span>)
                                 }
 
-                                <span class="ident">SendEnvelopeError::BodyEncodingFailed</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                                <span class="ident">SendEnvelopeError::BodyEncodingFailed</span>(<span class="ident">e</span>) =&gt; {
                                     <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
                                     <span class="ident">ProcessingError::BodyEncodingFailed</span>(<span class="ident">e</span>)
                                 }
 
-                                <span class="ident">SendEnvelopeError::EnvelopeBuildFailed</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                                <span class="ident">SendEnvelopeError::EnvelopeBuildFailed</span>(<span class="ident">e</span>) =&gt; {
                                     <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
                                     <span class="ident">ProcessingError::EnvelopeBuildFailed</span>(<span class="ident">e</span>)
                                 }
 
-                                <span class="ident">SendEnvelopeError::UpstreamRequestFailed</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                                <span class="ident">SendEnvelopeError::UpstreamRequestFailed</span>(<span class="ident">e</span>) =&gt; {
                                     <span class="kw">if</span> <span class="op">!</span><span class="ident">e</span>.<span class="ident">is_received</span>() {
                                         <span class="ident">envelope_context</span>.<span class="ident">send_outcomes</span>(<span class="ident">outcome</span>);
                                     }
@@ -6357,7 +6357,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">SendMetrics</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="ident">std::any::type_name</span>::<span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>())
             .<span class="ident">field</span>(<span class="string">&quot;buckets&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">buckets</span>)
             .<span class="ident">field</span>(<span class="string">&quot;scoping&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">scoping</span>)
@@ -6373,7 +6373,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">SendMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">SendMetrics</span> {
             <span class="ident">buckets</span>,
             <span class="ident">scoping</span>,
@@ -6418,7 +6418,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">SendClientReports</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendClientReports</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendClientReports</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">SendClientReports</span> {
             <span class="ident">client_reports</span>,
             <span class="ident">scoping</span>,
@@ -6466,7 +6466,7 @@
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">message</span>: <span class="ident">GetCapturedEnvelope</span>,
         <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    ) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="self">self</span>.<span class="ident">captures</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>).<span class="ident">cloned</span>()
     }
 }
@@ -6474,10 +6474,10 @@
 <span class="doccomment">/// Checks if the Event includes unprintable fields.</span>
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">fn</span> <span class="ident">has_unprintable_fields</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-    <span class="kw">fn</span> <span class="ident">is_unprintable</span>(<span class="ident">value</span>: <span class="op">&amp;&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">has_unprintable_fields</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_unprintable</span>(<span class="ident">value</span>: <span class="op">&amp;&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
         <span class="ident">value</span>.<span class="ident">chars</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> {
-            <span class="ident">c</span> <span class="op">=</span><span class="op">=</span> <span class="string">&#39;\u{fffd}&#39;</span> <span class="comment">// unicode replacement character</span>
+            <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;\u{fffd}&#39;</span> <span class="comment">// unicode replacement character</span>
                 <span class="op">|</span><span class="op">|</span> (<span class="ident">c</span>.<span class="ident">is_control</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">c</span>.<span class="ident">is_whitespace</span>()) <span class="comment">// non-whitespace control characters</span>
         })
     }
@@ -6499,7 +6499,7 @@
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn</span> <span class="ident">create_breadcrumbs_item</span>(<span class="ident">breadcrumbs</span>: <span class="kw-2">&amp;</span>[(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>)]) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Item</span> {
+    <span class="kw">fn</span> <span class="ident">create_breadcrumbs_item</span>(<span class="ident">breadcrumbs</span>: <span class="kw-2">&amp;</span>[(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>)]) -&gt; <span class="ident">Item</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
 
         <span class="kw">for</span> (<span class="ident">date</span>, <span class="ident">message</span>) <span class="kw">in</span> <span class="ident">breadcrumbs</span> {
@@ -6517,7 +6517,7 @@
         <span class="ident">item</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">breadcrumbs_from_event</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Breadcrumb</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">breadcrumbs_from_event</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Breadcrumb</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="ident">event</span>
             .<span class="ident">value</span>()
             .<span class="ident">unwrap</span>()
@@ -6858,7 +6858,7 @@
         <span class="macro">assert!</span>(<span class="ident">envelope_response</span>.<span class="ident">envelope</span>.<span class="ident">is_none</span>());
     }
 
-    <span class="kw">fn</span> <span class="ident">started</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">UnixTimestamp</span> {
+    <span class="kw">fn</span> <span class="ident">started</span>() -&gt; <span class="ident">UnixTimestamp</span> {
         <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">1619420400</span>)
     }
 

@@ -1898,7 +1898,6 @@
 <span id="1898">1898</span>
 <span id="1899">1899</span>
 <span id="1900">1900</span>
-<span id="1901">1901</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Contains definitions for the security report interfaces.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The security interfaces are CSP, HPKP, ExpectCT and ExpectStaple.</span>
@@ -1921,7 +1920,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InvalidSecurityError</span>;
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">InvalidSecurityError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid security report&quot;</span>)
     }
 }
@@ -1962,46 +1961,46 @@
 }
 
 <span class="macro">derive_fromstr_and_display!</span>(<span class="ident">CspDirective</span>, <span class="ident">InvalidSecurityError</span>, {
-    <span class="ident">CspDirective::BaseUri</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;base-uri&quot;</span>,
-    <span class="ident">CspDirective::ChildSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;child-src&quot;</span>,
-    <span class="ident">CspDirective::ConnectSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;connect-src&quot;</span>,
-    <span class="ident">CspDirective::DefaultSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;default-src&quot;</span>,
-    <span class="ident">CspDirective::FontSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;font-src&quot;</span>,
-    <span class="ident">CspDirective::FormAction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;form-action&quot;</span>,
-    <span class="ident">CspDirective::FrameAncestors</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;frame-ancestors&quot;</span>,
-    <span class="ident">CspDirective::FrameSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;frame-src&quot;</span>,
-    <span class="ident">CspDirective::ImgSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;img-src&quot;</span>,
-    <span class="ident">CspDirective::ManifestSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;manifest-src&quot;</span>,
-    <span class="ident">CspDirective::MediaSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;media-src&quot;</span>,
-    <span class="ident">CspDirective::ObjectSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;object-src&quot;</span>,
-    <span class="ident">CspDirective::PluginTypes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;plugin-types&quot;</span>,
-    <span class="ident">CspDirective::PrefetchSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;prefetch-src&quot;</span>,
-    <span class="ident">CspDirective::Referrer</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;referrer&quot;</span>,
-    <span class="ident">CspDirective::ScriptSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;script-src&quot;</span>,
-    <span class="ident">CspDirective::ScriptSrcAttr</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;script-src-attr&quot;</span>,
-    <span class="ident">CspDirective::ScriptSrcElem</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;script-src-elem&quot;</span>,
-    <span class="ident">CspDirective::StyleSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;style-src&quot;</span>,
-    <span class="ident">CspDirective::StyleSrcElem</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;style-src-elem&quot;</span>,
-    <span class="ident">CspDirective::StyleSrcAttr</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;style-src-attr&quot;</span>,
-    <span class="ident">CspDirective::UpgradeInsecureRequests</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upgrade-insecure-requests&quot;</span>,
-    <span class="ident">CspDirective::WorkerSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;worker-src&quot;</span>,
-    <span class="ident">CspDirective::Sandbox</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;sandbox&quot;</span>,
-    <span class="ident">CspDirective::NavigateTo</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;navigate-to&quot;</span>,
-    <span class="ident">CspDirective::ReportUri</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;report-uri&quot;</span>,
-    <span class="ident">CspDirective::ReportTo</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;report-to&quot;</span>,
-    <span class="ident">CspDirective::BlockAllMixedContent</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;block-all-mixed-content&quot;</span>,
-    <span class="ident">CspDirective::RequireSriFor</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;require-sri-for&quot;</span>,
-    <span class="ident">CspDirective::RequireTrustedTypesFor</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;require-trusted-types-for&quot;</span>,
-    <span class="ident">CspDirective::TrustedTypes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;trusted-types&quot;</span>,
+    <span class="ident">CspDirective::BaseUri</span> =&gt; <span class="string">&quot;base-uri&quot;</span>,
+    <span class="ident">CspDirective::ChildSrc</span> =&gt; <span class="string">&quot;child-src&quot;</span>,
+    <span class="ident">CspDirective::ConnectSrc</span> =&gt; <span class="string">&quot;connect-src&quot;</span>,
+    <span class="ident">CspDirective::DefaultSrc</span> =&gt; <span class="string">&quot;default-src&quot;</span>,
+    <span class="ident">CspDirective::FontSrc</span> =&gt; <span class="string">&quot;font-src&quot;</span>,
+    <span class="ident">CspDirective::FormAction</span> =&gt; <span class="string">&quot;form-action&quot;</span>,
+    <span class="ident">CspDirective::FrameAncestors</span> =&gt; <span class="string">&quot;frame-ancestors&quot;</span>,
+    <span class="ident">CspDirective::FrameSrc</span> =&gt; <span class="string">&quot;frame-src&quot;</span>,
+    <span class="ident">CspDirective::ImgSrc</span> =&gt; <span class="string">&quot;img-src&quot;</span>,
+    <span class="ident">CspDirective::ManifestSrc</span> =&gt; <span class="string">&quot;manifest-src&quot;</span>,
+    <span class="ident">CspDirective::MediaSrc</span> =&gt; <span class="string">&quot;media-src&quot;</span>,
+    <span class="ident">CspDirective::ObjectSrc</span> =&gt; <span class="string">&quot;object-src&quot;</span>,
+    <span class="ident">CspDirective::PluginTypes</span> =&gt; <span class="string">&quot;plugin-types&quot;</span>,
+    <span class="ident">CspDirective::PrefetchSrc</span> =&gt; <span class="string">&quot;prefetch-src&quot;</span>,
+    <span class="ident">CspDirective::Referrer</span> =&gt; <span class="string">&quot;referrer&quot;</span>,
+    <span class="ident">CspDirective::ScriptSrc</span> =&gt; <span class="string">&quot;script-src&quot;</span>,
+    <span class="ident">CspDirective::ScriptSrcAttr</span> =&gt; <span class="string">&quot;script-src-attr&quot;</span>,
+    <span class="ident">CspDirective::ScriptSrcElem</span> =&gt; <span class="string">&quot;script-src-elem&quot;</span>,
+    <span class="ident">CspDirective::StyleSrc</span> =&gt; <span class="string">&quot;style-src&quot;</span>,
+    <span class="ident">CspDirective::StyleSrcElem</span> =&gt; <span class="string">&quot;style-src-elem&quot;</span>,
+    <span class="ident">CspDirective::StyleSrcAttr</span> =&gt; <span class="string">&quot;style-src-attr&quot;</span>,
+    <span class="ident">CspDirective::UpgradeInsecureRequests</span> =&gt; <span class="string">&quot;upgrade-insecure-requests&quot;</span>,
+    <span class="ident">CspDirective::WorkerSrc</span> =&gt; <span class="string">&quot;worker-src&quot;</span>,
+    <span class="ident">CspDirective::Sandbox</span> =&gt; <span class="string">&quot;sandbox&quot;</span>,
+    <span class="ident">CspDirective::NavigateTo</span> =&gt; <span class="string">&quot;navigate-to&quot;</span>,
+    <span class="ident">CspDirective::ReportUri</span> =&gt; <span class="string">&quot;report-uri&quot;</span>,
+    <span class="ident">CspDirective::ReportTo</span> =&gt; <span class="string">&quot;report-to&quot;</span>,
+    <span class="ident">CspDirective::BlockAllMixedContent</span> =&gt; <span class="string">&quot;block-all-mixed-content&quot;</span>,
+    <span class="ident">CspDirective::RequireSriFor</span> =&gt; <span class="string">&quot;require-sri-for&quot;</span>,
+    <span class="ident">CspDirective::RequireTrustedTypesFor</span> =&gt; <span class="string">&quot;require-trusted-types-for&quot;</span>,
+    <span class="ident">CspDirective::TrustedTypes</span> =&gt; <span class="string">&quot;trusted-types&quot;</span>,
 });
 
 <span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">CspDirective</span>, <span class="string">&quot;a csp directive&quot;</span>);
 
-<span class="kw">fn</span> <span class="ident">is_local</span>(<span class="ident">uri</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">is_local</span>(<span class="ident">uri</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
     <span class="macro">matches!</span>(<span class="ident">uri</span>, <span class="string">&quot;&quot;</span> <span class="op">|</span> <span class="string">&quot;self&quot;</span> <span class="op">|</span> <span class="string">&quot;&#39;self&#39;&quot;</span>)
 }
 
-<span class="kw">fn</span> <span class="ident">schema_uses_host</span>(<span class="ident">schema</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">schema_uses_host</span>(<span class="ident">schema</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
     <span class="comment">// List of schemas with host (netloc) from Python&#39;s urlunsplit:</span>
     <span class="comment">// see &lt;https://github.com/python/cpython/blob/1eac437e8da106a626efffe9fce1cb47dbf5be35/Lib/urllib/parse.py#L51&gt;</span>
     <span class="comment">//</span>
@@ -2037,7 +2036,7 @@
 }
 
 <span class="doccomment">/// Mimicks Python&#39;s urlunsplit with all its quirks.</span>
-<span class="kw">fn</span> <span class="ident">unsplit_uri</span>(<span class="ident">schema</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">host</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+<span class="kw">fn</span> <span class="ident">unsplit_uri</span>(<span class="ident">schema</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">host</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">String</span> {
     <span class="kw">if</span> <span class="op">!</span><span class="ident">host</span>.<span class="ident">is_empty</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">schema_uses_host</span>(<span class="ident">schema</span>) {
         <span class="macro">format!</span>(<span class="string">&quot;{}://{}&quot;</span>, <span class="ident">schema</span>, <span class="ident">host</span>)
     } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">schema</span>.<span class="ident">is_empty</span>() {
@@ -2047,7 +2046,7 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">normalize_uri</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">str</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">normalize_uri</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span>, <span class="ident">str</span><span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="ident">is_local</span>(<span class="ident">value</span>) {
         <span class="kw">return</span> <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;&#39;self&#39;&quot;</span>);
     }
@@ -2061,18 +2060,18 @@
     }
 
     <span class="kw">let</span> <span class="ident">url</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">Url::parse</span>(<span class="ident">value</span>) {
-        <span class="prelude-val">Ok</span>(<span class="ident">url</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">url</span>,
-        <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Cow::Borrowed</span>(<span class="ident">value</span>),
+        <span class="prelude-val">Ok</span>(<span class="ident">url</span>) =&gt; <span class="ident">url</span>,
+        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span> <span class="ident">Cow::Borrowed</span>(<span class="ident">value</span>),
     };
 
     <span class="kw">let</span> <span class="ident">normalized</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">url</span>.<span class="ident">scheme</span>() {
-        <span class="string">&quot;http&quot;</span> <span class="op">|</span> <span class="string">&quot;https&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Cow::Borrowed</span>(<span class="ident">url</span>.<span class="ident">host_str</span>().<span class="ident">unwrap_or_default</span>()),
-        <span class="ident">scheme</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Cow::Owned</span>(<span class="ident">unsplit_uri</span>(<span class="ident">scheme</span>, <span class="ident">url</span>.<span class="ident">host_str</span>().<span class="ident">unwrap_or_default</span>())),
+        <span class="string">&quot;http&quot;</span> <span class="op">|</span> <span class="string">&quot;https&quot;</span> =&gt; <span class="ident">Cow::Borrowed</span>(<span class="ident">url</span>.<span class="ident">host_str</span>().<span class="ident">unwrap_or_default</span>()),
+        <span class="ident">scheme</span> =&gt; <span class="ident">Cow::Owned</span>(<span class="ident">unsplit_uri</span>(<span class="ident">scheme</span>, <span class="ident">url</span>.<span class="ident">host_str</span>().<span class="ident">unwrap_or_default</span>())),
     };
 
     <span class="ident">Cow::Owned</span>(<span class="kw">match</span> <span class="ident">url</span>.<span class="ident">port</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">port</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, <span class="ident">normalized</span>, <span class="ident">port</span>),
-        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">normalized</span>.<span class="ident">into_owned</span>(),
+        <span class="prelude-val">Some</span>(<span class="ident">port</span>) =&gt; <span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, <span class="ident">normalized</span>, <span class="ident">port</span>),
+        <span class="prelude-val">None</span> =&gt; <span class="ident">normalized</span>.<span class="ident">into_owned</span>(),
     })
 }
 
@@ -2112,11 +2111,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">CspRaw</span> {
-    <span class="kw">fn</span> <span class="ident">default_blocked_uri</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">fn</span> <span class="ident">default_blocked_uri</span>() -&gt; <span class="ident">String</span> {
         <span class="string">&quot;self&quot;</span>.<span class="ident">to_string</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">effective_directive</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CspDirective</span>, <span class="ident">InvalidSecurityError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">effective_directive</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CspDirective</span>, <span class="ident">InvalidSecurityError</span><span class="op">&gt;</span> {
         <span class="comment">// Firefox doesn&#39;t send effective-directive, so parse it from</span>
         <span class="comment">// violated-directive but prefer effective-directive when present</span>
         <span class="comment">//</span>
@@ -2127,28 +2126,27 @@
         }
 
         <span class="self">self</span>.<span class="ident">violated_directive</span>
-            .<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39; &#39;</span>)
-            .<span class="ident">next</span>()
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
+            .<span class="ident">split_once</span>(<span class="string">&#39; &#39;</span>)
+            .<span class="ident">and_then</span>(<span class="op">|</span>(<span class="ident">v</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">v</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
             .<span class="ident">ok_or</span>(<span class="ident">InvalidSecurityError</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">get_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">effective_directive</span>: <span class="ident">CspDirective</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">fn</span> <span class="ident">get_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">effective_directive</span>: <span class="ident">CspDirective</span>) -&gt; <span class="ident">String</span> {
         <span class="kw">if</span> <span class="ident">is_local</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">blocked_uri</span>) {
             <span class="kw">match</span> <span class="ident">effective_directive</span> {
-                <span class="ident">CspDirective::ChildSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked inline &#39;child&#39;&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::ConnectSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked inline &#39;connect&#39;&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::FontSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked inline &#39;font&#39;&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::ImgSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked inline &#39;image&#39;&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::ManifestSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked inline &#39;manifest&#39;&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::MediaSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked inline &#39;media&#39;&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::ObjectSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked inline &#39;object&#39;&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::ScriptSrcAttr</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked unsafe &#39;script&#39; element&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::ScriptSrcElem</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked inline script attribute&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::StyleSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked inline &#39;style&#39;&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::StyleSrcElem</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked &#39;style&#39; or &#39;link&#39; element&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::StyleSrcAttr</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;Blocked style attribute&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">CspDirective::ScriptSrc</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="ident">CspDirective::ChildSrc</span> =&gt; <span class="string">&quot;Blocked inline &#39;child&#39;&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::ConnectSrc</span> =&gt; <span class="string">&quot;Blocked inline &#39;connect&#39;&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::FontSrc</span> =&gt; <span class="string">&quot;Blocked inline &#39;font&#39;&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::ImgSrc</span> =&gt; <span class="string">&quot;Blocked inline &#39;image&#39;&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::ManifestSrc</span> =&gt; <span class="string">&quot;Blocked inline &#39;manifest&#39;&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::MediaSrc</span> =&gt; <span class="string">&quot;Blocked inline &#39;media&#39;&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::ObjectSrc</span> =&gt; <span class="string">&quot;Blocked inline &#39;object&#39;&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::ScriptSrcAttr</span> =&gt; <span class="string">&quot;Blocked unsafe &#39;script&#39; element&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::ScriptSrcElem</span> =&gt; <span class="string">&quot;Blocked inline script attribute&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::StyleSrc</span> =&gt; <span class="string">&quot;Blocked inline &#39;style&#39;&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::StyleSrcElem</span> =&gt; <span class="string">&quot;Blocked &#39;style&#39; or &#39;link&#39; element&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::StyleSrcAttr</span> =&gt; <span class="string">&quot;Blocked style attribute&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">CspDirective::ScriptSrc</span> =&gt; {
                     <span class="kw">if</span> <span class="self">self</span>.<span class="ident">violated_directive</span>.<span class="ident">contains</span>(<span class="string">&quot;&#39;unsafe-inline&#39;&quot;</span>) {
                         <span class="string">&quot;Blocked unsafe inline &#39;script&#39;&quot;</span>.<span class="ident">to_string</span>()
                     } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">violated_directive</span>.<span class="ident">contains</span>(<span class="string">&quot;&#39;unsafe-eval&#39;&quot;</span>) {
@@ -2157,34 +2155,34 @@
                         <span class="string">&quot;Blocked unsafe (eval() or inline) &#39;script&#39;&quot;</span>.<span class="ident">to_string</span>()
                     }
                 }
-                <span class="ident">directive</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked inline &#39;{}&#39;&quot;</span>, <span class="ident">directive</span>),
+                <span class="ident">directive</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked inline &#39;{}&#39;&quot;</span>, <span class="ident">directive</span>),
             }
         } <span class="kw">else</span> {
             <span class="kw">let</span> <span class="ident">uri</span> <span class="op">=</span> <span class="ident">normalize_uri</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">blocked_uri</span>);
 
             <span class="kw">match</span> <span class="ident">effective_directive</span> {
-                <span class="ident">CspDirective::ChildSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;child&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::ConnectSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;connect&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::FontSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;font&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::FormAction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;form&#39; action to &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::ImgSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;image&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::ManifestSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;manifest&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::MediaSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;media&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::ObjectSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;object&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::ScriptSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;script&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::ScriptSrcAttr</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="ident">CspDirective::ChildSrc</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;child&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::ConnectSrc</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;connect&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::FontSrc</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;font&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::FormAction</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;form&#39; action to &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::ImgSrc</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;image&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::ManifestSrc</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;manifest&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::MediaSrc</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;media&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::ObjectSrc</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;object&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::ScriptSrc</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;script&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::ScriptSrcAttr</span> =&gt; {
                     <span class="macro">format!</span>(<span class="string">&quot;Blocked inline script attribute from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>)
                 }
-                <span class="ident">CspDirective::ScriptSrcElem</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;script&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::StyleSrc</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;style&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::StyleSrcElem</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;style&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">CspDirective::StyleSrcAttr</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked style attribute from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
-                <span class="ident">directive</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;{}&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">directive</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::ScriptSrcElem</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;script&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::StyleSrc</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;style&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::StyleSrcElem</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;style&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">CspDirective::StyleSrcAttr</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked style attribute from &#39;{}&#39;&quot;</span>, <span class="ident">uri</span>),
+                <span class="ident">directive</span> =&gt; <span class="macro">format!</span>(<span class="string">&quot;Blocked &#39;{}&#39; from &#39;{}&#39;&quot;</span>, <span class="ident">directive</span>, <span class="ident">uri</span>),
             }
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">into_protocol</span>(<span class="self">self</span>, <span class="ident">effective_directive</span>: <span class="ident">CspDirective</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Csp</span> {
+    <span class="kw">fn</span> <span class="ident">into_protocol</span>(<span class="self">self</span>, <span class="ident">effective_directive</span>: <span class="ident">CspDirective</span>) -&gt; <span class="ident">Csp</span> {
         <span class="ident">Csp</span> {
             <span class="ident">effective_directive</span>: <span class="ident">Annotated::from</span>(<span class="ident">effective_directive</span>.<span class="ident">to_string</span>()),
             <span class="ident">blocked_uri</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">blocked_uri</span>),
@@ -2206,7 +2204,7 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">sanitized_blocked_uri</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">fn</span> <span class="ident">sanitized_blocked_uri</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
         <span class="comment">// HACK: This is 100% to work around Stripe urls that will casually put extremely sensitive</span>
         <span class="comment">// information in querystrings. The real solution is to apply data scrubbing to all tags</span>
         <span class="comment">// generically.</span>
@@ -2225,7 +2223,7 @@
         <span class="ident">uri</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">normalize_value</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>, <span class="ident">document_uri</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">normalize_value</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>, <span class="ident">document_uri</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">str</span><span class="op">&gt;</span> {
         <span class="comment">// &gt; If no scheme is specified, the same scheme as the one used to access the protected</span>
         <span class="comment">// &gt; document is assumed.</span>
         <span class="comment">// Source: https://developer.mozilla.org/en-US/docs/Web/Security/CSP/CSP_policy_directives</span>
@@ -2244,7 +2242,7 @@
             <span class="op">|</span><span class="op">|</span> <span class="ident">value</span>.<span class="ident">starts_with</span>(<span class="string">&quot;https:&quot;</span>)
             <span class="op">|</span><span class="op">|</span> <span class="ident">value</span>.<span class="ident">starts_with</span>(<span class="string">&quot;file:&quot;</span>)
         {
-            <span class="kw">if</span> <span class="ident">document_uri</span> <span class="op">=</span><span class="op">=</span> <span class="ident">normalize_uri</span>(<span class="ident">value</span>) {
+            <span class="kw">if</span> <span class="ident">document_uri</span> <span class="op">==</span> <span class="ident">normalize_uri</span>(<span class="ident">value</span>) {
                 <span class="kw">return</span> <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;&#39;self&#39;&quot;</span>);
             }
 
@@ -2254,24 +2252,24 @@
 
         <span class="comment">// Value doesn&#39;t have a scheme, but let&#39;s see if their hostnames match at least, if so,</span>
         <span class="comment">// they&#39;re the same.</span>
-        <span class="kw">if</span> <span class="ident">value</span> <span class="op">=</span><span class="op">=</span> <span class="ident">document_uri</span> {
+        <span class="kw">if</span> <span class="ident">value</span> <span class="op">==</span> <span class="ident">document_uri</span> {
             <span class="kw">return</span> <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;&#39;self&#39;&quot;</span>);
         }
 
         <span class="comment">// Now we need to stitch on a scheme to the value, but let&#39;s not stitch on the boring</span>
         <span class="comment">// values.</span>
         <span class="kw">let</span> <span class="ident">original_uri</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">document_uri</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">u</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">u</span>,
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;&quot;</span>,
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">u</span>) =&gt; <span class="ident">u</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="string">&quot;&quot;</span>,
         };
 
-        <span class="kw">match</span> <span class="ident">original_uri</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>).<span class="ident">next</span>().<span class="ident">unwrap_or_default</span>() {
-            <span class="string">&quot;http&quot;</span> <span class="op">|</span> <span class="string">&quot;https&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Cow::Borrowed</span>(<span class="ident">value</span>),
-            <span class="ident">scheme</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Cow::Owned</span>(<span class="ident">unsplit_uri</span>(<span class="ident">scheme</span>, <span class="ident">value</span>)),
+        <span class="kw">match</span> <span class="ident">original_uri</span>.<span class="ident">split_once</span>(<span class="string">&#39;:&#39;</span>).<span class="ident">unwrap_or_default</span>().<span class="number">0</span> {
+            <span class="string">&quot;http&quot;</span> <span class="op">|</span> <span class="string">&quot;https&quot;</span> =&gt; <span class="ident">Cow::Borrowed</span>(<span class="ident">value</span>),
+            <span class="ident">scheme</span> =&gt; <span class="ident">Cow::Owned</span>(<span class="ident">unsplit_uri</span>(<span class="ident">scheme</span>, <span class="ident">value</span>)),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_culprit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">fn</span> <span class="ident">get_culprit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">violated_directive</span>.<span class="ident">is_empty</span>() {
             <span class="kw">return</span> <span class="ident">String::new</span>();
         }
@@ -2289,7 +2287,7 @@
         <span class="ident">culprit</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">get_tags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">effective_directive</span>: <span class="ident">CspDirective</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Tags</span> {
+    <span class="kw">fn</span> <span class="ident">get_tags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">effective_directive</span>: <span class="ident">CspDirective</span>) -&gt; <span class="ident">Tags</span> {
         <span class="ident">Tags</span>(<span class="ident">PairList::from</span>(<span class="macro">vec!</span>[
             <span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
                 <span class="ident">Annotated::new</span>(<span class="string">&quot;effective-directive&quot;</span>.<span class="ident">to_string</span>()),
@@ -2302,15 +2300,15 @@
         ]))
     }
 
-    <span class="kw">fn</span> <span class="ident">get_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Request</span> {
+    <span class="kw">fn</span> <span class="ident">get_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Request</span> {
         <span class="kw">let</span> <span class="ident">headers</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">referrer</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">referrer</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">referrer</span>.<span class="ident">is_empty</span>() <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">referrer</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">referrer</span>.<span class="ident">is_empty</span>() =&gt; {
                 <span class="ident">Annotated::new</span>(<span class="ident">Headers</span>(<span class="ident">PairList</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>((
                     <span class="ident">Annotated::new</span>(<span class="ident">HeaderName::new</span>(<span class="string">&quot;Referer&quot;</span>)),
                     <span class="ident">Annotated::new</span>(<span class="ident">HeaderValue::new</span>(<span class="ident">referrer</span>.<span class="ident">clone</span>())),
                 ))])))
             }
-            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated::empty</span>(),
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="prelude-val">None</span> =&gt; <span class="ident">Annotated::empty</span>(),
         };
 
         <span class="ident">Request</span> {
@@ -2378,7 +2376,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Csp</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply_to_event</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply_to_event</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">raw_report</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>::<span class="op">&lt;</span><span class="ident">CspReportRaw</span><span class="op">&gt;</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">raw_csp</span> <span class="op">=</span> <span class="ident">raw_report</span>.<span class="ident">csp_report</span>;
 
@@ -2404,9 +2402,9 @@
 }
 
 <span class="macro">derive_fromstr_and_display!</span>(<span class="ident">ExpectCtStatus</span>, <span class="ident">InvalidSecurityError</span>, {
-    <span class="ident">ExpectCtStatus::Unknown</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;unknown&quot;</span>,
-    <span class="ident">ExpectCtStatus::Valid</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;valid&quot;</span>,
-    <span class="ident">ExpectCtStatus::Invalid</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid&quot;</span>,
+    <span class="ident">ExpectCtStatus::Unknown</span> =&gt; <span class="string">&quot;unknown&quot;</span>,
+    <span class="ident">ExpectCtStatus::Valid</span> =&gt; <span class="string">&quot;valid&quot;</span>,
+    <span class="ident">ExpectCtStatus::Invalid</span> =&gt; <span class="string">&quot;invalid&quot;</span>,
 });
 
 <span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">ExpectCtStatus</span>, <span class="string">&quot;an expect-ct status&quot;</span>);
@@ -2419,9 +2417,9 @@
 }
 
 <span class="macro">derive_fromstr_and_display!</span>(<span class="ident">ExpectCtSource</span>, <span class="ident">InvalidSecurityError</span>, {
-            <span class="ident">ExpectCtSource::TlsExtension</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;tls-extension&quot;</span>,
-            <span class="ident">ExpectCtSource::Ocsp</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;ocsp&quot;</span>,
-            <span class="ident">ExpectCtSource::Embedded</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;embedded&quot;</span>,
+            <span class="ident">ExpectCtSource::TlsExtension</span> =&gt; <span class="string">&quot;tls-extension&quot;</span>,
+            <span class="ident">ExpectCtSource::Ocsp</span> =&gt; <span class="string">&quot;ocsp&quot;</span>,
+            <span class="ident">ExpectCtSource::Embedded</span> =&gt; <span class="string">&quot;embedded&quot;</span>,
 });
 
 <span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">ExpectCtSource</span>, <span class="string">&quot;an expect-ct source&quot;</span>);
@@ -2435,7 +2433,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">SingleCertificateTimestampRaw</span> {
-    <span class="kw">fn</span> <span class="ident">into_protocol</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SingleCertificateTimestamp</span> {
+    <span class="kw">fn</span> <span class="ident">into_protocol</span>(<span class="self">self</span>) -&gt; <span class="ident">SingleCertificateTimestamp</span> {
         <span class="ident">SingleCertificateTimestamp</span> {
             <span class="ident">version</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">version</span>),
             <span class="ident">status</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">status</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">to_string</span>())),
@@ -2466,17 +2464,17 @@
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">serde::de::Visitor</span>;
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">date_time</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">date_time</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">serde::Serializer</span>,
     {
         <span class="kw">match</span> <span class="ident">date_time</span> {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_none</span>(),
-            <span class="prelude-val">Some</span>(<span class="ident">d</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="kw-2">&amp;</span><span class="ident">d</span>.<span class="ident">to_rfc3339</span>()),
+            <span class="prelude-val">None</span> =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_none</span>(),
+            <span class="prelude-val">Some</span>(<span class="ident">d</span>) =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="kw-2">&amp;</span><span class="ident">d</span>.<span class="ident">to_rfc3339</span>()),
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">serde::Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
@@ -2485,11 +2483,11 @@
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DateTimeVisitor</span> {
             <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
-            <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+            <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
                 <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;expected a date-time in RFC 3339 format&quot;</span>)
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+            <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
             <span class="kw">where</span>
                 <span class="ident">E</span>: <span class="ident">serde::de::Error</span>,
             {
@@ -2498,7 +2496,7 @@
                     .<span class="ident">map_err</span>(<span class="ident">serde::de::Error::custom</span>)
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_none</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+            <span class="kw">fn</span> <span class="ident">visit_none</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
             <span class="kw">where</span>
                 <span class="ident">E</span>: <span class="ident">Error</span>,
             {
@@ -2511,11 +2509,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ExpectCtRaw</span> {
-    <span class="kw">fn</span> <span class="ident">get_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">fn</span> <span class="ident">get_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
         <span class="macro">format!</span>(<span class="string">&quot;Expect-CT failed for &#39;{}&#39;&quot;</span>, <span class="self">self</span>.<span class="ident">hostname</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">into_protocol</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ExpectCt</span> {
+    <span class="kw">fn</span> <span class="ident">into_protocol</span>(<span class="self">self</span>) -&gt; <span class="ident">ExpectCt</span> {
         <span class="ident">ExpectCt</span> {
             <span class="ident">date_time</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">date_time</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">d</span>.<span class="ident">to_rfc3339</span>())),
             <span class="ident">hostname</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">hostname</span>),
@@ -2545,11 +2543,11 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_culprit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">fn</span> <span class="ident">get_culprit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
         <span class="self">self</span>.<span class="ident">hostname</span>.<span class="ident">clone</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">get_tags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Tags</span> {
+    <span class="kw">fn</span> <span class="ident">get_tags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Tags</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tags</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
             <span class="ident">Annotated::new</span>(<span class="string">&quot;hostname&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">Annotated::new</span>(<span class="self">self</span>.<span class="ident">hostname</span>.<span class="ident">clone</span>()),
@@ -2565,7 +2563,7 @@
         <span class="ident">Tags</span>(<span class="ident">PairList::from</span>(<span class="ident">tags</span>))
     }
 
-    <span class="kw">fn</span> <span class="ident">get_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Request</span> {
+    <span class="kw">fn</span> <span class="ident">get_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Request</span> {
         <span class="ident">Request</span> {
             <span class="ident">url</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">hostname</span>.<span class="ident">clone</span>()),
             ..<span class="ident">Request::default</span>()
@@ -2612,7 +2610,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ExpectCt</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply_to_event</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply_to_event</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">raw_report</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>::<span class="op">&lt;</span><span class="ident">ExpectCtReportRaw</span><span class="op">&gt;</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">raw_expect_ct</span> <span class="op">=</span> <span class="ident">raw_report</span>.<span class="ident">expect_ct_report</span>;
 
@@ -2653,14 +2651,14 @@
 }
 
 <span class="kw">impl</span> <span class="ident">HpkpRaw</span> {
-    <span class="kw">fn</span> <span class="ident">get_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">fn</span> <span class="ident">get_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
         <span class="macro">format!</span>(
             <span class="string">&quot;Public key pinning validation failed for &#39;{}&#39;&quot;</span>,
             <span class="self">self</span>.<span class="ident">hostname</span>
         )
     }
 
-    <span class="kw">fn</span> <span class="ident">into_protocol</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Hpkp</span> {
+    <span class="kw">fn</span> <span class="ident">into_protocol</span>(<span class="self">self</span>) -&gt; <span class="ident">Hpkp</span> {
         <span class="ident">Hpkp</span> {
             <span class="ident">date_time</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">date_time</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">d</span>.<span class="ident">to_rfc3339</span>())),
             <span class="ident">hostname</span>: <span class="ident">Annotated::new</span>(<span class="self">self</span>.<span class="ident">hostname</span>),
@@ -2687,7 +2685,7 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_tags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Tags</span> {
+    <span class="kw">fn</span> <span class="ident">get_tags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Tags</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tags</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
             <span class="ident">Annotated::new</span>(<span class="string">&quot;hostname&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">Annotated::new</span>(<span class="self">self</span>.<span class="ident">hostname</span>.<span class="ident">clone</span>()),
@@ -2710,7 +2708,7 @@
         <span class="ident">Tags</span>(<span class="ident">PairList::from</span>(<span class="ident">tags</span>))
     }
 
-    <span class="kw">fn</span> <span class="ident">get_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Request</span> {
+    <span class="kw">fn</span> <span class="ident">get_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Request</span> {
         <span class="ident">Request</span> {
             <span class="ident">url</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">hostname</span>.<span class="ident">clone</span>()),
             ..<span class="ident">Request::default</span>()
@@ -2756,7 +2754,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Hpkp</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply_to_event</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply_to_event</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">raw_hpkp</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>::<span class="op">&lt;</span><span class="ident">HpkpRaw</span><span class="op">&gt;</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
 
         <span class="ident">event</span>.<span class="ident">logentry</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">LogEntry::from</span>(<span class="ident">raw_hpkp</span>.<span class="ident">get_message</span>()));
@@ -2790,14 +2788,14 @@
 }
 
 <span class="macro">derive_fromstr_and_display!</span>(<span class="ident">ExpectStapleResponseStatus</span>, <span class="ident">InvalidSecurityError</span>, {
-    <span class="ident">ExpectStapleResponseStatus::Missing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;MISSING&quot;</span>,
-    <span class="ident">ExpectStapleResponseStatus::Provided</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;PROVIDED&quot;</span>,
-    <span class="ident">ExpectStapleResponseStatus::ErrorResponse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;ERROR_RESPONSE&quot;</span>,
-    <span class="ident">ExpectStapleResponseStatus::BadProducedAt</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;BAD_PRODUCED_AT&quot;</span>,
-    <span class="ident">ExpectStapleResponseStatus::NoMatchingResponse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;NO_MATCHING_RESPONSE&quot;</span>,
-    <span class="ident">ExpectStapleResponseStatus::InvalidDate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;INVALID_DATE&quot;</span>,
-    <span class="ident">ExpectStapleResponseStatus::ParseResponseError</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;PARSE_RESPONSE_ERROR&quot;</span>,
-    <span class="ident">ExpectStapleResponseStatus::ParseResponseDataError</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;PARSE_RESPONSE_DATA_ERROR&quot;</span>,
+    <span class="ident">ExpectStapleResponseStatus::Missing</span> =&gt; <span class="string">&quot;MISSING&quot;</span>,
+    <span class="ident">ExpectStapleResponseStatus::Provided</span> =&gt; <span class="string">&quot;PROVIDED&quot;</span>,
+    <span class="ident">ExpectStapleResponseStatus::ErrorResponse</span> =&gt; <span class="string">&quot;ERROR_RESPONSE&quot;</span>,
+    <span class="ident">ExpectStapleResponseStatus::BadProducedAt</span> =&gt; <span class="string">&quot;BAD_PRODUCED_AT&quot;</span>,
+    <span class="ident">ExpectStapleResponseStatus::NoMatchingResponse</span> =&gt; <span class="string">&quot;NO_MATCHING_RESPONSE&quot;</span>,
+    <span class="ident">ExpectStapleResponseStatus::InvalidDate</span> =&gt; <span class="string">&quot;INVALID_DATE&quot;</span>,
+    <span class="ident">ExpectStapleResponseStatus::ParseResponseError</span> =&gt; <span class="string">&quot;PARSE_RESPONSE_ERROR&quot;</span>,
+    <span class="ident">ExpectStapleResponseStatus::ParseResponseDataError</span> =&gt; <span class="string">&quot;PARSE_RESPONSE_DATA_ERROR&quot;</span>,
 });
 
 <span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">ExpectStapleResponseStatus</span>, <span class="string">&quot;an expect-ct response status&quot;</span>);
@@ -2810,9 +2808,9 @@
 }
 
 <span class="macro">derive_fromstr_and_display!</span>(<span class="ident">ExpectStapleCertStatus</span>, <span class="ident">InvalidSecurityError</span>, {
-    <span class="ident">ExpectStapleCertStatus::Good</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;GOOD&quot;</span>,
-    <span class="ident">ExpectStapleCertStatus::Revoked</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;REVOKED&quot;</span>,
-    <span class="ident">ExpectStapleCertStatus::Unknown</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;UNKNOWN&quot;</span>,
+    <span class="ident">ExpectStapleCertStatus::Good</span> =&gt; <span class="string">&quot;GOOD&quot;</span>,
+    <span class="ident">ExpectStapleCertStatus::Revoked</span> =&gt; <span class="string">&quot;REVOKED&quot;</span>,
+    <span class="ident">ExpectStapleCertStatus::Unknown</span> =&gt; <span class="string">&quot;UNKNOWN&quot;</span>,
 });
 
 <span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">ExpectStapleCertStatus</span>, <span class="string">&quot;an expect-staple cert status&quot;</span>);
@@ -2841,11 +2839,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ExpectStapleRaw</span> {
-    <span class="kw">fn</span> <span class="ident">get_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">fn</span> <span class="ident">get_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
         <span class="macro">format!</span>(<span class="string">&quot;Expect-Staple failed for &#39;{}&#39;&quot;</span>, <span class="self">self</span>.<span class="ident">hostname</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">into_protocol</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ExpectStaple</span> {
+    <span class="kw">fn</span> <span class="ident">into_protocol</span>(<span class="self">self</span>) -&gt; <span class="ident">ExpectStaple</span> {
         <span class="ident">ExpectStaple</span> {
             <span class="ident">date_time</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">date_time</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">d</span><span class="op">|</span> <span class="ident">d</span>.<span class="ident">to_rfc3339</span>())),
             <span class="ident">hostname</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">hostname</span>),
@@ -2867,11 +2865,11 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_culprit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">fn</span> <span class="ident">get_culprit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
         <span class="self">self</span>.<span class="ident">hostname</span>.<span class="ident">clone</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">get_tags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Tags</span> {
+    <span class="kw">fn</span> <span class="ident">get_tags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Tags</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tags</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
             <span class="ident">Annotated::new</span>(<span class="string">&quot;hostname&quot;</span>.<span class="ident">to_string</span>()),
             <span class="ident">Annotated::new</span>(<span class="self">self</span>.<span class="ident">hostname</span>.<span class="ident">clone</span>()),
@@ -2901,7 +2899,7 @@
         <span class="ident">Tags</span>(<span class="ident">PairList::from</span>(<span class="ident">tags</span>))
     }
 
-    <span class="kw">fn</span> <span class="ident">get_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Request</span> {
+    <span class="kw">fn</span> <span class="ident">get_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Request</span> {
         <span class="ident">Request</span> {
             <span class="ident">url</span>: <span class="ident">Annotated::from</span>(<span class="self">self</span>.<span class="ident">hostname</span>.<span class="ident">clone</span>()),
             ..<span class="ident">Request::default</span>()
@@ -2926,7 +2924,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ExpectStaple</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply_to_event</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply_to_event</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">raw_report</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>::<span class="op">&lt;</span><span class="ident">ExpectStapleReportRaw</span><span class="op">&gt;</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">raw_expect_staple</span> <span class="op">=</span> <span class="ident">raw_report</span>.<span class="ident">expect_staple_report</span>;
 
@@ -2953,7 +2951,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This looks into the JSON payload and tries to infer the type from keys. If no report</span>
     <span class="doccomment">/// matches, an error is returned.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_json</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_json</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>, <span class="ident">serde_json::Error</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>)]</span>
         <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;kebab-case&quot;</span>)]</span>
         <span class="kw">struct</span> <span class="ident">SecurityReport</span> {

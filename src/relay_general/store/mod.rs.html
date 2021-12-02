@@ -197,7 +197,7 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">StoreProcessor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="doccomment">/// Creates a new normalization processor.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">StoreConfig</span>, <span class="ident">geoip_lookup</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">GeoIpLookup</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">StoreConfig</span>, <span class="ident">geoip_lookup</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">GeoIpLookup</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="ident">config</span>);
         <span class="ident">StoreProcessor</span> {
             <span class="ident">normalize</span>: <span class="ident">normalize::NormalizeProcessor::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">geoip_lookup</span>),
@@ -206,7 +206,7 @@
     }
 
     <span class="doccomment">/// Returns a reference to the config.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">StoreConfig</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">StoreConfig</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>
     }
 }
@@ -217,7 +217,7 @@
         <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>,
         <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+    ) -&gt; <span class="ident">ProcessingResult</span> {
         <span class="kw">let</span> <span class="ident">is_renormalize</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">is_renormalize</span>.<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>);
         <span class="kw">let</span> <span class="ident">remove_other</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">remove_other</span>.<span class="ident">unwrap_or</span>(<span class="op">!</span><span class="ident">is_renormalize</span>);
         <span class="kw">let</span> <span class="ident">enable_trimming</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">enable_trimming</span>.<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>);

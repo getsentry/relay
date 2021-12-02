@@ -190,10 +190,10 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ConnectionLike</span> <span class="kw">for</span> <span class="ident">Connection</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">req_packed_command</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">cmd</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">redis::RedisResult</span><span class="op">&lt;</span><span class="ident">redis::Value</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">req_packed_command</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">cmd</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">redis::RedisResult</span><span class="op">&lt;</span><span class="ident">redis::Value</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">con</span>.<span class="ident">req_packed_command</span>(<span class="ident">cmd</span>),
-            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">con</span>.<span class="ident">req_packed_command</span>(<span class="ident">cmd</span>),
+            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">req_packed_command</span>(<span class="ident">cmd</span>),
+            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">req_packed_command</span>(<span class="ident">cmd</span>),
         }
     }
 
@@ -202,31 +202,31 @@
         <span class="ident">cmd</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">offset</span>: <span class="ident">usize</span>,
         <span class="ident">count</span>: <span class="ident">usize</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">redis::RedisResult</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">redis::Value</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="ident">redis::RedisResult</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">redis::Value</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">con</span>.<span class="ident">req_packed_commands</span>(<span class="ident">cmd</span>, <span class="ident">offset</span>, <span class="ident">count</span>),
-            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">con</span>.<span class="ident">req_packed_commands</span>(<span class="ident">cmd</span>, <span class="ident">offset</span>, <span class="ident">count</span>),
+            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">req_packed_commands</span>(<span class="ident">cmd</span>, <span class="ident">offset</span>, <span class="ident">count</span>),
+            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">req_packed_commands</span>(<span class="ident">cmd</span>, <span class="ident">offset</span>, <span class="ident">count</span>),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">get_db</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i64</span> {
+    <span class="kw">fn</span> <span class="ident">get_db</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i64</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">con</span>.<span class="ident">get_db</span>(),
-            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">con</span>.<span class="ident">get_db</span>(),
+            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">get_db</span>(),
+            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">get_db</span>(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">check_connection</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">check_connection</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">con</span>.<span class="ident">check_connection</span>(),
-            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">con</span>.<span class="ident">check_connection</span>(),
+            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">check_connection</span>(),
+            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">check_connection</span>(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">is_open</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_open</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">con</span>.<span class="ident">is_open</span>(),
-            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">con</span>.<span class="ident">is_open</span>(),
+            <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">is_open</span>(),
+            <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">ref</span> <span class="ident">con</span>) =&gt; <span class="ident">con</span>.<span class="ident">is_open</span>(),
         }
     }
 }
@@ -243,10 +243,10 @@
 
 <span class="kw">impl</span> <span class="ident">PooledClient</span> {
     <span class="doccomment">/// Returns a pooled connection to this client.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">connection</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Connection</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">connection</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">Connection</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">PooledClientInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">client</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">client</span>),
-            <span class="ident">PooledClientInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">client</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">client</span>),
+            <span class="ident">PooledClientInner::Cluster</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">client</span>) =&gt; <span class="ident">ConnectionInner::Cluster</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">client</span>),
+            <span class="ident">PooledClientInner::Single</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">client</span>) =&gt; <span class="ident">ConnectionInner::Single</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">client</span>),
         };
 
         <span class="ident">Connection</span> { <span class="ident">inner</span> }
@@ -274,18 +274,18 @@
 
 <span class="kw">impl</span> <span class="ident">RedisPool</span> {
     <span class="doccomment">/// Creates a `RedisPool` from configuration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">RedisConfig</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">RedisConfig</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="ident">config</span> {
-            <span class="ident">RedisConfig::Cluster</span> { <span class="kw-2">ref</span> <span class="ident">cluster_nodes</span> } <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">RedisConfig::Cluster</span> { <span class="kw-2">ref</span> <span class="ident">cluster_nodes</span> } =&gt; {
                 <span class="kw">let</span> <span class="ident">servers</span> <span class="op">=</span> <span class="ident">cluster_nodes</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="ident">String::as_str</span>).<span class="ident">collect</span>();
                 <span class="ident"><span class="self">Self</span>::cluster</span>(<span class="ident">servers</span>)
             }
-            <span class="ident">RedisConfig::Single</span>(<span class="kw-2">ref</span> <span class="ident">server</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::single</span>(<span class="ident">server</span>),
+            <span class="ident">RedisConfig::Single</span>(<span class="kw-2">ref</span> <span class="ident">server</span>) =&gt; <span class="ident"><span class="self">Self</span>::single</span>(<span class="ident">server</span>),
         }
     }
 
     <span class="doccomment">/// Creates a `RedisPool` in cluster configuration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cluster</span>(<span class="ident">servers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cluster</span>(<span class="ident">servers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">pool</span> <span class="op">=</span> <span class="ident">Pool::builder</span>()
             .<span class="ident">max_size</span>(<span class="number">24</span>)
             .<span class="ident">build</span>(<span class="ident">redis::cluster::ClusterClient::open</span>(<span class="ident">servers</span>).<span class="ident">map_err</span>(<span class="ident">RedisError::Redis</span>)<span class="question-mark">?</span>)
@@ -296,7 +296,7 @@
     }
 
     <span class="doccomment">/// Creates a `RedisPool` in single-node configuration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">single</span>(<span class="ident">server</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">single</span>(<span class="ident">server</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">pool</span> <span class="op">=</span> <span class="ident">Pool::builder</span>()
             .<span class="ident">max_size</span>(<span class="number">24</span>)
             .<span class="ident">build</span>(<span class="ident">redis::Client::open</span>(<span class="ident">server</span>).<span class="ident">map_err</span>(<span class="ident">RedisError::Redis</span>)<span class="question-mark">?</span>)
@@ -307,12 +307,12 @@
     }
 
     <span class="doccomment">/// Returns a pooled connection to a client.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">client</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PooledClient</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">client</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PooledClient</span>, <span class="ident">RedisError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">RedisPoolInner::Cluster</span>(<span class="kw-2">ref</span> <span class="ident">pool</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">RedisPoolInner::Cluster</span>(<span class="kw-2">ref</span> <span class="ident">pool</span>) =&gt; {
                 <span class="ident">PooledClientInner::Cluster</span>(<span class="ident">pool</span>.<span class="ident">get</span>().<span class="ident">map_err</span>(<span class="ident">RedisError::Pool</span>)<span class="question-mark">?</span>)
             }
-            <span class="ident">RedisPoolInner::Single</span>(<span class="kw-2">ref</span> <span class="ident">pool</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">RedisPoolInner::Single</span>(<span class="kw-2">ref</span> <span class="ident">pool</span>) =&gt; {
                 <span class="ident">PooledClientInner::Single</span>(<span class="ident">pool</span>.<span class="ident">get</span>().<span class="ident">map_err</span>(<span class="ident">RedisError::Pool</span>)<span class="question-mark">?</span>)
             }
         };

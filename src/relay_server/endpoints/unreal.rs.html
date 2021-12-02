@@ -77,7 +77,7 @@
 <span class="kw">fn</span> <span class="ident">extract_envelope</span>(
     <span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>,
     <span class="ident">meta</span>: <span class="ident">RequestMeta</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
+) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">Envelope</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">user_id</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">query</span>().<span class="ident">get</span>(<span class="string">&quot;UserID&quot;</span>).<span class="ident">cloned</span>();
     <span class="kw">let</span> <span class="ident">max_payload_size</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">config</span>().<span class="ident">max_attachments_size</span>();
 
@@ -103,7 +103,7 @@
 <span class="kw">fn</span> <span class="ident">store_unreal</span>(
     <span class="ident">meta</span>: <span class="ident">RequestMeta</span>,
     <span class="ident">request</span>: <span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
+) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
     <span class="ident">common::handle_store_like_request</span>(
         <span class="ident">meta</span>,
         <span class="ident">request</span>,
@@ -115,7 +115,7 @@
     )
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure_app</span>(<span class="ident">app</span>: <span class="ident">ServiceApp</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ServiceApp</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure_app</span>(<span class="ident">app</span>: <span class="ident">ServiceApp</span>) -&gt; <span class="ident">ServiceApp</span> {
     <span class="ident">common::cors</span>(<span class="ident">app</span>)
         .<span class="ident">resource</span>(
             <span class="kw-2">&amp;</span><span class="ident">common::normpath</span>(<span class="string">r&quot;/api/{project:\d+}/unreal/{sentry_key:\w+}/&quot;</span>),

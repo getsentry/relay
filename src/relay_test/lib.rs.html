@@ -187,7 +187,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Inner</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">runner</span> <span class="op">=</span> <span class="ident">System::new</span>(<span class="string">&quot;relay tests&quot;</span>);
         <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">System::current</span>();
 
@@ -201,7 +201,7 @@
         <span class="ident">System::set_current</span>(<span class="self">self</span>.<span class="ident">system</span>.<span class="ident">clone</span>().<span class="ident">unwrap</span>());
     }
 
-    <span class="kw">fn</span> <span class="ident">runner</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SystemRunner</span> {
+    <span class="kw">fn</span> <span class="ident">runner</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SystemRunner</span> {
         <span class="self">self</span>.<span class="ident">runner</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>()
     }
 }
@@ -240,9 +240,9 @@
 <span class="doccomment">/// # Panics</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This function panics on nested call.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">block_fn</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="ident">future</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">R::Item</span>, <span class="ident">R::Error</span><span class="op">&gt;</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">block_fn</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="ident">future</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">R::Item</span>, <span class="ident">R::Error</span><span class="op">&gt;</span>
 <span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">FnOnce</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">R</span>,
+    <span class="ident">F</span>: <span class="ident">FnOnce</span>() -&gt; <span class="ident">R</span>,
     <span class="ident">R</span>: <span class="ident">IntoFuture</span>,
 {
     <span class="ident">SYSTEM</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">cell</span><span class="op">|</span> {
@@ -255,9 +255,9 @@
 <span class="doccomment">/// Runs the provided function with an active actix system.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This function otherwise functions exactly as [`block_fn`].</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_system</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="ident">func</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">R</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_system</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="ident">func</span>: <span class="ident">F</span>) -&gt; <span class="ident">R</span>
 <span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">FnOnce</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">R</span>,
+    <span class="ident">F</span>: <span class="ident">FnOnce</span>() -&gt; <span class="ident">R</span>,
 {
     <span class="ident">block_fn</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> <span class="ident">future::ok</span>::<span class="op">&lt;</span><span class="kw">_</span>, ()<span class="op">&gt;</span>(<span class="ident">func</span>())).<span class="ident">unwrap</span>()
 }
@@ -275,7 +275,7 @@
 <span class="doccomment">///     })</span>
 <span class="doccomment">/// });</span>
 <span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">delay</span>(<span class="ident">timeout</span>: <span class="ident">Duration</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Delay</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">delay</span>(<span class="ident">timeout</span>: <span class="ident">Duration</span>) -&gt; <span class="ident">Delay</span> {
     <span class="ident">Delay::new</span>(<span class="ident">Instant::now</span>() <span class="op">+</span> <span class="ident">timeout</span>)
 }
 </code></pre></div>

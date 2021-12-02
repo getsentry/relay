@@ -70,7 +70,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">message</span>: <span class="ident">M</span>,
         <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">M::Result</span>, <span class="ident">MailboxError</span><span class="op">&gt;</span>
+    ) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">M::Result</span>, <span class="ident">MailboxError</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">M</span>: <span class="ident">Message</span>,
         <span class="ident">A</span>: <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>,
@@ -87,7 +87,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">message</span>: <span class="ident">M</span>,
         <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">M::Result</span>, <span class="ident">MailboxError</span><span class="op">&gt;</span>
+    ) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">M::Result</span>, <span class="ident">MailboxError</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">A</span>: <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>,
         <span class="ident">A::Context</span>: <span class="ident">ToEnvelope</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">M</span><span class="op">&gt;</span>,

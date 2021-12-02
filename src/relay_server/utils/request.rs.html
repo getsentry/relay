@@ -13,7 +13,7 @@
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">http::header</span>, <span class="ident">HttpMessage</span>};
 
 <span class="comment">// Resolve the content length from HTTP request headers.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_content_length</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_content_length</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">HttpMessage</span>,
 {

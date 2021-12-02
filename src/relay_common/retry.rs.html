@@ -83,7 +83,7 @@
 
 <span class="kw">impl</span> <span class="ident">RetryBackoff</span> {
     <span class="doccomment">/// Creates a new retry backoff based on configured thresholds.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">max_interval</span>: <span class="ident">Duration</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">max_interval</span>: <span class="ident">Duration</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">backoff</span> <span class="op">=</span> <span class="ident">ExponentialBackoff</span> {
             <span class="ident">current_interval</span>: <span class="ident">Duration::from_millis</span>(<span class="ident">INITIAL_INTERVAL</span>),
             <span class="ident">initial_interval</span>: <span class="ident">Duration::from_millis</span>(<span class="ident">INITIAL_INTERVAL</span>),
@@ -108,20 +108,20 @@
     }
 
     <span class="doccomment">/// Indicates whether a backoff attempt has started.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">attempt</span> <span class="op">&gt;</span> <span class="number">0</span>
     }
 
     <span class="doccomment">/// Returns the number of the retry attempt.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">attempt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">attempt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">attempt</span>
     }
 
     <span class="doccomment">/// Returns the next backoff duration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next_backoff</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next_backoff</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="kw">let</span> <span class="ident">duration</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">attempt</span> {
-            <span class="number">0</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Duration::new</span>(<span class="number">0</span>, <span class="number">0</span>),
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">next_backoff</span>().<span class="ident">unwrap</span>(),
+            <span class="number">0</span> =&gt; <span class="ident">Duration::new</span>(<span class="number">0</span>, <span class="number">0</span>),
+            <span class="kw">_</span> =&gt; <span class="self">self</span>.<span class="ident">backoff</span>.<span class="ident">next_backoff</span>().<span class="ident">unwrap</span>(),
         };
 
         <span class="self">self</span>.<span class="ident">attempt</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;

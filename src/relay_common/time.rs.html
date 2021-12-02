@@ -292,12 +292,12 @@
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="doccomment">/// Converts an `Instant` into a `SystemTime`.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">instant_to_system_time</span>(<span class="ident">instant</span>: <span class="ident">Instant</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SystemTime</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">instant_to_system_time</span>(<span class="ident">instant</span>: <span class="ident">Instant</span>) -&gt; <span class="ident">SystemTime</span> {
     <span class="ident">SystemTime::now</span>() <span class="op">-</span> <span class="ident">instant</span>.<span class="ident">elapsed</span>()
 }
 
 <span class="doccomment">/// Converts an `Instant` into a `DateTime`.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">instant_to_date_time</span>(<span class="ident">instant</span>: <span class="ident">Instant</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">chrono::DateTime</span><span class="op">&lt;</span><span class="ident">chrono::Utc</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">instant_to_date_time</span>(<span class="ident">instant</span>: <span class="ident">Instant</span>) -&gt; <span class="ident">chrono::DateTime</span><span class="op">&lt;</span><span class="ident">chrono::Utc</span><span class="op">&gt;</span> {
     <span class="ident">instant_to_system_time</span>(<span class="ident">instant</span>).<span class="ident">into</span>()
 }
 
@@ -321,12 +321,12 @@
 
 <span class="kw">impl</span> <span class="ident">UnixTimestamp</span> {
     <span class="doccomment">/// Creates a unix timestamp from the given number of seconds.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_secs</span>(<span class="ident">secs</span>: <span class="ident">u64</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_secs</span>(<span class="ident">secs</span>: <span class="ident">u64</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span>(<span class="ident">secs</span>)
     }
 
     <span class="doccomment">/// Creates a unix timestamp from the given system time.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_system</span>(<span class="ident">time</span>: <span class="ident">SystemTime</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_system</span>(<span class="ident">time</span>: <span class="ident">SystemTime</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">duration</span> <span class="op">=</span> <span class="ident">time</span>
             .<span class="ident">duration_since</span>(<span class="ident">SystemTime::UNIX_EPOCH</span>)
             .<span class="ident">unwrap_or_default</span>()
@@ -339,7 +339,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Returns `Some` if this is a valid date time starting with 1970-01-01 00:00 UTC. If the date</span>
     <span class="doccomment">/// lies before the UNIX epoch, this function returns `None`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_datetime</span>(<span class="ident">date_time</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="kw">impl</span> <span class="ident">TimeZone</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_datetime</span>(<span class="ident">date_time</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="kw">impl</span> <span class="ident">TimeZone</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">date_time</span>.<span class="ident">timestamp</span>();
         <span class="kw">if</span> <span class="ident">timestamp</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">0</span> {
             <span class="prelude-val">Some</span>(<span class="ident">UnixTimestamp::from_secs</span>(<span class="ident">timestamp</span> <span class="kw">as</span> <span class="ident">u64</span>))
@@ -353,23 +353,23 @@
     <span class="doccomment">/// This is done by comparing the `Instant` with the current system time. Note that the system</span>
     <span class="doccomment">/// time is subject to skew, so subsequent calls to `from_instant` may return different values.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_instant</span>(<span class="ident">instant</span>: <span class="ident">Instant</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_instant</span>(<span class="ident">instant</span>: <span class="ident">Instant</span>) -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::from_system</span>(<span class="ident">instant_to_system_time</span>(<span class="ident">instant</span>))
     }
 
     <span class="doccomment">/// Returns the current timestamp.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">now</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">now</span>() -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::from_system</span>(<span class="ident">SystemTime::now</span>())
     }
 
     <span class="doccomment">/// Returns the number of seconds since the UNIX epoch start.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_secs</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u64</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_secs</span>(<span class="self">self</span>) -&gt; <span class="ident">u64</span> {
         <span class="self">self</span>.<span class="number">0</span>
     }
 
     <span class="doccomment">/// Returns the timestamp as chrono datetime.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_datetime</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_datetime</span>(<span class="self">self</span>) -&gt; <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span> {
         <span class="ident">DateTime::from_utc</span>(<span class="ident">NaiveDateTime::from_timestamp</span>(<span class="self">self</span>.<span class="number">0</span> <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">0</span>), <span class="ident">Utc</span>)
     }
 
@@ -392,31 +392,31 @@
     <span class="doccomment">///    assert!((Instant::now() - instant) &lt; Duration::from_millis(1));</span>
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_instant</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">MonotonicResult</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_instant</span>(<span class="self">self</span>) -&gt; <span class="ident">MonotonicResult</span> {
         <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::now</span>();
 
         <span class="kw">if</span> <span class="self">self</span> <span class="op">&gt;</span> <span class="ident">now</span> {
             <span class="kw">match</span> <span class="ident">Instant::now</span>().<span class="ident">checked_add</span>(<span class="self">self</span> <span class="op">-</span> <span class="ident">now</span>) {
-                <span class="prelude-val">Some</span>(<span class="ident">instant</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MonotonicResult::Instant</span>(<span class="ident">instant</span>),
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MonotonicResult::Future</span>,
+                <span class="prelude-val">Some</span>(<span class="ident">instant</span>) =&gt; <span class="ident">MonotonicResult::Instant</span>(<span class="ident">instant</span>),
+                <span class="prelude-val">None</span> =&gt; <span class="ident">MonotonicResult::Future</span>,
             }
         } <span class="kw">else</span> {
             <span class="kw">match</span> <span class="ident">Instant::now</span>().<span class="ident">checked_sub</span>(<span class="ident">now</span> <span class="op">-</span> <span class="self">self</span>) {
-                <span class="prelude-val">Some</span>(<span class="ident">instant</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MonotonicResult::Instant</span>(<span class="ident">instant</span>),
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MonotonicResult::Past</span>,
+                <span class="prelude-val">Some</span>(<span class="ident">instant</span>) =&gt; <span class="ident">MonotonicResult::Instant</span>(<span class="ident">instant</span>),
+                <span class="prelude-val">None</span> =&gt; <span class="ident">MonotonicResult::Past</span>,
             }
         }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">UnixTimestamp</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;UnixTimestamp({})&quot;</span>, <span class="self">self</span>.<span class="ident">as_secs</span>())
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">UnixTimestamp</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="self">self</span>.<span class="ident">as_secs</span>().<span class="ident">fmt</span>(<span class="ident">f</span>)
     }
 }
@@ -424,7 +424,7 @@
 <span class="kw">impl</span> <span class="ident">std::ops::Sub</span> <span class="kw">for</span> <span class="ident">UnixTimestamp</span> {
     <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> <span class="ident">Duration</span>;
 
-    <span class="kw">fn</span> <span class="ident">sub</span>(<span class="self">self</span>, <span class="ident">rhs</span>: <span class="self">Self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Output</span> {
+    <span class="kw">fn</span> <span class="ident">sub</span>(<span class="self">self</span>, <span class="ident">rhs</span>: <span class="self">Self</span>) -&gt; <span class="ident"><span class="self">Self</span>::Output</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="number">0</span> <span class="op">-</span> <span class="ident">rhs</span>.<span class="number">0</span>)
     }
 }
@@ -436,7 +436,7 @@
 <span class="kw">impl</span> <span class="ident">std::str::FromStr</span> <span class="kw">for</span> <span class="ident">UnixTimestamp</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseUnixTimestampError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">datetime</span>) <span class="op">=</span> <span class="ident">s</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>() {
             <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">datetime</span>.<span class="ident">timestamp</span>();
             <span class="kw">if</span> <span class="ident">timestamp</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">0</span> {
@@ -449,7 +449,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">UnixTimestamp</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">serde::Serializer</span>,
     {
@@ -462,18 +462,18 @@
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">serde::de::Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UnixTimestampVisitor</span> {
     <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">UnixTimestamp</span>;
 
-    <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;a non-negative timestamp or datetime string&quot;</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">visit_u64</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">u64</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">visit_u64</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">u64</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">E</span>: <span class="ident">serde::de::Error</span>,
     {
         <span class="prelude-val">Ok</span>(<span class="ident">UnixTimestamp::from_secs</span>(<span class="ident">v</span>))
     }
 
-    <span class="kw">fn</span> <span class="ident">visit_f64</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">f64</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">visit_f64</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">f64</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">E</span>: <span class="ident">serde::de::Error</span>,
     {
@@ -484,7 +484,7 @@
         <span class="prelude-val">Ok</span>(<span class="ident">UnixTimestamp::from_secs</span>(<span class="ident">v</span>.<span class="ident">trunc</span>() <span class="kw">as</span> <span class="ident">u64</span>))
     }
 
-    <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">E</span>: <span class="ident">serde::de::Error</span>,
     {
@@ -500,7 +500,7 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">UnixTimestamp</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">serde::Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {

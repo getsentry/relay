@@ -116,9 +116,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">SetMetric</span> <span class="kw">for</span> <span class="ident">MetricSets</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::UniqueBucketsCreated</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.buckets.created.unique&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::UniqueBucketsCreated</span> =&gt; <span class="string">&quot;metrics.buckets.created.unique&quot;</span>,
         }
     }
 }
@@ -142,11 +142,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">CounterMetric</span> <span class="kw">for</span> <span class="ident">MetricCounters</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::InsertMetric</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.insert&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::MergeHit</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.buckets.merge.hit&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::MergeMiss</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.buckets.merge.miss&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::InsertMetric</span> =&gt; <span class="string">&quot;metrics.insert&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::MergeHit</span> =&gt; <span class="string">&quot;metrics.buckets.merge.hit&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::MergeMiss</span> =&gt; <span class="string">&quot;metrics.buckets.merge.miss&quot;</span>,
         }
     }
 }
@@ -162,9 +162,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">TimerMetric</span> <span class="kw">for</span> <span class="ident">MetricTimers</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::BucketsScanDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.buckets.scan_duration&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::BucketsScanDuration</span> =&gt; <span class="string">&quot;metrics.buckets.scan_duration&quot;</span>,
         }
     }
 }
@@ -183,10 +183,10 @@
 }
 
 <span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">MetricHistograms</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::BucketsFlushed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.buckets.flushed&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::BucketsFlushedPerProject</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.buckets.flushed_per_project&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::BucketsFlushed</span> =&gt; <span class="string">&quot;metrics.buckets.flushed&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::BucketsFlushedPerProject</span> =&gt; <span class="string">&quot;metrics.buckets.flushed_per_project&quot;</span>,
         }
     }
 }
@@ -198,9 +198,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">GaugeMetric</span> <span class="kw">for</span> <span class="ident">MetricGauges</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Buckets</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.buckets&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Buckets</span> =&gt; <span class="string">&quot;metrics.buckets&quot;</span>,
         }
     }
 }

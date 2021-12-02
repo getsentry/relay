@@ -345,8 +345,8 @@
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_user_agent</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) {
     <span class="kw">let</span> <span class="ident">user_agent</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">get_user_agent</span>(<span class="ident">event</span>) {
-        <span class="prelude-val">Some</span>(<span class="ident">ua</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ua</span>,
-        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+        <span class="prelude-val">Some</span>(<span class="ident">ua</span>) =&gt; <span class="ident">ua</span>,
+        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
     };
 
     <span class="kw">let</span> <span class="ident">device</span> <span class="op">=</span> <span class="ident">parse_device</span>(<span class="ident">user_agent</span>);
@@ -387,8 +387,8 @@
     <span class="comment">// Why not move the existing `contexts.os` into a different key on conflicts? Because we still</span>
     <span class="comment">// want to index (derive tags from) the SDK-sent context.</span>
     <span class="kw">let</span> <span class="ident">os_context_key</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">platform</span>.<span class="ident">as_str</span>() {
-        <span class="prelude-val">Some</span>(<span class="string">&quot;javascript&quot;</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">OsContext::default_key</span>(),
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;client_os&quot;</span>,
+        <span class="prelude-val">Some</span>(<span class="string">&quot;javascript&quot;</span>) =&gt; <span class="ident">OsContext::default_key</span>(),
+        <span class="kw">_</span> =&gt; <span class="string">&quot;client_os&quot;</span>,
     };
 
     <span class="kw">if</span> <span class="ident">is_known</span>(<span class="ident">os</span>.<span class="ident">family</span>.<span class="ident">as_str</span>()) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">contexts</span>.<span class="ident">contains_key</span>(<span class="ident">os_context_key</span>) {
@@ -407,7 +407,7 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">is_known</span>(<span class="ident">family</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">is_known</span>(<span class="ident">family</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
     <span class="ident">family</span> <span class="op">!</span><span class="op">=</span> <span class="string">&quot;Other&quot;</span>
 }
 
@@ -415,7 +415,7 @@
     <span class="ident">major</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">minor</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">patch</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">version</span> <span class="op">=</span> <span class="ident">major</span>.<span class="ident">clone</span>()<span class="question-mark">?</span>;
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">minor</span>) <span class="op">=</span> <span class="ident">minor</span> {

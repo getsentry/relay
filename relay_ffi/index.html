@@ -2,7 +2,7 @@
 <p>This crate facilitates an <a href="https://man7.org/linux/man-pages/man3/errno.3.html"><code>errno</code></a>-like error handling pattern: On success, the result of a
 function call is returned. On error, a thread-local marker is set that allows to retrieve the
 error, message, and a backtrace if available.</p>
-<h1 id="catch-errors-and-panics" class="section-header"><a href="#catch-errors-and-panics">Catch Errors and Panics</a></h1>
+<h2 id="catch-errors-and-panics" class="section-header"><a href="#catch-errors-and-panics">Catch Errors and Panics</a></h2>
 <p>The <a href="attr.catch_unwind.html" title="catch_unwind"><code>catch_unwind</code></a> attribute annotates functions that can internally throw errors. It allows
 the use of the questionmark operator <code>?</code> in a function that does not return <code>Result</code>. The error
 is then available using <a href="fn.with_last_error.html" title="with_last_error"><code>with_last_error</code></a>:</p>
@@ -10,35 +10,35 @@ is then available using <a href="fn.with_last_error.html" title="with_last_error
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">relay_ffi::catch_unwind</span>;
 
 <span class="attribute">#[<span class="ident">catch_unwind</span>]</span>
-<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">parse_number</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i32</span> {
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">parse_number</span>() -&gt; <span class="ident">i32</span> {
     <span class="comment">// use the questionmark operator for errors:</span>
     <span class="kw">let</span> <span class="ident">number</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="string">&quot;42&quot;</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
 
     <span class="comment">// return the value directly, not `Ok`:</span>
     <span class="ident">number</span> <span class="op">*</span> <span class="number">2</span>
 }</code></pre></div>
-<h1 id="safety" class="section-header"><a href="#safety">Safety</a></h1>
+<h2 id="safety" class="section-header"><a href="#safety">Safety</a></h2>
 <p>Since function calls always need to return a value, this crate has to return
 <code>std::mem::zeroed()</code> as a placeholder in case of an error. This is unsafe for reference types
 and function pointers. Because of this, functions must be marked <code>unsafe</code>.</p>
 <p>In most cases, FFI functions should return either <code>repr(C)</code> structs or pointers, in which case
 this is safe in principle. The author of the API is responsible for defining the contract,
 however, and document the behavior of custom structures in case of an error.</p>
-<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<h2 id="examples" class="section-header"><a href="#examples">Examples</a></h2>
 <p>Annotate FFI functions with <a href="attr.catch_unwind.html" title="catch_unwind"><code>catch_unwind</code></a> to capture errors. The error can be inspected via
 <a href="fn.with_last_error.html" title="with_last_error"><code>with_last_error</code></a>:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">relay_ffi</span>::{<span class="ident">catch_unwind</span>, <span class="ident">with_last_error</span>};
 
 <span class="attribute">#[<span class="ident">catch_unwind</span>]</span>
-<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">parse_number</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i32</span> {
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">parse_number</span>() -&gt; <span class="ident">i32</span> {
     <span class="string">&quot;42&quot;</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>
 }
 
 <span class="kw">let</span> <span class="ident">parsed</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">parse_number</span>() };
 <span class="kw">match</span> <span class="ident">with_last_error</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">to_string</span>()) {
-    <span class="prelude-val">Some</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">println!</span>(<span class="string">&quot;errored with: {}&quot;</span>, <span class="ident">error</span>),
-    <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">println!</span>(<span class="string">&quot;result: {}&quot;</span>, <span class="ident">parsed</span>),
+    <span class="prelude-val">Some</span>(<span class="ident">error</span>) =&gt; <span class="macro">println!</span>(<span class="string">&quot;errored with: {}&quot;</span>, <span class="ident">error</span>),
+    <span class="prelude-val">None</span> =&gt; <span class="macro">println!</span>(<span class="string">&quot;result: {}&quot;</span>, <span class="ident">parsed</span>),
 }</code></pre></div>
 <p>To capture panics, register the panic hook early during library initialization:</p>
 
@@ -56,7 +56,7 @@ however, and document the behavior of custom structures in case of an error.</p>
 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">description</span>) <span class="op">=</span> <span class="ident">with_last_error</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">to_string</span>()) {
     <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">description</span>);
 }</code></pre></div>
-<h1 id="creating-c-apis" class="section-header"><a href="#creating-c-apis">Creating C-APIs</a></h1>
+<h2 id="creating-c-apis" class="section-header"><a href="#creating-c-apis">Creating C-APIs</a></h2>
 <p>This is an example for exposing an API to C:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">std::ffi::CString</span>;
@@ -68,7 +68,7 @@ however, and document the behavior of custom structures in case of an error.</p>
 }
 
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">last_strerror</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_char</span> {
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">last_strerror</span>() -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_char</span> {
     <span class="kw">let</span> <span class="ident">ptr_opt</span> <span class="op">=</span> <span class="ident">relay_ffi::with_last_error</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
         <span class="ident">CString::new</span>(<span class="ident">err</span>.<span class="ident">to_string</span>())
             .<span class="ident">unwrap_or_default</span>()
@@ -78,13 +78,13 @@ however, and document the behavior of custom structures in case of an error.</p>
     <span class="ident">ptr_opt</span>.<span class="ident">unwrap_or</span>(<span class="ident">std::ptr::null_mut</span>())
 }</code></pre></div>
 </div></details><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2>
-<div class="item-table"><div class="item-left module-item"><a class="struct" href="struct.Panic.html" title="relay_ffi::Panic struct">Panic</a></div><div class="item-right docblock-short"><p>An error representing a panic carrying the message as payload.</p>
-</div></div><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2>
-<div class="item-table"><div class="item-left module-item"><a class="fn" href="fn.set_panic_hook.html" title="relay_ffi::set_panic_hook fn">set_panic_hook</a></div><div class="item-right docblock-short"><p>Registers a hook for capturing panics with backtraces.</p>
-</div><div class="item-left module-item"><a class="fn" href="fn.take_last_error.html" title="relay_ffi::take_last_error fn">take_last_error</a></div><div class="item-right docblock-short"><p>Takes the last error, leaving <code>None</code> in its place.</p>
-</div><div class="item-left module-item"><a class="fn" href="fn.with_last_error.html" title="relay_ffi::with_last_error fn">with_last_error</a></div><div class="item-right docblock-short"><p>Acquires a reference to the last error and passes it to the callback, if any.</p>
-</div></div><h2 id="attributes" class="section-header"><a href="#attributes">Attribute Macros</a></h2>
-<div class="item-table"><div class="item-left module-item"><a class="attr" href="attr.catch_unwind.html" title="relay_ffi::catch_unwind attr">catch_unwind</a></div><div class="item-right docblock-short"><p>Captures errors and panics in a thread-local on <code>unsafe</code> functions.</p>
-</div></div></section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_ffi" data-search-index-js="../search-index.js" data-search-js="../search.js"></div>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.Panic.html" title="relay_ffi::Panic struct">Panic</a></div><div class="item-right docblock-short"><p>An error representing a panic carrying the message as payload.</p>
+</div></div></div><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.set_panic_hook.html" title="relay_ffi::set_panic_hook fn">set_panic_hook</a></div><div class="item-right docblock-short"><p>Registers a hook for capturing panics with backtraces.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.take_last_error.html" title="relay_ffi::take_last_error fn">take_last_error</a></div><div class="item-right docblock-short"><p>Takes the last error, leaving <code>None</code> in its place.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.with_last_error.html" title="relay_ffi::with_last_error fn">with_last_error</a></div><div class="item-right docblock-short"><p>Acquires a reference to the last error and passes it to the callback, if any.</p>
+</div></div></div><h2 id="attributes" class="section-header"><a href="#attributes">Attribute Macros</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="attr" href="attr.catch_unwind.html" title="relay_ffi::catch_unwind attr">catch_unwind</a></div><div class="item-right docblock-short"><p>Captures errors and panics in a thread-local on <code>unsafe</code> functions.</p>
+</div></div></div></section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_ffi" data-search-index-js="../search-index.js" data-search-js="../search.js"></div>
     <script src="../main.js"></script>
 </body></html>

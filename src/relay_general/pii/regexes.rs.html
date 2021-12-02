@@ -258,22 +258,22 @@
 
 <span class="kw">impl</span> <span class="ident">ReplaceBehavior</span> {
     <span class="doccomment">/// Replace the entire string value (or just more than the match, depending on context).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_value</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_value</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">ReplaceBehavior::Value</span>
     }
 
     <span class="doccomment">/// Replace the entire match, equivalent to `ReplaceBehavior::Groups([0])`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_match</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_match</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">0</span>)
     }
 
     <span class="doccomment">/// Replace the following singular regex group.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_group</span>(<span class="ident">g</span>: <span class="ident">u8</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_group</span>(<span class="ident">g</span>: <span class="ident">u8</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">ReplaceBehavior::Groups</span>(<span class="macro">smallvec!</span>[<span class="ident">g</span>])
     }
 
     <span class="doccomment">/// Replace the following specific regex groups.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_groups</span>(<span class="ident">gs</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">u8</span>; <span class="number">1</span>]<span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_groups</span>(<span class="ident">gs</span>: <span class="ident">SmallVec</span><span class="op">&lt;</span>[<span class="ident">u8</span>; <span class="number">1</span>]<span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">ReplaceBehavior::Groups</span>(<span class="ident">gs</span>)
     }
 }
@@ -281,57 +281,57 @@
 <span class="doccomment">/// Return a list of regexes to apply for the given rule type.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_regex_for_rule_type</span>(
     <span class="ident">ty</span>: <span class="kw-2">&amp;</span><span class="ident">RuleType</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SmallVec</span><span class="op">&lt;</span>[(<span class="ident">PatternType</span>, <span class="kw-2">&amp;</span><span class="ident">Regex</span>, <span class="ident">ReplaceBehavior</span>); <span class="number">2</span>]<span class="op">&gt;</span> {
+) -&gt; <span class="ident">SmallVec</span><span class="op">&lt;</span>[(<span class="ident">PatternType</span>, <span class="kw-2">&amp;</span><span class="ident">Regex</span>, <span class="ident">ReplaceBehavior</span>); <span class="number">2</span>]<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">PatternType::Value</span>;
     <span class="kw">let</span> <span class="ident">kv</span> <span class="op">=</span> <span class="ident">PatternType::KeyValue</span>;
 
     <span class="kw">match</span> <span class="ident">ty</span> {
-        <span class="ident">RuleType::RedactPair</span>(<span class="kw-2">ref</span> <span class="ident">redact_pair</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[(
+        <span class="ident">RuleType::RedactPair</span>(<span class="kw-2">ref</span> <span class="ident">redact_pair</span>) =&gt; <span class="macro">smallvec!</span>[(
             <span class="ident">kv</span>,
             <span class="kw-2">&amp;</span><span class="ident">redact_pair</span>.<span class="ident">key_pattern</span>.<span class="number">0</span>,
             <span class="ident">ReplaceBehavior::replace_value</span>()
         )],
-        <span class="ident">RuleType::Password</span> <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="ident">RuleType::Password</span> =&gt; {
             <span class="macro">smallvec!</span>[(<span class="ident">kv</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">PASSWORD_KEY_REGEX</span>, <span class="ident">ReplaceBehavior::replace_value</span>())]
         }
-        <span class="ident">RuleType::Anything</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">ANYTHING_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Pattern</span>(<span class="kw-2">ref</span> <span class="ident">r</span>) <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="ident">RuleType::Anything</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">ANYTHING_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
+        <span class="ident">RuleType::Pattern</span>(<span class="kw-2">ref</span> <span class="ident">r</span>) =&gt; {
             <span class="kw">let</span> <span class="ident">replace_behavior</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">r</span>.<span class="ident">replace_groups</span> {
-                <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">groups</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">groups</span>) =&gt; {
                     <span class="ident">ReplaceBehavior::replace_groups</span>(<span class="ident">groups</span>.<span class="ident">iter</span>().<span class="ident">copied</span>().<span class="ident">collect</span>())
                 }
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ReplaceBehavior::replace_match</span>(),
+                <span class="prelude-val">None</span> =&gt; <span class="ident">ReplaceBehavior::replace_match</span>(),
             };
 
             <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="ident">r</span>.<span class="ident">pattern</span>.<span class="number">0</span>, <span class="ident">replace_behavior</span>)]
         }
 
-        <span class="ident">RuleType::Imei</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">IMEI_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Mac</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">MAC_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Uuid</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">UUID_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Email</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">EMAIL_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Ip</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[
+        <span class="ident">RuleType::Imei</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">IMEI_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
+        <span class="ident">RuleType::Mac</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">MAC_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
+        <span class="ident">RuleType::Uuid</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">UUID_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
+        <span class="ident">RuleType::Email</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">EMAIL_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
+        <span class="ident">RuleType::Ip</span> =&gt; <span class="macro">smallvec!</span>[
             (<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">IPV4_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>()),
             (<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">IPV6_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>)),
         ],
-        <span class="ident">RuleType::Creditcard</span> <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="ident">RuleType::Creditcard</span> =&gt; {
             <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">CREDITCARD_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())]
         }
-        <span class="ident">RuleType::Pemkey</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">PEM_KEY_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>))],
-        <span class="ident">RuleType::UrlAuth</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">URL_AUTH_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>))],
-        <span class="ident">RuleType::UsSsn</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">US_SSN_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
-        <span class="ident">RuleType::Userpath</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">PATH_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>))],
+        <span class="ident">RuleType::Pemkey</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">PEM_KEY_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>))],
+        <span class="ident">RuleType::UrlAuth</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">URL_AUTH_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>))],
+        <span class="ident">RuleType::UsSsn</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">US_SSN_REGEX</span>, <span class="ident">ReplaceBehavior::replace_match</span>())],
+        <span class="ident">RuleType::Userpath</span> =&gt; <span class="macro">smallvec!</span>[(<span class="ident">v</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">PATH_REGEX</span>, <span class="ident">ReplaceBehavior::replace_group</span>(<span class="number">1</span>))],
 
         <span class="comment">// These ought to have been resolved in CompiledConfig</span>
-        <span class="ident">RuleType::Alias</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">RuleType::Multiple</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">smallvec!</span>[],
+        <span class="ident">RuleType::Alias</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">RuleType::Multiple</span>(<span class="kw">_</span>) =&gt; <span class="macro">smallvec!</span>[],
     }
 }
 
 <span class="attribute">#[<span class="ident">rustfmt::skip</span>]</span>
 <span class="macro">macro_rules!</span> <span class="ident">ip</span> {
-    (<span class="ident">v4s</span>) <span class="op">=</span><span class="op">&gt;</span> { <span class="string">&quot;(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)&quot;</span> };
-    (<span class="ident">v4a</span>) <span class="op">=</span><span class="op">&gt;</span> { <span class="macro">concat!</span>(<span class="macro">ip!</span>(<span class="ident">v4s</span>), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4s</span>), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4s</span>), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4s</span>)) };
-    (<span class="ident">v6s</span>) <span class="op">=</span><span class="op">&gt;</span> { <span class="string">&quot;[0-9a-fA-F]{1,4}&quot;</span> };
+    (<span class="ident">v4s</span>) =&gt; { <span class="string">&quot;(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)&quot;</span> };
+    (<span class="ident">v4a</span>) =&gt; { <span class="macro">concat!</span>(<span class="macro">ip!</span>(<span class="ident">v4s</span>), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4s</span>), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4s</span>), <span class="string">&quot;\\.&quot;</span>, <span class="macro">ip!</span>(<span class="ident">v4s</span>)) };
+    (<span class="ident">v6s</span>) =&gt; { <span class="string">&quot;[0-9a-fA-F]{1,4}&quot;</span> };
 }
 
 <span class="attribute">#[<span class="ident">rustfmt::skip</span>]</span>

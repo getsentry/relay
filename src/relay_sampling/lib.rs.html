@@ -1801,27 +1801,27 @@
 }
 
 <span class="kw">impl</span> <span class="ident">EqCondition</span> {
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">matches</span>(<span class="ident">event</span>)
     }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">matches</span>(<span class="ident">trace</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">FieldValueProvider</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">FieldValueProvider</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">value_provider</span>.<span class="ident">get_value</span>(<span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
 
         <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Value::Null</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">value</span> <span class="op">=</span><span class="op">=</span> <span class="ident">Value::Null</span>,
-            <span class="ident">Value::String</span>(<span class="kw-2">ref</span> <span class="ident">field</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">value</span> {
-                <span class="ident">Value::String</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Value::Null</span> =&gt; <span class="self">self</span>.<span class="ident">value</span> <span class="op">==</span> <span class="ident">Value::Null</span>,
+            <span class="ident">Value::String</span>(<span class="kw-2">ref</span> <span class="ident">field</span>) =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">value</span> {
+                <span class="ident">Value::String</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) =&gt; {
                     <span class="kw">if</span> <span class="self">self</span>.<span class="ident">options</span>.<span class="ident">ignore_case</span> {
                         <span class="ident">unicase::eq</span>(<span class="ident">field</span>.<span class="ident">as_str</span>(), <span class="ident">val</span>.<span class="ident">as_str</span>())
                     } <span class="kw">else</span> {
-                        <span class="ident">field</span> <span class="op">=</span><span class="op">=</span> <span class="ident">val</span>
+                        <span class="ident">field</span> <span class="op">==</span> <span class="ident">val</span>
                     }
                 }
-                <span class="ident">Value::Array</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="ident">Value::Array</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) =&gt; {
                     <span class="kw">if</span> <span class="self">self</span>.<span class="ident">options</span>.<span class="ident">ignore_case</span> {
                         <span class="ident">val</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> {
                             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">v</span>) <span class="op">=</span> <span class="ident">v</span>.<span class="ident">as_str</span>() {
@@ -1833,23 +1833,23 @@
                     } <span class="kw">else</span> {
                         <span class="ident">val</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> {
                             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">v</span>) <span class="op">=</span> <span class="ident">v</span>.<span class="ident">as_str</span>() {
-                                <span class="ident">v</span> <span class="op">=</span><span class="op">=</span> <span class="ident">field</span>.<span class="ident">as_str</span>()
+                                <span class="ident">v</span> <span class="op">==</span> <span class="ident">field</span>.<span class="ident">as_str</span>()
                             } <span class="kw">else</span> {
                                 <span class="bool-val">false</span>
                             }
                         })
                     }
                 }
-                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+                <span class="kw">_</span> =&gt; <span class="bool-val">false</span>,
             },
-            <span class="ident">Value::Bool</span>(<span class="ident">field</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Value::Bool</span>(<span class="ident">field</span>) =&gt; {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Value::Bool</span>(<span class="ident">val</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">value</span> {
-                    <span class="ident">field</span> <span class="op">=</span><span class="op">=</span> <span class="ident">val</span>
+                    <span class="ident">field</span> <span class="op">==</span> <span class="ident">val</span>
                 } <span class="kw">else</span> {
                     <span class="bool-val">false</span>
                 }
             }
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>, <span class="comment">// unsupported types</span>
+            <span class="kw">_</span> =&gt; <span class="bool-val">false</span>, <span class="comment">// unsupported types</span>
         }
     }
 }
@@ -1862,14 +1862,14 @@
 }
 
 <span class="kw">impl</span> <span class="ident">GlobCondition</span> {
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">matches</span>(<span class="ident">event</span>)
     }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">matches</span>(<span class="ident">trace</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">FieldValueProvider</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">FieldValueProvider</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="ident">bool</span> {
         <span class="ident">value_provider</span>
             .<span class="ident">get_value</span>(<span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_str</span>())
             .<span class="ident">as_str</span>()
@@ -1890,10 +1890,10 @@
 }
 
 <span class="kw">impl</span> <span class="ident">CustomCondition</span> {
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="ident">Event::get_custom_operator</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">name</span>)(<span class="self">self</span>, <span class="ident">event</span>, <span class="ident">ip_addr</span>)
     }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="ident">TraceContext::get_custom_operator</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">name</span>)(<span class="self">self</span>, <span class="ident">trace</span>, <span class="ident">ip_addr</span>)
     }
 }
@@ -1908,15 +1908,15 @@
 }
 
 <span class="kw">impl</span> <span class="ident">OrCondition</span> {
-    <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="ident">RuleCondition::supported</span>)
     }
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">inner</span>
             .<span class="ident">iter</span>()
             .<span class="ident">any</span>(<span class="op">|</span><span class="ident">cond</span><span class="op">|</span> <span class="ident">cond</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>))
     }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">inner</span>
             .<span class="ident">iter</span>()
             .<span class="ident">any</span>(<span class="op">|</span><span class="ident">cond</span><span class="op">|</span> <span class="ident">cond</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>))
@@ -1933,15 +1933,15 @@
 }
 
 <span class="kw">impl</span> <span class="ident">AndCondition</span> {
-    <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="ident">RuleCondition::supported</span>)
     }
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">inner</span>
             .<span class="ident">iter</span>()
             .<span class="ident">all</span>(<span class="op">|</span><span class="ident">cond</span><span class="op">|</span> <span class="ident">cond</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>))
     }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">inner</span>
             .<span class="ident">iter</span>()
             .<span class="ident">all</span>(<span class="op">|</span><span class="ident">cond</span><span class="op">|</span> <span class="ident">cond</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>))
@@ -1958,13 +1958,13 @@
 }
 
 <span class="kw">impl</span> <span class="ident">NotCondition</span> {
-    <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">supported</span>()
     }
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="op">!</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>)
     }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="op">!</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>)
     }
 }
@@ -1987,38 +1987,38 @@
     <span class="doccomment">/// Checks if Relay supports this condition (in other words if the condition had any unknown configuration</span>
     <span class="doccomment">/// which was serialized as &quot;Unsupported&quot; (because the configuration is either faulty or was created for a</span>
     <span class="doccomment">/// newer relay that supports some other condition types)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RuleCondition::Unsupported</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">RuleCondition::Unsupported</span> =&gt; <span class="bool-val">false</span>,
             <span class="comment">// we have a known condition</span>
-            <span class="ident">RuleCondition::Eq</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">RuleCondition::Glob</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
+            <span class="ident">RuleCondition::Eq</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">RuleCondition::Glob</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
             <span class="comment">// dig down for embedded conditions</span>
-            <span class="ident">RuleCondition::And</span>(<span class="ident">rules</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">rules</span>.<span class="ident">supported</span>(),
-            <span class="ident">RuleCondition::Or</span>(<span class="ident">rules</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">rules</span>.<span class="ident">supported</span>(),
-            <span class="ident">RuleCondition::Not</span>(<span class="ident">rule</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">rule</span>.<span class="ident">supported</span>(),
-            <span class="ident">RuleCondition::Custom</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
+            <span class="ident">RuleCondition::And</span>(<span class="ident">rules</span>) =&gt; <span class="ident">rules</span>.<span class="ident">supported</span>(),
+            <span class="ident">RuleCondition::Or</span>(<span class="ident">rules</span>) =&gt; <span class="ident">rules</span>.<span class="ident">supported</span>(),
+            <span class="ident">RuleCondition::Not</span>(<span class="ident">rule</span>) =&gt; <span class="ident">rule</span>.<span class="ident">supported</span>(),
+            <span class="ident">RuleCondition::Custom</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
         }
     }
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RuleCondition::Eq</span>(<span class="ident">condition</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>),
-            <span class="ident">RuleCondition::Glob</span>(<span class="ident">condition</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>),
-            <span class="ident">RuleCondition::And</span>(<span class="ident">conditions</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">conditions</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Or</span>(<span class="ident">conditions</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">conditions</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Not</span>(<span class="ident">condition</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Unsupported</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">RuleCondition::Custom</span>(<span class="ident">condition</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Eq</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>),
+            <span class="ident">RuleCondition::Glob</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>),
+            <span class="ident">RuleCondition::And</span>(<span class="ident">conditions</span>) =&gt; <span class="ident">conditions</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Or</span>(<span class="ident">conditions</span>) =&gt; <span class="ident">conditions</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Not</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Unsupported</span> =&gt; <span class="bool-val">false</span>,
+            <span class="ident">RuleCondition::Custom</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
         }
     }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RuleCondition::Eq</span>(<span class="ident">condition</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>),
-            <span class="ident">RuleCondition::Glob</span>(<span class="ident">condition</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>),
-            <span class="ident">RuleCondition::And</span>(<span class="ident">conditions</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">conditions</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Or</span>(<span class="ident">conditions</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">conditions</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Not</span>(<span class="ident">condition</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Unsupported</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">RuleCondition::Custom</span>(<span class="ident">condition</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Eq</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>),
+            <span class="ident">RuleCondition::Glob</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>),
+            <span class="ident">RuleCondition::And</span>(<span class="ident">conditions</span>) =&gt; <span class="ident">conditions</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Or</span>(<span class="ident">conditions</span>) =&gt; <span class="ident">conditions</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Not</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Unsupported</span> =&gt; <span class="bool-val">false</span>,
+            <span class="ident">RuleCondition::Custom</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
         }
     }
 }
@@ -2028,7 +2028,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RuleId</span>(<span class="kw">pub</span> <span class="ident">u32</span>);
 
 <span class="kw">impl</span> <span class="ident">Display</span> <span class="kw">for</span> <span class="ident">RuleId</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="number">0</span>)
     }
 }
@@ -2045,7 +2045,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">SamplingRule</span> {
-    <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">condition</span>.<span class="ident">supported</span>()
     }
 }
@@ -2055,33 +2055,33 @@
 <span class="doccomment">/// The fields will be used by rules to check if they apply.</span>
 <span class="kw">trait</span> <span class="ident">FieldValueProvider</span> {
     <span class="doccomment">/// gets the value of a field</span>
-    <span class="kw">fn</span> <span class="ident">get_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span>;
+    <span class="kw">fn</span> <span class="ident">get_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Value</span>;
     <span class="doccomment">/// what type of rule can be applied to this provider</span>
-    <span class="kw">fn</span> <span class="ident">get_rule_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleType</span>;
+    <span class="kw">fn</span> <span class="ident">get_rule_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RuleType</span>;
     <span class="doccomment">/// returns a filtering function for custom operators.</span>
     <span class="doccomment">/// The function returned takes the provider and a condition definition and</span>
     <span class="doccomment">/// returns a match result</span>
     <span class="kw">fn</span> <span class="ident">get_custom_operator</span>(
         <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">fn</span>(<span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">slf</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span>;
+    ) -&gt; <span class="kw">fn</span>(<span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">slf</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span>;
 }
 
-<span class="kw">fn</span> <span class="ident">no_match</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">_condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">_slf</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">_ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">no_match</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">_condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">_slf</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">_ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
     <span class="bool-val">false</span>
 }
 
 <span class="kw">impl</span> <span class="ident">FieldValueProvider</span> <span class="kw">for</span> <span class="ident">Event</span> {
-    <span class="kw">fn</span> <span class="ident">get_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span> {
+    <span class="kw">fn</span> <span class="ident">get_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Value</span> {
         <span class="kw">match</span> <span class="ident">field_name</span> {
-            <span class="string">&quot;event.release&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">release</span>.<span class="ident">value</span>() {
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Null</span>,
-                <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
+            <span class="string">&quot;event.release&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">release</span>.<span class="ident">value</span>() {
+                <span class="prelude-val">None</span> =&gt; <span class="ident">Value::Null</span>,
+                <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
             },
-            <span class="string">&quot;event.environment&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">environment</span>.<span class="ident">value</span>() {
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Null</span>,
-                <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
+            <span class="string">&quot;event.environment&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">environment</span>.<span class="ident">value</span>() {
+                <span class="prelude-val">None</span> =&gt; <span class="ident">Value::Null</span>,
+                <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
             },
-            <span class="string">&quot;event.user.id&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
+            <span class="string">&quot;event.user.id&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
                 <span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">id</span><span class="op">|</span> {
                     <span class="kw">if</span> <span class="ident">id</span>.<span class="ident">is_empty</span>() {
                         <span class="ident">Value::Null</span> <span class="comment">// we don&#39;t serialize empty values but check it anyway</span>
@@ -2090,7 +2090,7 @@
                     }
                 })
             }),
-            <span class="string">&quot;event.user.segment&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
+            <span class="string">&quot;event.user.segment&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
                 <span class="ident">user</span>.<span class="ident">segment</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">segment</span><span class="op">|</span> {
                     <span class="kw">if</span> <span class="ident">segment</span>.<span class="ident">is_empty</span>() {
                         <span class="ident">Value::Null</span>
@@ -2099,21 +2099,21 @@
                     }
                 })
             }),
-            <span class="string">&quot;event.is_local_ip&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::localhost::matches</span>(<span class="self">self</span>)),
-            <span class="string">&quot;event.has_bad_browser_extensions&quot;</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="string">&quot;event.is_local_ip&quot;</span> =&gt; <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::localhost::matches</span>(<span class="self">self</span>)),
+            <span class="string">&quot;event.has_bad_browser_extensions&quot;</span> =&gt; {
                 <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::browser_extensions::matches</span>(<span class="self">self</span>))
             }
-            <span class="string">&quot;event.web_crawlers&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::web_crawlers::matches</span>(<span class="self">self</span>)),
-            <span class="string">&quot;event.transaction&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">transaction</span>.<span class="ident">value</span>() {
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Null</span>,
-                <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
+            <span class="string">&quot;event.web_crawlers&quot;</span> =&gt; <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::web_crawlers::matches</span>(<span class="self">self</span>)),
+            <span class="string">&quot;event.transaction&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">transaction</span>.<span class="ident">value</span>() {
+                <span class="prelude-val">None</span> =&gt; <span class="ident">Value::Null</span>,
+                <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
             },
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Null</span>,
+            <span class="kw">_</span> =&gt; <span class="ident">Value::Null</span>,
         }
     }
-    <span class="kw">fn</span> <span class="ident">get_rule_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleType</span> {
+    <span class="kw">fn</span> <span class="ident">get_rule_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RuleType</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ty</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">ty</span>.<span class="ident">value</span>() {
-            <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">ty</span> <span class="op">=</span><span class="op">=</span> <span class="ident">EventType::Transaction</span> {
+            <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">ty</span> <span class="op">==</span> <span class="ident">EventType::Transaction</span> {
                 <span class="kw">return</span> <span class="ident">RuleType::Transaction</span>;
             }
         }
@@ -2121,13 +2121,13 @@
     }
     <span class="kw">fn</span> <span class="ident">get_custom_operator</span>(
         <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">fn</span>(<span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">slf</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    ) -&gt; <span class="kw">fn</span>(<span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">slf</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="ident">name</span> {
-            <span class="string">&quot;event.client_ip&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">client_ips_matcher</span>,
-            <span class="string">&quot;event.legacy_browser&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">legacy_browsers_matcher</span>,
-            <span class="string">&quot;event.error_messages&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">error_messages_matcher</span>,
-            <span class="string">&quot;event.csp&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">csp_matcher</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">no_match</span>,
+            <span class="string">&quot;event.client_ip&quot;</span> =&gt; <span class="ident">client_ips_matcher</span>,
+            <span class="string">&quot;event.legacy_browser&quot;</span> =&gt; <span class="ident">legacy_browsers_matcher</span>,
+            <span class="string">&quot;event.error_messages&quot;</span> =&gt; <span class="ident">error_messages_matcher</span>,
+            <span class="string">&quot;event.csp&quot;</span> =&gt; <span class="ident">csp_matcher</span>,
+            <span class="kw">_</span> =&gt; <span class="ident">no_match</span>,
         }
     }
 }
@@ -2136,7 +2136,7 @@
     <span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>,
     <span class="ident">_event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
     <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+) -&gt; <span class="ident">bool</span> {
     <span class="kw">let</span> <span class="ident">ips</span> <span class="op">=</span> <span class="ident">condition</span>
         .<span class="ident">value</span>
         .<span class="ident">as_array</span>()
@@ -2153,7 +2153,7 @@
     <span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>,
     <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
     <span class="ident">_ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+) -&gt; <span class="ident">bool</span> {
     <span class="kw">let</span> <span class="ident">browsers</span> <span class="op">=</span> <span class="ident">condition</span>
         .<span class="ident">value</span>
         .<span class="ident">as_array</span>()
@@ -2169,7 +2169,7 @@
     <span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>,
     <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
     <span class="ident">_ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+) -&gt; <span class="ident">bool</span> {
     <span class="kw">let</span> <span class="ident">patterns</span> <span class="op">=</span> <span class="ident">condition</span>
         .<span class="ident">value</span>
         .<span class="ident">as_array</span>()
@@ -2183,7 +2183,7 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">csp_matcher</span>(<span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">_ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">csp_matcher</span>(<span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">_ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
     <span class="kw">let</span> <span class="ident">sources</span> <span class="op">=</span> <span class="ident">condition</span>
         .<span class="ident">value</span>
         .<span class="ident">as_array</span>()
@@ -2197,44 +2197,44 @@
 }
 
 <span class="kw">impl</span> <span class="ident">FieldValueProvider</span> <span class="kw">for</span> <span class="ident">TraceContext</span> {
-    <span class="kw">fn</span> <span class="ident">get_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span> {
+    <span class="kw">fn</span> <span class="ident">get_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Value</span> {
         <span class="kw">match</span> <span class="ident">field_name</span> {
-            <span class="string">&quot;trace.release&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">release</span> {
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Null</span>,
-                <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
+            <span class="string">&quot;trace.release&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">release</span> {
+                <span class="prelude-val">None</span> =&gt; <span class="ident">Value::Null</span>,
+                <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
             },
-            <span class="string">&quot;trace.environment&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">environment</span> {
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Null</span>,
-                <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
+            <span class="string">&quot;trace.environment&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">environment</span> {
+                <span class="prelude-val">None</span> =&gt; <span class="ident">Value::Null</span>,
+                <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
             },
-            <span class="string">&quot;trace.user.id&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
+            <span class="string">&quot;trace.user.id&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
                 <span class="kw">if</span> <span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">is_empty</span>() {
                     <span class="ident">Value::Null</span>
                 } <span class="kw">else</span> {
                     <span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">as_str</span>().<span class="ident">into</span>()
                 }
             }),
-            <span class="string">&quot;trace.user.segment&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
+            <span class="string">&quot;trace.user.segment&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
                 <span class="kw">if</span> <span class="ident">user</span>.<span class="ident">segment</span>.<span class="ident">is_empty</span>() {
                     <span class="ident">Value::Null</span>
                 } <span class="kw">else</span> {
                     <span class="ident">user</span>.<span class="ident">segment</span>.<span class="ident">as_str</span>().<span class="ident">into</span>()
                 }
             }),
-            <span class="string">&quot;trace.transaction&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">transaction</span> {
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Null</span>,
-                <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
+            <span class="string">&quot;trace.transaction&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">transaction</span> {
+                <span class="prelude-val">None</span> =&gt; <span class="ident">Value::Null</span>,
+                <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
             },
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Value::Null</span>,
+            <span class="kw">_</span> =&gt; <span class="ident">Value::Null</span>,
         }
     }
-    <span class="kw">fn</span> <span class="ident">get_rule_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleType</span> {
+    <span class="kw">fn</span> <span class="ident">get_rule_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RuleType</span> {
         <span class="ident">RuleType::Trace</span>
     }
 
     <span class="kw">fn</span> <span class="ident">get_custom_operator</span>(
         <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw">fn</span>(<span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">slf</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    ) -&gt; <span class="kw">fn</span>(<span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">slf</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="comment">// no custom operators for trace</span>
         <span class="ident">no_match</span>
     }
@@ -2254,7 +2254,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">SamplingConfig</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_unsupported_rules</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_unsupported_rules</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="op">!</span><span class="self">self</span>.<span class="ident">rules</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="ident">SamplingRule::supported</span>)
     }
 }
@@ -2298,7 +2298,7 @@
     <span class="doccomment">/// If [`SamplingResult::NoDecision`] is returned, then no rule matched this trace. In this</span>
     <span class="doccomment">/// case, the caller may decide whether to keep the trace or not. The same is returned if the</span>
     <span class="doccomment">/// configuration is invalid.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">should_keep</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">SamplingConfig</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SamplingResult</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">should_keep</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">SamplingConfig</span>) -&gt; <span class="ident">SamplingResult</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rule</span>) <span class="op">=</span> <span class="ident">get_matching_trace_rule</span>(<span class="ident">config</span>, <span class="self">self</span>, <span class="ident">ip_addr</span>, <span class="ident">RuleType::Trace</span>) {
             <span class="kw">let</span> <span class="ident">rate</span> <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="self">self</span>.<span class="ident">trace_id</span>);
 
@@ -2314,7 +2314,7 @@
 }
 
 <span class="doccomment">/// Returns the type of rule that applies to a particular event.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rule_type_for_event</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleType</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rule_type_for_event</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="ident">RuleType</span> {
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">EventType::Transaction</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">ty</span>.<span class="number">0</span> {
         <span class="ident">RuleType::Transaction</span>
     } <span class="kw">else</span> {
@@ -2328,11 +2328,11 @@
     <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
     <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
     <span class="ident">ty</span>: <span class="ident">RuleType</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SamplingRule</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SamplingRule</span><span class="op">&gt;</span> {
     <span class="ident">config</span>
         .<span class="ident">rules</span>
         .<span class="ident">iter</span>()
-        .<span class="ident">find</span>(<span class="op">|</span><span class="ident">rule</span><span class="op">|</span> <span class="ident">rule</span>.<span class="ident">ty</span> <span class="op">=</span><span class="op">=</span> <span class="ident">ty</span> <span class="op">&amp;&amp;</span> <span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>))
+        .<span class="ident">find</span>(<span class="op">|</span><span class="ident">rule</span><span class="op">|</span> <span class="ident">rule</span>.<span class="ident">ty</span> <span class="op">==</span> <span class="ident">ty</span> <span class="op">&amp;&amp;</span> <span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>))
 }
 
 <span class="kw">fn</span> <span class="ident">get_matching_trace_rule</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
@@ -2340,17 +2340,17 @@
     <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>,
     <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
     <span class="ident">ty</span>: <span class="ident">RuleType</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SamplingRule</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SamplingRule</span><span class="op">&gt;</span> {
     <span class="ident">config</span>
         .<span class="ident">rules</span>
         .<span class="ident">iter</span>()
-        .<span class="ident">find</span>(<span class="op">|</span><span class="ident">rule</span><span class="op">|</span> <span class="ident">rule</span>.<span class="ident">ty</span> <span class="op">=</span><span class="op">=</span> <span class="ident">ty</span> <span class="op">&amp;&amp;</span> <span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>))
+        .<span class="ident">find</span>(<span class="op">|</span><span class="ident">rule</span><span class="op">|</span> <span class="ident">rule</span>.<span class="ident">ty</span> <span class="op">==</span> <span class="ident">ty</span> <span class="op">&amp;&amp;</span> <span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>))
 }
 
 <span class="doccomment">/// Generates a pseudo random number by seeding the generator with the given id.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// The return is deterministic, always generates the same number from the same id.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">id</span>: <span class="ident">Uuid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">f64</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="ident">id</span>: <span class="ident">Uuid</span>) -&gt; <span class="ident">f64</span> {
     <span class="kw">let</span> <span class="ident">big_seed</span> <span class="op">=</span> <span class="ident">id</span>.<span class="ident">as_u128</span>();
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generator</span> <span class="op">=</span> <span class="ident">Pcg32::new</span>((<span class="ident">big_seed</span> <span class="op">&gt;</span><span class="op">&gt;</span> <span class="number">64</span>) <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">big_seed</span> <span class="kw">as</span> <span class="ident">u64</span>);
     <span class="kw">let</span> <span class="ident">dist</span> <span class="op">=</span> <span class="ident">Uniform::new</span>(<span class="number">0f64</span>, <span class="number">1f64</span>);
@@ -2372,7 +2372,7 @@
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>], <span class="ident">ignore_case</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleCondition</span> {
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>], <span class="ident">ignore_case</span>: <span class="ident">bool</span>) -&gt; <span class="ident">RuleCondition</span> {
         <span class="ident">RuleCondition::Eq</span>(<span class="ident">EqCondition</span> {
             <span class="ident">name</span>: <span class="ident">name</span>.<span class="ident">to_owned</span>(),
             <span class="ident">value</span>: <span class="ident">value</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">to_string</span>()).<span class="ident">collect</span>(),
@@ -2380,7 +2380,7 @@
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">eq_bool</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleCondition</span> {
+    <span class="kw">fn</span> <span class="ident">eq_bool</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="ident">bool</span>) -&gt; <span class="ident">RuleCondition</span> {
         <span class="ident">RuleCondition::Eq</span>(<span class="ident">EqCondition</span> {
             <span class="ident">name</span>: <span class="ident">name</span>.<span class="ident">to_owned</span>(),
             <span class="ident">value</span>: <span class="ident">Value::Bool</span>(<span class="ident">value</span>),
@@ -2388,14 +2388,14 @@
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">glob</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleCondition</span> {
+    <span class="kw">fn</span> <span class="ident">glob</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">str</span>]) -&gt; <span class="ident">RuleCondition</span> {
         <span class="ident">RuleCondition::Glob</span>(<span class="ident">GlobCondition</span> {
             <span class="ident">name</span>: <span class="ident">name</span>.<span class="ident">to_owned</span>(),
             <span class="ident">value</span>: <span class="ident">GlobPatterns::new</span>(<span class="ident">value</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">to_string</span>()).<span class="ident">collect</span>()),
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">custom</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="ident">Value</span>, <span class="ident">options</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleCondition</span> {
+    <span class="kw">fn</span> <span class="ident">custom</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="ident">Value</span>, <span class="ident">options</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">RuleCondition</span> {
         <span class="ident">RuleCondition::Custom</span>(<span class="ident">CustomCondition</span> {
             <span class="ident">name</span>: <span class="ident">name</span>.<span class="ident">to_owned</span>(),
             <span class="ident">value</span>,
@@ -2403,15 +2403,15 @@
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">and</span>(<span class="ident">conds</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RuleCondition</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleCondition</span> {
+    <span class="kw">fn</span> <span class="ident">and</span>(<span class="ident">conds</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RuleCondition</span><span class="op">&gt;</span>) -&gt; <span class="ident">RuleCondition</span> {
         <span class="ident">RuleCondition::And</span>(<span class="ident">AndCondition</span> { <span class="ident">inner</span>: <span class="ident">conds</span> })
     }
 
-    <span class="kw">fn</span> <span class="ident">or</span>(<span class="ident">conds</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RuleCondition</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleCondition</span> {
+    <span class="kw">fn</span> <span class="ident">or</span>(<span class="ident">conds</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RuleCondition</span><span class="op">&gt;</span>) -&gt; <span class="ident">RuleCondition</span> {
         <span class="ident">RuleCondition::Or</span>(<span class="ident">OrCondition</span> { <span class="ident">inner</span>: <span class="ident">conds</span> })
     }
 
-    <span class="kw">fn</span> <span class="ident">not</span>(<span class="ident">cond</span>: <span class="ident">RuleCondition</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RuleCondition</span> {
+    <span class="kw">fn</span> <span class="ident">not</span>(<span class="ident">cond</span>: <span class="ident">RuleCondition</span>) -&gt; <span class="ident">RuleCondition</span> {
         <span class="ident">RuleCondition::Not</span>(<span class="ident">NotCondition</span> {
             <span class="ident">inner</span>: <span class="ident">Box::new</span>(<span class="ident">cond</span>),
         })
@@ -2845,7 +2845,7 @@
         <span class="kw">for</span> (<span class="ident">rule_test_name</span>, <span class="ident">expected</span>, <span class="ident">condition</span>) <span class="kw">in</span> <span class="ident">conditions</span>.<span class="ident">iter</span>() {
             <span class="kw">let</span> <span class="ident">failure_name</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, <span class="ident">rule_test_name</span>);
             <span class="macro">assert!</span>(
-                <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">tc</span>, <span class="prelude-val">None</span>) <span class="op">=</span><span class="op">=</span> <span class="kw-2">*</span><span class="ident">expected</span>,
+                <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">tc</span>, <span class="prelude-val">None</span>) <span class="op">==</span> <span class="kw-2">*</span><span class="ident">expected</span>,
                 <span class="string">&quot;{}&quot;</span>,
                 <span class="ident">failure_name</span>
             );
@@ -2905,7 +2905,7 @@
         <span class="kw">for</span> (<span class="ident">rule_test_name</span>, <span class="ident">expected</span>, <span class="ident">condition</span>) <span class="kw">in</span> <span class="ident">conditions</span>.<span class="ident">iter</span>() {
             <span class="kw">let</span> <span class="ident">failure_name</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, <span class="ident">rule_test_name</span>);
             <span class="macro">assert!</span>(
-                <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">tc</span>, <span class="prelude-val">None</span>) <span class="op">=</span><span class="op">=</span> <span class="kw-2">*</span><span class="ident">expected</span>,
+                <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">tc</span>, <span class="prelude-val">None</span>) <span class="op">==</span> <span class="kw-2">*</span><span class="ident">expected</span>,
                 <span class="string">&quot;{}&quot;</span>,
                 <span class="ident">failure_name</span>
             );
@@ -2942,7 +2942,7 @@
         <span class="kw">for</span> (<span class="ident">rule_test_name</span>, <span class="ident">expected</span>, <span class="ident">condition</span>) <span class="kw">in</span> <span class="ident">conditions</span>.<span class="ident">iter</span>() {
             <span class="kw">let</span> <span class="ident">failure_name</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, <span class="ident">rule_test_name</span>);
             <span class="macro">assert!</span>(
-                <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">tc</span>, <span class="prelude-val">None</span>) <span class="op">=</span><span class="op">=</span> <span class="kw-2">*</span><span class="ident">expected</span>,
+                <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">tc</span>, <span class="prelude-val">None</span>) <span class="op">==</span> <span class="kw-2">*</span><span class="ident">expected</span>,
                 <span class="string">&quot;{}&quot;</span>,
                 <span class="ident">failure_name</span>
             );
@@ -3294,7 +3294,7 @@
         );
     }
 
-    <span class="kw">fn</span> <span class="ident">approx_eq</span>(<span class="ident">left</span>: <span class="ident">f64</span>, <span class="ident">right</span>: <span class="ident">f64</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">approx_eq</span>(<span class="ident">left</span>: <span class="ident">f64</span>, <span class="ident">right</span>: <span class="ident">f64</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="ident">diff</span> <span class="op">=</span> <span class="ident">left</span> <span class="op">-</span> <span class="ident">right</span>;
         <span class="ident">diff</span> <span class="op">&lt;</span> <span class="number">0.001</span> <span class="op">&amp;&amp;</span> <span class="ident">diff</span> <span class="op">&gt;</span> <span class="op">-</span><span class="number">0.001</span>
     }

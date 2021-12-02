@@ -174,25 +174,25 @@
 <span class="kw">struct</span> <span class="ident">ClonedFail</span>(<span class="ident">String</span>);
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ClonedFail</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}\n(cloned)&quot;</span>, <span class="self">self</span>.<span class="number">0</span>)
     }
 }
 
 <span class="doccomment">/// Helper trait used to convert any Fail dyn object into a ClonedFail struct</span>
 <span class="kw">trait</span> <span class="ident">AsClonedFail</span> {
-    <span class="kw">fn</span> <span class="ident">as_cloned_fail</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ClonedFail</span>;
+    <span class="kw">fn</span> <span class="ident">as_cloned_fail</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ClonedFail</span>;
 }
 
 <span class="kw">impl</span> <span class="ident">AsClonedFail</span> <span class="kw">for</span> <span class="ident">ClonedFail</span> {
     <span class="doccomment">/// if the object is already a ClonedFail just clone the message</span>
-    <span class="kw">fn</span> <span class="ident">as_cloned_fail</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ClonedFail</span> {
+    <span class="kw">fn</span> <span class="ident">as_cloned_fail</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ClonedFail</span> {
         <span class="self">self</span>.<span class="ident">clone</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">AsClonedFail</span> <span class="kw">for</span> <span class="kw">dyn</span> <span class="ident">Fail</span> {
-    <span class="kw">fn</span> <span class="ident">as_cloned_fail</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ClonedFail</span> {
+    <span class="kw">fn</span> <span class="ident">as_cloned_fail</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ClonedFail</span> {
         <span class="ident">ClonedFail</span>(<span class="self">self</span>.<span class="ident">to_string</span>())
     }
 }
@@ -206,35 +206,35 @@
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">ErrorBoundary</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-            <span class="ident"><span class="self">Self</span>::Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+            <span class="ident"><span class="self">Self</span>::Err</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
         }
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_err</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_err</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="op">!</span><span class="self">self</span>.<span class="ident">is_ok</span>()
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ok</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ok</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">ErrorBoundary::Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident">ErrorBoundary::Ok</span>(<span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>),
+            <span class="ident">ErrorBoundary::Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            <span class="ident">ErrorBoundary::Ok</span>(<span class="ident">value</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">value</span>),
         }
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unwrap_or_else</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">op</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">T</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unwrap_or_else</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">op</span>: <span class="ident">F</span>) -&gt; <span class="ident">T</span>
     <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="kw">dyn</span> <span class="ident">Fail</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">T</span>,
+        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="kw">dyn</span> <span class="ident">Fail</span>) -&gt; <span class="ident">T</span>,
     {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="ident">t</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">t</span>,
-            <span class="ident"><span class="self">Self</span>::Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">op</span>(<span class="ident">e</span>.<span class="ident">as_ref</span>()),
+            <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="ident">t</span>) =&gt; <span class="ident">t</span>,
+            <span class="ident"><span class="self">Self</span>::Err</span>(<span class="ident">e</span>) =&gt; <span class="ident">op</span>(<span class="ident">e</span>.<span class="ident">as_ref</span>()),
         }
     }
 }
@@ -243,14 +243,14 @@
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
 {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
         <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">Value::deserialize</span>(<span class="ident">deserializer</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">T::deserialize</span>(<span class="ident">value</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">t</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="ident">t</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Err</span>(<span class="ident">Box::new</span>(<span class="ident">error</span>)),
+            <span class="prelude-val">Ok</span>(<span class="ident">t</span>) =&gt; <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="ident">t</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">error</span>) =&gt; <span class="ident"><span class="self">Self</span>::Err</span>(<span class="ident">Box::new</span>(<span class="ident">error</span>)),
         })
     }
 }
@@ -259,13 +259,13 @@
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">Serialize</span>,
 {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">let</span> <span class="ident">option</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">t</span>),
-            <span class="ident"><span class="self">Self</span>::Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">t</span>),
+            <span class="ident"><span class="self">Self</span>::Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         };
 
         <span class="ident">option</span>.<span class="ident">serialize</span>(<span class="ident">serializer</span>)
@@ -276,10 +276,10 @@
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">Clone</span>,
 {
-    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="ident">x</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="ident">x</span>.<span class="ident">clone</span>()),
-            <span class="ident"><span class="self">Self</span>::Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Err</span>(<span class="ident">Box::new</span>(<span class="ident">e</span>.<span class="ident">as_cloned_fail</span>())),
+            <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="ident">x</span>) =&gt; <span class="ident"><span class="self">Self</span>::Ok</span>(<span class="ident">x</span>.<span class="ident">clone</span>()),
+            <span class="ident"><span class="self">Self</span>::Err</span>(<span class="ident">e</span>) =&gt; <span class="ident"><span class="self">Self</span>::Err</span>(<span class="ident">Box::new</span>(<span class="ident">e</span>.<span class="ident">as_cloned_fail</span>())),
         }
     }
 }

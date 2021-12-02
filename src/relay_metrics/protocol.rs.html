@@ -783,17 +783,17 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">DurationPrecision</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::MilliSecond</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">DurationPrecision</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::NanoSecond</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;ns&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::MilliSecond</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;ms&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::Second</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;s&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::NanoSecond</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;ns&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::MilliSecond</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;ms&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::Second</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;s&quot;</span>),
         }
     }
 }
@@ -815,22 +815,22 @@
 
 <span class="kw">impl</span> <span class="ident">MetricUnit</span> {
     <span class="doccomment">/// Returns `true` if the metric_unit is [`None`].</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_none</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_none</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident"><span class="self">Self</span>::None</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">MetricUnit</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">MetricUnit::None</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricUnit</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">MetricUnit::Duration</span>(<span class="ident">precision</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">precision</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricUnit::None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;&quot;</span>),
+            <span class="ident">MetricUnit::Duration</span>(<span class="ident">precision</span>) =&gt; <span class="ident">precision</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
+            <span class="ident">MetricUnit::None</span> =&gt; <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="string">&quot;&quot;</span>),
         }
     }
 }
@@ -838,13 +838,13 @@
 <span class="kw">impl</span> <span class="ident">std::str::FromStr</span> <span class="kw">for</span> <span class="ident">MetricUnit</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseMetricError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">s</span> {
-            <span class="string">&quot;ns&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationPrecision::NanoSecond</span>),
-            <span class="string">&quot;ms&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationPrecision::MilliSecond</span>),
-            <span class="string">&quot;s&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationPrecision::Second</span>),
-            <span class="string">&quot;&quot;</span> <span class="op">|</span> <span class="string">&quot;unit&quot;</span> <span class="op">|</span> <span class="string">&quot;none&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::None</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseMetricError</span>(())),
+            <span class="string">&quot;ns&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationPrecision::NanoSecond</span>),
+            <span class="string">&quot;ms&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationPrecision::MilliSecond</span>),
+            <span class="string">&quot;s&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">DurationPrecision::Second</span>),
+            <span class="string">&quot;&quot;</span> <span class="op">|</span> <span class="string">&quot;unit&quot;</span> <span class="op">|</span> <span class="string">&quot;none&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::None</span>,
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseMetricError</span>(())),
         })
     }
 }
@@ -875,33 +875,33 @@
 
 <span class="kw">impl</span> <span class="ident">MetricValue</span> {
     <span class="doccomment">/// Creates a [`MetricValue::Set`] from the given string.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::Set</span>(<span class="ident">hash_set_value</span>(<span class="ident">string</span>))
     }
 
     <span class="doccomment">/// Creates a [`MetricValue::Set`] from any type that implements `Display`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_from_display</span>(<span class="ident">display</span>: <span class="kw">impl</span> <span class="ident">fmt::Display</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_from_display</span>(<span class="ident">display</span>: <span class="kw">impl</span> <span class="ident">fmt::Display</span>) -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::set_from_str</span>(<span class="kw-2">&amp;</span><span class="ident">display</span>.<span class="ident">to_string</span>())
     }
 
     <span class="doccomment">/// Returns the type of this value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">MetricType</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">MetricType</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Counter</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MetricType::Counter</span>,
-            <span class="ident"><span class="self">Self</span>::Distribution</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MetricType::Distribution</span>,
-            <span class="ident"><span class="self">Self</span>::Set</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MetricType::Set</span>,
-            <span class="ident"><span class="self">Self</span>::Gauge</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MetricType::Gauge</span>,
+            <span class="ident"><span class="self">Self</span>::Counter</span>(<span class="kw">_</span>) =&gt; <span class="ident">MetricType::Counter</span>,
+            <span class="ident"><span class="self">Self</span>::Distribution</span>(<span class="kw">_</span>) =&gt; <span class="ident">MetricType::Distribution</span>,
+            <span class="ident"><span class="self">Self</span>::Set</span>(<span class="kw">_</span>) =&gt; <span class="ident">MetricType::Set</span>,
+            <span class="ident"><span class="self">Self</span>::Gauge</span>(<span class="kw">_</span>) =&gt; <span class="ident">MetricType::Gauge</span>,
         }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricValue</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">MetricValue::Counter</span>(<span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricValue::Distribution</span>(<span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricValue::Set</span>(<span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">MetricValue::Gauge</span>(<span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
+            <span class="ident">MetricValue::Counter</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
+            <span class="ident">MetricValue::Distribution</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
+            <span class="ident">MetricValue::Set</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
+            <span class="ident">MetricValue::Gauge</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
         }
     }
 }
@@ -935,18 +935,18 @@
 
 <span class="kw">impl</span> <span class="ident">MetricType</span> {
     <span class="doccomment">/// Return the shortcode for this metric type.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">MetricType::Counter</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;c&quot;</span>,
-            <span class="ident">MetricType::Distribution</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;d&quot;</span>,
-            <span class="ident">MetricType::Set</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;s&quot;</span>,
-            <span class="ident">MetricType::Gauge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;g&quot;</span>,
+            <span class="ident">MetricType::Counter</span> =&gt; <span class="string">&quot;c&quot;</span>,
+            <span class="ident">MetricType::Distribution</span> =&gt; <span class="string">&quot;d&quot;</span>,
+            <span class="ident">MetricType::Set</span> =&gt; <span class="string">&quot;s&quot;</span>,
+            <span class="ident">MetricType::Gauge</span> =&gt; <span class="string">&quot;g&quot;</span>,
         }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricType</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="self">self</span>.<span class="ident">as_str</span>())
     }
 }
@@ -954,13 +954,13 @@
 <span class="kw">impl</span> <span class="ident">std::str::FromStr</span> <span class="kw">for</span> <span class="ident">MetricType</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseMetricError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">s</span> {
-            <span class="string">&quot;c&quot;</span> <span class="op">|</span> <span class="string">&quot;m&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Counter</span>,
-            <span class="string">&quot;h&quot;</span> <span class="op">|</span> <span class="string">&quot;d&quot;</span> <span class="op">|</span> <span class="string">&quot;ms&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Distribution</span>,
-            <span class="string">&quot;s&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Set</span>,
-            <span class="string">&quot;g&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Gauge</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseMetricError</span>(())),
+            <span class="string">&quot;c&quot;</span> <span class="op">|</span> <span class="string">&quot;m&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Counter</span>,
+            <span class="string">&quot;h&quot;</span> <span class="op">|</span> <span class="string">&quot;d&quot;</span> <span class="op">|</span> <span class="string">&quot;ms&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Distribution</span>,
+            <span class="string">&quot;s&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Set</span>,
+            <span class="string">&quot;g&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Gauge</span>,
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseMetricError</span>(())),
         })
     }
 }
@@ -972,7 +972,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseMetricError</span>(());
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ParseMetricError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;failed to parse metric&quot;</span>)
     }
 }
@@ -981,7 +981,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,</span>
 <span class="doccomment">/// underscores and periods.</span>
-<span class="kw">fn</span> <span class="ident">is_valid_name</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">is_valid_name</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">name</span>.<span class="ident">as_bytes</span>().<span class="ident">iter</span>();
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">first_byte</span>) <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
         <span class="kw">if</span> <span class="ident">first_byte</span>.<span class="ident">is_ascii_alphabetic</span>() {
@@ -995,7 +995,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are</span>
 <span class="doccomment">/// invalid.</span>
-<span class="kw">fn</span> <span class="ident">parse_name_unit</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">MetricUnit</span>)<span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">parse_name_unit</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">MetricUnit</span>)<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">components</span> <span class="op">=</span> <span class="ident">string</span>.<span class="ident">split</span>(<span class="string">&#39;@&#39;</span>);
     <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
     <span class="kw">if</span> <span class="op">!</span><span class="ident">is_valid_name</span>(<span class="ident">name</span>) {
@@ -1003,8 +1003,8 @@
     }
 
     <span class="kw">let</span> <span class="ident">unit</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">components</span>.<span class="ident">next</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>,
-        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MetricUnit::default</span>(),
+        <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>,
+        <span class="prelude-val">None</span> =&gt; <span class="ident">MetricUnit::default</span>(),
     };
 
     <span class="prelude-val">Some</span>((<span class="ident">name</span>.<span class="ident">to_owned</span>(), <span class="ident">unit</span>))
@@ -1014,7 +1014,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Sets only guarantee 32-bit accuracy, but arbitrary strings are allowed on the protocol. Upon</span>
 <span class="doccomment">/// parsing, they are hashed and only used as hashes subsequently.</span>
-<span class="kw">fn</span> <span class="ident">hash_set_value</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+<span class="kw">fn</span> <span class="ident">hash_set_value</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">u32</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hasher</span> <span class="op">=</span> <span class="ident">FnvHasher::default</span>();
     <span class="ident">hasher</span>.<span class="ident">write</span>(<span class="ident">string</span>.<span class="ident">as_bytes</span>());
     <span class="ident">hasher</span>.<span class="ident">finish</span>()
@@ -1023,14 +1023,14 @@
 <span class="doccomment">/// Parses a metric value given its type.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Returns `None` if the value is invalid for the given type.</span>
-<span class="kw">fn</span> <span class="ident">parse_value</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">ty</span>: <span class="ident">MetricType</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MetricValue</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">parse_value</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">ty</span>: <span class="ident">MetricType</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MetricValue</span><span class="op">&gt;</span> {
     <span class="prelude-val">Some</span>(<span class="kw">match</span> <span class="ident">ty</span> {
-        <span class="ident">MetricType::Counter</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MetricValue::Counter</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>),
-        <span class="ident">MetricType::Distribution</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MetricValue::Distribution</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>),
-        <span class="ident">MetricType::Set</span> <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="ident">MetricType::Counter</span> =&gt; <span class="ident">MetricValue::Counter</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>),
+        <span class="ident">MetricType::Distribution</span> =&gt; <span class="ident">MetricValue::Distribution</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>),
+        <span class="ident">MetricType::Set</span> =&gt; {
             <span class="ident">MetricValue::Set</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">hash_set_value</span>(<span class="ident">string</span>)))
         }
-        <span class="ident">MetricType::Gauge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">MetricValue::Gauge</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>),
+        <span class="ident">MetricType::Gauge</span> =&gt; <span class="ident">MetricValue::Gauge</span>(<span class="ident">string</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>),
     })
 }
 
@@ -1041,7 +1041,7 @@
 <span class="kw">fn</span> <span class="ident">parse_name_unit_value</span>(
     <span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
     <span class="ident">ty</span>: <span class="ident">MetricType</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>)<span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>)<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">components</span> <span class="op">=</span> <span class="ident">string</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>);
     <span class="kw">let</span> (<span class="ident">name</span>, <span class="ident">unit</span>) <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>().<span class="ident">and_then</span>(<span class="ident">parse_name_unit</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">parse_value</span>(<span class="ident">s</span>, <span class="ident">ty</span>))<span class="question-mark">?</span>;
@@ -1051,7 +1051,7 @@
 <span class="doccomment">/// Parses tags in the format `tag1,tag2:value`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Tag values are optional. For tags with missing values, an empty `&quot;&quot;` value is assumed.</span>
-<span class="kw">fn</span> <span class="ident">parse_tags</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">parse_tags</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
 
     <span class="kw">for</span> <span class="ident">pair</span> <span class="kw">in</span> <span class="ident">string</span>.<span class="ident">split</span>(<span class="string">&#39;,&#39;</span>) {
@@ -1169,7 +1169,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Metric</span> {
-    <span class="kw">fn</span> <span class="ident">parse_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">parse_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">components</span> <span class="op">=</span> <span class="ident">string</span>.<span class="ident">split</span>(<span class="string">&#39;|&#39;</span>);
 
         <span class="kw">let</span> <span class="ident">name_value_str</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
@@ -1205,7 +1205,7 @@
     <span class="doccomment">/// let metric = Metric::parse(b&quot;response_time@ms:57|d&quot;, UnixTimestamp::now())</span>
     <span class="doccomment">///     .expect(&quot;metric should parse&quot;);</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ParseMetricError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ParseMetricError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">std::str::from_utf8</span>(<span class="ident">slice</span>).<span class="ident">or</span>(<span class="prelude-val">Err</span>(<span class="ident">ParseMetricError</span>(())))<span class="question-mark">?</span>;
         <span class="ident"><span class="self">Self</span>::parse_str</span>(<span class="ident">string</span>, <span class="ident">timestamp</span>).<span class="ident">ok_or</span>(<span class="ident">ParseMetricError</span>(()))
     }
@@ -1234,7 +1234,7 @@
     <span class="doccomment">///     println!(&quot;Metric {}: {}&quot;, metric.name, metric.value);</span>
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_all</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ParseMetrics</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_all</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) -&gt; <span class="ident">ParseMetrics</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
         <span class="ident">ParseMetrics</span> { <span class="ident">slice</span>, <span class="ident">timestamp</span> }
     }
 }
@@ -1247,7 +1247,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ParseMetrics</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">slice</span>: <span class="kw-2">&amp;</span>[],
             <span class="comment">// The timestamp will never be returned.</span>
@@ -1259,19 +1259,19 @@
 <span class="kw">impl</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">ParseMetrics</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Metric</span>, <span class="ident">ParseMetricError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
         <span class="kw">loop</span> {
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">is_empty</span>() {
                 <span class="kw">return</span> <span class="prelude-val">None</span>;
             }
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">split</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span> <span class="op">=</span><span class="op">=</span> <span class="string">b&#39;\n&#39;</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">split</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span> <span class="op">==</span> <span class="string">b&#39;\n&#39;</span>);
             <span class="kw">let</span> <span class="ident">current</span> <span class="op">=</span> <span class="ident">split</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
             <span class="self">self</span>.<span class="ident">slice</span> <span class="op">=</span> <span class="ident">split</span>.<span class="ident">next</span>().<span class="ident">unwrap_or_default</span>();
 
             <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">std::str::from_utf8</span>(<span class="ident">current</span>) {
-                <span class="prelude-val">Ok</span>(<span class="ident">string</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">string</span>.<span class="ident">strip_suffix</span>(<span class="string">&#39;\r&#39;</span>).<span class="ident">unwrap_or</span>(<span class="ident">string</span>),
-                <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(<span class="ident">ParseMetricError</span>(()))),
+                <span class="prelude-val">Ok</span>(<span class="ident">string</span>) =&gt; <span class="ident">string</span>.<span class="ident">strip_suffix</span>(<span class="string">&#39;\r&#39;</span>).<span class="ident">unwrap_or</span>(<span class="ident">string</span>),
+                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(<span class="ident">ParseMetricError</span>(()))),
             };
 
             <span class="kw">if</span> <span class="op">!</span><span class="ident">string</span>.<span class="ident">is_empty</span>() {

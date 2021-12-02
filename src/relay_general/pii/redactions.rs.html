@@ -56,7 +56,7 @@
 </pre><pre class="rust"><code><span class="doccomment">//! Redactions for rules.</span>
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
-<span class="kw">fn</span> <span class="ident">default_replace_text</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+<span class="kw">fn</span> <span class="ident">default_replace_text</span>() -&gt; <span class="ident">String</span> {
     <span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">into</span>()
 }
 
@@ -70,13 +70,13 @@
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ReplaceRedaction</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">text</span>: <span class="ident">String</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ReplaceRedaction</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">text</span>: <span class="ident">String</span>) -&gt; <span class="ident">ReplaceRedaction</span> {
         <span class="ident">ReplaceRedaction</span> { <span class="ident">text</span> }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ReplaceRedaction</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="ident">default_replace_text</span>(),
         }
@@ -104,7 +104,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Redaction</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Redaction</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">Redaction</span> {
         <span class="ident">Redaction::Default</span>
     }
 }

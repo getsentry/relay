@@ -52,7 +52,7 @@
 <span class="doccomment">/// ```</span>
 <span class="attribute">#[<span class="ident">macro_export</span>]</span>
 <span class="macro">macro_rules!</span> <span class="ident">init_test</span> {
-    () <span class="op">=</span><span class="op">&gt;</span> {
+    () =&gt; {
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">crate::__init_test</span>(<span class="macro">::std::module_path!</span>());
     };
 }

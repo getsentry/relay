@@ -310,11 +310,11 @@
 <span class="kw">fn</span> <span class="ident">write_crashpad_annotations</span>(
     <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>,
     <span class="ident">minidump</span>: <span class="kw-2">&amp;</span><span class="ident">Minidump</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">minidump::Error</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">minidump::Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">module_list</span> <span class="op">=</span> <span class="ident">minidump</span>.<span class="ident">get_stream</span>::<span class="op">&lt;</span><span class="ident">MinidumpModuleList</span><span class="op">&gt;</span>()<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">crashpad_info</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">minidump</span>.<span class="ident">get_stream</span>::<span class="op">&lt;</span><span class="ident">MinidumpCrashpadInfo</span><span class="op">&gt;</span>() {
-        <span class="prelude-val">Err</span>(<span class="ident">minidump::Error::StreamNotFound</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
-        <span class="ident">result</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">result</span><span class="question-mark">?</span>,
+        <span class="prelude-val">Err</span>(<span class="ident">minidump::Error::StreamNotFound</span>) =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+        <span class="ident">result</span> =&gt; <span class="ident">result</span><span class="question-mark">?</span>,
     };
 
     <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">Contexts::new</span>);
@@ -345,8 +345,8 @@
         <span class="comment">// exist and crashpad module info with an invalid link can be discarded. Since this is</span>
         <span class="comment">// non-essential information, we skip gracefully and only emit debug logs.</span>
         <span class="kw">let</span> <span class="ident">module</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">modules</span>.<span class="ident">get</span>(<span class="ident">module_info</span>.<span class="ident">module_index</span>) {
-            <span class="prelude-val">Some</span>(<span class="ident">module</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">module</span>,
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">module</span>) =&gt; <span class="ident">module</span>,
+            <span class="prelude-val">None</span> =&gt; {
                 <span class="macro">relay_log::debug!</span>(
                     <span class="string">&quot;Skipping invalid minidump module index {}&quot;</span>,
                     <span class="ident">module_info</span>.<span class="ident">module_index</span>
@@ -414,8 +414,8 @@
     <span class="ident">write_native_placeholder</span>(<span class="ident">event</span>, <span class="ident">placeholder</span>);
 
     <span class="kw">let</span> <span class="ident">minidump</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">Minidump::read</span>(<span class="ident">data</span>) {
-        <span class="prelude-val">Ok</span>(<span class="ident">minidump</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">minidump</span>,
-        <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">minidump</span>) =&gt; <span class="ident">minidump</span>,
+        <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
             <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Failed to parse minidump: {:?}&quot;</span>, <span class="ident">err</span>);
             <span class="kw">return</span>;
         }

@@ -827,7 +827,7 @@
 
 <span class="doccomment">/// Merge a list of intervals into a list of non overlapping intervals.</span>
 <span class="doccomment">/// Assumes that the input intervals are sorted by start time.</span>
-<span class="kw">fn</span> <span class="ident">merge_non_overlapping_intervals</span>(<span class="ident">intervals</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">TimeWindowSpan</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TimeWindowSpan</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">merge_non_overlapping_intervals</span>(<span class="ident">intervals</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">TimeWindowSpan</span>]) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TimeWindowSpan</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">non_overlapping_intervals</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
 
     <span class="comment">// Make sure that there is at least 1 interval present.</span>
@@ -865,7 +865,7 @@
 <span class="doccomment">/// Computes the exclusive time of the source interval after subtracting the</span>
 <span class="doccomment">/// list of intervals.</span>
 <span class="doccomment">/// Assumes that the input intervals are sorted by start time.</span>
-<span class="kw">fn</span> <span class="ident">interval_exclusive_time</span>(<span class="ident">source</span>: <span class="kw-2">&amp;</span><span class="ident">TimeWindowSpan</span>, <span class="ident">intervals</span>: <span class="kw-2">&amp;</span>[<span class="ident">TimeWindowSpan</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">f64</span> {
+<span class="kw">fn</span> <span class="ident">interval_exclusive_time</span>(<span class="ident">source</span>: <span class="kw-2">&amp;</span><span class="ident">TimeWindowSpan</span>, <span class="ident">intervals</span>: <span class="kw-2">&amp;</span>[<span class="ident">TimeWindowSpan</span>]) -&gt; <span class="ident">f64</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">exclusive_time</span> <span class="op">=</span> <span class="number">0.0</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">remaining</span> <span class="op">=</span> <span class="ident">source</span>.<span class="ident">clone</span>();
@@ -915,7 +915,7 @@
     <span class="ident">exclusive_time</span> <span class="op">+</span> <span class="ident">remaining</span>.<span class="ident">duration</span>()
 }
 
-<span class="kw">fn</span> <span class="ident">get_span_interval</span>(<span class="ident">span</span>: <span class="kw-2">&amp;</span><span class="ident">Span</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TimeWindowSpan</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">get_span_interval</span>(<span class="ident">span</span>: <span class="kw-2">&amp;</span><span class="ident">Span</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TimeWindowSpan</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">span</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">span</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
     <span class="prelude-val">Some</span>(<span class="ident">TimeWindowSpan::new</span>(<span class="ident">start</span>, <span class="ident">end</span>))
@@ -924,8 +924,8 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_spans</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>, <span class="ident">attributes</span>: <span class="kw-2">&amp;</span><span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SpanAttribute</span><span class="op">&gt;</span>) {
     <span class="kw">for</span> <span class="ident">attribute</span> <span class="kw">in</span> <span class="ident">attributes</span> {
         <span class="kw">match</span> <span class="ident">attribute</span> {
-            <span class="ident">SpanAttribute::ExclusiveTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">compute_span_exclusive_time</span>(<span class="ident">event</span>),
-            <span class="ident">SpanAttribute::Unknown</span> <span class="op">=</span><span class="op">&gt;</span> (), <span class="comment">// ignored</span>
+            <span class="ident">SpanAttribute::ExclusiveTime</span> =&gt; <span class="ident">compute_span_exclusive_time</span>(<span class="ident">event</span>),
+            <span class="ident">SpanAttribute::Unknown</span> =&gt; (), <span class="comment">// ignored</span>
         }
     }
 }
@@ -939,22 +939,22 @@
     <span class="kw">let</span> <span class="ident">span_interval</span> <span class="op">=</span> <span class="ident">TimeWindowSpan::new</span>(<span class="ident">start</span>, <span class="ident">end</span>);
 
     <span class="kw">let</span> <span class="ident">trace_context</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">contexts</span>.<span class="ident">get_mut</span>(<span class="string">&quot;trace&quot;</span>).<span class="ident">map</span>(<span class="ident">Annotated::value_mut</span>) {
-        <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>)))) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">trace_context</span>,
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+        <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Trace</span>(<span class="ident">trace_context</span>)))) =&gt; <span class="ident">trace_context</span>,
+        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
     };
 
     <span class="kw">let</span> <span class="ident">span_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">trace_context</span>.<span class="ident">span_id</span>.<span class="ident">value</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">span_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">span_id</span>,
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+        <span class="prelude-val">Some</span>(<span class="ident">span_id</span>) =&gt; <span class="ident">span_id</span>,
+        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
     };
 
     <span class="kw">let</span> <span class="ident">child_intervals</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span_map</span>.<span class="ident">get_mut</span>(<span class="ident">span_id</span>) {
-        <span class="prelude-val">Some</span>(<span class="ident">intervals</span>) <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Some</span>(<span class="ident">intervals</span>) =&gt; {
             <span class="comment">// Make sure that the intervals are sorted by start time.</span>
             <span class="ident">intervals</span>.<span class="ident">sort_unstable_by_key</span>(<span class="op">|</span><span class="ident">interval</span><span class="op">|</span> <span class="ident">interval</span>.<span class="ident">start</span>);
             <span class="ident">merge_non_overlapping_intervals</span>(<span class="ident">intervals</span>)
         }
-        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Vec::new</span>(),
+        <span class="prelude-val">None</span> =&gt; <span class="ident">Vec::new</span>(),
     };
 
     <span class="kw">let</span> <span class="ident">exclusive_time</span> <span class="op">=</span> <span class="ident">interval_exclusive_time</span>(<span class="kw-2">&amp;</span><span class="ident">span_interval</span>, <span class="kw-2">&amp;</span><span class="ident">child_intervals</span>);
@@ -964,18 +964,18 @@
 
 <span class="kw">fn</span> <span class="ident">compute_span_exclusive_time</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) {
     <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">value_mut</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">contexts</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">contexts</span>,
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+        <span class="prelude-val">Some</span>(<span class="ident">contexts</span>) =&gt; <span class="ident">contexts</span>,
+        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
     };
 
     <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">timestamp</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="ident">timestamp</span>,
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+        <span class="prelude-val">Some</span>(<span class="ident">timestamp</span>) =&gt; <span class="kw-2">*</span><span class="ident">timestamp</span>,
+        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
     };
 
     <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">timestamp</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="ident">timestamp</span>,
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+        <span class="prelude-val">Some</span>(<span class="ident">timestamp</span>) =&gt; <span class="kw-2">*</span><span class="ident">timestamp</span>,
+        <span class="kw">_</span> =&gt; <span class="kw">return</span>,
     };
 
     <span class="kw">let</span> <span class="ident">spans</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">spans</span>.<span class="ident">value_mut</span>().<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Vec::new</span>());
@@ -984,18 +984,18 @@
 
     <span class="kw">for</span> <span class="ident">span</span> <span class="kw">in</span> <span class="ident">spans</span>.<span class="ident">iter</span>() {
         <span class="kw">let</span> <span class="ident">span</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">value</span>() {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">continue</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">span</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">span</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">span</span>) =&gt; <span class="ident">span</span>,
         };
 
         <span class="kw">let</span> <span class="ident">parent_span_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">parent_span_id</span>.<span class="ident">value</span>() {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">continue</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">parent_span_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">parent_span_id</span>.<span class="ident">clone</span>(),
+            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">parent_span_id</span>) =&gt; <span class="ident">parent_span_id</span>.<span class="ident">clone</span>(),
         };
 
         <span class="kw">let</span> <span class="ident">interval</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">get_span_interval</span>(<span class="ident">span</span>) {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">continue</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">interval</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">interval</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">interval</span>) =&gt; <span class="ident">interval</span>,
         };
 
         <span class="ident">span_map</span>
@@ -1008,27 +1008,27 @@
 
     <span class="kw">for</span> <span class="ident">span</span> <span class="kw">in</span> <span class="ident">spans</span>.<span class="ident">iter_mut</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">span</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">value_mut</span>() {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">continue</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">span</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">span</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">span</span>) =&gt; <span class="ident">span</span>,
         };
 
         <span class="kw">let</span> <span class="ident">span_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span</span>.<span class="ident">span_id</span>.<span class="ident">value</span>() {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">continue</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">span_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">span_id</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">span_id</span>) =&gt; <span class="ident">span_id</span>,
         };
 
         <span class="kw">let</span> <span class="ident">span_interval</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">get_span_interval</span>(<span class="ident">span</span>) {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">continue</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">interval</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">interval</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">interval</span>) =&gt; <span class="ident">interval</span>,
         };
 
         <span class="kw">let</span> <span class="ident">child_intervals</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">span_map</span>.<span class="ident">get_mut</span>(<span class="ident">span_id</span>) {
-            <span class="prelude-val">Some</span>(<span class="ident">intervals</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">intervals</span>) =&gt; {
                 <span class="comment">// Make sure that the intervals are sorted by start time.</span>
                 <span class="ident">intervals</span>.<span class="ident">sort_unstable_by_key</span>(<span class="op">|</span><span class="ident">interval</span><span class="op">|</span> <span class="ident">interval</span>.<span class="ident">start</span>);
                 <span class="ident">merge_non_overlapping_intervals</span>(<span class="ident">intervals</span>)
             }
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Vec::new</span>(),
+            <span class="prelude-val">None</span> =&gt; <span class="ident">Vec::new</span>(),
         };
 
         <span class="kw">let</span> <span class="ident">exclusive_time</span> <span class="op">=</span> <span class="ident">interval_exclusive_time</span>(<span class="kw-2">&amp;</span><span class="ident">span_interval</span>, <span class="kw-2">&amp;</span><span class="ident">child_intervals</span>);
@@ -1051,7 +1051,7 @@
         <span class="ident">end</span>: <span class="ident">Timestamp</span>,
         <span class="ident">span_id</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
         <span class="ident">spans</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Span</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Event</span> {
+    ) -&gt; <span class="ident">Event</span> {
         <span class="ident">Event</span> {
             <span class="ident">ty</span>: <span class="ident">EventType::Transaction</span>.<span class="ident">into</span>(),
             <span class="ident">start_timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">start</span>),
@@ -1082,7 +1082,7 @@
         <span class="ident">end</span>: <span class="ident">Timestamp</span>,
         <span class="ident">span_id</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
         <span class="ident">parent_span_id</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Span</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Span</span><span class="op">&gt;</span> {
         <span class="ident">Annotated::new</span>(<span class="ident">Span</span> {
             <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="ident">op</span>.<span class="ident">into</span>()),
             <span class="ident">description</span>: <span class="ident">Annotated::new</span>(<span class="ident">description</span>.<span class="ident">into</span>()),
@@ -1095,14 +1095,14 @@
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_exclusive_time</span>(<span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">SpanId</span>, <span class="ident">f64</span>) {
+    <span class="kw">fn</span> <span class="ident">extract_exclusive_time</span>(<span class="ident">span</span>: <span class="ident">Span</span>) -&gt; (<span class="ident">SpanId</span>, <span class="ident">f64</span>) {
         (
             <span class="ident">span</span>.<span class="ident">span_id</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>(),
             <span class="ident">span</span>.<span class="ident">exclusive_time</span>.<span class="ident">into_value</span>().<span class="ident">unwrap</span>(),
         )
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>: <span class="ident">Event</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">SpanId</span>, <span class="ident">f64</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">extract_span_exclusive_times</span>(<span class="ident">event</span>: <span class="ident">Event</span>) -&gt; <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">SpanId</span>, <span class="ident">f64</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">exclusive_times</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">SpanId</span>, <span class="ident">f64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">event</span>
             .<span class="ident">clone</span>()
             .<span class="ident">spans</span>

@@ -290,11 +290,11 @@
         <span class="ident">value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">T</span><span class="op">&gt;</span>,
         <span class="ident">_meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+    ) -&gt; <span class="ident">ProcessingResult</span> {
         <span class="comment">// The following skip-conditions are in sync with what the PiiProcessor does.</span>
         <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">value_type</span>().<span class="ident">contains</span>(<span class="ident">ValueType::Boolean</span>)
             <span class="op">|</span><span class="op">|</span> <span class="ident">value</span>.<span class="ident">is_none</span>()
-            <span class="op">|</span><span class="op">|</span> <span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">pii</span> <span class="op">=</span><span class="op">=</span> <span class="ident">Pii::False</span>
+            <span class="op">|</span><span class="op">|</span> <span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">pii</span> <span class="op">==</span> <span class="ident">Pii::False</span>
         {
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
         }
@@ -328,17 +328,17 @@
             <span class="kw">for</span> <span class="ident">value_type</span> <span class="kw">in</span> <span class="ident">substate</span>.<span class="ident">value_type</span>() {
                 <span class="kw">match</span> <span class="ident">value_type</span> {
                     <span class="comment">// $array.0.foo and $object.bar are not particularly good suggestions.</span>
-                    <span class="ident">ValueType::Object</span> <span class="op">|</span> <span class="ident">ValueType::Array</span> <span class="op">=</span><span class="op">&gt;</span> {}
+                    <span class="ident">ValueType::Object</span> <span class="op">|</span> <span class="ident">ValueType::Array</span> =&gt; {}
 
                     <span class="comment">// a.b.c.$string is not a good suggestion, so special case those.</span>
                     <span class="ident">ty</span> @ <span class="ident">ValueType::String</span>
                     <span class="op">|</span> <span class="ident">ty</span> @ <span class="ident">ValueType::Number</span>
                     <span class="op">|</span> <span class="ident">ty</span> @ <span class="ident">ValueType::Boolean</span>
-                    <span class="op">|</span> <span class="ident">ty</span> @ <span class="ident">ValueType::DateTime</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="op">|</span> <span class="ident">ty</span> @ <span class="ident">ValueType::DateTime</span> =&gt; {
                         <span class="ident">insert_path</span>(<span class="ident">SelectorSpec::Path</span>(<span class="macro">vec!</span>[<span class="ident">SelectorPathItem::Type</span>(<span class="ident">ty</span>)]));
                     }
 
-                    <span class="ident">ty</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">ty</span> =&gt; {
                         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">clone</span>();
                         <span class="ident">path</span>.<span class="ident">push</span>(<span class="ident">SelectorPathItem::Type</span>(<span class="ident">ty</span>));
                         <span class="ident">path</span>.<span class="ident">reverse</span>();
@@ -356,7 +356,7 @@
             } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">substate</span>.<span class="ident">path</span>().<span class="ident">index</span>().<span class="ident">is_some</span>() {
                 <span class="ident">path</span>.<span class="ident">push</span>(<span class="ident">SelectorPathItem::Wildcard</span>);
             } <span class="kw">else</span> {
-                <span class="macro">debug_assert!</span>(<span class="ident">substate</span>.<span class="ident">depth</span>() <span class="op">=</span><span class="op">=</span> <span class="number">0</span>);
+                <span class="macro">debug_assert!</span>(<span class="ident">substate</span>.<span class="ident">depth</span>() <span class="op">==</span> <span class="number">0</span>);
                 <span class="kw">break</span>;
             }
         }
@@ -374,7 +374,7 @@
         <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">PairList</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
         <span class="ident">_meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+    ) -&gt; <span class="ident">ProcessingResult</span> {
         <span class="ident">process_pairlist</span>(<span class="self">self</span>, <span class="ident">value</span>, <span class="ident">state</span>)
     }
 }
@@ -393,7 +393,7 @@
 <span class="doccomment">/// on the Processor trait that we internally use to traverse the event.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">selector_suggestions_from_value</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">ProcessValue</span><span class="op">&gt;</span>(
     <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SelectorSuggestion</span><span class="op">&gt;</span> {
+) -&gt; <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SelectorSuggestion</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">GenerateSelectorsProcessor</span> {
         <span class="ident">selectors</span>: <span class="ident">BTreeSet::new</span>(),
     };

@@ -353,13 +353,13 @@
 <span class="kw">impl</span> <span class="ident">StartTime</span> {
     <span class="doccomment">/// Returns the `Instant` of this start time.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_inner</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Instant</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_inner</span>(<span class="self">self</span>) -&gt; <span class="ident">Instant</span> {
         <span class="self">self</span>.<span class="number">0</span>
     }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Middleware</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Metrics</span> {
-    <span class="kw">fn</span> <span class="ident">start</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Started</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">start</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Started</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="ident">req</span>.<span class="ident">extensions_mut</span>().<span class="ident">insert</span>(<span class="ident">StartTime</span>(<span class="ident">Instant::now</span>()));
         <span class="macro">metric!</span>(
             <span class="ident">counter</span>(<span class="ident">RelayCounters::Requests</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
@@ -369,7 +369,7 @@
         <span class="prelude-val">Ok</span>(<span class="ident">Started::Done</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">finish</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">resp</span>: <span class="kw-2">&amp;</span><span class="ident">HttpResponse</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Finished</span> {
+    <span class="kw">fn</span> <span class="ident">finish</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">resp</span>: <span class="kw-2">&amp;</span><span class="ident">HttpResponse</span>) -&gt; <span class="ident">Finished</span> {
         <span class="kw">let</span> <span class="ident">start_time</span> <span class="op">=</span> <span class="ident">req</span>.<span class="ident">extensions</span>().<span class="ident">get</span>::<span class="op">&lt;</span><span class="ident">StartTime</span><span class="op">&gt;</span>().<span class="ident">unwrap</span>().<span class="number">0</span>;
 
         <span class="macro">metric!</span>(
@@ -396,7 +396,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">_request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
         <span class="kw-2">mut</span> <span class="ident">response</span>: <span class="ident">HttpResponse</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="ident">response</span>
             .<span class="ident">headers_mut</span>()
             .<span class="ident">insert</span>(<span class="ident">header::SERVER</span>, <span class="ident">header::HeaderValue::from_static</span>(<span class="ident">SERVER</span>));
@@ -409,9 +409,9 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ErrorHandlers</span>;
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Middleware</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ErrorHandlers</span> {
-    <span class="kw">fn</span> <span class="ident">response</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">resp</span>: <span class="ident">HttpResponse</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">response</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">resp</span>: <span class="ident">HttpResponse</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">if</span> (<span class="ident">resp</span>.<span class="ident">status</span>().<span class="ident">is_server_error</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">resp</span>.<span class="ident">status</span>().<span class="ident">is_client_error</span>())
-            <span class="op">&amp;&amp;</span> <span class="ident">resp</span>.<span class="ident">body</span>() <span class="op">=</span><span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">Body::Empty</span>
+            <span class="op">&amp;&amp;</span> <span class="ident">resp</span>.<span class="ident">body</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">Body::Empty</span>
         {
             <span class="kw">let</span> <span class="ident">reason</span> <span class="op">=</span> <span class="ident">resp</span>.<span class="ident">status</span>().<span class="ident">canonical_reason</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;unknown error&quot;</span>);
             <span class="prelude-val">Ok</span>(<span class="ident">Response::Done</span>(
@@ -432,7 +432,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ReadRequestMiddleware</span>;
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Middleware</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ReadRequestMiddleware</span> {
-    <span class="kw">fn</span> <span class="ident">response</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">resp</span>: <span class="ident">HttpResponse</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">response</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">resp</span>: <span class="ident">HttpResponse</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">SharedPayload::get</span>(<span class="ident">req</span>)
             .<span class="ident">for_each</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="prelude-val">Ok</span>(()))
             .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">resp</span>)
@@ -455,25 +455,25 @@
 
 <span class="kw">impl</span> <span class="ident">SentryMiddleware</span> {
     <span class="doccomment">/// Creates a new sentry middleware.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SentryMiddleware</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="ident">SentryMiddleware</span> {
         <span class="ident">SentryMiddleware</span> {
             <span class="ident">emit_header</span>: <span class="bool-val">false</span>,
             <span class="ident">capture_server_errors</span>: <span class="bool-val">true</span>,
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">new_hub</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Hub</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new_hub</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Hub</span><span class="op">&gt;</span> {
         <span class="ident">Arc::new</span>(<span class="ident">Hub::new_from_top</span>(<span class="ident">Hub::main</span>()))
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">SentryMiddleware</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">SentryMiddleware::new</span>()
     }
 }
 
-<span class="kw">fn</span> <span class="ident">extract_request</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">with_pii</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>, <span class="ident">Request</span>) {
+<span class="kw">fn</span> <span class="ident">extract_request</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">with_pii</span>: <span class="ident">bool</span>) -&gt; (<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>, <span class="ident">Request</span>) {
     <span class="kw">let</span> <span class="ident">resource</span> <span class="op">=</span> <span class="ident">req</span>.<span class="ident">resource</span>();
     <span class="kw">let</span> <span class="ident">transaction</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rdef</span>) <span class="op">=</span> <span class="ident">resource</span>.<span class="ident">rdef</span>() {
         <span class="prelude-val">Some</span>(<span class="ident">rdef</span>.<span class="ident">pattern</span>().<span class="ident">to_string</span>())
@@ -510,7 +510,7 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">Middleware</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SentryMiddleware</span> {
-    <span class="kw">fn</span> <span class="ident">start</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Started</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">start</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Started</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">hub</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">new_hub</span>();
         <span class="kw">let</span> <span class="ident">outer_req</span> <span class="op">=</span> <span class="ident">req</span>;
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">outer_req</span>.<span class="ident">clone</span>();
@@ -559,26 +559,26 @@
         <span class="prelude-val">Ok</span>(<span class="ident">Started::Done</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">response</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="kw-2">mut</span> <span class="ident">resp</span>: <span class="ident">HttpResponse</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">response</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="kw-2">mut</span> <span class="ident">resp</span>: <span class="ident">HttpResponse</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Response</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">capture_server_errors</span> <span class="op">&amp;&amp;</span> <span class="ident">resp</span>.<span class="ident">status</span>().<span class="ident">is_server_error</span>() {
             <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">resp</span>
                 .<span class="ident">error</span>()
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> <span class="ident">Hub::from_request</span>(<span class="ident">req</span>).<span class="ident">capture_actix_error</span>(<span class="ident">error</span>));
 
             <span class="kw">match</span> <span class="ident">event_id</span> {
-                <span class="prelude-val">Some</span>(<span class="ident">event_id</span>) <span class="kw">if</span> <span class="self">self</span>.<span class="ident">emit_header</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">event_id</span>) <span class="kw">if</span> <span class="self">self</span>.<span class="ident">emit_header</span> =&gt; {
                     <span class="ident">resp</span>.<span class="ident">headers_mut</span>().<span class="ident">insert</span>(
                         <span class="string">&quot;x-sentry-event&quot;</span>,
                         <span class="ident">event_id</span>.<span class="ident">to_simple_ref</span>().<span class="ident">to_string</span>().<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
                     );
                 }
-                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {}
+                <span class="kw">_</span> =&gt; {}
             }
         }
         <span class="prelude-val">Ok</span>(<span class="ident">Response::Done</span>(<span class="ident">resp</span>))
     }
 
-    <span class="kw">fn</span> <span class="ident">finish</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">_resp</span>: <span class="kw-2">&amp;</span><span class="ident">HttpResponse</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Finished</span> {
+    <span class="kw">fn</span> <span class="ident">finish</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">_resp</span>: <span class="kw-2">&amp;</span><span class="ident">HttpResponse</span>) -&gt; <span class="ident">Finished</span> {
         <span class="comment">// if we make it to the end of the request we want to first drop the root</span>
         <span class="comment">// scope before we drop the entire hub.  This will first drop the closures</span>
         <span class="comment">// on the scope which in turn will release the circular dependency we have</span>
@@ -598,13 +598,13 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This requires that the `SentryMiddleware` middleware has been enabled or the</span>
     <span class="doccomment">/// call will panic.</span>
-    <span class="kw">fn</span> <span class="ident">from_request</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Hub</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">from_request</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) -&gt; <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Hub</span><span class="op">&gt;</span>;
     <span class="doccomment">/// Captures an actix error on the given hub.</span>
-    <span class="kw">fn</span> <span class="ident">capture_actix_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">err</span>: <span class="kw-2">&amp;</span><span class="ident">Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Uuid</span>;
+    <span class="kw">fn</span> <span class="ident">capture_actix_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">err</span>: <span class="kw-2">&amp;</span><span class="ident">Error</span>) -&gt; <span class="ident">Uuid</span>;
 }
 
 <span class="kw">impl</span> <span class="ident">ActixWebHubExt</span> <span class="kw">for</span> <span class="ident">Hub</span> {
-    <span class="kw">fn</span> <span class="ident">from_request</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Hub</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_request</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) -&gt; <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Hub</span><span class="op">&gt;</span> {
         <span class="ident">req</span>.<span class="ident">extensions</span>()
             .<span class="ident">get</span>::<span class="op">&lt;</span><span class="ident">HubWrapper</span><span class="op">&gt;</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;SentryMiddleware middleware was not registered&quot;</span>)
@@ -612,7 +612,7 @@
             .<span class="ident">clone</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">capture_actix_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">err</span>: <span class="kw-2">&amp;</span><span class="ident">Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Uuid</span> {
+    <span class="kw">fn</span> <span class="ident">capture_actix_error</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">err</span>: <span class="kw-2">&amp;</span><span class="ident">Error</span>) -&gt; <span class="ident">Uuid</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">exceptions</span> <span class="op">=</span> <span class="macro">vec!</span>[];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ptr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw">dyn</span> <span class="ident">Fail</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">err</span>.<span class="ident">as_fail</span>());
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">idx</span> <span class="op">=</span> <span class="number">0</span>;
@@ -627,7 +627,7 @@
             <span class="kw">let</span> <span class="ident">fail</span> <span class="op">=</span> <span class="ident">failure_err</span>.<span class="ident">map_or</span>(<span class="ident">fail</span>, <span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">as_fail</span>());
             <span class="ident">exceptions</span>.<span class="ident">push</span>(<span class="ident">relay_log::exception_from_single_fail</span>(
                 <span class="ident">fail</span>,
-                <span class="kw">if</span> <span class="ident">idx</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span> {
+                <span class="kw">if</span> <span class="ident">idx</span> <span class="op">==</span> <span class="number">0</span> {
                     <span class="prelude-val">Some</span>(<span class="ident">failure_err</span>.<span class="ident">map_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">err</span>.<span class="ident">backtrace</span>(), <span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">err</span>.<span class="ident">backtrace</span>()))
                 } <span class="kw">else</span> {
                     <span class="ident">fail</span>.<span class="ident">backtrace</span>()

@@ -77,7 +77,7 @@
 
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">is_newtype</span>, <span class="ident">parse_field_attributes</span>};
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">derive_empty</span>(<span class="kw-2">mut</span> <span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">TokenStream</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">derive_empty</span>(<span class="kw-2">mut</span> <span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">TokenStream</span> {
     <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">add_bounds</span>(<span class="ident">synstructure::AddBounds::Generics</span>);
 
     <span class="kw">let</span> <span class="ident">is_empty_arms</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">each_variant</span>(<span class="op">|</span><span class="ident">variant</span><span class="op">|</span> {
@@ -132,13 +132,13 @@
     <span class="ident">s</span>.<span class="ident">gen_impl</span>(<span class="macro">quote!</span> {
         <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
         <span class="ident">gen</span> <span class="kw">impl</span> <span class="ident"><span class="kw">crate</span>::types::Empty</span> <span class="kw">for</span> @<span class="self">Self</span> {
-            <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+            <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
                 <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
                     #<span class="ident">is_empty_arms</span>
                 }
             }
 
-            <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+            <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
                 <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
                     #<span class="ident">is_deep_empty_arms</span>
                 }

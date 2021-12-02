@@ -808,7 +808,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ProjectConfig</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">ProjectConfig</span> {
             <span class="ident">allowed_domains</span>: <span class="macro">vec!</span>[<span class="string">&quot;*&quot;</span>.<span class="ident">to_string</span>()],
             <span class="ident">trusted_relays</span>: <span class="macro">vec!</span>[],
@@ -896,7 +896,7 @@
 
 <span class="kw">impl</span> <span class="ident">ProjectState</span> {
     <span class="doccomment">/// Project state for a missing project.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">missing</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">missing</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">ProjectState</span> {
             <span class="ident">project_id</span>: <span class="prelude-val">None</span>,
             <span class="ident">last_change</span>: <span class="prelude-val">None</span>,
@@ -913,42 +913,42 @@
     <span class="doccomment">/// Project state for an unknown but allowed project.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This state is used for forwarding in Proxy mode.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">allowed</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">allowed</span>() -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">ProjectState::missing</span>();
         <span class="ident">state</span>.<span class="ident">disabled</span> <span class="op">=</span> <span class="bool-val">false</span>;
         <span class="ident">state</span>
     }
 
     <span class="doccomment">/// Project state for a deserialization error.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">err</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">err</span>() -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">ProjectState::missing</span>();
         <span class="ident">state</span>.<span class="ident">invalid</span> <span class="op">=</span> <span class="bool-val">true</span>;
         <span class="ident">state</span>
     }
 
     <span class="doccomment">/// Returns configuration options for the public key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_public_key_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PublicKeyConfig</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_public_key_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PublicKeyConfig</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">public_keys</span>.<span class="ident">get</span>(<span class="number">0</span>)
     }
 
     <span class="doccomment">/// Returns `true` if the entire project should be considered</span>
     <span class="doccomment">/// disabled (blackholed, deleted etc.).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">disabled</span>
     }
 
     <span class="doccomment">/// Returns `true` if the project state obtained from the upstream could not be parsed. This</span>
     <span class="doccomment">/// results in events being dropped similar to disabled states, but can provide separate</span>
     <span class="doccomment">/// metrics.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">invalid</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">invalid</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">invalid</span>
     }
 
     <span class="doccomment">/// Returns whether this state is outdated and needs to be refetched.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Expiry</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="ident">Expiry</span> {
         <span class="kw">let</span> <span class="ident">expiry</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">project_id</span> {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">cache_miss_expiry</span>(),
-            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">project_cache_expiry</span>(),
+            <span class="prelude-val">None</span> =&gt; <span class="ident">config</span>.<span class="ident">cache_miss_expiry</span>(),
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="ident">config</span>.<span class="ident">project_cache_expiry</span>(),
         };
 
         <span class="kw">let</span> <span class="ident">elapsed</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">last_fetch</span>.<span class="ident">elapsed</span>();
@@ -962,7 +962,7 @@
     }
 
     <span class="doccomment">/// Returns the project config.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">ProjectConfig</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">ProjectConfig</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>
     }
 
@@ -971,19 +971,19 @@
     <span class="doccomment">/// If the project state has not been loaded, this check is skipped because the project</span>
     <span class="doccomment">/// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint</span>
     <span class="doccomment">/// which comes without a project ID. The id is later overwritten in `check_envelope`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_valid_project_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">stated_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_valid_project_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">stated_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">project_id</span>, <span class="ident">stated_id</span>) {
-            (<span class="prelude-val">Some</span>(<span class="ident">actual_id</span>), <span class="prelude-val">Some</span>(<span class="ident">stated_id</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">actual_id</span> <span class="op">=</span><span class="op">=</span> <span class="ident">stated_id</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
+            (<span class="prelude-val">Some</span>(<span class="ident">actual_id</span>), <span class="prelude-val">Some</span>(<span class="ident">stated_id</span>)) =&gt; <span class="ident">actual_id</span> <span class="op">==</span> <span class="ident">stated_id</span>,
+            <span class="kw">_</span> =&gt; <span class="bool-val">true</span>,
         }
     }
 
     <span class="doccomment">/// Checks if this origin is allowed for this project.</span>
-    <span class="kw">fn</span> <span class="ident">is_valid_origin</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">origin</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Url</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_valid_origin</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">origin</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Url</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="comment">// Generally accept any event without an origin.</span>
         <span class="kw">let</span> <span class="ident">origin</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">origin</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">origin</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">origin</span>,
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="bool-val">true</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">origin</span>) =&gt; <span class="ident">origin</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="bool-val">true</span>,
         };
 
         <span class="comment">// Match against list of allowed origins. If the list is empty we always reject.</span>
@@ -1004,10 +1004,10 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is a sanity check since project states are keyed by the DSN public key. Unless the</span>
     <span class="doccomment">/// state is invalid or unloaded, it must always match the public key.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_matching_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_matching_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key_config</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_public_key_config</span>() {
             <span class="comment">// Always validate if we have a key config.</span>
-            <span class="ident">key_config</span>.<span class="ident">public_key</span> <span class="op">=</span><span class="op">=</span> <span class="ident">project_key</span>
+            <span class="ident">key_config</span>.<span class="ident">public_key</span> <span class="op">==</span> <span class="ident">project_key</span>
         } <span class="kw">else</span> {
             <span class="comment">// Loaded states must have a key config, but ignore missing and invalid states.</span>
             <span class="self">self</span>.<span class="ident">project_id</span>.<span class="ident">is_none</span>()
@@ -1022,7 +1022,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// To get the own scoping of this ProjectKey without amending request information, use</span>
     <span class="doccomment">/// [`Project::scoping`] instead.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scope_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Scoping</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scope_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>) -&gt; <span class="ident">Scoping</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">get_partial_scoping</span>();
 
         <span class="comment">// The key configuration may be missing if the event has been queued for extended times and</span>
@@ -1056,7 +1056,7 @@
     }
 
     <span class="doccomment">/// Returns quotas declared in this project state.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_quotas</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">Quota</span>] {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_quotas</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">Quota</span>] {
         <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">quotas</span>.<span class="ident">as_slice</span>()
     }
 
@@ -1064,10 +1064,10 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If this project state is hard outdated, this returns `Ok(())`, instead, to avoid prematurely</span>
     <span class="doccomment">/// dropping data.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
         <span class="comment">// if the state is out of date, we proceed as if it was still up to date. The</span>
         <span class="comment">// upstream relay (or sentry) will still filter events.</span>
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">check_expiry</span>(<span class="ident">config</span>) <span class="op">=</span><span class="op">=</span> <span class="ident">Expiry::Expired</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">check_expiry</span>(<span class="ident">config</span>) <span class="op">==</span> <span class="ident">Expiry::Expired</span> {
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
         }
 
@@ -1093,7 +1093,7 @@
     <span class="doccomment">///  - Allowed origin headers</span>
     <span class="doccomment">///  - Disabled or unknown projects</span>
     <span class="doccomment">///  - Disabled project keys (DSN)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
         <span class="comment">// Verify that the stated project id in the DSN matches the public key used to retrieve this</span>
         <span class="comment">// project state.</span>
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_valid_project_id</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>()) {
@@ -1118,12 +1118,12 @@
     }
 
     <span class="doccomment">/// Validates data in this project state and removes values that are partially invalid.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sanitize</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sanitize</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">quotas</span>.<span class="ident">retain</span>(<span class="ident">Quota::is_valid</span>);
         <span class="self">self</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_feature</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">feature</span>: <span class="ident">Feature</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_feature</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">feature</span>: <span class="ident">Feature</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">features</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">feature</span>)
     }
 }
@@ -1147,7 +1147,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">StateChannel</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> (<span class="ident">sender</span>, <span class="ident">receiver</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
         <span class="self">Self</span> {
             <span class="ident">sender</span>,
@@ -1156,12 +1156,12 @@
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">no_cache</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">no_cache</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">no_cache</span> <span class="op">=</span> <span class="ident">no_cache</span>;
         <span class="self">self</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receiver</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receiver</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">clone</span>()
     }
 
@@ -1187,7 +1187,7 @@
 
 <span class="kw">impl</span> <span class="ident">Project</span> {
     <span class="doccomment">/// Creates a new `Project`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">key</span>: <span class="ident">ProjectKey</span>, <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">key</span>: <span class="ident">ProjectKey</span>, <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">Project</span> {
             <span class="ident">last_updated_at</span>: <span class="ident">Instant::now</span>(),
             <span class="ident">project_key</span>: <span class="ident">key</span>,
@@ -1212,17 +1212,17 @@
     }
 
     <span class="doccomment">/// Returns a reference to the project state if available.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">ProjectState</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">ProjectState</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">as_deref</span>()
     }
 
     <span class="doccomment">/// Returns a reference to the project state if available.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">state_clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">state_clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">clone</span>()
     }
 
     <span class="doccomment">/// The last time the project state was updated</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">last_updated_at</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Instant</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">last_updated_at</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Instant</span> {
         <span class="self">self</span>.<span class="ident">last_updated_at</span>
     }
 
@@ -1256,7 +1256,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_or_fetch_state</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="kw-2">mut</span> <span class="ident">no_cache</span>: <span class="ident">bool</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span> {
         <span class="comment">// count number of times we are looking for the project state</span>
         <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::ProjectStateGet</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
 
@@ -1277,24 +1277,24 @@
 
         <span class="kw">let</span> <span class="ident">cached_state</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">state</span>, <span class="ident">expiry</span>) {
             <span class="comment">// Never use the cached state if `no_cache` is set.</span>
-            <span class="kw">_</span> <span class="kw">if</span> <span class="ident">no_cache</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="kw">if</span> <span class="ident">no_cache</span> =&gt; <span class="prelude-val">None</span>,
 
             <span class="comment">// There is no project state that can be used, fetch a state and return it.</span>
-            (<span class="prelude-val">None</span>, <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="ident">Expiry::Expired</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            (<span class="prelude-val">None</span>, <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="ident">Expiry::Expired</span>) =&gt; <span class="prelude-val">None</span>,
 
             <span class="comment">// The project is semi-outdated, fetch new state but return old one.</span>
-            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Expiry::Stale</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
+            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Expiry::Stale</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
 
             <span class="comment">// The project is not outdated, return early here to jump over fetching logic below.</span>
-            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Expiry::Updated</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="ident">Response::ok</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
+            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="ident">Expiry::Updated</span>) =&gt; <span class="kw">return</span> <span class="ident">Response::ok</span>(<span class="ident">state</span>.<span class="ident">clone</span>()),
         };
 
         <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">channel</span>) <span class="kw">if</span> <span class="ident">channel</span>.<span class="ident">no_cache</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">no_cache</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">channel</span>) <span class="kw">if</span> <span class="ident">channel</span>.<span class="ident">no_cache</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">no_cache</span> =&gt; {
                 <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state request amended&quot;</span>, <span class="self">self</span>.<span class="ident">project_key</span>);
                 <span class="ident">channel</span>.<span class="ident">receiver</span>()
             }
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="kw">_</span> =&gt; {
                 <span class="macro">relay_log::debug!</span>(<span class="string">&quot;project {} state requested&quot;</span>, <span class="self">self</span>.<span class="ident">project_key</span>);
 
                 <span class="kw">let</span> <span class="ident">receiver</span> <span class="op">=</span> <span class="self">self</span>
@@ -1325,8 +1325,8 @@
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_state</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">state_result</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectStateResponse</span><span class="op">&gt;</span>, <span class="ident">no_cache</span>: <span class="ident">bool</span>) {
         <span class="kw">let</span> <span class="ident">channel</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state_channel</span>.<span class="ident">take</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">channel</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">channel</span>,
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">channel</span>) =&gt; <span class="ident">channel</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
         };
 
         <span class="comment">// If the channel has `no_cache` set but we are not a `no_cache` request, we have</span>
@@ -1355,7 +1355,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Returns `Some` if the project state has been fetched and contains a project identifier,</span>
     <span class="doccomment">/// otherwise `None`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scoping</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Scoping</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">scoping</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Scoping</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>()<span class="question-mark">?</span>;
         <span class="prelude-val">Some</span>(<span class="ident">Scoping</span> {
             <span class="ident">organization_id</span>: <span class="ident">state</span>.<span class="ident">organization_id</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>),
@@ -1372,10 +1372,10 @@
     <span class="doccomment">/// If the project state is loaded, information from the project state is merged into the</span>
     <span class="doccomment">/// request&#39;s scoping. Otherwise, this function returns partial scoping from the `request_meta`.</span>
     <span class="doccomment">/// See [`RequestMeta::get_partial_scoping`] for more information.</span>
-    <span class="kw">fn</span> <span class="ident">scope_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Scoping</span> {
+    <span class="kw">fn</span> <span class="ident">scope_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>) -&gt; <span class="ident">Scoping</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">state</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">state</span>.<span class="ident">scope_request</span>(<span class="ident">meta</span>),
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">meta</span>.<span class="ident">get_partial_scoping</span>(),
+            <span class="prelude-val">Some</span>(<span class="ident">state</span>) =&gt; <span class="ident">state</span>.<span class="ident">scope_request</span>(<span class="ident">meta</span>),
+            <span class="prelude-val">None</span> =&gt; <span class="ident">meta</span>.<span class="ident">get_partial_scoping</span>(),
         }
     }
 
@@ -1383,7 +1383,7 @@
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="kw-2">mut</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
         <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CheckedEnvelope</span>, <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CheckedEnvelope</span>, <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>() {
             <span class="ident">state</span>.<span class="ident">check_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>(), <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>)<span class="question-mark">?</span>;
         }
@@ -1410,7 +1410,7 @@
         })
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_envelope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">envelope</span>: <span class="ident">Envelope</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">CheckEnvelopeResponse</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_envelope</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">envelope</span>: <span class="ident">Envelope</span>) -&gt; <span class="ident">CheckEnvelopeResponse</span> {
         <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">scope_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>());
         <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">check_envelope_scoped</span>(<span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="ident">scoping</span>);
         <span class="ident">CheckEnvelopeResponse</span> { <span class="ident">result</span>, <span class="ident">scoping</span> }

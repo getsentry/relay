@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `&#x2F;home&#x2F;runner&#x2F;work&#x2F;relay&#x2F;relay&#x2F;target&#x2F;debug&#x2F;build&#x2F;relay-crash-8d1b3b50ece43941&#x2F;out&#x2F;bindings.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bindings.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../../../../../../../../../../storage.js"></script><script src="../../../../../../../../../../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../favicon.svg"><style type="text/css">#crate-search{background-image:url("../../../../../../../../../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../../../../../../../../../../relay_crash/index.html'><div class='logo-container rust-logo'><img src='../../../../../../../../../../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../../../../../../../../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../../../../../../../../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../../../../../../../../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `&#x2F;home&#x2F;runner&#x2F;work&#x2F;relay&#x2F;relay&#x2F;target&#x2F;debug&#x2F;build&#x2F;relay-crash-8ff2a8a552a607a8&#x2F;out&#x2F;bindings.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bindings.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../../../../../../../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../../../../../../../../../../storage.js"></script><script src="../../../../../../../../../../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../../../../../../../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../../../../../../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../../../../../../../../../favicon.svg"><style type="text/css">#crate-search{background-image:url("../../../../../../../../../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../../../../../../../../../../relay_crash/index.html'><div class='logo-container rust-logo'><img src='../../../../../../../../../../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../../../../../../../../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../../../../../../../../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../../../../../../../../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -5885,38 +5885,38 @@
     );
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">imaxabs</span>(<span class="ident">__n</span>: <span class="ident">intmax_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">intmax_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">imaxabs</span>(<span class="ident">__n</span>: <span class="ident">intmax_t</span>) -&gt; <span class="ident">intmax_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">imaxdiv</span>(<span class="ident">__numer</span>: <span class="ident">intmax_t</span>, <span class="ident">__denom</span>: <span class="ident">intmax_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">imaxdiv_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">imaxdiv</span>(<span class="ident">__numer</span>: <span class="ident">intmax_t</span>, <span class="ident">__denom</span>: <span class="ident">intmax_t</span>) -&gt; <span class="ident">imaxdiv_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">strtoimax</span>(
         <span class="ident">__nptr</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
         <span class="ident">__endptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_char</span>,
         <span class="ident">__base</span>: <span class="ident">::std::os::raw::c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">intmax_t</span>;
+    ) -&gt; <span class="ident">intmax_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">strtoumax</span>(
         <span class="ident">__nptr</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
         <span class="ident">__endptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_char</span>,
         <span class="ident">__base</span>: <span class="ident">::std::os::raw::c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">uintmax_t</span>;
+    ) -&gt; <span class="ident">uintmax_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">wcstoimax</span>(
         <span class="ident">__nptr</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">__gwchar_t</span>,
         <span class="ident">__endptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">__gwchar_t</span>,
         <span class="ident">__base</span>: <span class="ident">::std::os::raw::c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">intmax_t</span>;
+    ) -&gt; <span class="ident">intmax_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">wcstoumax</span>(
         <span class="ident">__nptr</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">__gwchar_t</span>,
         <span class="ident">__endptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">__gwchar_t</span>,
         <span class="ident">__base</span>: <span class="ident">::std::os::raw::c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">uintmax_t</span>;
+    ) -&gt; <span class="ident">uintmax_t</span>;
 }
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">va_list</span> <span class="op">=</span> <span class="ident">__builtin_va_list</span>;
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__gnuc_va_list</span> <span class="op">=</span> <span class="ident">__builtin_va_list</span>;
@@ -6040,7 +6040,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">sigval</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">sigval</span> {
     <span class="kw">pub</span> <span class="ident">sival_int</span>: <span class="ident">::std::os::raw::c_int</span>,
     <span class="kw">pub</span> <span class="ident">sival_ptr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
 }
@@ -6089,7 +6089,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">siginfo_t__bindgen_ty_1</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">siginfo_t__bindgen_ty_1</span> {
     <span class="kw">pub</span> <span class="ident">_pad</span>: [<span class="ident">::std::os::raw::c_int</span>; <span class="number">28usize</span>],
     <span class="kw">pub</span> <span class="ident">_kill</span>: <span class="ident">siginfo_t__bindgen_ty_1__bindgen_ty_1</span>,
     <span class="kw">pub</span> <span class="ident">_timer</span>: <span class="ident">siginfo_t__bindgen_ty_1__bindgen_ty_2</span>,
@@ -6382,7 +6382,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">siginfo_t__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">siginfo_t__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1</span> {
     <span class="kw">pub</span> <span class="ident">_addr_bnd</span>: <span class="ident">siginfo_t__bindgen_ty_1__bindgen_ty_5__bindgen_ty_1__bindgen_ty_1</span>,
     <span class="kw">pub</span> <span class="ident">_pkey</span>: <span class="ident">__uint32_t</span>,
 }
@@ -6893,7 +6893,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">sigevent__bindgen_ty_1</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">sigevent__bindgen_ty_1</span> {
     <span class="kw">pub</span> <span class="ident">_pad</span>: [<span class="ident">::std::os::raw::c_int</span>; <span class="number">12usize</span>],
     <span class="kw">pub</span> <span class="ident">_tid</span>: <span class="ident">__pid_t</span>,
     <span class="kw">pub</span> <span class="ident">_sigev_thread</span>: <span class="ident">sigevent__bindgen_ty_1__bindgen_ty_1</span>,
@@ -7056,25 +7056,25 @@
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">__sighandler_t</span> <span class="op">=</span> <span class="ident">::std::option::Option</span><span class="op">&lt;</span><span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(<span class="ident">arg1</span>: <span class="ident">::std::os::raw::c_int</span>)<span class="op">&gt;</span>;
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">__sysv_signal</span>(<span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>, <span class="ident">__handler</span>: <span class="ident">__sighandler_t</span>)
-        <span class="op">-</span><span class="op">&gt;</span> <span class="ident">__sighandler_t</span>;
+        -&gt; <span class="ident">__sighandler_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">signal</span>(<span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>, <span class="ident">__handler</span>: <span class="ident">__sighandler_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">__sighandler_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">signal</span>(<span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>, <span class="ident">__handler</span>: <span class="ident">__sighandler_t</span>) -&gt; <span class="ident">__sighandler_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kill</span>(<span class="ident">__pid</span>: <span class="ident">__pid_t</span>, <span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kill</span>(<span class="ident">__pid</span>: <span class="ident">__pid_t</span>, <span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">killpg</span>(<span class="ident">__pgrp</span>: <span class="ident">__pid_t</span>, <span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">killpg</span>(<span class="ident">__pgrp</span>: <span class="ident">__pid_t</span>, <span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">raise</span>(<span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">raise</span>(<span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ssignal</span>(<span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>, <span class="ident">__handler</span>: <span class="ident">__sighandler_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">__sighandler_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ssignal</span>(<span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>, <span class="ident">__handler</span>: <span class="ident">__sighandler_t</span>) -&gt; <span class="ident">__sighandler_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">gsignal</span>(<span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">gsignal</span>(<span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">psignal</span>(<span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>, <span class="ident">__s</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>);
@@ -7083,34 +7083,34 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">psiginfo</span>(<span class="ident">__pinfo</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">siginfo_t</span>, <span class="ident">__s</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>);
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigblock</span>(<span class="ident">__mask</span>: <span class="ident">::std::os::raw::c_int</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigblock</span>(<span class="ident">__mask</span>: <span class="ident">::std::os::raw::c_int</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigsetmask</span>(<span class="ident">__mask</span>: <span class="ident">::std::os::raw::c_int</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigsetmask</span>(<span class="ident">__mask</span>: <span class="ident">::std::os::raw::c_int</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">siggetmask</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">siggetmask</span>() -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">sig_t</span> <span class="op">=</span> <span class="ident">__sighandler_t</span>;
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigemptyset</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigset_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigemptyset</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigset_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigfillset</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigset_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigfillset</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigset_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigaddset</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigset_t</span>, <span class="ident">__signo</span>: <span class="ident">::std::os::raw::c_int</span>)
-        <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+        -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigdelset</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigset_t</span>, <span class="ident">__signo</span>: <span class="ident">::std::os::raw::c_int</span>)
-        <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+        -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigismember</span>(
         <span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sigset_t</span>,
         <span class="ident">__signo</span>: <span class="ident">::std::os::raw::c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
@@ -7122,7 +7122,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">sigaction__bindgen_ty_1</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">sigaction__bindgen_ty_1</span> {
     <span class="kw">pub</span> <span class="ident">sa_handler</span>: <span class="ident">__sighandler_t</span>,
     <span class="kw">pub</span> <span class="ident">sa_sigaction</span>: <span class="ident">::std::option::Option</span><span class="op">&lt;</span>
         <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(
@@ -7227,43 +7227,43 @@
         <span class="ident">__how</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sigset_t</span>,
         <span class="ident">__oset</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigset_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigsuspend</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sigset_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigsuspend</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sigset_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigaction</span>(
         <span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">__act</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sigaction</span>,
         <span class="ident">__oact</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigaction</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigpending</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigset_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigpending</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigset_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigwait</span>(
         <span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sigset_t</span>,
         <span class="ident">__sig</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigwaitinfo</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sigset_t</span>, <span class="ident">__info</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">siginfo_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigwaitinfo</span>(<span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sigset_t</span>, <span class="ident">__info</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">siginfo_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigtimedwait</span>(
         <span class="ident">__set</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sigset_t</span>,
         <span class="ident">__info</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">siginfo_t</span>,
         <span class="ident">__timeout</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">timespec</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigqueue</span>(
         <span class="ident">__pid</span>: <span class="ident">__pid_t</span>,
         <span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">__val</span>: <span class="ident">sigval</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">static</span> <span class="ident">_sys_siglist</span>: [<span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>; <span class="number">65usize</span>];
@@ -7632,7 +7632,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">sigcontext__bindgen_ty_1</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">sigcontext__bindgen_ty_1</span> {
     <span class="kw">pub</span> <span class="ident">fpstate</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">_fpstate</span>,
     <span class="kw">pub</span> <span class="ident">__fpstate_word</span>: <span class="ident">__uint64_t</span>,
 }
@@ -8085,7 +8085,7 @@
     );
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigreturn</span>(<span class="ident">__scp</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigcontext</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigreturn</span>(<span class="ident">__scp</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigcontext</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
@@ -8504,13 +8504,13 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">siginterrupt</span>(
         <span class="ident">__sig</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">__interrupt</span>: <span class="ident">::std::os::raw::c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SS_ONSTACK</span>: <span class="ident">::std::os::raw::c_uint</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SS_DISABLE</span>: <span class="ident">::std::os::raw::c_uint</span> <span class="op">=</span> <span class="number">2</span>;
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">_bindgen_ty_9</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_uint</span>;
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigaltstack</span>(<span class="ident">__ss</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">stack_t</span>, <span class="ident">__oss</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">stack_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigaltstack</span>(<span class="ident">__ss</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">stack_t</span>, <span class="ident">__oss</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">stack_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
@@ -8552,7 +8552,7 @@
     );
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigstack</span>(<span class="ident">__ss</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigstack</span>, <span class="ident">__oss</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigstack</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigstack</span>(<span class="ident">__ss</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigstack</span>, <span class="ident">__oss</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sigstack</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
@@ -8904,7 +8904,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">__pthread_cond_s__bindgen_ty_1</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">__pthread_cond_s__bindgen_ty_1</span> {
     <span class="kw">pub</span> <span class="ident">__wseq</span>: <span class="ident">::std::os::raw::c_ulonglong</span>,
     <span class="kw">pub</span> <span class="ident">__wseq32</span>: <span class="ident">__pthread_cond_s__bindgen_ty_1__bindgen_ty_1</span>,
 }
@@ -8998,7 +8998,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">__pthread_cond_s__bindgen_ty_2</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">__pthread_cond_s__bindgen_ty_2</span> {
     <span class="kw">pub</span> <span class="ident">__g1_start</span>: <span class="ident">::std::os::raw::c_ulonglong</span>,
     <span class="kw">pub</span> <span class="ident">__g1_start32</span>: <span class="ident">__pthread_cond_s__bindgen_ty_2__bindgen_ty_1</span>,
 }
@@ -9158,7 +9158,7 @@
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">pthread_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_ulong</span>;
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">pthread_mutexattr_t</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">pthread_mutexattr_t</span> {
     <span class="kw">pub</span> <span class="ident">__size</span>: [<span class="ident">::std::os::raw::c_char</span>; <span class="number">4usize</span>],
     <span class="kw">pub</span> <span class="ident">__align</span>: <span class="ident">::std::os::raw::c_int</span>,
 }
@@ -9197,7 +9197,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">pthread_condattr_t</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">pthread_condattr_t</span> {
     <span class="kw">pub</span> <span class="ident">__size</span>: [<span class="ident">::std::os::raw::c_char</span>; <span class="number">4usize</span>],
     <span class="kw">pub</span> <span class="ident">__align</span>: <span class="ident">::std::os::raw::c_int</span>,
 }
@@ -9238,7 +9238,7 @@
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">pthread_once_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">pthread_attr_t</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">pthread_attr_t</span> {
     <span class="kw">pub</span> <span class="ident">__size</span>: [<span class="ident">::std::os::raw::c_char</span>; <span class="number">56usize</span>],
     <span class="kw">pub</span> <span class="ident">__align</span>: <span class="ident">::std::os::raw::c_long</span>,
 }
@@ -9277,7 +9277,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">pthread_mutex_t</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">pthread_mutex_t</span> {
     <span class="kw">pub</span> <span class="ident">__data</span>: <span class="ident">__pthread_mutex_s</span>,
     <span class="kw">pub</span> <span class="ident">__size</span>: [<span class="ident">::std::os::raw::c_char</span>; <span class="number">40usize</span>],
     <span class="kw">pub</span> <span class="ident">__align</span>: <span class="ident">::std::os::raw::c_long</span>,
@@ -9327,7 +9327,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">pthread_cond_t</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">pthread_cond_t</span> {
     <span class="kw">pub</span> <span class="ident">__data</span>: <span class="ident">__pthread_cond_s</span>,
     <span class="kw">pub</span> <span class="ident">__size</span>: [<span class="ident">::std::os::raw::c_char</span>; <span class="number">48usize</span>],
     <span class="kw">pub</span> <span class="ident">__align</span>: <span class="ident">::std::os::raw::c_longlong</span>,
@@ -9377,7 +9377,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">pthread_rwlock_t</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">pthread_rwlock_t</span> {
     <span class="kw">pub</span> <span class="ident">__data</span>: <span class="ident">__pthread_rwlock_arch_t</span>,
     <span class="kw">pub</span> <span class="ident">__size</span>: [<span class="ident">::std::os::raw::c_char</span>; <span class="number">56usize</span>],
     <span class="kw">pub</span> <span class="ident">__align</span>: <span class="ident">::std::os::raw::c_long</span>,
@@ -9427,7 +9427,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">pthread_rwlockattr_t</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">pthread_rwlockattr_t</span> {
     <span class="kw">pub</span> <span class="ident">__size</span>: [<span class="ident">::std::os::raw::c_char</span>; <span class="number">8usize</span>],
     <span class="kw">pub</span> <span class="ident">__align</span>: <span class="ident">::std::os::raw::c_long</span>,
 }
@@ -9467,7 +9467,7 @@
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">pthread_spinlock_t</span> <span class="op">=</span> <span class="ident">::std::os::raw::c_int</span>;
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">pthread_barrier_t</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">pthread_barrier_t</span> {
     <span class="kw">pub</span> <span class="ident">__size</span>: [<span class="ident">::std::os::raw::c_char</span>; <span class="number">32usize</span>],
     <span class="kw">pub</span> <span class="ident">__align</span>: <span class="ident">::std::os::raw::c_long</span>,
 }
@@ -9506,7 +9506,7 @@
 }
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">pthread_barrierattr_t</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">pthread_barrierattr_t</span> {
     <span class="kw">pub</span> <span class="ident">__size</span>: [<span class="ident">::std::os::raw::c_char</span>; <span class="number">4usize</span>],
     <span class="kw">pub</span> <span class="ident">__align</span>: <span class="ident">::std::os::raw::c_int</span>,
 }
@@ -9548,23 +9548,23 @@
         <span class="ident">__how</span>: <span class="ident">::std::os::raw::c_int</span>,
         <span class="ident">__newmask</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">__sigset_t</span>,
         <span class="ident">__oldmask</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">__sigset_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pthread_kill</span>(
         <span class="ident">__threadid</span>: <span class="ident">pthread_t</span>,
         <span class="ident">__signo</span>: <span class="ident">::std::os::raw::c_int</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">__libc_current_sigrtmin</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">__libc_current_sigrtmin</span>() -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">__libc_current_sigrtmax</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">__libc_current_sigrtmax</span>() -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Allocates memory with the underlying allocator.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_malloc</span>(<span class="ident">size</span>: <span class="ident">size_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_malloc</span>(<span class="ident">size</span>: <span class="ident">size_t</span>) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Releases memory allocated from the underlying allocator.&quot;</span>]</span>
@@ -9595,7 +9595,7 @@
 <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; the module list.&quot;</span>]</span>
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">sentry_value_u</span> {
+<span class="kw">pub</span> <span class="kw">union</span> <span class="ident">sentry_value_u</span> {
     <span class="kw">pub</span> <span class="ident">_bits</span>: <span class="ident">u64</span>,
     <span class="kw">pub</span> <span class="ident">_double</span>: <span class="ident">f64</span>,
 }
@@ -9643,7 +9643,7 @@
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns the refcount of a value.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_refcount</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">size_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_refcount</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="ident">size_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Freezes a value.&quot;</span>]</span>
@@ -9651,39 +9651,39 @@
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Checks if a value is frozen.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_is_frozen</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_is_frozen</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a null value.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_null</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_null</span>() -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new 32-bit signed integer value.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_int32</span>(<span class="ident">value</span>: <span class="ident">i32</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_int32</span>(<span class="ident">value</span>: <span class="ident">i32</span>) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new double value.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_double</span>(<span class="ident">value</span>: <span class="ident">f64</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_double</span>(<span class="ident">value</span>: <span class="ident">f64</span>) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new boolen value.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_bool</span>(<span class="ident">value</span>: <span class="ident">::std::os::raw::c_int</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_bool</span>(<span class="ident">value</span>: <span class="ident">::std::os::raw::c_int</span>) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new null terminated string.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_string</span>(<span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_string</span>(<span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new list value.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_list</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_list</span>() -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new object.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_object</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_object</span>() -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns the type of the value passed.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_get_type</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_type_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_get_type</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="ident">sentry_value_type_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Sets a key to a value in the map.&quot;</span>]</span>
@@ -9694,21 +9694,21 @@
         <span class="ident">value</span>: <span class="ident">sentry_value_t</span>,
         <span class="ident">k</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
         <span class="ident">v</span>: <span class="ident">sentry_value_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; This removes a value from the map by key.&quot;</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_remove_by_key</span>(
         <span class="ident">value</span>: <span class="ident">sentry_value_t</span>,
         <span class="ident">k</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Appends a value to a list.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; This moves the ownership of the value into the list.  The caller does not&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; have to call `sentry_value_decref` on it.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_append</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>, <span class="ident">v</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_append</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>, <span class="ident">v</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Inserts a value into the list at a certain position.&quot;</span>]</span>
@@ -9722,14 +9722,14 @@
         <span class="ident">value</span>: <span class="ident">sentry_value_t</span>,
         <span class="ident">index</span>: <span class="ident">size_t</span>,
         <span class="ident">v</span>: <span class="ident">sentry_value_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; This removes a value from the list by index.&quot;</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_remove_by_index</span>(
         <span class="ident">value</span>: <span class="ident">sentry_value_t</span>,
         <span class="ident">index</span>: <span class="ident">size_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Looks up a value in a map by key.  If missing a null value is returned.&quot;</span>]</span>
@@ -9737,7 +9737,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_get_by_key</span>(
         <span class="ident">value</span>: <span class="ident">sentry_value_t</span>,
         <span class="ident">k</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    ) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Looks up a value in a map by key.  If missing a null value is returned.&quot;</span>]</span>
@@ -9748,12 +9748,12 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_get_by_key_owned</span>(
         <span class="ident">value</span>: <span class="ident">sentry_value_t</span>,
         <span class="ident">k</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    ) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Looks up a value in a list by index.  If missing a null value is returned.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; The returned value is borrowed.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_get_by_index</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>, <span class="ident">index</span>: <span class="ident">size_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_get_by_index</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>, <span class="ident">index</span>: <span class="ident">size_t</span>) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Looks up a value in a list by index.  If missing a null value is&quot;</span>]</span>
@@ -9761,40 +9761,40 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; If the caller no longer needs the value it must be released with&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; `sentry_value_decref`.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_get_by_index_owned</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>, <span class="ident">index</span>: <span class="ident">size_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_get_by_index_owned</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>, <span class="ident">index</span>: <span class="ident">size_t</span>) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns the length of the given map or list.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; If an item is not a list or map the return value is 0.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_get_length</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">size_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_get_length</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="ident">size_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Converts a value into a 32bit signed integer.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_as_int32</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i32</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_as_int32</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="ident">i32</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Converts a value into a double value.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_as_double</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">f64</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_as_double</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="ident">f64</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns the value as c string.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_as_string</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_as_string</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns `true` if the value is boolean true.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_is_true</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_is_true</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns `true` if the value is null.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_is_null</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_is_null</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Serialize a sentry value to JSON.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; The string is freshly allocated and must be freed with&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; `sentry_string_free`.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_to_json</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_char</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_to_json</span>(<span class="ident">value</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">sentry_level_e_SENTRY_LEVEL_DEBUG</span>: <span class="ident">sentry_level_e</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">sentry_level_e_SENTRY_LEVEL_INFO</span>: <span class="ident">sentry_level_e</span> <span class="op">=</span> <span class="number">0</span>;
@@ -9811,7 +9811,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; See https://docs.sentry.io/platforms/native/enriching-events/ for how to&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; further work with events, and https://develop.sentry.dev/sdk/event-payloads/&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; for a detailed overview of the possible properties of an Event.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_event</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_event</span>() -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new Message Event value.&quot;</span>]</span>
@@ -9823,7 +9823,7 @@
         <span class="ident">level</span>: <span class="ident">sentry_level_t</span>,
         <span class="ident">logger</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
         <span class="ident">text</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    ) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new Breadcrumb with a specific type and message.&quot;</span>]</span>
@@ -9834,7 +9834,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_breadcrumb</span>(
         <span class="ident">type_</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
         <span class="ident">message</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    ) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new Exception value.&quot;</span>]</span>
@@ -9850,7 +9850,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_exception</span>(
         <span class="ident">type_</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
         <span class="ident">value</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    ) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new Thread value.&quot;</span>]</span>
@@ -9861,7 +9861,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; `sentry_event_add_thread`.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; `name` can be NULL.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_thread</span>(<span class="ident">id</span>: <span class="ident">u64</span>, <span class="ident">name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_thread</span>(<span class="ident">id</span>: <span class="ident">u64</span>, <span class="ident">name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new Stack Trace conforming to the Stack Trace Interface.&quot;</span>]</span>
@@ -9876,7 +9876,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_new_stacktrace</span>(
         <span class="ident">ips</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
         <span class="ident">len</span>: <span class="ident">size_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    ) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Adds an Exception to an Event value.&quot;</span>]</span>
@@ -9899,7 +9899,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_value_to_msgpack</span>(
         <span class="ident">value</span>: <span class="ident">sentry_value_t</span>,
         <span class="ident">size_out</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">size_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_char</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Adds a stack trace to an event.&quot;</span>]</span>
@@ -9987,7 +9987,7 @@
         <span class="ident">addr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
         <span class="ident">stacktrace_out</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
         <span class="ident">max_len</span>: <span class="ident">size_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">size_t</span>;
+    ) -&gt; <span class="ident">size_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Unwinds the stack from the given context.&quot;</span>]</span>
@@ -10002,7 +10002,7 @@
         <span class="ident">uctx</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_ucontext_t</span>,
         <span class="ident">stacktrace_out</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
         <span class="ident">max_len</span>: <span class="ident">size_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">size_t</span>;
+    ) -&gt; <span class="ident">size_t</span>;
 }
 <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; A UUID&quot;</span>]</span>
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
@@ -10037,23 +10037,23 @@
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">sentry_uuid_t</span> <span class="op">=</span> <span class="ident">sentry_uuid_s</span>;
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates the nil uuid.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_uuid_nil</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_uuid_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_uuid_nil</span>() -&gt; <span class="ident">sentry_uuid_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new uuid4.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_uuid_new_v4</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_uuid_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_uuid_new_v4</span>() -&gt; <span class="ident">sentry_uuid_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Parses a uuid from a string.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_uuid_from_string</span>(<span class="ident">str_</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_uuid_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_uuid_from_string</span>(<span class="ident">str_</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>) -&gt; <span class="ident">sentry_uuid_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a uuid from bytes.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_uuid_from_bytes</span>(<span class="ident">bytes</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_uuid_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_uuid_from_bytes</span>(<span class="ident">bytes</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>) -&gt; <span class="ident">sentry_uuid_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Checks if the uuid is nil.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_uuid_is_nil</span>(<span class="ident">uuid</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_uuid_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_uuid_is_nil</span>(<span class="ident">uuid</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_uuid_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns the bytes of the uuid.&quot;</span>]</span>
@@ -10082,7 +10082,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Given an envelope returns the embedded event if there is one.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; This returns a borrowed value to the event in the envelope.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_envelope_get_event</span>(<span class="ident">envelope</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_envelope_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_envelope_get_event</span>(<span class="ident">envelope</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_envelope_t</span>) -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Serializes the envelope.&quot;</span>]</span>
@@ -10091,7 +10091,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_envelope_serialize</span>(
         <span class="ident">envelope</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_envelope_t</span>,
         <span class="ident">size_out</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">size_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_char</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Serializes the envelope into a file.&quot;</span>]</span>
@@ -10102,7 +10102,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_envelope_write_to_file</span>(
         <span class="ident">envelope</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_envelope_t</span>,
         <span class="ident">path</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; The Sentry Client Options.&quot;</span>]</span>
 <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
@@ -10157,7 +10157,7 @@
                 <span class="ident">state</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
             ),
         <span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sentry_transport_t</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sentry_transport_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Sets the transport `state`.&quot;</span>]</span>
@@ -10188,7 +10188,7 @@
             <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(
                 <span class="ident">options</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>,
                 <span class="ident">state</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
-            ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>,
+            ) -&gt; <span class="ident">::std::os::raw::c_int</span>,
         <span class="op">&gt;</span>,
     );
 }
@@ -10204,7 +10204,7 @@
             <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span>(
                 <span class="ident">timeout</span>: <span class="ident">u64</span>,
                 <span class="ident">state</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
-            ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>,
+            ) -&gt; <span class="ident">::std::os::raw::c_int</span>,
         <span class="op">&gt;</span>,
     );
 }
@@ -10230,7 +10230,7 @@
             ),
         <span class="op">&gt;</span>,
         <span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sentry_transport_t</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sentry_transport_t</span>;
 }
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">sentry_user_consent_t_SENTRY_USER_CONSENT_UNKNOWN</span>: <span class="ident">sentry_user_consent_t</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">sentry_user_consent_t_SENTRY_USER_CONSENT_GIVEN</span>: <span class="ident">sentry_user_consent_t</span> <span class="op">=</span> <span class="number">1</span>;
@@ -10240,7 +10240,7 @@
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Creates a new options struct.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Can be freed with `sentry_options_free`.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_new</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sentry_options_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_new</span>() -&gt; <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sentry_options_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Deallocates previously allocated sentry options.&quot;</span>]</span>
@@ -10270,7 +10270,7 @@
         <span class="ident">event</span>: <span class="ident">sentry_value_t</span>,
         <span class="ident">hint</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
         <span class="ident">closure</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">::std::os::raw::c_void</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>,
+    ) -&gt; <span class="ident">sentry_value_t</span>,
 <span class="op">&gt;</span>;
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Sets the `before_send` callback.&quot;</span>]</span>
@@ -10288,7 +10288,7 @@
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Gets the DSN.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_dsn</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_dsn</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>) -&gt; <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Sets the sample rate, which should be a double between `0.0` and `1.0`.&quot;</span>]</span>
@@ -10298,7 +10298,7 @@
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Gets the sample rate.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_sample_rate</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">f64</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_sample_rate</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>) -&gt; <span class="ident">f64</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Sets the release.&quot;</span>]</span>
@@ -10311,7 +10311,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Gets the release.&quot;</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_release</span>(
         <span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Sets the environment.&quot;</span>]</span>
@@ -10324,7 +10324,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Gets the environment.&quot;</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_environment</span>(
         <span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Sets the dist.&quot;</span>]</span>
@@ -10335,7 +10335,7 @@
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Gets the dist.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_dist</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_dist</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>) -&gt; <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Configures the http proxy.&quot;</span>]</span>
@@ -10350,7 +10350,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns the configured http proxy.&quot;</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_http_proxy</span>(
         <span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Configures the path to a file containing ssl certificates for&quot;</span>]</span>
@@ -10364,7 +10364,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns the configured path for ca certificates.&quot;</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_ca_certs</span>(
         <span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Configures the name of the http transport thread.&quot;</span>]</span>
@@ -10377,7 +10377,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns the configured http transport thread name.&quot;</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_transport_thread_name</span>(
         <span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
+    ) -&gt; <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">::std::os::raw::c_char</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Enables or disables debug printing mode.&quot;</span>]</span>
@@ -10385,7 +10385,7 @@
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns the current value of the debug flag.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_debug</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_debug</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Sets the number of breadcrumbs being tracked and attached to events.&quot;</span>]</span>
@@ -10395,7 +10395,7 @@
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Gets the number of breadcrumbs being tracked and attached to events.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_max_breadcrumbs</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">size_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_max_breadcrumbs</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>) -&gt; <span class="ident">size_t</span>;
 }
 <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Type of the callback for logger function.&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">sentry_logger_function_t</span> <span class="op">=</span> <span class="ident">::std::option::Option</span><span class="op">&lt;</span>
@@ -10433,7 +10433,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns true if automatic session tracking is enabled.&quot;</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_auto_session_tracking</span>(
         <span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Enables or disables user consent requirements for uploads.&quot;</span>]</span>
@@ -10450,7 +10450,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns true if user consent is required.&quot;</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_require_user_consent</span>(
         <span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Enables or disables on-device symbolication of stack traces.&quot;</span>]</span>
@@ -10468,7 +10468,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns true if on-device symbolication of stack traces is enabled.&quot;</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_symbolize_stacktraces</span>(
         <span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">sentry_options_t</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    ) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Adds a new attachment to be sent along.&quot;</span>]</span>
@@ -10552,7 +10552,7 @@
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Gets the maximum time (in milliseconds) to wait for the asynchronous tasks to&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; end on shutdown, before attempting a forced termination.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_shutdown_timeout</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sentry_options_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u64</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_options_get_shutdown_timeout</span>(<span class="ident">opts</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sentry_options_t</span>) -&gt; <span class="ident">u64</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Initializes the Sentry SDK with the specified options.&quot;</span>]</span>
@@ -10562,13 +10562,13 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Depending on the configured transport and backend, this function might not be&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; fully thread-safe.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns 0 on success.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_init</span>(<span class="ident">options</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sentry_options_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_init</span>(<span class="ident">options</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">sentry_options_t</span>) -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Shuts down the sentry client and forces transports to flush out.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns 0 on success.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_close</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_close</span>() -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Shuts down the sentry client and forces transports to flush out.&quot;</span>]</span>
@@ -10576,14 +10576,14 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; This is a **deprecated** alias for `sentry_close`.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns 0 on success.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_shutdown</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_shutdown</span>() -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; This will lazily load and cache a list of all the loaded libraries.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns a new reference to an immutable, frozen list.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; The reference must be released with `sentry_value_decref`.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_get_modules_list</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_value_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_get_modules_list</span>() -&gt; <span class="ident">sentry_value_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Clears the internal module cache.&quot;</span>]</span>
@@ -10603,7 +10603,7 @@
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; only be done when necessary.&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>]</span>
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Returns 0 on success.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_reinstall_backend</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">::std::os::raw::c_int</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_reinstall_backend</span>() -&gt; <span class="ident">::std::os::raw::c_int</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Gives user consent.&quot;</span>]</span>
@@ -10619,11 +10619,11 @@
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Checks the current state of user consent.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_user_consent_get</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_user_consent_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_user_consent_get</span>() -&gt; <span class="ident">sentry_user_consent_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Sends a sentry event.&quot;</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_capture_event</span>(<span class="ident">event</span>: <span class="ident">sentry_value_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">sentry_uuid_t</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry_capture_event</span>(<span class="ident">event</span>: <span class="ident">sentry_value_t</span>) -&gt; <span class="ident">sentry_uuid_t</span>;
 }
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="string">&quot; Captures an exception to be handled by the backend.&quot;</span>]</span>

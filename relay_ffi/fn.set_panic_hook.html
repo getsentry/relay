@@ -2,7 +2,7 @@
 <p>This function must be registered early when the FFI is initialized before any other calls are
 made. Usually, this would be exported from an initialization function.</p>
 <p>See the <a href="struct.Panic.html" title="Panic"><code>Panic</code></a> documentation for more information.</p>
-<h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<h2 id="example" class="section-header"><a href="#example">Example</a></h2>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">init_ffi</span>() {
     <span class="ident">relay_ffi::set_panic_hook</span>();
 }</code></pre></div>

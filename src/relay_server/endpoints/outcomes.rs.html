@@ -33,7 +33,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors</span>::{<span class="ident">CurrentServiceState</span>, <span class="ident">SignedJson</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServiceApp</span>;
 
-<span class="kw">fn</span> <span class="ident">send_outcomes</span>(<span class="ident">state</span>: <span class="ident">CurrentServiceState</span>, <span class="ident">body</span>: <span class="ident">SignedJson</span><span class="op">&lt;</span><span class="ident">SendOutcomes</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">HttpResponse</span> {
+<span class="kw">fn</span> <span class="ident">send_outcomes</span>(<span class="ident">state</span>: <span class="ident">CurrentServiceState</span>, <span class="ident">body</span>: <span class="ident">SignedJson</span><span class="op">&lt;</span><span class="ident">SendOutcomes</span><span class="op">&gt;</span>) -&gt; <span class="ident">HttpResponse</span> {
     <span class="kw">if</span> <span class="op">!</span><span class="ident">body</span>.<span class="ident">relay</span>.<span class="ident">internal</span> <span class="op">|</span><span class="op">|</span> <span class="ident">state</span>.<span class="ident">config</span>().<span class="ident">emit_outcomes</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">EmitOutcomes::AsOutcomes</span> {
         <span class="kw">return</span> <span class="ident">HttpResponse::Forbidden</span>().<span class="ident">finish</span>();
     }
@@ -46,7 +46,7 @@
     <span class="ident">HttpResponse::Accepted</span>().<span class="ident">json</span>(<span class="ident">SendOutcomesResponse</span> {})
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure_app</span>(<span class="ident">app</span>: <span class="ident">ServiceApp</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ServiceApp</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure_app</span>(<span class="ident">app</span>: <span class="ident">ServiceApp</span>) -&gt; <span class="ident">ServiceApp</span> {
     <span class="ident">app</span>.<span class="ident">resource</span>(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>, <span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
         <span class="ident">r</span>.<span class="ident">name</span>(<span class="string">&quot;relay-outcomes&quot;</span>);
         <span class="ident">r</span>.<span class="ident">post</span>().<span class="ident">with</span>(<span class="ident">send_outcomes</span>);

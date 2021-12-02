@@ -473,9 +473,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">GaugeMetric</span> <span class="kw">for</span> <span class="ident">RelayGauges</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelayGauges::NetworkOutage</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.network_outage&quot;</span>,
+            <span class="ident">RelayGauges::NetworkOutage</span> =&gt; <span class="string">&quot;upstream.network_outage&quot;</span>,
         }
     }
 }
@@ -487,9 +487,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">SetMetric</span> <span class="kw">for</span> <span class="ident">RelaySets</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelaySets::UniqueProjects</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;unique_projects&quot;</span>,
+            <span class="ident">RelaySets::UniqueProjects</span> =&gt; <span class="string">&quot;unique_projects&quot;</span>,
         }
     }
 }
@@ -597,18 +597,18 @@
 }
 
 <span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">RelayHistograms</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelayHistograms::EnvelopeQueueSizePct</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.queue_size.pct&quot;</span>,
-            <span class="ident">RelayHistograms::EnvelopeQueueSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.queue_size&quot;</span>,
-            <span class="ident">RelayHistograms::RequestSizeBytesRaw</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.size_bytes.raw&quot;</span>,
-            <span class="ident">RelayHistograms::RequestSizeBytesUncompressed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.size_bytes.uncompressed&quot;</span>,
-            <span class="ident">RelayHistograms::ProjectStatePending</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.pending&quot;</span>,
-            <span class="ident">RelayHistograms::ProjectStateRequestBatchSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request.batch_size&quot;</span>,
-            <span class="ident">RelayHistograms::ProjectStateReceived</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.received&quot;</span>,
-            <span class="ident">RelayHistograms::ProjectStateCacheSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.size&quot;</span>,
-            <span class="ident">RelayHistograms::UpstreamMessageQueueSize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;http_queue.size&quot;</span>,
-            <span class="ident">RelayHistograms::UpstreamRetries</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.retries&quot;</span>,
+            <span class="ident">RelayHistograms::EnvelopeQueueSizePct</span> =&gt; <span class="string">&quot;event.queue_size.pct&quot;</span>,
+            <span class="ident">RelayHistograms::EnvelopeQueueSize</span> =&gt; <span class="string">&quot;event.queue_size&quot;</span>,
+            <span class="ident">RelayHistograms::RequestSizeBytesRaw</span> =&gt; <span class="string">&quot;event.size_bytes.raw&quot;</span>,
+            <span class="ident">RelayHistograms::RequestSizeBytesUncompressed</span> =&gt; <span class="string">&quot;event.size_bytes.uncompressed&quot;</span>,
+            <span class="ident">RelayHistograms::ProjectStatePending</span> =&gt; <span class="string">&quot;project_state.pending&quot;</span>,
+            <span class="ident">RelayHistograms::ProjectStateRequestBatchSize</span> =&gt; <span class="string">&quot;project_state.request.batch_size&quot;</span>,
+            <span class="ident">RelayHistograms::ProjectStateReceived</span> =&gt; <span class="string">&quot;project_state.received&quot;</span>,
+            <span class="ident">RelayHistograms::ProjectStateCacheSize</span> =&gt; <span class="string">&quot;project_cache.size&quot;</span>,
+            <span class="ident">RelayHistograms::UpstreamMessageQueueSize</span> =&gt; <span class="string">&quot;http_queue.size&quot;</span>,
+            <span class="ident">RelayHistograms::UpstreamRetries</span> =&gt; <span class="string">&quot;upstream.retries&quot;</span>,
         }
     }
 }
@@ -737,28 +737,28 @@
 }
 
 <span class="kw">impl</span> <span class="ident">TimerMetric</span> <span class="kw">for</span> <span class="ident">RelayTimers</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelayTimers::EventProcessingDeserialize</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.deserialize&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingDeserialize</span> =&gt; <span class="string">&quot;event_processing.deserialize&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayTimers::EventProcessingProcess</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.process&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingProcess</span> =&gt; <span class="string">&quot;event_processing.process&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayTimers::EventProcessingFiltering</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.filtering&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingFiltering</span> =&gt; <span class="string">&quot;event_processing.filtering&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayTimers::EventProcessingRateLimiting</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.rate_limiting&quot;</span>,
-            <span class="ident">RelayTimers::EventProcessingPii</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.pii&quot;</span>,
-            <span class="ident">RelayTimers::EventProcessingSerialization</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event_processing.serialization&quot;</span>,
-            <span class="ident">RelayTimers::EnvelopeWaitTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.wait_time&quot;</span>,
-            <span class="ident">RelayTimers::EnvelopeProcessingTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.processing_time&quot;</span>,
-            <span class="ident">RelayTimers::EnvelopeTotalTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.total_time&quot;</span>,
-            <span class="ident">RelayTimers::ProjectStateEvictionDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.eviction.duration&quot;</span>,
-            <span class="ident">RelayTimers::ProjectStateRequestDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request.duration&quot;</span>,
-            <span class="ident">RelayTimers::RequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests.duration&quot;</span>,
-            <span class="ident">RelayTimers::MinidumpScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
-            <span class="ident">RelayTimers::AttachmentScrubbing</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
-            <span class="ident">RelayTimers::UpstreamRequestsDuration</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;upstream.requests.duration&quot;</span>,
-            <span class="ident">RelayTimers::TimestampDelay</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests.timestamp_delay&quot;</span>,
-            <span class="ident">RelayTimers::OutcomeAggregatorFlushTime</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;outcomes.aggregator.flush_time&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingRateLimiting</span> =&gt; <span class="string">&quot;event_processing.rate_limiting&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingPii</span> =&gt; <span class="string">&quot;event_processing.pii&quot;</span>,
+            <span class="ident">RelayTimers::EventProcessingSerialization</span> =&gt; <span class="string">&quot;event_processing.serialization&quot;</span>,
+            <span class="ident">RelayTimers::EnvelopeWaitTime</span> =&gt; <span class="string">&quot;event.wait_time&quot;</span>,
+            <span class="ident">RelayTimers::EnvelopeProcessingTime</span> =&gt; <span class="string">&quot;event.processing_time&quot;</span>,
+            <span class="ident">RelayTimers::EnvelopeTotalTime</span> =&gt; <span class="string">&quot;event.total_time&quot;</span>,
+            <span class="ident">RelayTimers::ProjectStateEvictionDuration</span> =&gt; <span class="string">&quot;project_state.eviction.duration&quot;</span>,
+            <span class="ident">RelayTimers::ProjectStateRequestDuration</span> =&gt; <span class="string">&quot;project_state.request.duration&quot;</span>,
+            <span class="ident">RelayTimers::RequestsDuration</span> =&gt; <span class="string">&quot;requests.duration&quot;</span>,
+            <span class="ident">RelayTimers::MinidumpScrubbing</span> =&gt; <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
+            <span class="ident">RelayTimers::AttachmentScrubbing</span> =&gt; <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
+            <span class="ident">RelayTimers::UpstreamRequestsDuration</span> =&gt; <span class="string">&quot;upstream.requests.duration&quot;</span>,
+            <span class="ident">RelayTimers::TimestampDelay</span> =&gt; <span class="string">&quot;requests.timestamp_delay&quot;</span>,
+            <span class="ident">RelayTimers::OutcomeAggregatorFlushTime</span> =&gt; <span class="string">&quot;outcomes.aggregator.flush_time&quot;</span>,
         }
     }
 }
@@ -903,28 +903,28 @@
 }
 
 <span class="kw">impl</span> <span class="ident">CounterMetric</span> <span class="kw">for</span> <span class="ident">RelayCounters</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters::EventCorrupted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.corrupted&quot;</span>,
-            <span class="ident">RelayCounters::EnvelopeAccepted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.accepted&quot;</span>,
-            <span class="ident">RelayCounters::EnvelopeRejected</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.rejected&quot;</span>,
-            <span class="ident">RelayCounters::Outcomes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;events.outcomes&quot;</span>,
-            <span class="ident">RelayCounters::ProjectStateGet</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.get&quot;</span>,
-            <span class="ident">RelayCounters::ProjectStateRequest</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.request&quot;</span>,
-            <span class="ident">RelayCounters::ProjectStateNoCache</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state.no_cache&quot;</span>,
-            <span class="ident">RelayCounters::ProjectCacheHit</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.hit&quot;</span>,
-            <span class="ident">RelayCounters::ProjectCacheMiss</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.miss&quot;</span>,
-            <span class="ident">RelayCounters::ServerStarting</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;server.starting&quot;</span>,
+            <span class="ident">RelayCounters::EventCorrupted</span> =&gt; <span class="string">&quot;event.corrupted&quot;</span>,
+            <span class="ident">RelayCounters::EnvelopeAccepted</span> =&gt; <span class="string">&quot;event.accepted&quot;</span>,
+            <span class="ident">RelayCounters::EnvelopeRejected</span> =&gt; <span class="string">&quot;event.rejected&quot;</span>,
+            <span class="ident">RelayCounters::Outcomes</span> =&gt; <span class="string">&quot;events.outcomes&quot;</span>,
+            <span class="ident">RelayCounters::ProjectStateGet</span> =&gt; <span class="string">&quot;project_state.get&quot;</span>,
+            <span class="ident">RelayCounters::ProjectStateRequest</span> =&gt; <span class="string">&quot;project_state.request&quot;</span>,
+            <span class="ident">RelayCounters::ProjectStateNoCache</span> =&gt; <span class="string">&quot;project_state.no_cache&quot;</span>,
+            <span class="ident">RelayCounters::ProjectCacheHit</span> =&gt; <span class="string">&quot;project_cache.hit&quot;</span>,
+            <span class="ident">RelayCounters::ProjectCacheMiss</span> =&gt; <span class="string">&quot;project_cache.miss&quot;</span>,
+            <span class="ident">RelayCounters::ServerStarting</span> =&gt; <span class="string">&quot;server.starting&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters::ProcessingMessageProduced</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;processing.event.produced&quot;</span>,
+            <span class="ident">RelayCounters::ProcessingMessageProduced</span> =&gt; <span class="string">&quot;processing.event.produced&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">RelayCounters::ProcessingProduceError</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;processing.produce.error&quot;</span>,
-            <span class="ident">RelayCounters::EventProtocol</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;event.protocol&quot;</span>,
-            <span class="ident">RelayCounters::Requests</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;requests&quot;</span>,
-            <span class="ident">RelayCounters::ResponsesStatusCodes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;responses.status_codes&quot;</span>,
-            <span class="ident">RelayCounters::EvictingStaleProjectCaches</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_cache.eviction&quot;</span>,
-            <span class="ident">RelayCounters::MetricBucketsParsingFailed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;metrics.buckets.parsing_failed&quot;</span>,
+            <span class="ident">RelayCounters::ProcessingProduceError</span> =&gt; <span class="string">&quot;processing.produce.error&quot;</span>,
+            <span class="ident">RelayCounters::EventProtocol</span> =&gt; <span class="string">&quot;event.protocol&quot;</span>,
+            <span class="ident">RelayCounters::Requests</span> =&gt; <span class="string">&quot;requests&quot;</span>,
+            <span class="ident">RelayCounters::ResponsesStatusCodes</span> =&gt; <span class="string">&quot;responses.status_codes&quot;</span>,
+            <span class="ident">RelayCounters::EvictingStaleProjectCaches</span> =&gt; <span class="string">&quot;project_cache.eviction&quot;</span>,
+            <span class="ident">RelayCounters::MetricBucketsParsingFailed</span> =&gt; <span class="string">&quot;metrics.buckets.parsing_failed&quot;</span>,
         }
     }
 }

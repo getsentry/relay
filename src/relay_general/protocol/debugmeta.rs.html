@@ -893,20 +893,20 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NativeImagePath</span>(<span class="kw">pub</span> <span class="ident">String</span>);
 
 <span class="kw">impl</span> <span class="ident">NativeImagePath</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_str</span>()
     }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">NativeImagePath</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">NativeImagePath</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">T</span>) -&gt; <span class="ident">NativeImagePath</span> {
         <span class="ident">NativeImagePath</span>(<span class="ident">value</span>.<span class="ident">into</span>())
     }
 }
 
 <span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="ident">NativeImagePath</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">EnumSet</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> {
         <span class="comment">// Explicit decision not to expose NativeImagePath as valuetype, as people should not be</span>
         <span class="comment">// able to address processing internals.</span>
         <span class="comment">//</span>
@@ -922,7 +922,7 @@
         <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
         <span class="ident">processor</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">P</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span>
+    ) -&gt; <span class="ident">ProcessingResult</span>
     <span class="kw">where</span>
         <span class="ident">P</span>: <span class="ident">Processor</span>,
     {
@@ -933,7 +933,7 @@
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">_processor</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">P</span>,
         <span class="ident">_state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span>
+    ) -&gt; <span class="ident">ProcessingResult</span>
     <span class="kw">where</span>
         <span class="ident">P</span>: <span class="ident">Processor</span>,
     {
@@ -1005,48 +1005,48 @@
 }
 
 <span class="macro">macro_rules!</span> <span class="ident">impl_traits</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">literal</span>) <span class="op">=</span><span class="op">&gt;</span> {
+    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">literal</span>) =&gt; {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
         <span class="kw">impl</span> <span class="ident">schemars::JsonSchema</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">schema_name</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">schema_name</span>() -&gt; <span class="ident">String</span> {
                 <span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>).<span class="macro-nonterminal">to_owned</span>()
             }
 
-            <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SchemaGenerator</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Schema</span> {
+            <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SchemaGenerator</span>) -&gt; <span class="ident">Schema</span> {
                 <span class="ident">String::json_schema</span>(<span class="ident">gen</span>)
             }
         }
 
         <span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
             <span class="attribute">#[<span class="macro-nonterminal">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+            <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
                 <span class="self">self</span>.<span class="ident">is_nil</span>()
             }
         }
 
         <span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
                 <span class="kw">match</span> <span class="ident">value</span> {
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">value</span>.<span class="ident">parse</span>() {
-                        <span class="prelude-val">Ok</span>(<span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="ident">meta</span>),
-                        <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; <span class="kw">match</span> <span class="ident">value</span>.<span class="ident">parse</span>() {
+                        <span class="prelude-val">Ok</span>(<span class="ident">value</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="ident">meta</span>),
+                        <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
                             <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::invalid</span>(<span class="ident">err</span>));
                             <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
                             <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
                         }
                     },
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
                         <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>));
                         <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
                         <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
                     }
-                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
+                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
                 }
             }
         }
 
         <span class="kw">impl</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">into_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
                 <span class="ident">Value::String</span>(<span class="self">self</span>.<span class="ident">to_string</span>())
             }
 
@@ -1054,7 +1054,7 @@
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 <span class="ident">s</span>: <span class="ident">S</span>,
                 <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>,
-            ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+            ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
                 <span class="ident">S</span>: <span class="ident">serde::Serializer</span>,
             {
@@ -1065,7 +1065,7 @@
         <span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {}
 
         <span class="kw">impl</span> <span class="macro-nonterminal">fmt::Display</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
                 <span class="self">self</span>.<span class="number">0</span>.<span class="ident">fmt</span>(<span class="ident">f</span>)
             }
         }
@@ -1073,7 +1073,7 @@
         <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
             <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span> <span class="kw">as</span> <span class="ident">FromStr</span><span class="op">&gt;</span><span class="ident">::Err</span>;
 
-            <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+            <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
                 <span class="ident">FromStr::from_str</span>(<span class="ident">s</span>).<span class="ident">map</span>(<span class="macro-nonterminal">$</span><span class="kw">type</span>)
             }
         }
@@ -1081,13 +1081,13 @@
         <span class="kw">impl</span> <span class="macro-nonterminal">Deref</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
             <span class="kw">type</span> <span class="macro-nonterminal">Target</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span>;
 
-            <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
+            <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
                 <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
             }
         }
 
         <span class="kw">impl</span> <span class="ident">DerefMut</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Target</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">deref_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Target</span> {
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span>
             }
         }
@@ -1107,7 +1107,7 @@
 <span class="kw">where</span>
     <span class="ident">debugid::DebugId</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
 {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">t</span>: <span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">t</span>: <span class="ident">T</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">DebugId</span>(<span class="ident">t</span>.<span class="ident">into</span>())
     }
 }
@@ -1116,7 +1116,7 @@
 <span class="kw">where</span>
     <span class="ident">debugid::CodeId</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
 {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">t</span>: <span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">t</span>: <span class="ident">T</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">CodeId</span>(<span class="ident">t</span>.<span class="ident">into</span>())
     }
 }

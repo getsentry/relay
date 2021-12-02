@@ -160,12 +160,12 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">derive_jsonschema</span>(<span class="kw-2">mut</span> <span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">TokenStream</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">derive_jsonschema</span>(<span class="kw-2">mut</span> <span class="ident">s</span>: <span class="ident">synstructure::Structure</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">TokenStream</span> {
     <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">add_bounds</span>(<span class="ident">synstructure::AddBounds::Generics</span>);
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">arms</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
 
-    <span class="kw">let</span> <span class="ident">is_single_variant</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">variants</span>().<span class="ident">len</span>() <span class="op">=</span><span class="op">=</span> <span class="number">1</span>;
+    <span class="kw">let</span> <span class="ident">is_single_variant</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">variants</span>().<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span>;
 
     <span class="kw">for</span> <span class="ident">variant</span> <span class="kw">in</span> <span class="ident">s</span>.<span class="ident">variants</span>() {
         <span class="comment">// parse_variant_attributes currently cannot deal with struct attributes. Structs are</span>
@@ -222,17 +222,17 @@
     <span class="ident">s</span>.<span class="ident">gen_impl</span>(<span class="macro">quote!</span> {
         <span class="comment">// Massive hack to tell schemars that fields are nullable. Causes it to emit {&quot;default&quot;:</span>
         <span class="comment">// null} even though Option&lt;()&gt; is not a valid instance of T.</span>
-        <span class="kw">fn</span> <span class="ident">__schemars_null</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="kw">fn</span> <span class="ident">__schemars_null</span>() -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
             <span class="prelude-val">None</span>
         }
 
         <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
         <span class="ident">gen</span> <span class="kw">impl</span> <span class="ident">schemars::JsonSchema</span> <span class="kw">for</span> @<span class="self">Self</span> {
-            <span class="kw">fn</span> <span class="ident">schema_name</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+            <span class="kw">fn</span> <span class="ident">schema_name</span>() -&gt; <span class="ident">String</span> {
                 <span class="macro">stringify!</span>(#<span class="ident">ident</span>).<span class="ident">to_owned</span>()
             }
 
-            <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">schemars::gen::SchemaGenerator</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">schemars::schema::Schema</span> {
+            <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">schemars::gen::SchemaGenerator</span>) -&gt; <span class="ident">schemars::schema::Schema</span> {
                 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">schemars::JsonSchema</span>)]</span>
                 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">schemars</span>(<span class="ident">untagged</span>))]</span>
                 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">schemars</span>(<span class="ident">deny_unknown_fields</span>))]</span>

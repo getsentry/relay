@@ -887,15 +887,15 @@
 <span class="kw">impl</span> <span class="ident">UpstreamQuery</span> <span class="kw">for</span> <span class="ident">SendOutcomes</span> {
     <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">SendOutcomesResponse</span>;
 
-    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Method</span> {
+    <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Method</span> {
         <span class="ident">Method::POST</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">str</span><span class="op">&gt;</span> {
         <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">retry</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">retry</span>() -&gt; <span class="ident">bool</span> {
         <span class="bool-val">true</span>
     }
 }
@@ -907,17 +907,17 @@
 }
 
 <span class="kw">trait</span> <span class="ident">TrackOutcomeLike</span>: <span class="ident">Message</span> {
-    <span class="kw">fn</span> <span class="ident">reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span>;
-    <span class="kw">fn</span> <span class="ident">outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u8</span>;
+    <span class="kw">fn</span> <span class="ident">reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u8</span>;
 
-    <span class="kw">fn</span> <span class="ident">tag_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">tag_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">outcome_id</span>() {
-            <span class="number">1</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;filtered&quot;</span>,
-            <span class="number">2</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;rate_limited&quot;</span>,
-            <span class="number">3</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid&quot;</span>,
-            <span class="number">4</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;abuse&quot;</span>,
-            <span class="number">5</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;client_discard&quot;</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;&lt;unknown&gt;&quot;</span>,
+            <span class="number">1</span> =&gt; <span class="string">&quot;filtered&quot;</span>,
+            <span class="number">2</span> =&gt; <span class="string">&quot;rate_limited&quot;</span>,
+            <span class="number">3</span> =&gt; <span class="string">&quot;invalid&quot;</span>,
+            <span class="number">4</span> =&gt; <span class="string">&quot;abuse&quot;</span>,
+            <span class="number">5</span> =&gt; <span class="string">&quot;client_discard&quot;</span>,
+            <span class="kw">_</span> =&gt; <span class="string">&quot;&lt;unknown&gt;&quot;</span>,
         }
     }
 }
@@ -944,11 +944,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">TrackOutcomeLike</span> <span class="kw">for</span> <span class="ident">TrackOutcome</span> {
-    <span class="kw">fn</span> <span class="ident">reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">outcome</span>.<span class="ident">to_reason</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u8</span> {
+    <span class="kw">fn</span> <span class="ident">outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u8</span> {
         <span class="self">self</span>.<span class="ident">outcome</span>.<span class="ident">to_outcome_id</span>()
     }
 }
@@ -1001,35 +1001,35 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Outcome</span> {
-    <span class="kw">fn</span> <span class="ident">to_outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u8</span> {
+    <span class="kw">fn</span> <span class="ident">to_outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u8</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Outcome::Filtered</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Outcome::FilteredSampling</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">1</span>,
-            <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">2</span>,
-            <span class="ident">Outcome::Invalid</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">3</span>,
-            <span class="ident">Outcome::Abuse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="number">4</span>,
-            <span class="ident">Outcome::ClientDiscard</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="number">5</span>,
+            <span class="ident">Outcome::Filtered</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Outcome::FilteredSampling</span>(<span class="kw">_</span>) =&gt; <span class="number">1</span>,
+            <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>) =&gt; <span class="number">2</span>,
+            <span class="ident">Outcome::Invalid</span>(<span class="kw">_</span>) =&gt; <span class="number">3</span>,
+            <span class="ident">Outcome::Abuse</span> =&gt; <span class="number">4</span>,
+            <span class="ident">Outcome::ClientDiscard</span>(<span class="kw">_</span>) =&gt; <span class="number">5</span>,
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">to_reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">to_reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Outcome::Invalid</span>(<span class="ident">discard_reason</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">discard_reason</span>.<span class="ident">name</span>())),
-            <span class="ident">Outcome::Filtered</span>(<span class="ident">filter_key</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">filter_key</span>.<span class="ident">name</span>())),
-            <span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow::Owned</span>(<span class="macro">format!</span>(<span class="string">&quot;Sampled:{}&quot;</span>, <span class="ident">rule_id</span>))),
+            <span class="ident">Outcome::Invalid</span>(<span class="ident">discard_reason</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">discard_reason</span>.<span class="ident">name</span>())),
+            <span class="ident">Outcome::Filtered</span>(<span class="ident">filter_key</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">filter_key</span>.<span class="ident">name</span>())),
+            <span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Cow::Owned</span>(<span class="macro">format!</span>(<span class="string">&quot;Sampled:{}&quot;</span>, <span class="ident">rule_id</span>))),
             <span class="comment">//TODO can we do better ? (not re copying the string )</span>
-            <span class="ident">Outcome::RateLimited</span>(<span class="ident">code_opt</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">code_opt</span>
+            <span class="ident">Outcome::RateLimited</span>(<span class="ident">code_opt</span>) =&gt; <span class="ident">code_opt</span>
                 .<span class="ident">as_ref</span>()
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">code</span><span class="op">|</span> <span class="ident">Cow::Owned</span>(<span class="ident">code</span>.<span class="ident">as_str</span>().<span class="ident">into</span>())),
-            <span class="ident">Outcome::ClientDiscard</span>(<span class="kw-2">ref</span> <span class="ident">discard_reason</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">discard_reason</span>)),
-            <span class="ident">Outcome::Abuse</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">Outcome::ClientDiscard</span>(<span class="kw-2">ref</span> <span class="ident">discard_reason</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Cow::Borrowed</span>(<span class="ident">discard_reason</span>)),
+            <span class="ident">Outcome::Abuse</span> =&gt; <span class="prelude-val">None</span>,
         }
     }
 
     <span class="doccomment">/// Parse an outcome from an outcome ID and a reason string.</span>
     <span class="doccomment">/// Currently only used to reconstruct outcomes encoded in client reports.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_outcome_type</span>(<span class="ident">outcome_type</span>: <span class="ident">OutcomeType</span>, <span class="ident">reason</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, ()<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_outcome_type</span>(<span class="ident">outcome_type</span>: <span class="ident">OutcomeType</span>, <span class="ident">reason</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, ()<span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="ident">outcome_type</span> {
-            <span class="ident">OutcomeType::FilteredSampling</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">OutcomeType::FilteredSampling</span> =&gt; {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rule_id</span>) <span class="op">=</span> <span class="ident">reason</span>.<span class="ident">strip_prefix</span>(<span class="string">&quot;Sampled:&quot;</span>) {
                     <span class="kw">let</span> <span class="ident">rule_id</span> <span class="op">=</span> <span class="ident">RuleId</span>(<span class="ident">rule_id</span>.<span class="ident">parse</span>().<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())<span class="question-mark">?</span>);
                     <span class="prelude-val">Ok</span>(<span class="ident"><span class="self">Self</span>::FilteredSampling</span>(<span class="ident">rule_id</span>))
@@ -1037,13 +1037,13 @@
                     <span class="prelude-val">Err</span>(())
                 }
             }
-            <span class="ident">OutcomeType::ClientDiscard</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident"><span class="self">Self</span>::ClientDiscard</span>(<span class="ident">reason</span>.<span class="ident">into</span>())),
-            <span class="ident">OutcomeType::Filtered</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident"><span class="self">Self</span>::Filtered</span>(
+            <span class="ident">OutcomeType::ClientDiscard</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident"><span class="self">Self</span>::ClientDiscard</span>(<span class="ident">reason</span>.<span class="ident">into</span>())),
+            <span class="ident">OutcomeType::Filtered</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident"><span class="self">Self</span>::Filtered</span>(
                 <span class="ident">FilterStatKey::try_from</span>(<span class="ident">reason</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())<span class="question-mark">?</span>,
             )),
-            <span class="ident">OutcomeType::RateLimited</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident"><span class="self">Self</span>::RateLimited</span>(<span class="kw">match</span> <span class="ident">reason</span> {
-                <span class="string">&quot;&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-                <span class="ident">other</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="ident">other</span>)),
+            <span class="ident">OutcomeType::RateLimited</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident"><span class="self">Self</span>::RateLimited</span>(<span class="kw">match</span> <span class="ident">reason</span> {
+                <span class="string">&quot;&quot;</span> =&gt; <span class="prelude-val">None</span>,
+                <span class="ident">other</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="ident">other</span>)),
             })),
         }
     }
@@ -1155,37 +1155,37 @@
 }
 
 <span class="kw">impl</span> <span class="ident">DiscardReason</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">DiscardReason::Duplicate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;duplicate&quot;</span>,
-            <span class="ident">DiscardReason::ProjectId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_id&quot;</span>,
-            <span class="ident">DiscardReason::AuthVersion</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;auth_version&quot;</span>,
-            <span class="ident">DiscardReason::AuthClient</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;auth_client&quot;</span>,
-            <span class="ident">DiscardReason::NoData</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;no_data&quot;</span>,
-            <span class="ident">DiscardReason::TooLarge</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;too_large&quot;</span>,
-            <span class="ident">DiscardReason::DisallowedMethod</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;disallowed_method&quot;</span>,
-            <span class="ident">DiscardReason::ContentType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;content_type&quot;</span>,
-            <span class="ident">DiscardReason::MultiProjectId</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;multi_project_id&quot;</span>,
-            <span class="ident">DiscardReason::MissingMinidumpUpload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;missing_minidump_upload&quot;</span>,
-            <span class="ident">DiscardReason::InvalidMinidump</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_minidump&quot;</span>,
-            <span class="ident">DiscardReason::SecurityReportType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;security_report_type&quot;</span>,
-            <span class="ident">DiscardReason::SecurityReport</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;security_report&quot;</span>,
-            <span class="ident">DiscardReason::Cors</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;cors&quot;</span>,
-            <span class="ident">DiscardReason::ProcessUnreal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;process_unreal&quot;</span>,
+            <span class="ident">DiscardReason::Duplicate</span> =&gt; <span class="string">&quot;duplicate&quot;</span>,
+            <span class="ident">DiscardReason::ProjectId</span> =&gt; <span class="string">&quot;project_id&quot;</span>,
+            <span class="ident">DiscardReason::AuthVersion</span> =&gt; <span class="string">&quot;auth_version&quot;</span>,
+            <span class="ident">DiscardReason::AuthClient</span> =&gt; <span class="string">&quot;auth_client&quot;</span>,
+            <span class="ident">DiscardReason::NoData</span> =&gt; <span class="string">&quot;no_data&quot;</span>,
+            <span class="ident">DiscardReason::TooLarge</span> =&gt; <span class="string">&quot;too_large&quot;</span>,
+            <span class="ident">DiscardReason::DisallowedMethod</span> =&gt; <span class="string">&quot;disallowed_method&quot;</span>,
+            <span class="ident">DiscardReason::ContentType</span> =&gt; <span class="string">&quot;content_type&quot;</span>,
+            <span class="ident">DiscardReason::MultiProjectId</span> =&gt; <span class="string">&quot;multi_project_id&quot;</span>,
+            <span class="ident">DiscardReason::MissingMinidumpUpload</span> =&gt; <span class="string">&quot;missing_minidump_upload&quot;</span>,
+            <span class="ident">DiscardReason::InvalidMinidump</span> =&gt; <span class="string">&quot;invalid_minidump&quot;</span>,
+            <span class="ident">DiscardReason::SecurityReportType</span> =&gt; <span class="string">&quot;security_report_type&quot;</span>,
+            <span class="ident">DiscardReason::SecurityReport</span> =&gt; <span class="string">&quot;security_report&quot;</span>,
+            <span class="ident">DiscardReason::Cors</span> =&gt; <span class="string">&quot;cors&quot;</span>,
+            <span class="ident">DiscardReason::ProcessUnreal</span> =&gt; <span class="string">&quot;process_unreal&quot;</span>,
 
             <span class="comment">// Relay specific reasons (not present in Sentry)</span>
-            <span class="ident">DiscardReason::Payload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;payload&quot;</span>,
-            <span class="ident">DiscardReason::InvalidJson</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_json&quot;</span>,
-            <span class="ident">DiscardReason::InvalidMultipart</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_multipart&quot;</span>,
-            <span class="ident">DiscardReason::InvalidMsgpack</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_msgpack&quot;</span>,
-            <span class="ident">DiscardReason::InvalidTransaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_transaction&quot;</span>,
-            <span class="ident">DiscardReason::InvalidEnvelope</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;invalid_envelope&quot;</span>,
-            <span class="ident">DiscardReason::ProjectState</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;project_state&quot;</span>,
-            <span class="ident">DiscardReason::DuplicateItem</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;duplicate_item&quot;</span>,
-            <span class="ident">DiscardReason::NoEventPayload</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;no_event_payload&quot;</span>,
-            <span class="ident">DiscardReason::Internal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal&quot;</span>,
-            <span class="ident">DiscardReason::TransactionSampled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;transaction_sampled&quot;</span>,
-            <span class="ident">DiscardReason::EmptyEnvelope</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;empty_envelope&quot;</span>,
+            <span class="ident">DiscardReason::Payload</span> =&gt; <span class="string">&quot;payload&quot;</span>,
+            <span class="ident">DiscardReason::InvalidJson</span> =&gt; <span class="string">&quot;invalid_json&quot;</span>,
+            <span class="ident">DiscardReason::InvalidMultipart</span> =&gt; <span class="string">&quot;invalid_multipart&quot;</span>,
+            <span class="ident">DiscardReason::InvalidMsgpack</span> =&gt; <span class="string">&quot;invalid_msgpack&quot;</span>,
+            <span class="ident">DiscardReason::InvalidTransaction</span> =&gt; <span class="string">&quot;invalid_transaction&quot;</span>,
+            <span class="ident">DiscardReason::InvalidEnvelope</span> =&gt; <span class="string">&quot;invalid_envelope&quot;</span>,
+            <span class="ident">DiscardReason::ProjectState</span> =&gt; <span class="string">&quot;project_state&quot;</span>,
+            <span class="ident">DiscardReason::DuplicateItem</span> =&gt; <span class="string">&quot;duplicate_item&quot;</span>,
+            <span class="ident">DiscardReason::NoEventPayload</span> =&gt; <span class="string">&quot;no_event_payload&quot;</span>,
+            <span class="ident">DiscardReason::Internal</span> =&gt; <span class="string">&quot;internal&quot;</span>,
+            <span class="ident">DiscardReason::TransactionSampled</span> =&gt; <span class="string">&quot;transaction_sampled&quot;</span>,
+            <span class="ident">DiscardReason::EmptyEnvelope</span> =&gt; <span class="string">&quot;empty_envelope&quot;</span>,
         }
     }
 }
@@ -1227,7 +1227,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">TrackRawOutcome</span> {
-    <span class="kw">fn</span> <span class="ident">from_outcome</span>(<span class="ident">msg</span>: <span class="ident">TrackOutcome</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from_outcome</span>(<span class="ident">msg</span>: <span class="ident">TrackOutcome</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">reason</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">outcome</span>.<span class="ident">to_reason</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">reason</span><span class="op">|</span> <span class="ident">reason</span>.<span class="ident">to_string</span>());
 
         <span class="comment">// convert to a RFC 3339 formatted date with the shape YYYY-MM-DDTHH:MM:SS.mmmmmmZ</span>
@@ -1235,8 +1235,8 @@
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">timestamp</span>.<span class="ident">to_rfc3339_opts</span>(<span class="ident">SecondsFormat::Micros</span>, <span class="bool-val">true</span>);
 
         <span class="kw">let</span> <span class="ident">org_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">msg</span>.<span class="ident">scoping</span>.<span class="ident">organization_id</span> {
-            <span class="number">0</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident">id</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">id</span>),
+            <span class="number">0</span> =&gt; <span class="prelude-val">None</span>,
+            <span class="ident">id</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">id</span>),
         };
 
         <span class="comment">// since TrackOutcome objects come only from this Relay (and not any downstream</span>
@@ -1260,11 +1260,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">TrackOutcomeLike</span> <span class="kw">for</span> <span class="ident">TrackRawOutcome</span> {
-    <span class="kw">fn</span> <span class="ident">reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">reason</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">reason</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">into</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u8</span> {
+    <span class="kw">fn</span> <span class="ident">outcome_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u8</span> {
         <span class="self">self</span>.<span class="ident">outcome</span>
     }
 }
@@ -1291,7 +1291,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">HttpOutcomeProducer</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
             <span class="ident">config</span>,
             <span class="ident">unsent_outcomes</span>: <span class="ident">Vec::new</span>(),
@@ -1354,7 +1354,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpOutcomeProducer</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="self">self</span>.<span class="ident">send_http_message</span>(<span class="ident">msg</span>, <span class="ident">ctx</span>);
         <span class="prelude-val">Ok</span>(())
     }
@@ -1366,7 +1366,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ClientReportOutcomeProducer</span> {
-    <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="comment">// Use same batch interval as outcome aggregator</span>
             <span class="ident">flush_interval</span>: <span class="ident">Duration::from_secs</span>(<span class="ident">config</span>.<span class="ident">outcome_aggregator</span>().<span class="ident">flush_interval</span>),
@@ -1400,7 +1400,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ClientReportOutcomeProducer</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">TrackOutcome</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">TrackOutcome</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_report</span> <span class="op">=</span> <span class="ident">ClientReport</span> {
             <span class="ident">timestamp</span>: <span class="prelude-val">Some</span>(<span class="ident">UnixTimestamp::from_secs</span>(
                 <span class="ident">msg</span>.<span class="ident">timestamp</span>.<span class="ident">timestamp</span>().<span class="ident">try_into</span>().<span class="ident">unwrap_or</span>(<span class="number">0</span>),
@@ -1410,10 +1410,10 @@
 
         <span class="comment">// The outcome type determines what field to place the outcome in:</span>
         <span class="kw">let</span> <span class="ident">discarded_events</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">msg</span>.<span class="ident">outcome</span> {
-            <span class="ident">Outcome::Filtered</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">client_report</span>.<span class="ident">filtered_events</span>,
-            <span class="ident">Outcome::FilteredSampling</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">client_report</span>.<span class="ident">filtered_sampling_events</span>,
-            <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">client_report</span>.<span class="ident">rate_limited_events</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Outcome::Filtered</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">client_report</span>.<span class="ident">filtered_events</span>,
+            <span class="ident">Outcome::FilteredSampling</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">client_report</span>.<span class="ident">filtered_sampling_events</span>,
+            <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">client_report</span>.<span class="ident">rate_limited_events</span>,
+            <span class="kw">_</span> =&gt; {
                 <span class="comment">// Cannot convert this outcome to a client report.</span>
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
             }
@@ -1432,7 +1432,7 @@
             .<span class="ident">or_default</span>()
             .<span class="ident">push</span>(<span class="ident">client_report</span>);
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flush_interval</span> <span class="op">=</span><span class="op">=</span> <span class="ident">Duration::ZERO</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flush_interval</span> <span class="op">==</span> <span class="ident">Duration::ZERO</span> {
             <span class="comment">// Flush immediately. Useful for integration tests.</span>
             <span class="self">self</span>.<span class="ident">flush</span>(<span class="ident">ctx</span>);
         }
@@ -1455,9 +1455,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">OutcomeProducer</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">emit_outcomes</span>() {
-            <span class="ident">EmitOutcomes::AsOutcomes</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">EmitOutcomes::AsOutcomes</span> =&gt; {
                 <span class="comment">// We emit outcomes as raw outcomes, and accept raw outcomes emitted by downstream</span>
                 <span class="comment">// relays.</span>
                 <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
@@ -1487,7 +1487,7 @@
                     )
                 }
             }
-            <span class="ident">EmitOutcomes::AsClientReports</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">EmitOutcomes::AsClientReports</span> =&gt; {
                 <span class="comment">// We emit outcomes as client reports, and we do not</span>
                 <span class="comment">// accept any raw outcomes</span>
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes as client reports&quot;</span>);
@@ -1495,7 +1495,7 @@
                     <span class="ident">ClientReportOutcomeProducer::create</span>(<span class="ident">config</span>.<span class="ident">borrow</span>()).<span class="ident">start</span>(),
                 )
             }
-            <span class="ident">EmitOutcomes::None</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">EmitOutcomes::None</span> =&gt; {
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to drop all outcomes&quot;</span>);
                 <span class="ident">ProducerInner::Disabled</span>
             }
@@ -1509,7 +1509,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">producer</span>: <span class="kw-2">&amp;</span><span class="ident">ThreadedProducer</span>,
         <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span> {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Tracking kafka outcome: {:?}&quot;</span>, <span class="ident">message</span>);
 
         <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">OutcomeError::SerializationError</span>)<span class="question-mark">?</span>;
@@ -1525,8 +1525,8 @@
             .<span class="ident">key</span>(<span class="ident">key</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ref</span>());
 
         <span class="kw">match</span> <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">record</span>) {
-            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
-            <span class="prelude-val">Err</span>((<span class="ident">kafka_error</span>, <span class="ident">_message</span>)) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">OutcomeError::SendFailed</span>(<span class="ident">kafka_error</span>)),
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Err</span>((<span class="ident">kafka_error</span>, <span class="ident">_message</span>)) =&gt; <span class="prelude-val">Err</span>(<span class="ident">OutcomeError::SendFailed</span>(<span class="ident">kafka_error</span>)),
         }
     }
 
@@ -1558,32 +1558,32 @@
 <span class="kw">impl</span> <span class="ident">SystemService</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {}
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="macro">unimplemented!</span>(<span class="string">&quot;register with the SystemRegistry instead&quot;</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">producer</span> {
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">kafka_producer</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">kafka_producer</span>) =&gt; {
                 <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;kafka&quot;</span>);
                 <span class="kw">let</span> <span class="ident">raw_message</span> <span class="op">=</span> <span class="ident">TrackRawOutcome::from_outcome</span>(<span class="ident">message</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>);
                 <span class="self">self</span>.<span class="ident">send_kafka_message</span>(<span class="ident">kafka_producer</span>, <span class="ident">raw_message</span>)
             }
-            <span class="ident">ProducerInner::AsClientReports</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">ProducerInner::AsClientReports</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) =&gt; {
                 <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;client_report&quot;</span>);
                 <span class="ident">producer</span>.<span class="ident">do_send</span>(<span class="ident">message</span>);
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="ident">ProducerInner::AsHttpOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">ProducerInner::AsHttpOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) =&gt; {
                 <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;http&quot;</span>);
                 <span class="ident">producer</span>.<span class="ident">do_send</span>(<span class="ident">TrackRawOutcome::from_outcome</span>(<span class="ident">message</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>));
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="ident">ProducerInner::Disabled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="ident">ProducerInner::Disabled</span> =&gt; <span class="prelude-val">Ok</span>(()),
         }
     }
 }
@@ -1591,20 +1591,20 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">producer</span> {
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">kafka_producer</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">kafka_producer</span>) =&gt; {
                 <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;kafka&quot;</span>);
                 <span class="self">self</span>.<span class="ident">send_kafka_message</span>(<span class="ident">kafka_producer</span>, <span class="ident">message</span>)
             }
-            <span class="ident">ProducerInner::AsHttpOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">ProducerInner::AsHttpOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">producer</span>) =&gt; {
                 <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;http&quot;</span>);
                 <span class="ident">producer</span>.<span class="ident">do_send</span>(<span class="ident">message</span>);
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="ident">ProducerInner::AsClientReports</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
-            <span class="ident">ProducerInner::Disabled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="ident">ProducerInner::AsClientReports</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
+            <span class="ident">ProducerInner::Disabled</span> =&gt; <span class="prelude-val">Ok</span>(()),
         }
     }
 }

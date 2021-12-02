@@ -249,7 +249,7 @@
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+    ) -&gt; <span class="ident">ProcessingResult</span> {
         <span class="comment">// Drop unknown attributes at all levels without error messages, unless `retain = &quot;true&quot;`</span>
         <span class="comment">// was specified explicitly on the field.</span>
         <span class="kw">if</span> <span class="op">!</span><span class="ident">state</span>.<span class="ident">attrs</span>().<span class="ident">retain</span> {
@@ -264,7 +264,7 @@
         <span class="ident">breadcrumb</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Breadcrumb</span>,
         <span class="ident">_meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+    ) -&gt; <span class="ident">ProcessingResult</span> {
         <span class="comment">// Move the current map out so we don&#39;t clear it in `process_other`</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">std::mem::take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">breadcrumb</span>.<span class="ident">other</span>);
         <span class="ident">create_errors</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">other</span>);
@@ -280,7 +280,7 @@
         <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>,
         <span class="ident">_meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+    ) -&gt; <span class="ident">ProcessingResult</span> {
         <span class="comment">// Move the current map out so we don&#39;t clear it in `process_other`</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">std::mem::take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>.<span class="ident">other</span>);
 

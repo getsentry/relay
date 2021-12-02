@@ -85,7 +85,7 @@
 
 <span class="doccomment">/// Helper method to check whether a flag is false.</span>
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::trivially_copy_pass_by_ref</span>)]</span>
-<span class="kw">fn</span> <span class="ident">is_flag_default</span>(<span class="ident">flag</span>: <span class="kw-2">&amp;</span><span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">is_flag_default</span>(<span class="ident">flag</span>: <span class="kw-2">&amp;</span><span class="ident">bool</span>) -&gt; <span class="ident">bool</span> {
     <span class="op">!</span><span class="kw-2">*</span><span class="ident">flag</span>
 }
 
@@ -116,7 +116,7 @@
 
 <span class="kw">impl</span> <span class="ident">DataScrubbingConfig</span> {
     <span class="doccomment">/// Creates a new data scrubbing configuration that does nothing on the event.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_disabled</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_disabled</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">DataScrubbingConfig</span> {
             <span class="ident">exclude_fields</span>: <span class="macro">vec!</span>[],
             <span class="ident">scrub_data</span>: <span class="bool-val">false</span>,
@@ -128,13 +128,13 @@
     }
 
     <span class="doccomment">/// Returns true if datascrubbing is disabled.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_disabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="op">!</span><span class="self">self</span>.<span class="ident">scrub_data</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">scrub_ip_addresses</span>
     }
 
     <span class="doccomment">/// Get the PII config derived from datascrubbing settings. Result is cached in lazycell and</span>
     <span class="doccomment">/// directly returned on second call.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pii_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">LazyCellRef</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pii_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">LazyCellRef</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">pii_config</span>
             .<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">pii_config_uncached</span>())
     }
@@ -142,7 +142,7 @@
     <span class="doccomment">/// Like `self.pii_config` but without internal caching. Useful for benchmarks but not much</span>
     <span class="doccomment">/// else.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pii_config_uncached</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pii_config_uncached</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span> {
         <span class="ident">convert::to_pii_config</span>(<span class="self">self</span>)
     }
 }

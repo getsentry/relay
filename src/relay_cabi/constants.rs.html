@@ -35,14 +35,14 @@
 <span class="doccomment">/// Returns the API name of the given `DataCategory`.</span>
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
 <span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_data_category_name</span>(<span class="ident">category</span>: <span class="ident">DataCategory</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayStr</span> {
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_data_category_name</span>(<span class="ident">category</span>: <span class="ident">DataCategory</span>) -&gt; <span class="ident">RelayStr</span> {
     <span class="ident">RelayStr::new</span>(<span class="ident">category</span>.<span class="ident">name</span>())
 }
 
 <span class="doccomment">/// Parses a `DataCategory` from its API name.</span>
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
 <span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_data_category_parse</span>(<span class="ident">name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">RelayStr</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">DataCategory</span> {
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_data_category_parse</span>(<span class="ident">name</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">RelayStr</span>) -&gt; <span class="ident">DataCategory</span> {
     (<span class="kw-2">*</span><span class="ident">name</span>).<span class="ident">as_str</span>().<span class="ident">parse</span>().<span class="ident">unwrap_or</span>(<span class="ident">DataCategory::Unknown</span>)
 }
 
@@ -51,7 +51,7 @@
 <span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
 <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_data_category_from_event_type</span>(
     <span class="ident">event_type</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">RelayStr</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">DataCategory</span> {
+) -&gt; <span class="ident">DataCategory</span> {
     (<span class="kw-2">*</span><span class="ident">event_type</span>)
         .<span class="ident">as_str</span>()
         .<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">EventType</span><span class="op">&gt;</span>()

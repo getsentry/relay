@@ -382,7 +382,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseEventTypeError</span>;
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ParseEventTypeError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid event type&quot;</span>)
     }
 }
@@ -390,7 +390,7 @@
 <span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">ParseEventTypeError</span> {}
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">EventType</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">EventType::Default</span>
     }
 }
@@ -398,30 +398,30 @@
 <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">EventType</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseEventTypeError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">string</span> {
-            <span class="string">&quot;default&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::Default</span>,
-            <span class="string">&quot;error&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::Error</span>,
-            <span class="string">&quot;csp&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::Csp</span>,
-            <span class="string">&quot;hpkp&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::Hpkp</span>,
-            <span class="string">&quot;expectct&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::ExpectCt</span>,
-            <span class="string">&quot;expectstaple&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::ExpectStaple</span>,
-            <span class="string">&quot;transaction&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">EventType::Transaction</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseEventTypeError</span>),
+            <span class="string">&quot;default&quot;</span> =&gt; <span class="ident">EventType::Default</span>,
+            <span class="string">&quot;error&quot;</span> =&gt; <span class="ident">EventType::Error</span>,
+            <span class="string">&quot;csp&quot;</span> =&gt; <span class="ident">EventType::Csp</span>,
+            <span class="string">&quot;hpkp&quot;</span> =&gt; <span class="ident">EventType::Hpkp</span>,
+            <span class="string">&quot;expectct&quot;</span> =&gt; <span class="ident">EventType::ExpectCt</span>,
+            <span class="string">&quot;expectstaple&quot;</span> =&gt; <span class="ident">EventType::ExpectStaple</span>,
+            <span class="string">&quot;transaction&quot;</span> =&gt; <span class="ident">EventType::Transaction</span>,
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseEventTypeError</span>),
         })
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">EventType</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">EventType::Default</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;default&quot;</span>),
-            <span class="ident">EventType::Error</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;error&quot;</span>),
-            <span class="ident">EventType::Csp</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;csp&quot;</span>),
-            <span class="ident">EventType::Hpkp</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;hpkp&quot;</span>),
-            <span class="ident">EventType::ExpectCt</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;expectct&quot;</span>),
-            <span class="ident">EventType::ExpectStaple</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;expectstaple&quot;</span>),
-            <span class="ident">EventType::Transaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;transaction&quot;</span>),
+            <span class="ident">EventType::Default</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;default&quot;</span>),
+            <span class="ident">EventType::Error</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;error&quot;</span>),
+            <span class="ident">EventType::Csp</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;csp&quot;</span>),
+            <span class="ident">EventType::Hpkp</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;hpkp&quot;</span>),
+            <span class="ident">EventType::ExpectCt</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;expectct&quot;</span>),
+            <span class="ident">EventType::ExpectStaple</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;expectstaple&quot;</span>),
+            <span class="ident">EventType::Transaction</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;transaction&quot;</span>),
         }
     }
 }
@@ -452,40 +452,40 @@
 
 <span class="kw">impl</span> <span class="ident">DataCategory</span> {
     <span class="doccomment">/// Returns the data category corresponding to the given name.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_name</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_name</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">match</span> <span class="ident">string</span> {
-            <span class="string">&quot;default&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Default</span>,
-            <span class="string">&quot;error&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Error</span>,
-            <span class="string">&quot;transaction&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Transaction</span>,
-            <span class="string">&quot;security&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Security</span>,
-            <span class="string">&quot;attachment&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Attachment</span>,
-            <span class="string">&quot;session&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Session</span>,
-            <span class="string">&quot;internal&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Internal</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Unknown</span>,
+            <span class="string">&quot;default&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Default</span>,
+            <span class="string">&quot;error&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Error</span>,
+            <span class="string">&quot;transaction&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Transaction</span>,
+            <span class="string">&quot;security&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Security</span>,
+            <span class="string">&quot;attachment&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Attachment</span>,
+            <span class="string">&quot;session&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Session</span>,
+            <span class="string">&quot;internal&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Internal</span>,
+            <span class="kw">_</span> =&gt; <span class="ident"><span class="self">Self</span>::Unknown</span>,
         }
     }
 
     <span class="doccomment">/// Returns the canonical name of this data category.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Default</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;default&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Error</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;error&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Transaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;transaction&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Security</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;security&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Attachment</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;attachment&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Session</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;session&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Internal</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;internal&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Unknown</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;unknown&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Default</span> =&gt; <span class="string">&quot;default&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Error</span> =&gt; <span class="string">&quot;error&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Transaction</span> =&gt; <span class="string">&quot;transaction&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Security</span> =&gt; <span class="string">&quot;security&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Attachment</span> =&gt; <span class="string">&quot;attachment&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Session</span> =&gt; <span class="string">&quot;session&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Internal</span> =&gt; <span class="string">&quot;internal&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Unknown</span> =&gt; <span class="string">&quot;unknown&quot;</span>,
         }
     }
 
     <span class="doccomment">/// Returns true if the DataCategory refers to an error (i.e an error event).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_error</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_error</span>(<span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident"><span class="self">Self</span>::Error</span> <span class="op">|</span> <span class="ident"><span class="self">Self</span>::Default</span> <span class="op">|</span> <span class="ident"><span class="self">Self</span>::Security</span>)
     }
 
     <span class="doccomment">/// Returns the numeric value for this outcome.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value</span>(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="comment">// negative values (Internal and Unknown) cannot be sent as</span>
         <span class="comment">// outcomes (internally so!)</span>
         (<span class="self">self</span> <span class="kw">as</span> <span class="ident">i8</span>).<span class="ident">try_into</span>().<span class="ident">ok</span>()
@@ -493,7 +493,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">DataCategory</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">name</span>())
     }
 }
@@ -501,17 +501,17 @@
 <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">DataCategory</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="ident"><span class="self">Self</span>::from_name</span>(<span class="ident">string</span>))
     }
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">EventType</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DataCategory</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">ty</span>: <span class="ident">EventType</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">ty</span>: <span class="ident">EventType</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">match</span> <span class="ident">ty</span> {
-            <span class="ident">EventType::Default</span> <span class="op">|</span> <span class="ident">EventType::Error</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Error</span>,
-            <span class="ident">EventType::Transaction</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Transaction</span>,
-            <span class="ident">EventType::Csp</span> <span class="op">|</span> <span class="ident">EventType::Hpkp</span> <span class="op">|</span> <span class="ident">EventType::ExpectCt</span> <span class="op">|</span> <span class="ident">EventType::ExpectStaple</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">EventType::Default</span> <span class="op">|</span> <span class="ident">EventType::Error</span> =&gt; <span class="ident"><span class="self">Self</span>::Error</span>,
+            <span class="ident">EventType::Transaction</span> =&gt; <span class="ident"><span class="self">Self</span>::Transaction</span>,
+            <span class="ident">EventType::Csp</span> <span class="op">|</span> <span class="ident">EventType::Hpkp</span> <span class="op">|</span> <span class="ident">EventType::ExpectCt</span> <span class="op">|</span> <span class="ident">EventType::ExpectStaple</span> =&gt; {
                 <span class="ident"><span class="self">Self</span>::Security</span>
             }
         }
@@ -611,7 +611,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParseSpanStatusError</span>;
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ParseSpanStatusError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid span status&quot;</span>)
     }
 }
@@ -621,52 +621,52 @@
 <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">SpanStatus</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseSpanStatusError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SpanStatus</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SpanStatus</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">string</span> {
-            <span class="string">&quot;ok&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::Ok</span>,
-            <span class="string">&quot;success&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::Ok</span>, <span class="comment">// Backwards compat with initial schema</span>
-            <span class="string">&quot;deadline_exceeded&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::DeadlineExceeded</span>,
-            <span class="string">&quot;unauthenticated&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::Unauthenticated</span>,
-            <span class="string">&quot;permission_denied&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::PermissionDenied</span>,
-            <span class="string">&quot;not_found&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::NotFound</span>,
-            <span class="string">&quot;resource_exhausted&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::ResourceExhausted</span>,
-            <span class="string">&quot;invalid_argument&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::InvalidArgument</span>,
-            <span class="string">&quot;unimplemented&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::Unimplemented</span>,
-            <span class="string">&quot;unavailable&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::Unavailable</span>,
-            <span class="string">&quot;internal_error&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::InternalError</span>,
-            <span class="string">&quot;failure&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::InternalError</span>, <span class="comment">// Backwards compat with initial schema</span>
-            <span class="string">&quot;unknown&quot;</span> <span class="op">|</span> <span class="string">&quot;unknown_error&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::Unknown</span>,
-            <span class="string">&quot;cancelled&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::Cancelled</span>,
-            <span class="string">&quot;already_exists&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::AlreadyExists</span>,
-            <span class="string">&quot;failed_precondition&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::FailedPrecondition</span>,
-            <span class="string">&quot;aborted&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::Aborted</span>,
-            <span class="string">&quot;out_of_range&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::OutOfRange</span>,
-            <span class="string">&quot;data_loss&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">SpanStatus::DataLoss</span>,
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseSpanStatusError</span>),
+            <span class="string">&quot;ok&quot;</span> =&gt; <span class="ident">SpanStatus::Ok</span>,
+            <span class="string">&quot;success&quot;</span> =&gt; <span class="ident">SpanStatus::Ok</span>, <span class="comment">// Backwards compat with initial schema</span>
+            <span class="string">&quot;deadline_exceeded&quot;</span> =&gt; <span class="ident">SpanStatus::DeadlineExceeded</span>,
+            <span class="string">&quot;unauthenticated&quot;</span> =&gt; <span class="ident">SpanStatus::Unauthenticated</span>,
+            <span class="string">&quot;permission_denied&quot;</span> =&gt; <span class="ident">SpanStatus::PermissionDenied</span>,
+            <span class="string">&quot;not_found&quot;</span> =&gt; <span class="ident">SpanStatus::NotFound</span>,
+            <span class="string">&quot;resource_exhausted&quot;</span> =&gt; <span class="ident">SpanStatus::ResourceExhausted</span>,
+            <span class="string">&quot;invalid_argument&quot;</span> =&gt; <span class="ident">SpanStatus::InvalidArgument</span>,
+            <span class="string">&quot;unimplemented&quot;</span> =&gt; <span class="ident">SpanStatus::Unimplemented</span>,
+            <span class="string">&quot;unavailable&quot;</span> =&gt; <span class="ident">SpanStatus::Unavailable</span>,
+            <span class="string">&quot;internal_error&quot;</span> =&gt; <span class="ident">SpanStatus::InternalError</span>,
+            <span class="string">&quot;failure&quot;</span> =&gt; <span class="ident">SpanStatus::InternalError</span>, <span class="comment">// Backwards compat with initial schema</span>
+            <span class="string">&quot;unknown&quot;</span> <span class="op">|</span> <span class="string">&quot;unknown_error&quot;</span> =&gt; <span class="ident">SpanStatus::Unknown</span>,
+            <span class="string">&quot;cancelled&quot;</span> =&gt; <span class="ident">SpanStatus::Cancelled</span>,
+            <span class="string">&quot;already_exists&quot;</span> =&gt; <span class="ident">SpanStatus::AlreadyExists</span>,
+            <span class="string">&quot;failed_precondition&quot;</span> =&gt; <span class="ident">SpanStatus::FailedPrecondition</span>,
+            <span class="string">&quot;aborted&quot;</span> =&gt; <span class="ident">SpanStatus::Aborted</span>,
+            <span class="string">&quot;out_of_range&quot;</span> =&gt; <span class="ident">SpanStatus::OutOfRange</span>,
+            <span class="string">&quot;data_loss&quot;</span> =&gt; <span class="ident">SpanStatus::DataLoss</span>,
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseSpanStatusError</span>),
         })
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">SpanStatus</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">SpanStatus::Ok</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;ok&quot;</span>),
-            <span class="ident">SpanStatus::DeadlineExceeded</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;deadline_exceeded&quot;</span>),
-            <span class="ident">SpanStatus::Unauthenticated</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unauthenticated&quot;</span>),
-            <span class="ident">SpanStatus::PermissionDenied</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;permission_denied&quot;</span>),
-            <span class="ident">SpanStatus::NotFound</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;not_found&quot;</span>),
-            <span class="ident">SpanStatus::ResourceExhausted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;resource_exhausted&quot;</span>),
-            <span class="ident">SpanStatus::InvalidArgument</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid_argument&quot;</span>),
-            <span class="ident">SpanStatus::Unimplemented</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unimplemented&quot;</span>),
-            <span class="ident">SpanStatus::Unavailable</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unavailable&quot;</span>),
-            <span class="ident">SpanStatus::InternalError</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;internal_error&quot;</span>),
-            <span class="ident">SpanStatus::Unknown</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unknown&quot;</span>),
-            <span class="ident">SpanStatus::Cancelled</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;cancelled&quot;</span>),
-            <span class="ident">SpanStatus::AlreadyExists</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;already_exists&quot;</span>),
-            <span class="ident">SpanStatus::FailedPrecondition</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;failed_precondition&quot;</span>),
-            <span class="ident">SpanStatus::Aborted</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;aborted&quot;</span>),
-            <span class="ident">SpanStatus::OutOfRange</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;out_of_range&quot;</span>),
-            <span class="ident">SpanStatus::DataLoss</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;data_loss&quot;</span>),
+            <span class="ident">SpanStatus::Ok</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;ok&quot;</span>),
+            <span class="ident">SpanStatus::DeadlineExceeded</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;deadline_exceeded&quot;</span>),
+            <span class="ident">SpanStatus::Unauthenticated</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unauthenticated&quot;</span>),
+            <span class="ident">SpanStatus::PermissionDenied</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;permission_denied&quot;</span>),
+            <span class="ident">SpanStatus::NotFound</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;not_found&quot;</span>),
+            <span class="ident">SpanStatus::ResourceExhausted</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;resource_exhausted&quot;</span>),
+            <span class="ident">SpanStatus::InvalidArgument</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid_argument&quot;</span>),
+            <span class="ident">SpanStatus::Unimplemented</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unimplemented&quot;</span>),
+            <span class="ident">SpanStatus::Unavailable</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unavailable&quot;</span>),
+            <span class="ident">SpanStatus::InternalError</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;internal_error&quot;</span>),
+            <span class="ident">SpanStatus::Unknown</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unknown&quot;</span>),
+            <span class="ident">SpanStatus::Cancelled</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;cancelled&quot;</span>),
+            <span class="ident">SpanStatus::AlreadyExists</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;already_exists&quot;</span>),
+            <span class="ident">SpanStatus::FailedPrecondition</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;failed_precondition&quot;</span>),
+            <span class="ident">SpanStatus::Aborted</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;aborted&quot;</span>),
+            <span class="ident">SpanStatus::OutOfRange</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;out_of_range&quot;</span>),
+            <span class="ident">SpanStatus::DataLoss</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;data_loss&quot;</span>),
         }
     }
 }

@@ -562,7 +562,7 @@
 <span class="doccomment">/// This effectively boots the entire server application. It blocks the current thread until a</span>
 <span class="doccomment">/// shutdown signal is received or a fatal error happens. Behavior of the server is determined by</span>
 <span class="doccomment">/// the `config` passed into this funciton.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ServerError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ServerError</span><span class="op">&gt;</span> {
     <span class="comment">// Run the controller and block until a shutdown signal is sent to this process. This will</span>
     <span class="comment">// create an actix system, start a web server and run all relevant actors inside. See the</span>
     <span class="comment">// `actors` module documentation for more information on all actors.</span>

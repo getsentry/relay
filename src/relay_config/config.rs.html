@@ -1995,7 +1995,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ConfigErrorSource</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::None</span>
     }
 }
@@ -2009,7 +2009,7 @@
 
 <span class="kw">impl</span> <span class="ident">ConfigError</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">C</span><span class="op">&gt;</span>(<span class="ident">context</span>: <span class="ident">C</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>
+    <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">C</span><span class="op">&gt;</span>(<span class="ident">context</span>: <span class="ident">C</span>) -&gt; <span class="self">Self</span>
     <span class="kw">where</span>
         <span class="ident">C</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&lt;</span><span class="ident">ConfigErrorKind</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     {
@@ -2020,7 +2020,7 @@
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">wrap</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">inner</span>: <span class="ident">E</span>, <span class="ident">kind</span>: <span class="ident">ConfigErrorKind</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>
+    <span class="kw">fn</span> <span class="ident">wrap</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">inner</span>: <span class="ident">E</span>, <span class="ident">kind</span>: <span class="ident">ConfigErrorKind</span>) -&gt; <span class="self">Self</span>
     <span class="kw">where</span>
         <span class="ident">E</span>: <span class="ident">Fail</span>,
     {
@@ -2028,7 +2028,7 @@
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">for_field</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">inner</span>: <span class="ident">E</span>, <span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>
+    <span class="kw">fn</span> <span class="ident">for_field</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">inner</span>: <span class="ident">E</span>, <span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) -&gt; <span class="self">Self</span>
     <span class="kw">where</span>
         <span class="ident">E</span>: <span class="ident">Fail</span>,
     {
@@ -2036,41 +2036,41 @@
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">file</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">p</span>: <span class="ident">P</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">file</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">p</span>: <span class="ident">P</span>) -&gt; <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">source</span> <span class="op">=</span> <span class="ident">ConfigErrorSource::File</span>(<span class="ident">p</span>.<span class="ident">as_ref</span>().<span class="ident">to_path_buf</span>());
         <span class="self">self</span>
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">field</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">field</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) -&gt; <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">source</span> <span class="op">=</span> <span class="ident">ConfigErrorSource::FieldOverride</span>(<span class="ident">name</span>.<span class="ident">to_owned</span>());
         <span class="self">self</span>
     }
 
     <span class="doccomment">/// Returns the error kind of the error.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ConfigErrorKind</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kind</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ConfigErrorKind</span> {
         <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">get_context</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Fail</span> <span class="kw">for</span> <span class="ident">ConfigError</span> {
-    <span class="kw">fn</span> <span class="ident">cause</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw">dyn</span> <span class="ident">Fail</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">cause</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw">dyn</span> <span class="ident">Fail</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">cause</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">backtrace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Backtrace</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">backtrace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Backtrace</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">backtrace</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ConfigError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">source</span> {
-            <span class="ident">ConfigErrorSource::None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            <span class="ident">ConfigErrorSource::File</span>(<span class="ident">file_name</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">ConfigErrorSource::None</span> =&gt; <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
+            <span class="ident">ConfigErrorSource::File</span>(<span class="ident">file_name</span>) =&gt; {
                 <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{} (file {})&quot;</span>, <span class="self">self</span>.<span class="ident">inner</span>, <span class="ident">file_name</span>.<span class="ident">display</span>())
             }
-            <span class="ident">ConfigErrorSource::FieldOverride</span>(<span class="ident">name</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{} (field {})&quot;</span>, <span class="self">self</span>.<span class="ident">inner</span>, <span class="ident">name</span>),
+            <span class="ident">ConfigErrorSource::FieldOverride</span>(<span class="ident">name</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{} (field {})&quot;</span>, <span class="self">self</span>.<span class="ident">inner</span>, <span class="ident">name</span>),
         }
     }
 }
@@ -2108,53 +2108,53 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ConfigFormat</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">extension</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">extension</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">ConfigFormat::Yaml</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;yml&quot;</span>,
-            <span class="ident">ConfigFormat::Json</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;json&quot;</span>,
+            <span class="ident">ConfigFormat::Yaml</span> =&gt; <span class="string">&quot;yml&quot;</span>,
+            <span class="ident">ConfigFormat::Json</span> =&gt; <span class="string">&quot;json&quot;</span>,
         }
     }
 }
 
 <span class="kw">trait</span> <span class="ident">ConfigObject</span>: <span class="ident">DeserializeOwned</span> <span class="op">+</span> <span class="ident">Serialize</span> {
     <span class="doccomment">/// The format in which to serialize this configuration.</span>
-    <span class="kw">fn</span> <span class="ident">format</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ConfigFormat</span>;
+    <span class="kw">fn</span> <span class="ident">format</span>() -&gt; <span class="ident">ConfigFormat</span>;
 
     <span class="doccomment">/// The basename of the config file.</span>
-    <span class="kw">fn</span> <span class="ident">name</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
+    <span class="kw">fn</span> <span class="ident">name</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
 
     <span class="doccomment">/// The full filename of the config file, including the file extension.</span>
-    <span class="kw">fn</span> <span class="ident">path</span>(<span class="ident">base</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">PathBuf</span> {
+    <span class="kw">fn</span> <span class="ident">path</span>(<span class="ident">base</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) -&gt; <span class="ident">PathBuf</span> {
         <span class="ident">base</span>.<span class="ident">join</span>(<span class="macro">format!</span>(<span class="string">&quot;{}.{}&quot;</span>, <span class="ident"><span class="self">Self</span>::name</span>(), <span class="ident"><span class="self">Self</span>::format</span>().<span class="ident">extension</span>()))
     }
 
     <span class="doccomment">/// Loads the config file from a file within the given directory location.</span>
-    <span class="kw">fn</span> <span class="ident">load</span>(<span class="ident">base</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">load</span>(<span class="ident">base</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::path</span>(<span class="ident">base</span>);
 
         <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">fs::File::open</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>)
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">ConfigError::wrap</span>(<span class="ident">e</span>, <span class="ident">ConfigErrorKind::CouldNotOpenFile</span>).<span class="ident">file</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>))<span class="question-mark">?</span>;
 
         <span class="kw">match</span> <span class="ident"><span class="self">Self</span>::format</span>() {
-            <span class="ident">ConfigFormat::Yaml</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">serde_yaml::from_reader</span>(<span class="ident">io::BufReader::new</span>(<span class="ident">f</span>))
+            <span class="ident">ConfigFormat::Yaml</span> =&gt; <span class="ident">serde_yaml::from_reader</span>(<span class="ident">io::BufReader::new</span>(<span class="ident">f</span>))
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">ConfigError::wrap</span>(<span class="ident">e</span>, <span class="ident">ConfigErrorKind::BadYaml</span>).<span class="ident">file</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>)),
-            <span class="ident">ConfigFormat::Json</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">serde_json::from_reader</span>(<span class="ident">io::BufReader::new</span>(<span class="ident">f</span>))
+            <span class="ident">ConfigFormat::Json</span> =&gt; <span class="ident">serde_json::from_reader</span>(<span class="ident">io::BufReader::new</span>(<span class="ident">f</span>))
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">ConfigError::wrap</span>(<span class="ident">e</span>, <span class="ident">ConfigErrorKind::BadJson</span>).<span class="ident">file</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>)),
         }
     }
 
     <span class="doccomment">/// Writes the configuration object to the given writer.</span>
-    <span class="kw">fn</span> <span class="ident">write</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">write</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="ident"><span class="self">Self</span>::format</span>() {
-            <span class="ident">ConfigFormat::Yaml</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">serde_yaml::to_writer</span>(<span class="ident">writer</span>, <span class="self">self</span>)
+            <span class="ident">ConfigFormat::Yaml</span> =&gt; <span class="ident">serde_yaml::to_writer</span>(<span class="ident">writer</span>, <span class="self">self</span>)
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">ConfigError::wrap</span>(<span class="ident">e</span>, <span class="ident">ConfigErrorKind::CouldNotWriteFile</span>)),
-            <span class="ident">ConfigFormat::Json</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">serde_json::to_writer_pretty</span>(<span class="ident">writer</span>, <span class="self">self</span>)
+            <span class="ident">ConfigFormat::Json</span> =&gt; <span class="ident">serde_json::to_writer_pretty</span>(<span class="ident">writer</span>, <span class="self">self</span>)
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">ConfigError::wrap</span>(<span class="ident">e</span>, <span class="ident">ConfigErrorKind::CouldNotWriteFile</span>)),
         }
     }
 
     <span class="doccomment">/// Writes the configuration to a file within the given directory location.</span>
-    <span class="kw">fn</span> <span class="ident">save</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">base</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">save</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">base</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::path</span>(<span class="ident">base</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">options</span> <span class="op">=</span> <span class="ident">fs::OpenOptions::new</span>();
         <span class="ident">options</span>.<span class="ident">write</span>(<span class="bool-val">true</span>).<span class="ident">truncate</span>(<span class="bool-val">true</span>).<span class="ident">create</span>(<span class="bool-val">true</span>);
@@ -2218,7 +2218,7 @@
 
 <span class="kw">impl</span> <span class="ident">Credentials</span> {
     <span class="doccomment">/// Generates new random credentials.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate</span>() -&gt; <span class="self">Self</span> {
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;generating new relay credentials&quot;</span>);
         <span class="kw">let</span> (<span class="ident">sk</span>, <span class="ident">pk</span>) <span class="op">=</span> <span class="ident">generate_key_pair</span>();
         <span class="self">Self</span> {
@@ -2229,17 +2229,17 @@
     }
 
     <span class="doccomment">/// Serializes this configuration to JSON.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_json_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_json_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="ident">serde_json::to_string</span>(<span class="self">self</span>)
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">ConfigError::wrap</span>(<span class="ident">e</span>, <span class="ident">ConfigErrorKind::CouldNotWriteFile</span>))
     }
 }
 
 <span class="kw">impl</span> <span class="ident">ConfigObject</span> <span class="kw">for</span> <span class="ident">Credentials</span> {
-    <span class="kw">fn</span> <span class="ident">format</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ConfigFormat</span> {
+    <span class="kw">fn</span> <span class="ident">format</span>() -&gt; <span class="ident">ConfigFormat</span> {
         <span class="ident">ConfigFormat::Json</span>
     }
-    <span class="kw">fn</span> <span class="ident">name</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="string">&quot;credentials&quot;</span>
     }
 }
@@ -2258,7 +2258,7 @@
 
 <span class="kw">impl</span> <span class="ident">RelayInfo</span> {
     <span class="doccomment">/// Creates a new RelayInfo</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">public_key</span>: <span class="ident">PublicKey</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">public_key</span>: <span class="ident">PublicKey</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">public_key</span>,
             <span class="ident">internal</span>: <span class="bool-val">false</span>,
@@ -2297,12 +2297,12 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">RelayMode</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelayMode::Proxy</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;proxy&quot;</span>),
-            <span class="ident">RelayMode::Static</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;static&quot;</span>),
-            <span class="ident">RelayMode::Managed</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;managed&quot;</span>),
-            <span class="ident">RelayMode::Capture</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;capture&quot;</span>),
+            <span class="ident">RelayMode::Proxy</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;proxy&quot;</span>),
+            <span class="ident">RelayMode::Static</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;static&quot;</span>),
+            <span class="ident">RelayMode::Managed</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;managed&quot;</span>),
+            <span class="ident">RelayMode::Capture</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;capture&quot;</span>),
         }
     }
 }
@@ -2310,13 +2310,13 @@
 <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">RelayMode</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="ident">s</span> {
-            <span class="string">&quot;proxy&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">RelayMode::Proxy</span>),
-            <span class="string">&quot;static&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">RelayMode::Static</span>),
-            <span class="string">&quot;managed&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">RelayMode::Managed</span>),
-            <span class="string">&quot;capture&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">RelayMode::Capture</span>),
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">Context::new</span>(
+            <span class="string">&quot;proxy&quot;</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">RelayMode::Proxy</span>),
+            <span class="string">&quot;static&quot;</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">RelayMode::Static</span>),
+            <span class="string">&quot;managed&quot;</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">RelayMode::Managed</span>),
+            <span class="string">&quot;capture&quot;</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">RelayMode::Capture</span>),
+            <span class="kw">_</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">Context::new</span>(
                 <span class="string">&quot;Relay mode must be one of: managed, static, proxy, capture&quot;</span>,
             )),
         }
@@ -2324,7 +2324,7 @@
 }
 
 <span class="doccomment">/// Checks if we are running in docker.</span>
-<span class="kw">fn</span> <span class="ident">is_docker</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">is_docker</span>() -&gt; <span class="ident">bool</span> {
     <span class="kw">if</span> <span class="ident">fs::metadata</span>(<span class="string">&quot;/.dockerenv&quot;</span>).<span class="ident">is_ok</span>() {
         <span class="kw">return</span> <span class="bool-val">true</span>;
     }
@@ -2333,7 +2333,7 @@
 }
 
 <span class="doccomment">/// Default value for the &quot;bind&quot; configuration.</span>
-<span class="kw">fn</span> <span class="ident">default_host</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">IpAddr</span> {
+<span class="kw">fn</span> <span class="ident">default_host</span>() -&gt; <span class="ident">IpAddr</span> {
     <span class="kw">if</span> <span class="ident">is_docker</span>() {
         <span class="comment">// Docker images rely on this service being exposed</span>
         <span class="string">&quot;0.0.0.0&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()
@@ -2362,13 +2362,13 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ReadinessCondition</span> {
-    <span class="kw">fn</span> <span class="ident">is_default</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="kw-2">*</span><span class="self">self</span> <span class="op">=</span><span class="op">=</span> <span class="ident"><span class="self">Self</span>::default</span>()
+    <span class="kw">fn</span> <span class="ident">is_default</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
+        <span class="kw-2">*</span><span class="self">self</span> <span class="op">==</span> <span class="ident"><span class="self">Self</span>::default</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ReadinessCondition</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::Authenticated</span>
     }
 }
@@ -2394,7 +2394,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Relay</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">Relay</span> {
             <span class="ident">mode</span>: <span class="ident">RelayMode::Managed</span>,
             <span class="ident">upstream</span>: <span class="string">&quot;https://sentry.io/&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
@@ -2435,7 +2435,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Metrics</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">Metrics</span> {
             <span class="ident">statsd</span>: <span class="prelude-val">None</span>,
             <span class="ident">prefix</span>: <span class="string">&quot;sentry.relay&quot;</span>.<span class="ident">into</span>(),
@@ -2503,7 +2503,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Limits</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">Limits</span> {
             <span class="ident">max_concurrent_requests</span>: <span class="number">100</span>,
             <span class="ident">max_concurrent_queries</span>: <span class="number">5</span>,
@@ -2555,7 +2555,7 @@
 
 <span class="kw">impl</span> <span class="ident">HttpEncoding</span> {
     <span class="doccomment">/// Parses a [`HttpEncoding`] from its `content-encoding` header value.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">str</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">str</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">str</span> <span class="op">=</span> <span class="ident">str</span>.<span class="ident">trim</span>();
         <span class="kw">if</span> <span class="ident">str</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;br&quot;</span>) {
             <span class="ident"><span class="self">Self</span>::Br</span>
@@ -2571,18 +2571,18 @@
     <span class="doccomment">/// Returns the value for the `content-encoding` HTTP header.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Returns `None` for [`Identity`](Self::Identity), and `Some` for other encodings.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Identity</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident"><span class="self">Self</span>::Deflate</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;deflate&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::Gzip</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;gzip&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::Br</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="string">&quot;br&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::Identity</span> =&gt; <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::Deflate</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;deflate&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::Gzip</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;gzip&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::Br</span> =&gt; <span class="prelude-val">Some</span>(<span class="string">&quot;br&quot;</span>),
         }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">HttpEncoding</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::Identity</span>
     }
 }
@@ -2638,7 +2638,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Http</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">Http</span> {
             <span class="ident">timeout</span>: <span class="number">5</span>,
             <span class="ident">connection_timeout</span>: <span class="number">3</span>,
@@ -2683,7 +2683,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Cache</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">Cache</span> {
             <span class="ident">project_expiry</span>: <span class="number">300</span>, <span class="comment">// 5 minutes</span>
             <span class="ident">project_grace_period</span>: <span class="number">0</span>,
@@ -2736,20 +2736,20 @@
 
 <span class="kw">impl</span> <span class="ident">TopicAssignments</span> {
     <span class="doccomment">/// Get a topic assignment by KafkaTopic value</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">kafka_topic</span>: <span class="ident">KafkaTopic</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">TopicAssignment</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">kafka_topic</span>: <span class="ident">KafkaTopic</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">TopicAssignment</span> {
         <span class="kw">match</span> <span class="ident">kafka_topic</span> {
-            <span class="ident">KafkaTopic::Attachments</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">attachments</span>,
-            <span class="ident">KafkaTopic::Events</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">events</span>,
-            <span class="ident">KafkaTopic::Transactions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">transactions</span>,
-            <span class="ident">KafkaTopic::Outcomes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcomes</span>,
-            <span class="ident">KafkaTopic::Sessions</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sessions</span>,
-            <span class="ident">KafkaTopic::Metrics</span> <span class="op">=</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>,
+            <span class="ident">KafkaTopic::Attachments</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">attachments</span>,
+            <span class="ident">KafkaTopic::Events</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">events</span>,
+            <span class="ident">KafkaTopic::Transactions</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">transactions</span>,
+            <span class="ident">KafkaTopic::Outcomes</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcomes</span>,
+            <span class="ident">KafkaTopic::Sessions</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sessions</span>,
+            <span class="ident">KafkaTopic::Metrics</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>,
         }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">TopicAssignments</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">events</span>: <span class="string">&quot;ingest-events&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">attachments</span>: <span class="string">&quot;ingest-attachments&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
@@ -2788,28 +2788,28 @@
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">TopicAssignment</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">topic_name</span>: <span class="ident">String</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">TopicAssignment</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">topic_name</span>: <span class="ident">String</span>) -&gt; <span class="ident">TopicAssignment</span> {
         <span class="ident">TopicAssignment::Primary</span>(<span class="ident">topic_name</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">TopicAssignment</span> {
     <span class="doccomment">/// Get the topic name from this topic assignment.</span>
-    <span class="kw">fn</span> <span class="ident">topic_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">topic_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">TopicAssignment::Primary</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">s</span>.<span class="ident">as_str</span>(),
-            <span class="ident">TopicAssignment::Secondary</span> { <span class="kw-2">ref</span> <span class="ident">topic_name</span>, .. } <span class="op">=</span><span class="op">&gt;</span> <span class="ident">topic_name</span>.<span class="ident">as_str</span>(),
+            <span class="ident">TopicAssignment::Primary</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>(),
+            <span class="ident">TopicAssignment::Secondary</span> { <span class="kw-2">ref</span> <span class="ident">topic_name</span>, .. } =&gt; <span class="ident">topic_name</span>.<span class="ident">as_str</span>(),
         }
     }
 
     <span class="doccomment">/// Get the name of the kafka config to use. `None` means default configuration.</span>
-    <span class="kw">fn</span> <span class="ident">kafka_config_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">kafka_config_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">TopicAssignment::Primary</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">TopicAssignment::Primary</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             <span class="ident">TopicAssignment::Secondary</span> {
                 <span class="kw-2">ref</span> <span class="ident">kafka_config_name</span>,
                 ..
-            } <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">kafka_config_name</span>.<span class="ident">as_str</span>()),
+            } =&gt; <span class="prelude-val">Some</span>(<span class="ident">kafka_config_name</span>.<span class="ident">as_str</span>()),
         }
     }
 }
@@ -2823,28 +2823,28 @@
     <span class="kw">pub</span> <span class="ident">value</span>: <span class="ident">String</span>,
 }
 
-<span class="kw">fn</span> <span class="ident">default_max_secs_in_future</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+<span class="kw">fn</span> <span class="ident">default_max_secs_in_future</span>() -&gt; <span class="ident">u32</span> {
     <span class="number">60</span> <span class="comment">// 1 minute</span>
 }
 
-<span class="kw">fn</span> <span class="ident">default_max_secs_in_past</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+<span class="kw">fn</span> <span class="ident">default_max_secs_in_past</span>() -&gt; <span class="ident">u32</span> {
     <span class="number">30</span> <span class="op">*</span> <span class="number">24</span> <span class="op">*</span> <span class="number">3600</span> <span class="comment">// 30 days</span>
 }
 
-<span class="kw">fn</span> <span class="ident">default_max_session_secs_in_past</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+<span class="kw">fn</span> <span class="ident">default_max_session_secs_in_past</span>() -&gt; <span class="ident">u32</span> {
     <span class="number">5</span> <span class="op">*</span> <span class="number">24</span> <span class="op">*</span> <span class="number">3600</span> <span class="comment">// 5 days</span>
 }
 
-<span class="kw">fn</span> <span class="ident">default_chunk_size</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ByteSize</span> {
+<span class="kw">fn</span> <span class="ident">default_chunk_size</span>() -&gt; <span class="ident">ByteSize</span> {
     <span class="ident">ByteSize::mebibytes</span>(<span class="number">1</span>)
 }
 
-<span class="kw">fn</span> <span class="ident">default_projectconfig_cache_prefix</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+<span class="kw">fn</span> <span class="ident">default_projectconfig_cache_prefix</span>() -&gt; <span class="ident">String</span> {
     <span class="string">&quot;relayconfig&quot;</span>.<span class="ident">to_owned</span>()
 }
 
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::unnecessary_wraps</span>)]</span>
-<span class="kw">fn</span> <span class="ident">default_max_rate_limit</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">default_max_rate_limit</span>() -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
     <span class="prelude-val">Some</span>(<span class="number">300</span>) <span class="comment">// 5 minutes</span>
 }
 
@@ -2907,7 +2907,7 @@
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Processing</span> {
     <span class="doccomment">/// Constructs a disabled processing configuration.</span>
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">enabled</span>: <span class="bool-val">false</span>,
             <span class="ident">geoip_path</span>: <span class="prelude-val">None</span>,
@@ -2936,7 +2936,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">OutcomeAggregatorConfig</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">bucket_interval</span>: <span class="number">60</span>,
             <span class="ident">flush_interval</span>: <span class="number">120</span>,
@@ -2959,21 +2959,21 @@
 
 <span class="kw">impl</span> <span class="ident">EmitOutcomes</span> {
     <span class="doccomment">/// Returns true of outcomes are emitted via http, kafka, or client reports.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">any</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">any</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="op">!</span><span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident">EmitOutcomes::None</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">EmitOutcomes</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="comment">// For compatibility, serialize None and AsOutcomes as booleans.</span>
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_bool</span>(<span class="bool-val">false</span>),
-            <span class="ident"><span class="self">Self</span>::AsClientReports</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="string">&quot;as_client_reports&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::AsOutcomes</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_bool</span>(<span class="bool-val">true</span>),
+            <span class="ident"><span class="self">Self</span>::None</span> =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_bool</span>(<span class="bool-val">false</span>),
+            <span class="ident"><span class="self">Self</span>::AsClientReports</span> =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="string">&quot;as_client_reports&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::AsOutcomes</span> =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_bool</span>(<span class="bool-val">true</span>),
         }
     }
 }
@@ -2983,11 +2983,11 @@
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EmitOutcomesVisitor</span> {
     <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">EmitOutcomes</span>;
 
-    <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;true, false, or &#39;as_client_reports&#39;&quot;</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">visit_bool</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">visit_bool</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">bool</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">E</span>: <span class="ident">serde::de::Error</span>,
     {
@@ -2998,11 +2998,11 @@
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">E</span>: <span class="ident">serde::de::Error</span>,
     {
-        <span class="kw">if</span> <span class="ident">v</span> <span class="op">=</span><span class="op">=</span> <span class="string">&quot;as_client_reports&quot;</span> {
+        <span class="kw">if</span> <span class="ident">v</span> <span class="op">==</span> <span class="string">&quot;as_client_reports&quot;</span> {
             <span class="prelude-val">Ok</span>(<span class="ident">EmitOutcomes::AsClientReports</span>)
         } <span class="kw">else</span> {
             <span class="prelude-val">Err</span>(<span class="ident">E::invalid_value</span>(<span class="ident">Unexpected::Str</span>(<span class="ident">v</span>), <span class="kw-2">&amp;</span><span class="string">&quot;as_client_reports&quot;</span>))
@@ -3011,7 +3011,7 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EmitOutcomes</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
@@ -3043,7 +3043,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Outcomes</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">Outcomes</span> {
             <span class="ident">emit_outcomes</span>: <span class="ident">EmitOutcomes::AsClientReports</span>,
             <span class="ident">emit_client_outcomes</span>: <span class="bool-val">true</span>,
@@ -3064,7 +3064,7 @@
 
 <span class="kw">impl</span> <span class="ident">MinimalConfig</span> {
     <span class="doccomment">/// Saves the config in the given config folder as config.yml</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">save_in_folder</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">p</span>: <span class="ident">P</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">save_in_folder</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">p</span>: <span class="ident">P</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">p</span>.<span class="ident">as_ref</span>();
         <span class="kw">if</span> <span class="ident">fs::metadata</span>(<span class="ident">path</span>).<span class="ident">is_err</span>() {
             <span class="ident">fs::create_dir_all</span>(<span class="ident">path</span>)
@@ -3075,11 +3075,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ConfigObject</span> <span class="kw">for</span> <span class="ident">MinimalConfig</span> {
-    <span class="kw">fn</span> <span class="ident">format</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ConfigFormat</span> {
+    <span class="kw">fn</span> <span class="ident">format</span>() -&gt; <span class="ident">ConfigFormat</span> {
         <span class="ident">ConfigFormat::Yaml</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">name</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="string">&quot;config&quot;</span>
     }
 }
@@ -3099,7 +3099,7 @@
     }
 
     <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">RelayInfoConfig</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayInfo</span> {
-        <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">v</span>: <span class="ident">RelayInfoConfig</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">v</span>: <span class="ident">RelayInfoConfig</span>) -&gt; <span class="self">Self</span> {
             <span class="ident">RelayInfo</span> {
                 <span class="ident">public_key</span>: <span class="ident">v</span>.<span class="ident">public_key</span>,
                 <span class="ident">internal</span>: <span class="ident">v</span>.<span class="ident">internal</span>,
@@ -3108,7 +3108,7 @@
     }
 
     <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">RelayInfo</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayInfoConfig</span> {
-        <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">v</span>: <span class="ident">RelayInfo</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">v</span>: <span class="ident">RelayInfo</span>) -&gt; <span class="self">Self</span> {
             <span class="ident">RelayInfoConfig</span> {
                 <span class="ident">public_key</span>: <span class="ident">v</span>.<span class="ident">public_key</span>,
                 <span class="ident">internal</span>: <span class="ident">v</span>.<span class="ident">internal</span>,
@@ -3116,7 +3116,7 @@
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">des</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayInfo</span><span class="op">&gt;</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">des</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayInfo</span><span class="op">&gt;</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
@@ -3124,7 +3124,7 @@
         <span class="prelude-val">Ok</span>(<span class="ident">map</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>, <span class="ident">v</span>.<span class="ident">into</span>())).<span class="ident">collect</span>())
     }
 
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">elm</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayInfo</span><span class="op">&gt;</span>, <span class="ident">ser</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">elm</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayInfo</span><span class="op">&gt;</span>, <span class="ident">ser</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
@@ -3177,11 +3177,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ConfigObject</span> <span class="kw">for</span> <span class="ident">ConfigValues</span> {
-    <span class="kw">fn</span> <span class="ident">format</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ConfigFormat</span> {
+    <span class="kw">fn</span> <span class="ident">format</span>() -&gt; <span class="ident">ConfigFormat</span> {
         <span class="ident">ConfigFormat::Yaml</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">name</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">fn</span> <span class="ident">name</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="string">&quot;config&quot;</span>
     }
 }
@@ -3194,7 +3194,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Config</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Config&quot;</span>)
             .<span class="ident">field</span>(<span class="string">&quot;path&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">path</span>)
             .<span class="ident">field</span>(<span class="string">&quot;values&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>)
@@ -3204,7 +3204,7 @@
 
 <span class="kw">impl</span> <span class="ident">Config</span> {
     <span class="doccomment">/// Loads a config from a given config folder.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_path</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">path</span>: <span class="ident">P</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Config</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_path</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">path</span>: <span class="ident">P</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Config</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">env::current_dir</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">join</span>(<span class="ident">path</span>.<span class="ident">as_ref</span>()))
             .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">path</span>.<span class="ident">as_ref</span>().<span class="ident">to_path_buf</span>());
@@ -3229,7 +3229,7 @@
     <span class="doccomment">/// Creates a config from a JSON value.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is mostly useful for tests.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_json_value</span>(<span class="ident">value</span>: <span class="ident">serde_json::Value</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Config</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_json_value</span>(<span class="ident">value</span>: <span class="ident">serde_json::Value</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Config</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="ident">Config</span> {
             <span class="ident">values</span>: <span class="ident">serde_json::from_value</span>(<span class="ident">value</span>)
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">ConfigError::wrap</span>(<span class="ident">err</span>, <span class="ident">ConfigErrorKind::BadJson</span>))<span class="question-mark">?</span>,
@@ -3243,7 +3243,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply_override</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="kw-2">mut</span> <span class="ident">overrides</span>: <span class="ident">OverridableConfig</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">relay</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>;
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">mode</span>) <span class="op">=</span> <span class="ident">overrides</span>.<span class="ident">mode</span> {
@@ -3274,9 +3274,9 @@
         <span class="kw">let</span> <span class="ident">processing</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>;
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">enabled</span>) <span class="op">=</span> <span class="ident">overrides</span>.<span class="ident">processing</span> {
             <span class="kw">match</span> <span class="ident">enabled</span>.<span class="ident">to_lowercase</span>().<span class="ident">as_str</span>() {
-                <span class="string">&quot;true&quot;</span> <span class="op">|</span> <span class="string">&quot;1&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">processing</span>.<span class="ident">enabled</span> <span class="op">=</span> <span class="bool-val">true</span>,
-                <span class="string">&quot;false&quot;</span> <span class="op">|</span> <span class="string">&quot;0&quot;</span> <span class="op">|</span> <span class="string">&quot;&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">processing</span>.<span class="ident">enabled</span> <span class="op">=</span> <span class="bool-val">false</span>,
-                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="string">&quot;true&quot;</span> <span class="op">|</span> <span class="string">&quot;1&quot;</span> =&gt; <span class="ident">processing</span>.<span class="ident">enabled</span> <span class="op">=</span> <span class="bool-val">true</span>,
+                <span class="string">&quot;false&quot;</span> <span class="op">|</span> <span class="string">&quot;0&quot;</span> <span class="op">|</span> <span class="string">&quot;&quot;</span> =&gt; <span class="ident">processing</span>.<span class="ident">enabled</span> <span class="op">=</span> <span class="bool-val">false</span>,
+                <span class="kw">_</span> =&gt; {
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ConfigError::new</span>(<span class="ident">ConfigErrorKind::InvalidValue</span>).<span class="ident">field</span>(<span class="string">&quot;processing&quot;</span>));
                 }
             }
@@ -3290,7 +3290,7 @@
             <span class="kw">let</span> <span class="ident">existing</span> <span class="op">=</span> <span class="ident">processing</span>
                 .<span class="ident">kafka_config</span>
                 .<span class="ident">iter_mut</span>()
-                .<span class="ident">find</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">name</span> <span class="op">=</span><span class="op">=</span> <span class="string">&quot;bootstrap.servers&quot;</span>);
+                .<span class="ident">find</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">name</span> <span class="op">==</span> <span class="string">&quot;bootstrap.servers&quot;</span>);
 
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">config_param</span>) <span class="op">=</span> <span class="ident">existing</span> {
                 <span class="ident">config_param</span>.<span class="ident">value</span> <span class="op">=</span> <span class="ident">kafka_url</span>;
@@ -3344,18 +3344,18 @@
         } <span class="kw">else</span> {
             <span class="comment">//no existing credentials we may only create the full credentials</span>
             <span class="kw">match</span> (<span class="ident">id</span>, <span class="ident">public_key</span>, <span class="ident">secret_key</span>) {
-                (<span class="prelude-val">Some</span>(<span class="ident">id</span>), <span class="prelude-val">Some</span>(<span class="ident">public_key</span>), <span class="prelude-val">Some</span>(<span class="ident">secret_key</span>)) <span class="op">=</span><span class="op">&gt;</span> {
+                (<span class="prelude-val">Some</span>(<span class="ident">id</span>), <span class="prelude-val">Some</span>(<span class="ident">public_key</span>), <span class="prelude-val">Some</span>(<span class="ident">secret_key</span>)) =&gt; {
                     <span class="self">self</span>.<span class="ident">credentials</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Credentials</span> {
                         <span class="ident">secret_key</span>,
                         <span class="ident">public_key</span>,
                         <span class="ident">id</span>,
                     })
                 }
-                (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; {
                     <span class="comment">// nothing provided, we&#39;ll just leave the credentials None, maybe we</span>
                     <span class="comment">// don&#39;t need them in the current command or we&#39;ll override them later</span>
                 }
-                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="kw">_</span> =&gt; {
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ConfigError::new</span>(<span class="ident">ConfigErrorKind::InvalidValue</span>)
                         .<span class="ident">field</span>(<span class="string">&quot;incomplete credentials&quot;</span>));
                 }
@@ -3366,17 +3366,17 @@
     }
 
     <span class="doccomment">/// Checks if the config is already initialized.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">config_exists</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">path</span>: <span class="ident">P</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">config_exists</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="ident">path</span>: <span class="ident">P</span>) -&gt; <span class="ident">bool</span> {
         <span class="ident">fs::metadata</span>(<span class="ident">ConfigValues::path</span>(<span class="ident">path</span>.<span class="ident">as_ref</span>())).<span class="ident">is_ok</span>()
     }
 
     <span class="doccomment">/// Returns the filename of the config file.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">Path</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">Path</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">path</span>
     }
 
     <span class="doccomment">/// Dumps out a YAML string of the values.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_yaml_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_yaml_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="ident">serde_yaml::to_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>)
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">ConfigError::wrap</span>(<span class="ident">e</span>, <span class="ident">ConfigErrorKind::CouldNotWriteFile</span>))
     }
@@ -3384,7 +3384,7 @@
     <span class="doccomment">/// Regenerates the relay credentials.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This also writes the credentials back to the file.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">regenerate_credentials</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">regenerate_credentials</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">creds</span> <span class="op">=</span> <span class="ident">Credentials::generate</span>();
         <span class="ident">creds</span>.<span class="ident">save</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">path</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">credentials</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">creds</span>);
@@ -3392,7 +3392,7 @@
     }
 
     <span class="doccomment">/// Return the current credentials</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">credentials</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Credentials</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">credentials</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Credentials</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">credentials</span>.<span class="ident">as_ref</span>()
     }
 
@@ -3402,16 +3402,16 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">replace_credentials</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">credentials</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Credentials</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">credentials</span> <span class="op">=</span><span class="op">=</span> <span class="ident">credentials</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">credentials</span> <span class="op">==</span> <span class="ident">credentials</span> {
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
         }
 
         <span class="kw">match</span> <span class="ident">credentials</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">creds</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">creds</span>) =&gt; {
                 <span class="ident">creds</span>.<span class="ident">save</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">path</span>)<span class="question-mark">?</span>;
             }
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">None</span> =&gt; {
                 <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">Credentials::path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">path</span>);
                 <span class="kw">if</span> <span class="ident">fs::metadata</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>).<span class="ident">is_ok</span>() {
                     <span class="ident">fs::remove_file</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
@@ -3426,47 +3426,47 @@
     }
 
     <span class="doccomment">/// Returns `true` if the config is ready to use.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_credentials</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_credentials</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">credentials</span>.<span class="ident">is_some</span>()
     }
 
     <span class="doccomment">/// Returns the secret key if set.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">secret_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">SecretKey</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">secret_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">SecretKey</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">credentials</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">secret_key</span>)
     }
 
     <span class="doccomment">/// Returns the public key if set.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PublicKey</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PublicKey</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">credentials</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">public_key</span>)
     }
 
     <span class="doccomment">/// Returns the relay ID.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">RelayId</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">RelayId</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">credentials</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">id</span>)
     }
 
     <span class="doccomment">/// Returns the relay mode.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_mode</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayMode</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_mode</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RelayMode</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">mode</span>
     }
 
     <span class="doccomment">/// Returns the upstream target as descriptor.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">upstream_descriptor</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">UpstreamDescriptor</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">upstream_descriptor</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">UpstreamDescriptor</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">upstream</span>
     }
 
     <span class="doccomment">/// Returns the custom HTTP &quot;Host&quot; header.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_host_header</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_host_header</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">host_header</span>.<span class="ident">as_deref</span>()
     }
 
     <span class="doccomment">/// Returns the listen address.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">listen_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SocketAddr</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">listen_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">SocketAddr</span> {
         (<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">host</span>, <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">port</span>).<span class="ident">into</span>()
     }
 
     <span class="doccomment">/// Returns the TLS listen address.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">tls_listen_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SocketAddr</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">tls_listen_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SocketAddr</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">tls_identity_path</span>.<span class="ident">is_some</span>() {
             <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">tls_port</span>.<span class="ident">unwrap_or</span>(<span class="number">3443</span>);
             <span class="prelude-val">Some</span>((<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">host</span>, <span class="ident">port</span>).<span class="ident">into</span>())
@@ -3476,47 +3476,47 @@
     }
 
     <span class="doccomment">/// Returns the path to the identity bundle</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">tls_identity_path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Path</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">tls_identity_path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Path</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">tls_identity_path</span>.<span class="ident">as_deref</span>()
     }
 
     <span class="doccomment">/// Returns the password for the identity bundle</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">tls_identity_password</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">tls_identity_password</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">tls_identity_password</span>.<span class="ident">as_deref</span>()
     }
 
     <span class="doccomment">/// Returns `true` if Relay requires authentication for readiness.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// See [`ReadinessCondition`] for more information.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">requires_auth</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">requires_auth</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">auth</span>.<span class="ident">ready</span> {
-            <span class="ident">ReadinessCondition::Authenticated</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">relay_mode</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">RelayMode::Managed</span>,
-            <span class="ident">ReadinessCondition::Always</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">ReadinessCondition::Authenticated</span> =&gt; <span class="self">self</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode::Managed</span>,
+            <span class="ident">ReadinessCondition::Always</span> =&gt; <span class="bool-val">false</span>,
         }
     }
 
     <span class="doccomment">/// Returns the interval at which Realy should try to re-authenticate with the upstream.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Always disabled in processing mode.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_auth_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_auth_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">processing_enabled</span>() {
             <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
 
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">auth_interval</span> {
-            <span class="prelude-val">None</span> <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="number">0</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">secs</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Duration::from_secs</span>(<span class="ident">secs</span>)),
+            <span class="prelude-val">None</span> <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="number">0</span>) =&gt; <span class="prelude-val">None</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">secs</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Duration::from_secs</span>(<span class="ident">secs</span>)),
         }
     }
 
     <span class="doccomment">/// The maximum time of experiencing uninterrupted network failures until Relay considers that</span>
     <span class="doccomment">/// it has encountered a network outage.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_outage_grace_period</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_outage_grace_period</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">outage_grace_period</span>)
     }
 
     <span class="doccomment">/// Content encoding of upstream requests.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">HttpEncoding</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">HttpEncoding</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">encoding</span>
     }
 
@@ -3524,7 +3524,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is `true` either if `outcomes.emit_outcomes` is explicitly enabled, or if this Relay is</span>
     <span class="doccomment">/// in processing mode.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">emit_outcomes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">EmitOutcomes</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">emit_outcomes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">EmitOutcomes</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">processing_enabled</span>() {
             <span class="kw">return</span> <span class="ident">EmitOutcomes::AsOutcomes</span>;
         }
@@ -3540,42 +3540,42 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This flag can be explicitly disabled on processing relays as well to prevent the</span>
     <span class="doccomment">/// emitting of client outcomes to the kafka topic.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">emit_client_outcomes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">emit_client_outcomes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">outcomes</span>.<span class="ident">emit_client_outcomes</span>
     }
 
     <span class="doccomment">/// Returns the maximum number of outcomes that are batched before being sent</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_batch_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_batch_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">outcomes</span>.<span class="ident">batch_size</span>
     }
 
     <span class="doccomment">/// Returns the maximum interval that an outcome may be batched</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_batch_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_batch_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_millis</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">outcomes</span>.<span class="ident">batch_interval</span>)
     }
 
     <span class="doccomment">/// The originating source of the outcome</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_source</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_source</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">outcomes</span>.<span class="ident">source</span>.<span class="ident">as_deref</span>()
     }
 
     <span class="doccomment">/// Returns the width of the buckets into which outcomes are aggregated, in seconds.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_aggregator</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">OutcomeAggregatorConfig</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outcome_aggregator</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">OutcomeAggregatorConfig</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">outcomes</span>.<span class="ident">aggregator</span>
     }
 
     <span class="doccomment">/// Returns logging configuration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">logging</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">relay_log::LogConfig</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">logging</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">relay_log::LogConfig</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">logging</span>
     }
 
     <span class="doccomment">/// Returns logging configuration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">relay_log::SentryConfig</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">relay_log::SentryConfig</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">sentry</span>
     }
 
     <span class="doccomment">/// The maximum allocation size relay can make.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_alloc_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_alloc_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>
             .<span class="ident">limits</span>
             .<span class="ident">max_alloc_size</span>
@@ -3586,7 +3586,7 @@
     <span class="doccomment">/// Returns the socket addresses for statsd.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If stats is disabled an empty vector is returned.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">statsd_addrs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SocketAddr</span><span class="op">&gt;</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">statsd_addrs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SocketAddr</span><span class="op">&gt;</span>, <span class="ident">ConfigError</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">addr</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">metrics</span>.<span class="ident">statsd</span> {
             <span class="kw">let</span> <span class="ident">addrs</span> <span class="op">=</span> <span class="ident">addr</span>
                 .<span class="ident">as_str</span>()
@@ -3600,220 +3600,220 @@
     }
 
     <span class="doccomment">/// Return the prefix for statsd metrics.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics_prefix</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics_prefix</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">metrics</span>.<span class="ident">prefix</span>
     }
 
     <span class="doccomment">/// Returns the default tags for statsd metrics.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics_default_tags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics_default_tags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">metrics</span>.<span class="ident">default_tags</span>
     }
 
     <span class="doccomment">/// Returns the name of the hostname tag that should be attached to each outgoing metric.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics_hostname_tag</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics_hostname_tag</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">metrics</span>.<span class="ident">hostname_tag</span>.<span class="ident">as_deref</span>()
     }
 
     <span class="doccomment">/// Returns true if metrics buffering is enabled, false otherwise.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics_buffering</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics_buffering</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">metrics</span>.<span class="ident">buffering</span>
     }
 
     <span class="doccomment">/// Returns the global sample rate for all metrics.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics_sample_rate</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">f32</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">metrics_sample_rate</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">f32</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">metrics</span>.<span class="ident">sample_rate</span>
     }
 
     <span class="doccomment">/// Returns the default timeout for all upstream HTTP requests.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_timeout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_timeout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">timeout</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the connection timeout for all upstream HTTP requests.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_connection_timeout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_connection_timeout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">connection_timeout</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the failed upstream request retry interval.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_max_retry_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">http_max_retry_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">http</span>.<span class="ident">max_retry_interval</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the expiry timeout for cached projects.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_cache_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_cache_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">project_expiry</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the expiry timeout for cached relay infos (public keys).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_cache_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_cache_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">relay_expiry</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the timeout for buffered envelopes (due to upstream errors).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">envelope_buffer_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">envelope_buffer_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">envelope_expiry</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the maximum number of buffered envelopes</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">envelope_buffer_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u32</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">envelope_buffer_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">envelope_buffer_size</span>
     }
 
     <span class="doccomment">/// Returns the expiry timeout for cached misses before trying to refetch.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cache_miss_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cache_miss_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">miss_expiry</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the grace period for project caches.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_grace_period</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_grace_period</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">project_grace_period</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the number of seconds during which batchable queries are collected before sending</span>
     <span class="doccomment">/// them in a single request.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">query_batch_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">query_batch_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_millis</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">batch_interval</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the interval in seconds in which local project configurations should be reloaded.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">local_cache_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">local_cache_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">file_interval</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the interval in seconds in which projects configurations should be freed from</span>
     <span class="doccomment">/// memory when expired.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cache_eviction_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cache_eviction_interval</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">eviction_interval</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the maximum size of an event payload in bytes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_event_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_event_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_event_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maximum size of each attachment.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_attachment_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_attachment_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_attachment_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maxmium combined size of attachments or payloads containing attachments</span>
     <span class="doccomment">/// (minidump, unreal, standalone attachments) in bytes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_attachments_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_attachments_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_attachments_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maxmium combined size of client reports in bytes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_client_reports_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_client_reports_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_client_reports_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maximum size of an envelope payload in bytes.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Individual item size limits still apply.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_envelope_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_envelope_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_envelope_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maximum number of sessions per envelope.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_session_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_session_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_session_count</span>
     }
 
     <span class="doccomment">/// Returns the maximum payload size for general API requests.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_api_payload_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_api_payload_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_api_payload_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maximum payload size for file uploads and chunks.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_api_file_upload_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_api_file_upload_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_api_file_upload_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maximum payload size for chunks</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_api_chunk_upload_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_api_chunk_upload_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_api_chunk_upload_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maximum number of active requests</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_concurrent_requests</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_concurrent_requests</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_concurrent_requests</span>
     }
 
     <span class="doccomment">/// Returns the maximum number of active queries</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_concurrent_queries</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_concurrent_queries</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_concurrent_queries</span>
     }
 
     <span class="doccomment">/// The maximum number of seconds a query is allowed to take across retries.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">query_timeout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">query_timeout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">query_timeout</span>)
     }
 
     <span class="doccomment">/// The maximum number of open connections to Relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_connections</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_connections</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_connections</span>
     }
 
     <span class="doccomment">/// The maximum number of connections to Relay that can be created at once.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_connection_rate</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_connection_rate</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_connection_rate</span>
     }
 
     <span class="doccomment">/// The maximum number of pending connects to Relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_pending_connections</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i32</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_pending_connections</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i32</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_pending_connections</span>
     }
 
     <span class="doccomment">/// The maximum number of seconds to wait for pending envelopes after receiving a shutdown</span>
     <span class="doccomment">/// signal.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">shutdown_timeout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Duration</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">shutdown_timeout</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">shutdown_timeout</span>)
     }
 
     <span class="doccomment">/// Returns the number of cores to use for thread pools.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cpu_concurrency</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cpu_concurrency</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_thread_count</span>
     }
 
     <span class="doccomment">/// Returns the maximum size of a project config query.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">query_batch_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">query_batch_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">batch_size</span>
     }
 
     <span class="doccomment">/// Get filename for static project config.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_configs_path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">PathBuf</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_configs_path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">PathBuf</span> {
         <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">join</span>(<span class="string">&quot;projects&quot;</span>)
     }
 
     <span class="doccomment">/// True if the Relay should do processing.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">processing_enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">processing_enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">enabled</span>
     }
 
     <span class="doccomment">/// The path to the GeoIp database required for event processing.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">geoip_path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Path</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">geoip_path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Path</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">geoip_path</span>.<span class="ident">as_deref</span>()
     }
 
     <span class="doccomment">/// Maximum future timestamp of ingested data.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Events past this timestamp will be adjusted to `now()`. Sessions will be dropped.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_secs_in_future</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i64</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_secs_in_future</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i64</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">max_secs_in_future</span>.<span class="ident">into</span>()
     }
 
     <span class="doccomment">/// Maximum age of ingested events. Older events will be adjusted to `now()`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_secs_in_past</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i64</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_secs_in_past</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i64</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">max_secs_in_past</span>.<span class="ident">into</span>()
     }
 
     <span class="doccomment">/// Maximum age of ingested sessions. Older sessions will be dropped.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_session_secs_in_past</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i64</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_session_secs_in_past</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i64</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">max_session_secs_in_past</span>.<span class="ident">into</span>()
     }
 
     <span class="doccomment">/// Topic name and list of Kafka configuration parameters for a given topic.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kafka_topic_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kafka_topic_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">topics</span>.<span class="ident">get</span>(<span class="ident">topic</span>).<span class="ident">topic_name</span>()
     }
 
@@ -3821,7 +3821,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kafka_config</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span>[<span class="ident">KafkaConfigParam</span>]), <span class="ident">ConfigErrorKind</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span>[<span class="ident">KafkaConfigParam</span>]), <span class="ident">ConfigErrorKind</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">config_name</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">topics</span>.<span class="ident">get</span>(<span class="ident">topic</span>).<span class="ident">kafka_config_name</span>() {
             <span class="prelude-val">Ok</span>((
                 <span class="prelude-val">Some</span>(<span class="ident">config_name</span>),
@@ -3838,39 +3838,39 @@
     }
 
     <span class="doccomment">/// Redis servers to connect to, for rate limiting.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">redis</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">RedisConfig</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">redis</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">RedisConfig</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">redis</span>.<span class="ident">as_ref</span>()
     }
 
     <span class="doccomment">/// Chunk size of attachments in bytes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">attachment_chunk_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">attachment_chunk_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">attachment_chunk_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Default prefix to use when looking up project configs in Redis. This is only done when</span>
     <span class="doccomment">/// Relay is in processing mode.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">projectconfig_cache_prefix</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">projectconfig_cache_prefix</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">projectconfig_cache_prefix</span>
     }
 
     <span class="doccomment">/// Maximum rate limit to report to clients in seconds.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_rate_limit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_rate_limit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">processing</span>.<span class="ident">max_rate_limit</span>.<span class="ident">map</span>(<span class="ident">u32::into</span>)
     }
 
     <span class="doccomment">/// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">aggregator_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">AggregatorConfig</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">aggregator_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">AggregatorConfig</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">aggregator</span>.<span class="ident">clone</span>()
     }
 
     <span class="doccomment">/// Return the statically configured Relays.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">static_relays</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayInfo</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">static_relays</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayInfo</span><span class="op">&gt;</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">auth</span>.<span class="ident">static_relays</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Config</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">values</span>: <span class="ident">ConfigValues::default</span>(),
             <span class="ident">credentials</span>: <span class="prelude-val">None</span>,

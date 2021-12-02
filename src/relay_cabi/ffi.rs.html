@@ -136,7 +136,6 @@
 <span id="136">136</span>
 <span id="137">137</span>
 <span id="138">138</span>
-<span id="139">139</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">sentry_release_parser::InvalidRelease</span>;
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::{<span class="ident">KeyParseError</span>, <span class="ident">UnpackError</span>};
@@ -178,7 +177,7 @@
 
 <span class="kw">impl</span> <span class="ident">RelayErrorCode</span> {
     <span class="doccomment">/// This maps all errors that can possibly happen.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_error</span>(<span class="ident">error</span>: <span class="kw-2">&amp;</span><span class="ident">failure::Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayErrorCode</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_error</span>(<span class="ident">error</span>: <span class="kw-2">&amp;</span><span class="ident">failure::Error</span>) -&gt; <span class="ident">RelayErrorCode</span> {
         <span class="kw">for</span> <span class="ident">cause</span> <span class="kw">in</span> <span class="ident">error</span>.<span class="ident">iter_chain</span>() {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(..) <span class="op">=</span> <span class="ident">cause</span>.<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="ident">Panic</span><span class="op">&gt;</span>() {
                 <span class="kw">return</span> <span class="ident">RelayErrorCode::Panic</span>;
@@ -191,33 +190,33 @@
             }
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">cause</span>.<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="ident">KeyParseError</span><span class="op">&gt;</span>() {
                 <span class="kw">return</span> <span class="kw">match</span> <span class="ident">err</span> {
-                    <span class="ident">KeyParseError::BadEncoding</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RelayErrorCode::KeyParseErrorBadEncoding</span>,
-                    <span class="ident">KeyParseError::BadKey</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RelayErrorCode::KeyParseErrorBadKey</span>,
+                    <span class="ident">KeyParseError::BadEncoding</span> =&gt; <span class="ident">RelayErrorCode::KeyParseErrorBadEncoding</span>,
+                    <span class="ident">KeyParseError::BadKey</span> =&gt; <span class="ident">RelayErrorCode::KeyParseErrorBadKey</span>,
                 };
             }
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">cause</span>.<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="ident">UnpackError</span><span class="op">&gt;</span>() {
                 <span class="kw">return</span> <span class="kw">match</span> <span class="ident">err</span> {
-                    <span class="ident">UnpackError::BadSignature</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RelayErrorCode::UnpackErrorBadSignature</span>,
-                    <span class="ident">UnpackError::BadPayload</span>(..) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RelayErrorCode::UnpackErrorBadPayload</span>,
-                    <span class="ident">UnpackError::SignatureExpired</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RelayErrorCode::UnpackErrorSignatureExpired</span>,
-                    <span class="ident">UnpackError::BadEncoding</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RelayErrorCode::UnpackErrorBadEncoding</span>,
+                    <span class="ident">UnpackError::BadSignature</span> =&gt; <span class="ident">RelayErrorCode::UnpackErrorBadSignature</span>,
+                    <span class="ident">UnpackError::BadPayload</span>(..) =&gt; <span class="ident">RelayErrorCode::UnpackErrorBadPayload</span>,
+                    <span class="ident">UnpackError::SignatureExpired</span> =&gt; <span class="ident">RelayErrorCode::UnpackErrorSignatureExpired</span>,
+                    <span class="ident">UnpackError::BadEncoding</span> =&gt; <span class="ident">RelayErrorCode::UnpackErrorBadEncoding</span>,
                 };
             }
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">cause</span>.<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="ident">ProcessingAction</span><span class="op">&gt;</span>() {
                 <span class="kw">return</span> <span class="kw">match</span> <span class="ident">err</span> {
-                    <span class="ident">ProcessingAction::InvalidTransaction</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">ProcessingAction::InvalidTransaction</span>(<span class="kw">_</span>) =&gt; {
                         <span class="ident">RelayErrorCode::ProcessingErrorInvalidTransaction</span>
                     }
-                    <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RelayErrorCode::Unknown</span>,
+                    <span class="kw">_</span> =&gt; <span class="ident">RelayErrorCode::Unknown</span>,
                 };
             }
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">cause</span>.<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="ident">InvalidRelease</span><span class="op">&gt;</span>() {
                 <span class="kw">return</span> <span class="kw">match</span> <span class="ident">err</span> {
-                    <span class="ident">InvalidRelease::TooLong</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RelayErrorCode::InvalidReleaseErrorTooLong</span>,
-                    <span class="ident">InvalidRelease::RestrictedName</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">InvalidRelease::TooLong</span> =&gt; <span class="ident">RelayErrorCode::InvalidReleaseErrorTooLong</span>,
+                    <span class="ident">InvalidRelease::RestrictedName</span> =&gt; {
                         <span class="ident">RelayErrorCode::InvalidReleaseErrorRestrictedName</span>
                     }
-                    <span class="ident">InvalidRelease::BadCharacters</span> <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">InvalidRelease::BadCharacters</span> =&gt; {
                         <span class="ident">RelayErrorCode::InvalidReleaseErrorBadCharacters</span>
                     }
                 };
@@ -237,9 +236,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// If there is no error, 0 is returned.</span>
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_err_get_last_code</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayErrorCode</span> {
-    <span class="ident">relay_ffi::with_last_error</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">RelayErrorCode::from_error</span>(<span class="ident">err</span>))
-        .<span class="ident">unwrap_or</span>(<span class="ident">RelayErrorCode::NoError</span>)
+<span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_err_get_last_code</span>() -&gt; <span class="ident">RelayErrorCode</span> {
+    <span class="ident">relay_ffi::with_last_error</span>(<span class="ident">RelayErrorCode::from_error</span>).<span class="ident">unwrap_or</span>(<span class="ident">RelayErrorCode::NoError</span>)
 }
 
 <span class="doccomment">/// Returns the last error message.</span>
@@ -247,7 +245,7 @@
 <span class="doccomment">/// If there is no error an empty string is returned.  This allocates new memory</span>
 <span class="doccomment">/// that needs to be freed with `relay_str_free`.</span>
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_err_get_last_message</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayStr</span> {
+<span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_err_get_last_message</span>() -&gt; <span class="ident">RelayStr</span> {
     <span class="kw">use</span> <span class="ident">std::fmt::Write</span>;
     <span class="ident">relay_ffi::with_last_error</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">err</span>.<span class="ident">to_string</span>();
@@ -261,13 +259,13 @@
 
 <span class="doccomment">/// Returns the panic information as string.</span>
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
-<span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_err_get_backtrace</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayStr</span> {
+<span class="kw">pub</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_err_get_backtrace</span>() -&gt; <span class="ident">RelayStr</span> {
     <span class="kw">let</span> <span class="ident">backtrace</span> <span class="op">=</span> <span class="ident">relay_ffi::with_last_error</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> <span class="ident">error</span>.<span class="ident">backtrace</span>().<span class="ident">to_string</span>())
         .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">bt</span><span class="op">|</span> <span class="op">!</span><span class="ident">bt</span>.<span class="ident">is_empty</span>());
 
     <span class="kw">match</span> <span class="ident">backtrace</span> {
-        <span class="prelude-val">Some</span>(<span class="ident">backtrace</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RelayStr::from_string</span>(<span class="macro">format!</span>(<span class="string">&quot;stacktrace: {}&quot;</span>, <span class="ident">backtrace</span>)),
-        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RelayStr::default</span>(),
+        <span class="prelude-val">Some</span>(<span class="ident">backtrace</span>) =&gt; <span class="ident">RelayStr::from_string</span>(<span class="macro">format!</span>(<span class="string">&quot;stacktrace: {}&quot;</span>, <span class="ident">backtrace</span>)),
+        <span class="prelude-val">None</span> =&gt; <span class="ident">RelayStr::default</span>(),
     }
 }
 

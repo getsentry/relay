@@ -87,6 +87,7 @@
 <span id="87">87</span>
 <span id="88">88</span>
 <span id="89">89</span>
+<span id="90">90</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Native crash reporting for Relay.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Use [`CrashHandler`] to configure and install a crash handler.</span>
@@ -107,6 +108,7 @@
 <span class="doccomment">/// Internally, this uses the Breakpad client to capture crash signals and send minidumps to Sentry.</span>
 <span class="doccomment">/// If no DSN is configured, the crash handler is not initialized.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">unix</span>), <span class="ident">allow</span>(<span class="ident">dead_code</span>))]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CrashHandler</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="ident">dsn</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
     <span class="ident">database</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
@@ -118,7 +120,7 @@
     <span class="doccomment">/// Creates a new crash handler.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Panics if there is are non UTF-8 characters in the path.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">dsn</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>, <span class="ident">database</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Path</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">dsn</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>, <span class="ident">database</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Path</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">dsn</span>,
             <span class="ident">database</span>: <span class="ident">database</span>.<span class="ident">to_str</span>().<span class="ident">unwrap</span>(),
@@ -130,7 +132,7 @@
     <span class="doccomment">/// Set the crash handler&#39;s Sentry release.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Defaults to no release.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">release</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">release</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">release</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">release</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">release</span> <span class="op">=</span> <span class="ident">release</span>;
         <span class="self">self</span>
     }
@@ -138,7 +140,7 @@
     <span class="doccomment">/// Set the crash handler&#39;s Sentry environment.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Defaults to no environment</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">environment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">environment</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">environment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">environment</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">environment</span> <span class="op">=</span> <span class="ident">environment</span>;
         <span class="self">self</span>
     }

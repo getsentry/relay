@@ -1054,25 +1054,25 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializePayload</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="kw">pub</span> <span class="ident">SkipSerialization</span>);
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="ident">IntoValue</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">SerializePayload</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">value</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">value</span>.<span class="ident">serialize_payload</span>(<span class="ident">serializer</span>, <span class="self">self</span>.<span class="number">1</span>),
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_unit</span>(),
+            <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">serialize_payload</span>(<span class="ident">serializer</span>, <span class="self">self</span>.<span class="number">1</span>),
+            <span class="prelude-val">None</span> =&gt; <span class="ident">serializer</span>.<span class="ident">serialize_unit</span>(),
         }
     }
 }
 
 <span class="macro">macro_rules!</span> <span class="ident">derive_from_value</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">expr</span>) <span class="op">=</span><span class="op">&gt;</span> {
+    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">expr</span>) =&gt; {
         <span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
                 <span class="kw">match</span> <span class="ident">value</span> {
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>(<span class="ident">value</span>)), <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="ident">meta</span>),
-                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>(<span class="ident">value</span>)), <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="ident">meta</span>),
+                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
+                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
                         <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>));
                         <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
                         <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
@@ -1084,9 +1084,9 @@
 }
 
 <span class="macro">macro_rules!</span> <span class="ident">derive_to_value</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>:<span class="ident">ident</span>) <span class="op">=</span><span class="op">&gt;</span> {
+    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>:<span class="ident">ident</span>) =&gt; {
         <span class="kw">impl</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">into_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
                 <span class="ident">Value</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>(<span class="self">self</span>)
             }
 
@@ -1094,7 +1094,7 @@
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 <span class="ident">s</span>: <span class="ident">S</span>,
                 <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>,
-            ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+            ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
                 <span class="self">Self</span>: <span class="ident">Sized</span>,
                 <span class="ident">S</span>: <span class="ident">Serializer</span>,
@@ -1106,20 +1106,20 @@
 }
 
 <span class="macro">macro_rules!</span> <span class="ident">derive_numeric_meta_structure</span> {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">expr</span>) <span class="op">=</span><span class="op">&gt;</span> {
+    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">meta_type</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>:<span class="ident">expr</span>) =&gt; {
         <span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="kw">type</span> {
-            <span class="kw">fn</span> <span class="macro-nonterminal">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">fn</span> <span class="macro-nonterminal">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
                 <span class="ident">value</span>.<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> {
                     <span class="kw">let</span> <span class="ident">number</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">value</span> {
-                        <span class="ident">Value::U64</span>(<span class="ident">x</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">num_traits::cast</span>(<span class="ident">x</span>),
-                        <span class="ident">Value::I64</span>(<span class="ident">x</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">num_traits::cast</span>(<span class="ident">x</span>),
-                        <span class="ident">Value::F64</span>(<span class="ident">x</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">num_traits::cast</span>(<span class="ident">x</span>),
-                        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+                        <span class="ident">Value::U64</span>(<span class="ident">x</span>) =&gt; <span class="ident">num_traits::cast</span>(<span class="ident">x</span>),
+                        <span class="ident">Value::I64</span>(<span class="ident">x</span>) =&gt; <span class="ident">num_traits::cast</span>(<span class="ident">x</span>),
+                        <span class="ident">Value::F64</span>(<span class="ident">x</span>) =&gt; <span class="ident">num_traits::cast</span>(<span class="ident">x</span>),
+                        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
                     };
 
                     <span class="kw">match</span> <span class="ident">number</span> {
-                        <span class="prelude-val">Some</span>(<span class="ident">x</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated::new</span>(<span class="ident">x</span>),
-                        <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> {
+                        <span class="prelude-val">Some</span>(<span class="ident">x</span>) =&gt; <span class="ident">Annotated::new</span>(<span class="ident">x</span>),
+                        <span class="prelude-val">None</span> =&gt; {
                             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::default</span>();
                             <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expectation</span>));
                             <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
@@ -1136,7 +1136,7 @@
 
 <span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">String</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">is_empty</span>()
     }
 }
@@ -1146,7 +1146,7 @@
 
 <span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">bool</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="bool-val">false</span>
     }
 }
@@ -1160,21 +1160,21 @@
 
 <span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">u64</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="bool-val">false</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">i64</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="bool-val">false</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">f64</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="bool-val">false</span>
     }
 }
@@ -1186,12 +1186,12 @@
     <span class="ident">T</span>: <span class="ident">Empty</span>,
 {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         (<span class="kw-2">*</span><span class="self">self</span>).<span class="ident">is_empty</span>()
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         (<span class="kw-2">*</span><span class="self">self</span>).<span class="ident">is_deep_empty</span>()
     }
 }
@@ -1201,12 +1201,12 @@
     <span class="ident">T</span>: <span class="ident">Empty</span>,
 {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="ident">Empty::is_empty</span>)
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">as_ref</span>().<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="ident">Empty::is_deep_empty</span>)
     }
 }
@@ -1216,11 +1216,11 @@
     <span class="ident">T</span>: <span class="ident">Empty</span>,
 {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">is_empty</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="ident">Empty::is_deep_empty</span>)
     }
 }
@@ -1229,14 +1229,14 @@
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">FromValue</span>,
 {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Array</span>(<span class="ident">items</span>)), <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(
+            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Array</span>(<span class="ident">items</span>)), <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(
                 <span class="prelude-val">Some</span>(<span class="ident">items</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="ident">FromValue::from_value</span>).<span class="ident">collect</span>()),
                 <span class="ident">meta</span>,
             ),
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
+            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
                 <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;an array&quot;</span>));
                 <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
                 <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
@@ -1249,7 +1249,7 @@
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">IntoValue</span>,
 {
-    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span> {
+    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
         <span class="ident">Value::Array</span>(
             <span class="self">self</span>.<span class="ident">into_iter</span>()
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">Annotated::map_value</span>(<span class="ident">x</span>, <span class="ident">IntoValue::into_value</span>))
@@ -1257,7 +1257,7 @@
         )
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident">SkipSerialization</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
         <span class="ident">S</span>: <span class="ident">Serializer</span>,
@@ -1272,7 +1272,7 @@
         <span class="ident">seq_ser</span>.<span class="ident">end</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">MetaMap</span>
+    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">MetaMap</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
@@ -1292,11 +1292,11 @@
     <span class="ident">T</span>: <span class="ident">Empty</span>,
 {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">is_empty</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">values</span>().<span class="ident">all</span>(<span class="ident">Empty::is_deep_empty</span>)
     }
 }
@@ -1305,9 +1305,9 @@
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">FromValue</span>,
 {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="ident">items</span>)), <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(
+            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="ident">items</span>)), <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(
                 <span class="prelude-val">Some</span>(
                     <span class="ident">items</span>
                         .<span class="ident">into_iter</span>()
@@ -1316,8 +1316,8 @@
                 ),
                 <span class="ident">meta</span>,
             ),
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
+            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
                 <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;an object&quot;</span>));
                 <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
                 <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
@@ -1330,7 +1330,7 @@
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">IntoValue</span>,
 {
-    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span> {
+    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
         <span class="ident">Value::Object</span>(
             <span class="self">self</span>.<span class="ident">into_iter</span>()
                 .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>, <span class="ident">Annotated::map_value</span>(<span class="ident">v</span>, <span class="ident">IntoValue::into_value</span>)))
@@ -1338,7 +1338,7 @@
         )
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident">SkipSerialization</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
         <span class="ident">S</span>: <span class="ident">Serializer</span>,
@@ -1354,7 +1354,7 @@
         <span class="ident">map_ser</span>.<span class="ident">end</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">MetaTree</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">MetaTree</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
@@ -1370,44 +1370,44 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Empty</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Value::Bool</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">Value::I64</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">Value::U64</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">Value::F64</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">Value::String</span>(<span class="ident">v</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">v</span>.<span class="ident">is_empty</span>(),
-            <span class="ident">Value::Array</span>(<span class="ident">v</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">v</span>.<span class="ident">is_empty</span>(),
-            <span class="ident">Value::Object</span>(<span class="ident">v</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">v</span>.<span class="ident">is_empty</span>(),
+            <span class="ident">Value::Bool</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            <span class="ident">Value::I64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            <span class="ident">Value::U64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            <span class="ident">Value::F64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            <span class="ident">Value::String</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_empty</span>(),
+            <span class="ident">Value::Array</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_empty</span>(),
+            <span class="ident">Value::Object</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_empty</span>(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Value::Bool</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">Value::I64</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">Value::U64</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">Value::F64</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">Value::String</span>(<span class="ident">v</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">v</span>.<span class="ident">is_deep_empty</span>(),
-            <span class="ident">Value::Array</span>(<span class="ident">v</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">v</span>.<span class="ident">is_deep_empty</span>(),
-            <span class="ident">Value::Object</span>(<span class="ident">v</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">v</span>.<span class="ident">is_deep_empty</span>(),
+            <span class="ident">Value::Bool</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            <span class="ident">Value::I64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            <span class="ident">Value::U64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            <span class="ident">Value::F64</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            <span class="ident">Value::String</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_deep_empty</span>(),
+            <span class="ident">Value::Array</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_deep_empty</span>(),
+            <span class="ident">Value::Object</span>(<span class="ident">v</span>) =&gt; <span class="ident">v</span>.<span class="ident">is_deep_empty</span>(),
         }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">Value</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
         <span class="ident">value</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">IntoValue</span> <span class="kw">for</span> <span class="ident">Value</span> {
-    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span> {
+    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
         <span class="self">self</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">_behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
         <span class="ident">S</span>: <span class="ident">Serializer</span>,
@@ -1415,13 +1415,13 @@
         <span class="ident">Serialize::serialize</span>(<span class="self">self</span>, <span class="ident">s</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">MetaTree</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">MetaTree</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">children</span> <span class="op">=</span> <span class="ident">MetaMap::new</span>();
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Value::Object</span>(<span class="ident">items</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Value::Object</span>(<span class="ident">items</span>) =&gt; {
                 <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="ident">items</span>.<span class="ident">iter</span>() {
                     <span class="kw">let</span> <span class="ident">tree</span> <span class="op">=</span> <span class="ident">IntoValue::extract_meta_tree</span>(<span class="ident">value</span>);
                     <span class="kw">if</span> <span class="op">!</span><span class="ident">tree</span>.<span class="ident">is_empty</span>() {
@@ -1429,7 +1429,7 @@
                     }
                 }
             }
-            <span class="ident">Value::Array</span>(<span class="ident">items</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Value::Array</span>(<span class="ident">items</span>) =&gt; {
                 <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">item</span>) <span class="kw">in</span> <span class="ident">items</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
                     <span class="kw">let</span> <span class="ident">tree</span> <span class="op">=</span> <span class="ident">IntoValue::extract_meta_tree</span>(<span class="ident">item</span>);
                     <span class="kw">if</span> <span class="op">!</span><span class="ident">tree</span>.<span class="ident">is_empty</span>() {
@@ -1437,7 +1437,7 @@
                     }
                 }
             }
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {}
+            <span class="kw">_</span> =&gt; {}
         }
         <span class="ident">children</span>
     }
@@ -1447,7 +1447,7 @@
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">FromValue</span>,
 {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
@@ -1460,21 +1460,21 @@
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">IntoValue</span>,
 {
-    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span>
+    <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
         <span class="ident">IntoValue::into_value</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">MetaMap</span>
+    <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">MetaMap</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
         <span class="ident">IntoValue::extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident">SkipSerialization</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident">SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
         <span class="ident">S</span>: <span class="ident">Serializer</span>,
@@ -1488,12 +1488,12 @@
     <span class="ident">T</span>: <span class="ident">Empty</span>,
 {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">as_ref</span>().<span class="ident">is_empty</span>()
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">as_ref</span>().<span class="ident">is_deep_empty</span>()
     }
 }
@@ -1511,31 +1511,31 @@
     <span class="doccomment">/// child.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// To check if a value is missing or empty, use `Option::is_empty` on the value instead.</span>
-    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">skip_serialization</span>(<span class="ident">SkipSerialization::Empty</span>(<span class="bool-val">false</span>))
     }
 
     <span class="doccomment">/// Returns if this object contains nested data to be serialized.</span>
-    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">skip_serialization</span>(<span class="ident">SkipSerialization::Empty</span>(<span class="bool-val">true</span>))
     }
 }
 
 <span class="macro">macro_rules!</span> <span class="ident">tuple_meta_structure</span> {
-    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">count</span>: <span class="ident">literal</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>: <span class="ident">ident</span>),<span class="op">+</span>) <span class="op">=</span><span class="op">&gt;</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">count</span>: <span class="ident">literal</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>: <span class="ident">ident</span>),<span class="op">+</span>) =&gt; {
         <span class="kw">impl</span><span class="op">&lt;</span> $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>: <span class="ident">FromValue</span> ),<span class="op">*</span> <span class="op">&gt;</span> <span class="ident">FromValue</span> <span class="kw">for</span> ( $( <span class="ident">Annotated</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span><span class="op">&gt;</span>, )<span class="op">*</span> ) {
             <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>, <span class="ident">unused_variables</span>)]</span>
-            <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">annotated</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">annotated</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
                 <span class="kw">let</span> <span class="ident">expectation</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">count</span> {
-                    <span class="number">1</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;a single element&quot;</span>,
-                    <span class="number">2</span> <span class="op">=</span><span class="op">&gt;</span> <span class="string">&quot;a tuple&quot;</span>,
-                    <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">concat!</span>(<span class="string">&quot;a &quot;</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">count</span>, <span class="string">&quot;-tuple&quot;</span>),
+                    <span class="number">1</span> =&gt; <span class="string">&quot;a single element&quot;</span>,
+                    <span class="number">2</span> =&gt; <span class="string">&quot;a tuple&quot;</span>,
+                    <span class="kw">_</span> =&gt; <span class="macro">concat!</span>(<span class="string">&quot;a &quot;</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">count</span>, <span class="string">&quot;-tuple&quot;</span>),
                 };
 
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">n</span> <span class="op">=</span> <span class="number">0</span>;
                 $(<span class="kw">let</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span> <span class="op">=</span> (); <span class="ident">n</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;)<span class="op">*</span>
                 <span class="kw">match</span> <span class="ident">annotated</span> {
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Array</span>(<span class="ident">items</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Array</span>(<span class="ident">items</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
                         <span class="kw">if</span> <span class="ident">items</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="ident">n</span> {
                             <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="ident">expectation</span>));
                             <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">items</span>));
@@ -1550,25 +1550,25 @@
                             },)<span class="op">*</span>
                         )), <span class="ident">meta</span>)
                     }
-                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
                         <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="ident">expectation</span>));
                         <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
                         <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
                     }
-                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
+                    <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
                 }
             }
         }
 
         <span class="kw">impl</span><span class="op">&lt;</span> $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>: <span class="ident">IntoValue</span> ),<span class="op">*</span> <span class="op">&gt;</span> <span class="ident">IntoValue</span> <span class="kw">for</span> ( $( <span class="ident">Annotated</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span><span class="op">&gt;</span>, )<span class="op">*</span> ) {
             <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>, <span class="ident">unused_variables</span>)]</span>
-            <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Value</span> {
+            <span class="kw">fn</span> <span class="ident">into_value</span>(<span class="self">self</span>) -&gt; <span class="ident">Value</span> {
                 <span class="kw">let</span> ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>,)<span class="kw-2">*</span>) <span class="op">=</span> <span class="self">self</span>;
                 <span class="ident">Value::Array</span>(<span class="macro">vec!</span>[$(<span class="ident">Annotated::map_value</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>, <span class="ident">IntoValue::into_value</span>),)<span class="kw-2">*</span>])
             }
 
             <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>, <span class="ident">unused_variables</span>)]</span>
-            <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident"><span class="kw">crate</span>::types::SkipSerialization</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+            <span class="kw">fn</span> <span class="ident">serialize_payload</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>, <span class="ident">behavior</span>: <span class="ident"><span class="kw">crate</span>::types::SkipSerialization</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
                 <span class="ident">S</span>: <span class="ident">Serializer</span>,
             {
@@ -1580,7 +1580,7 @@
             }
 
             <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>, <span class="ident">unused_variables</span>, <span class="ident">unused_assignments</span>)]</span>
-            <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">MetaMap</span>
+            <span class="kw">fn</span> <span class="ident">extract_child_meta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">MetaMap</span>
             <span class="kw">where</span>
                 <span class="self">Self</span>: <span class="ident">Sized</span>,
             {
@@ -1600,13 +1600,13 @@
 
         <span class="kw">impl</span><span class="op">&lt;</span> $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>: <span class="ident">Empty</span> ),<span class="op">*</span> <span class="op">&gt;</span> <span class="ident">Empty</span> <span class="kw">for</span> ( $( <span class="ident">Annotated</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span><span class="op">&gt;</span>, )<span class="op">*</span> ) {
             <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+            <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
                 <span class="bool-val">false</span>
             }
 
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>)]</span>
-            <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+            <span class="kw">fn</span> <span class="ident">is_deep_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
                 <span class="kw">let</span> ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>,)<span class="kw-2">*</span>) <span class="op">=</span> <span class="self">self</span>;
                 <span class="bool-val">true</span> $(<span class="op">&amp;&amp;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>.<span class="ident">is_deep_empty</span>())<span class="op">*</span>
             }

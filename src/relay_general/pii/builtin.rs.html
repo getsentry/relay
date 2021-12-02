@@ -1034,7 +1034,7 @@
 };
 
 <span class="macro">macro_rules!</span> <span class="ident">declare_builtin_rules</span> {
-    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule_id</span>:<span class="ident">expr</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">spec</span>:<span class="ident">expr</span>;)<span class="kw-2">*</span>) <span class="op">=</span><span class="op">&gt;</span> {
+    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule_id</span>:<span class="ident">expr</span> =&gt; <span class="macro-nonterminal">$</span><span class="macro-nonterminal">spec</span>:<span class="ident">expr</span>;)<span class="kw-2">*</span>) =&gt; {
         <span class="macro">lazy_static!</span> {
             <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">BUILTIN_RULES_MAP</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">RuleSpec</span><span class="op">&gt;</span> <span class="op">=</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
@@ -1053,7 +1053,7 @@
 }
 
 <span class="macro">macro_rules!</span> <span class="ident">rule_alias</span> {
-    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">target</span>:<span class="ident">expr</span>) <span class="op">=</span><span class="op">&gt;</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">target</span>:<span class="ident">expr</span>) =&gt; {
         <span class="ident">RuleSpec</span> {
             <span class="ident">ty</span>: <span class="ident">RuleType::Alias</span>(<span class="ident">AliasRule</span> {
                 <span class="ident">rule</span>: (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">target</span>).<span class="ident">into</span>(),
@@ -1066,7 +1066,7 @@
 
 <span class="macro">declare_builtin_rules!</span> {
     <span class="comment">// collections</span>
-    <span class="string">&quot;@common&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@common&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Multiple</span>(<span class="ident">MultipleRule</span> {
             <span class="ident">rules</span>: <span class="macro">vec!</span>[
                 <span class="string">&quot;@ip&quot;</span>.<span class="ident">into</span>(),
@@ -1083,7 +1083,7 @@
         <span class="ident">redaction</span>: <span class="ident">Redaction::Default</span>,
     };
     <span class="comment">// legacy data scrubbing equivalent. Note</span>
-    <span class="string">&quot;@common:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@common:filter&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Multiple</span>(<span class="ident">MultipleRule</span> {
             <span class="ident">rules</span>: <span class="macro">vec!</span>[
                 <span class="string">&quot;@creditcard:filter&quot;</span>.<span class="ident">into</span>(),
@@ -1099,204 +1099,204 @@
     };
 
     <span class="comment">// anything</span>
-    <span class="string">&quot;@anything&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@anything:replace&quot;</span>);
-    <span class="string">&quot;@anything:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@anything&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@anything:replace&quot;</span>);
+    <span class="string">&quot;@anything:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Anything</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
-    <span class="string">&quot;@anything:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@anything:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Anything</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction::default</span>()),
     };
-    <span class="string">&quot;@anything:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@anything:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Anything</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@anything:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@anything:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Anything</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
 
     <span class="comment">// ip rules</span>
-    <span class="string">&quot;@ip&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@ip:replace&quot;</span>);
-    <span class="string">&quot;@ip:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@ip&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@ip:replace&quot;</span>);
+    <span class="string">&quot;@ip:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Ip</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[ip]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@ip:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@ip:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Ip</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@ip:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@ip:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Ip</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
-    <span class="string">&quot;@ip:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@ip:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Ip</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// imei rules</span>
-    <span class="string">&quot;@imei&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@imei:replace&quot;</span>);
-    <span class="string">&quot;@imei:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@imei&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@imei:replace&quot;</span>);
+    <span class="string">&quot;@imei:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Imei</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[imei]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@imei:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@imei:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Imei</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@imei:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@imei:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Imei</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@imei:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@imei:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Imei</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// mac rules</span>
-    <span class="string">&quot;@mac&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@mac:mask&quot;</span>);
-    <span class="string">&quot;@mac:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@mac&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@mac:mask&quot;</span>);
+    <span class="string">&quot;@mac:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Mac</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[mac]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@mac:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@mac:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Mac</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@mac:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@mac:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Mac</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
-    <span class="string">&quot;@mac:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@mac:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Mac</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>
     };
 
     <span class="comment">// uuid rules</span>
-    <span class="string">&quot;@uuid&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@uuid:mask&quot;</span>);
-    <span class="string">&quot;@uuid:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@uuid&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@uuid:mask&quot;</span>);
+    <span class="string">&quot;@uuid:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Uuid</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[uuid]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@uuid:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@uuid:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Uuid</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@uuid:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@uuid:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Uuid</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
-    <span class="string">&quot;@uuid:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@uuid:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Uuid</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// email rules</span>
-    <span class="string">&quot;@email&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@email:replace&quot;</span>);
-    <span class="string">&quot;@email:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@email&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@email:replace&quot;</span>);
+    <span class="string">&quot;@email:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Email</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[email]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@email:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@email:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Email</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@email:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@email:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Email</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
-    <span class="string">&quot;@email:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@email:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Email</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// creditcard rules</span>
-    <span class="string">&quot;@creditcard&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@creditcard:replace&quot;</span>);
-    <span class="string">&quot;@creditcard:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@creditcard&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@creditcard:replace&quot;</span>);
+    <span class="string">&quot;@creditcard:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Creditcard</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@creditcard:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@creditcard:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Creditcard</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[creditcard]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@creditcard:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@creditcard:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Creditcard</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
-    <span class="string">&quot;@creditcard:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@creditcard:filter&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Creditcard</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@creditcard:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@creditcard:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Creditcard</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>
     };
 
     <span class="comment">// pem rules</span>
-    <span class="string">&quot;@pemkey&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@pemkey:replace&quot;</span>);
-    <span class="string">&quot;@pemkey:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@pemkey&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@pemkey:replace&quot;</span>);
+    <span class="string">&quot;@pemkey:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Pemkey</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[pemkey]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@pemkey:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@pemkey:filter&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Pemkey</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@pemkey:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@pemkey:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Pemkey</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@pemkey:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@pemkey:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Pemkey</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
-    <span class="string">&quot;@pemkey:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@pemkey:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Pemkey</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>
     };
 
     <span class="comment">// url secrets</span>
-    <span class="string">&quot;@urlauth&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@urlauth:replace&quot;</span>);
-    <span class="string">&quot;@urlauth:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@urlauth&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@urlauth:replace&quot;</span>);
+    <span class="string">&quot;@urlauth:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::UrlAuth</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[auth]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@urlauth:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@urlauth:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::UrlAuth</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@urlauth:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@urlauth:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::UrlAuth</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
-    <span class="string">&quot;@urlauth:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@urlauth:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::UrlAuth</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
-    <span class="string">&quot;@urlauth:legacy&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@urlauth:legacy&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Pattern</span>(<span class="ident">PatternRule</span> {
             <span class="comment">// Regex copied from legacy Sentry `URL_PASSWORD_RE`</span>
             <span class="ident">pattern</span>: <span class="string">r&quot;\b((?:[a-z0-9]+:)?//[a-zA-Z0-9%_.-]+:)([a-zA-Z0-9%_.-]+)@&quot;</span>.<span class="ident">into</span>(),
@@ -1308,76 +1308,76 @@
     };
 
     <span class="comment">// US SSN</span>
-    <span class="string">&quot;@usssn&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@usssn:mask&quot;</span>);
-    <span class="string">&quot;@usssn:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@usssn&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@usssn:mask&quot;</span>);
+    <span class="string">&quot;@usssn:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::UsSsn</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[us-ssn]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@usssn:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@usssn:filter&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::UsSsn</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@usssn:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@usssn:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::UsSsn</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
-    <span class="string">&quot;@usssn:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@usssn:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::UsSsn</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@usssn:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@usssn:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::UsSsn</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// user path rules</span>
-    <span class="string">&quot;@userpath&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@userpath:replace&quot;</span>);
-    <span class="string">&quot;@userpath:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@userpath&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@userpath:replace&quot;</span>);
+    <span class="string">&quot;@userpath:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Userpath</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[user]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@userpath:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@userpath:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Userpath</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
-    <span class="string">&quot;@userpath:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@userpath:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Userpath</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@userpath:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@userpath:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Userpath</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
 
     <span class="comment">// password field removal</span>
-    <span class="string">&quot;@password&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">rule_alias!</span>(<span class="string">&quot;@password:remove&quot;</span>);
-    <span class="string">&quot;@password:filter&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@password&quot;</span> =&gt; <span class="macro">rule_alias!</span>(<span class="string">&quot;@password:remove&quot;</span>);
+    <span class="string">&quot;@password:filter&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Password</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@password:hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@password:hash&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Password</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Hash</span>,
     };
-    <span class="string">&quot;@password:replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@password:replace&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Password</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[password]&quot;</span>.<span class="ident">into</span>(),
         }),
     };
-    <span class="string">&quot;@password:mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@password:mask&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Password</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Mask</span>,
     };
-    <span class="string">&quot;@password:remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleSpec</span> {
+    <span class="string">&quot;@password:remove&quot;</span> =&gt; <span class="ident">RuleSpec</span> {
         <span class="ident">ty</span>: <span class="ident">RuleType::Password</span>,
         <span class="ident">redaction</span>: <span class="ident">Redaction::Remove</span>,
     };
@@ -1405,7 +1405,7 @@
     <span class="macro">macro_rules!</span> <span class="ident">assert_text_rule</span> {
         (
             <span class="ident">rule</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule</span>:<span class="ident">expr</span>; <span class="ident">input</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">input</span>:<span class="ident">expr</span>; <span class="ident">output</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output</span>:<span class="ident">expr</span>; <span class="ident">remarks</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">remarks</span>:<span class="ident">expr</span>;
-        ) <span class="op">=</span><span class="op">&gt;</span> {{
+        ) =&gt; {{
             <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig</span> {
                 <span class="ident">applications</span>: {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
@@ -1434,7 +1434,7 @@
     <span class="macro">macro_rules!</span> <span class="ident">assert_custom_rulespec</span> {
         (
             <span class="ident">rule</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule</span>:<span class="ident">expr</span>; <span class="ident">input</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">input</span>:<span class="ident">expr</span>; <span class="ident">output</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output</span>:<span class="ident">expr</span>; <span class="ident">remarks</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">remarks</span>:<span class="ident">expr</span>;
-        ) <span class="op">=</span><span class="op">&gt;</span> {{
+        ) =&gt; {{
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">rule</span>[<span class="number">1</span>..].<span class="ident">split</span>(<span class="string">&#39;:&#39;</span>);
             <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">chunks</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">chunks</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
@@ -1446,20 +1446,20 @@
                         <span class="string">&quot;0&quot;</span>.<span class="ident">to_owned</span>(),
                         <span class="ident">RuleSpec</span> {
                             <span class="ident">ty</span>: <span class="kw">match</span> <span class="ident">a</span> {
-                                <span class="string">&quot;ip&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Ip</span>,
-                                <span class="string">&quot;email&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Email</span>,
-                                <span class="string">&quot;creditcard&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Creditcard</span>,
-                                <span class="string">&quot;mac&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Mac</span>,
-                                <span class="string">&quot;uuid&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Uuid</span>,
-                                <span class="string">&quot;imei&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">RuleType::Imei</span>,
-                                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic!</span>(<span class="string">&quot;Unknown RuleType&quot;</span>),
+                                <span class="string">&quot;ip&quot;</span> =&gt; <span class="ident">RuleType::Ip</span>,
+                                <span class="string">&quot;email&quot;</span> =&gt; <span class="ident">RuleType::Email</span>,
+                                <span class="string">&quot;creditcard&quot;</span> =&gt; <span class="ident">RuleType::Creditcard</span>,
+                                <span class="string">&quot;mac&quot;</span> =&gt; <span class="ident">RuleType::Mac</span>,
+                                <span class="string">&quot;uuid&quot;</span> =&gt; <span class="ident">RuleType::Uuid</span>,
+                                <span class="string">&quot;imei&quot;</span> =&gt; <span class="ident">RuleType::Imei</span>,
+                                <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown RuleType&quot;</span>),
                             },
                             <span class="ident">redaction</span>: <span class="kw">match</span> <span class="ident">b</span> {
-                                <span class="string">&quot;remove&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction::Remove</span>,
-                                <span class="string">&quot;replace&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction::default</span>()),
-                                <span class="string">&quot;mask&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction::Mask</span>,
-                                <span class="string">&quot;hash&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Redaction::Hash</span>,
-                                <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic!</span>(<span class="string">&quot;Unknown redaction method&quot;</span>),
+                                <span class="string">&quot;remove&quot;</span> =&gt; <span class="ident">Redaction::Remove</span>,
+                                <span class="string">&quot;replace&quot;</span> =&gt; <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction::default</span>()),
+                                <span class="string">&quot;mask&quot;</span> =&gt; <span class="ident">Redaction::Mask</span>,
+                                <span class="string">&quot;hash&quot;</span> =&gt; <span class="ident">Redaction::Hash</span>,
+                                <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown redaction method&quot;</span>),
                             },
                         },
                     );

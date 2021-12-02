@@ -679,11 +679,11 @@
     <span class="ident">Redis</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">RedisError</span>),
 }
 
-<span class="kw">fn</span> <span class="ident">load_lua_script</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Script</span> {
+<span class="kw">fn</span> <span class="ident">load_lua_script</span>() -&gt; <span class="ident">Script</span> {
     <span class="ident">Script::new</span>(<span class="macro">include_str!</span>(<span class="string">&quot;is_rate_limited.lua&quot;</span>))
 }
 
-<span class="kw">fn</span> <span class="ident">get_refunded_quota_key</span>(<span class="ident">counter_key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+<span class="kw">fn</span> <span class="ident">get_refunded_quota_key</span>(<span class="ident">counter_key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">String</span> {
     <span class="macro">format!</span>(<span class="string">&quot;r:{}&quot;</span>, <span class="ident">counter_key</span>)
 }
 
@@ -694,10 +694,10 @@
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">fmt::Display</span>,
 {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">value</span>),
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">value</span>),
+            <span class="prelude-val">None</span> =&gt; <span class="prelude-val">Ok</span>(()),
         }
     }
 }
@@ -718,7 +718,7 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">RedisQuota</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">quota</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Quota</span>, <span class="ident">scoping</span>: <span class="ident">ItemScoping</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>, <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">quota</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Quota</span>, <span class="ident">scoping</span>: <span class="ident">ItemScoping</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>, <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="comment">// These fields indicate that we *can* track this quota.</span>
         <span class="kw">let</span> <span class="ident">prefix</span> <span class="op">=</span> <span class="ident">quota</span>.<span class="ident">id</span>.<span class="ident">as_deref</span>()<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">window</span> <span class="op">=</span> <span class="ident">quota</span>.<span class="ident">window</span><span class="question-mark">?</span>;
@@ -733,30 +733,30 @@
     }
 
     <span class="doccomment">/// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).</span>
-    <span class="kw">fn</span> <span class="ident">limit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i64</span> {
+    <span class="kw">fn</span> <span class="ident">limit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i64</span> {
         <span class="self">self</span>.<span class="ident">limit</span>.<span class="ident">map</span>(<span class="ident">i64::from</span>).<span class="ident">unwrap_or</span>(<span class="op">-</span><span class="number">1</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">shift</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u64</span> {
+    <span class="kw">fn</span> <span class="ident">shift</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u64</span> {
         <span class="self">self</span>.<span class="ident">scoping</span>.<span class="ident">organization_id</span> <span class="op">%</span> <span class="self">self</span>.<span class="ident">window</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">slot</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u64</span> {
+    <span class="kw">fn</span> <span class="ident">slot</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u64</span> {
         (<span class="self">self</span>.<span class="ident">timestamp</span>.<span class="ident">as_secs</span>() <span class="op">-</span> <span class="self">self</span>.<span class="ident">shift</span>()) <span class="op">/</span> <span class="self">self</span>.<span class="ident">window</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">UnixTimestamp</span> {
+    <span class="kw">fn</span> <span class="ident">expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">UnixTimestamp</span> {
         <span class="kw">let</span> <span class="ident">next_slot</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">slot</span>() <span class="op">+</span> <span class="number">1</span>;
         <span class="kw">let</span> <span class="ident">next_start</span> <span class="op">=</span> <span class="ident">next_slot</span> <span class="op">*</span> <span class="self">self</span>.<span class="ident">window</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">shift</span>();
         <span class="ident">UnixTimestamp::from_secs</span>(<span class="ident">next_start</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
         <span class="comment">// The subscope id is only formatted into the key if the quota is not organization-scoped.</span>
         <span class="comment">// The organization id is always included.</span>
         <span class="kw">let</span> <span class="ident">subscope</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">quota</span>.<span class="ident">scope</span> {
-            <span class="ident">QuotaScope::Organization</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident">scope</span> <span class="op">=</span><span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">scoping</span>.<span class="ident">scope_id</span>(<span class="ident">scope</span>),
+            <span class="ident">QuotaScope::Organization</span> =&gt; <span class="prelude-val">None</span>,
+            <span class="ident">scope</span> =&gt; <span class="self">self</span>.<span class="ident">scoping</span>.<span class="ident">scope_id</span>(<span class="ident">scope</span>),
         };
 
         <span class="macro">format!</span>(
@@ -772,7 +772,7 @@
 <span class="kw">impl</span> <span class="ident">std::ops::Deref</span> <span class="kw">for</span> <span class="ident">RedisQuota</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
     <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">Quota</span>;
 
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
+    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Target</span> {
         <span class="self">self</span>.<span class="ident">quota</span>
     }
 }
@@ -796,7 +796,7 @@
 
 <span class="kw">impl</span> <span class="ident">RedisRateLimiter</span> {
     <span class="doccomment">/// Creates a new `RedisRateLimiter` instance.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">pool</span>: <span class="ident">RedisPool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">pool</span>: <span class="ident">RedisPool</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">RedisRateLimiter</span> {
             <span class="ident">pool</span>,
             <span class="ident">script</span>: <span class="ident">Arc::new</span>(<span class="ident">load_lua_script</span>()),
@@ -808,7 +808,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// By default, this rate limiter will return rate limits based on the quotas&#39; `window` fields.</span>
     <span class="doccomment">/// If a maximum rate limit is set, this limit is bounded.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_limit</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">max_limit</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_limit</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">max_limit</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">max_limit</span> <span class="op">=</span> <span class="ident">max_limit</span>;
         <span class="self">self</span>
     }
@@ -827,7 +827,7 @@
         <span class="ident">quotas</span>: <span class="kw-2">&amp;</span>[<span class="ident">Quota</span>],
         <span class="ident">item_scoping</span>: <span class="ident">ItemScoping</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
         <span class="ident">quantity</span>: <span class="ident">usize</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RateLimits</span>, <span class="ident">RateLimitingError</span><span class="op">&gt;</span> {
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RateLimits</span>, <span class="ident">RateLimitingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::now</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">invocation</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">script</span>.<span class="ident">prepare_invoke</span>();
@@ -837,7 +837,7 @@
         <span class="kw">for</span> <span class="ident">quota</span> <span class="kw">in</span> <span class="ident">quotas</span> {
             <span class="kw">if</span> <span class="op">!</span><span class="ident">quota</span>.<span class="ident">matches</span>(<span class="ident">item_scoping</span>) {
                 <span class="comment">// Silently skip all quotas that do not apply to this item.</span>
-            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">quota</span>.<span class="ident">limit</span> <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="number">0</span>) {
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">quota</span>.<span class="ident">limit</span> <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="number">0</span>) {
                 <span class="comment">// A zero-sized quota is strongest. Do not call into Redis at all, and do not</span>
                 <span class="comment">// increment any keys, as one quota has reached capacity (this is how regular quotas</span>
                 <span class="comment">// behave as well).</span>
@@ -889,7 +889,7 @@
     }
 
     <span class="doccomment">/// Creates a rate limit bounded by `max_limit`.</span>
-    <span class="kw">fn</span> <span class="ident">retry_after</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">seconds</span>: <span class="ident">u64</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RetryAfter</span> {
+    <span class="kw">fn</span> <span class="ident">retry_after</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">seconds</span>: <span class="ident">u64</span>) -&gt; <span class="ident">RetryAfter</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">max_limit</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">max_limit</span> {
             <span class="ident">seconds</span> <span class="op">=</span> <span class="ident">std::cmp::min</span>(<span class="ident">seconds</span>, <span class="ident">max_limit</span>);
         }
@@ -911,7 +911,7 @@
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn</span> <span class="ident">build_rate_limiter</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RedisRateLimiter</span> {
+    <span class="kw">fn</span> <span class="ident">build_rate_limiter</span>() -&gt; <span class="ident">RedisRateLimiter</span> {
         <span class="kw">let</span> <span class="ident">url</span> <span class="op">=</span> <span class="ident">std::env::var</span>(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>)
             .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>.<span class="ident">to_owned</span>());
 
@@ -1082,7 +1082,7 @@
                 .<span class="ident">into_iter</span>()
                 .<span class="ident">collect</span>();
 
-            <span class="kw">if</span> <span class="ident">i</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span> {
+            <span class="kw">if</span> <span class="ident">i</span> <span class="op">==</span> <span class="number">0</span> {
                 <span class="macro">assert_eq!</span>(<span class="ident">rate_limits</span>, <span class="kw-2">&amp;</span>[]);
             } <span class="kw">else</span> {
                 <span class="macro">assert_eq!</span>(

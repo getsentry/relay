@@ -315,12 +315,12 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ClockCorrection</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">sent_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>, <span class="ident">received_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">sent_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>, <span class="ident">received_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">drift</span> <span class="op">=</span> <span class="ident">received_at</span> <span class="op">-</span> <span class="ident">sent_at</span>;
         <span class="self">Self</span> { <span class="ident">sent_at</span>, <span class="ident">drift</span> }
     }
 
-    <span class="kw">fn</span> <span class="ident">at_least</span>(<span class="self">self</span>, <span class="ident">lower_bound</span>: <span class="ident">Duration</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">at_least</span>(<span class="self">self</span>, <span class="ident">lower_bound</span>: <span class="ident">Duration</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">drift</span>.<span class="ident">num_seconds</span>().<span class="ident">abs</span>() <span class="kw">as</span> <span class="ident">u64</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">lower_bound</span>.<span class="ident">as_secs</span>() {
             <span class="prelude-val">Some</span>(<span class="self">self</span>)
         } <span class="kw">else</span> {
@@ -359,7 +359,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If no `sent_at` timestamp is provided, then clock drift correction is disabled. The drift is</span>
     <span class="doccomment">/// calculated from the signed difference between the receiver&#39;s and the sender&#39;s timestamp.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">sent_at</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">received_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">sent_at</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">received_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">correction</span> <span class="op">=</span> <span class="ident">sent_at</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">sent_at</span><span class="op">|</span> <span class="ident">ClockCorrection::new</span>(<span class="ident">sent_at</span>, <span class="ident">received_at</span>));
 
         <span class="self">Self</span> {
@@ -374,20 +374,20 @@
     <span class="doccomment">/// If the detected clock drift is lower than the given duration, no correction is performed and</span>
     <span class="doccomment">/// `is_drifted` returns `false`. By default, there is no lower bound and every drift is</span>
     <span class="doccomment">/// corrected.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">at_least</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">lower_bound</span>: <span class="ident">Duration</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">at_least</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">lower_bound</span>: <span class="ident">Duration</span>) -&gt; <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">correction</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">correction</span>.<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">at_least</span>(<span class="ident">lower_bound</span>));
         <span class="self">self</span>
     }
 
     <span class="doccomment">/// Use the given error kind for the attached eventerror instead of the default</span>
     <span class="doccomment">/// `ErrorKind::ClockDrift`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">error_kind</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">kind</span>: <span class="ident">ErrorKind</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">error_kind</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">kind</span>: <span class="ident">ErrorKind</span>) -&gt; <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">kind</span> <span class="op">=</span> <span class="ident">kind</span>;
         <span class="self">self</span>
     }
 
     <span class="doccomment">/// Returns `true` if the clocks are significantly drifted.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_drifted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_drifted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">correction</span>.<span class="ident">is_some</span>()
     }
 
@@ -417,7 +417,7 @@
         <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>,
         <span class="ident">_meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+    ) -&gt; <span class="ident">ProcessingResult</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">correction</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">correction</span> {
             <span class="ident">event</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
 
@@ -436,7 +436,7 @@
         <span class="ident">timestamp</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Timestamp</span>,
         <span class="ident">_meta</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Meta</span>,
         <span class="ident">_state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProcessingResult</span> {
+    ) -&gt; <span class="ident">ProcessingResult</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">correction</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">correction</span> {
             <span class="comment">// NB: We&#39;re not setting the original value here, as this could considerably increase</span>
             <span class="comment">// the event&#39;s size. Instead, attach an error message to the top-level event.</span>
@@ -459,7 +459,7 @@
     };
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>};
 
-    <span class="kw">fn</span> <span class="ident">create_transaction</span>(<span class="ident">start</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>, <span class="ident">end</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">create_transaction</span>(<span class="ident">start</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>, <span class="ident">end</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span> {
         <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
             <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="ident">EventType::Transaction</span>),
             <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">end</span>.<span class="ident">into</span>()),

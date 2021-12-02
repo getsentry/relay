@@ -322,9 +322,9 @@
     <span class="doccomment">/// returns an error, the actix system is not started and instead an error returned. Otherwise,</span>
     <span class="doccomment">/// the system blocks the current thread until a shutdown signal is sent to the server and all</span>
     <span class="doccomment">/// actors have completed a graceful shutdown.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">run</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span>, <span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">factory</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">run</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span>, <span class="ident">E</span><span class="op">&gt;</span>(<span class="ident">factory</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">E</span><span class="op">&gt;</span>
     <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">R</span>, <span class="ident">E</span><span class="op">&gt;</span>,
+        <span class="ident">F</span>: <span class="ident">FnOnce</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">R</span>, <span class="ident">E</span><span class="op">&gt;</span>,
     {
         <span class="kw">let</span> <span class="ident">sys</span> <span class="op">=</span> <span class="ident">System::new</span>(<span class="string">&quot;relay&quot;</span>);
 
@@ -393,7 +393,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Controller</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident">Controller</span> {
             <span class="ident">timeout</span>: <span class="ident">Duration::from_secs</span>(<span class="number">0</span>),
             <span class="ident">subscribers</span>: <span class="ident">Vec::new</span>(),
@@ -402,7 +402,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Controller</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Controller&quot;</span>)
             .<span class="ident">field</span>(<span class="string">&quot;timeout&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">timeout</span>)
             .<span class="ident">field</span>(<span class="string">&quot;subscribers&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">subscribers</span>.<span class="ident">len</span>())
@@ -426,22 +426,22 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">signal::Signal</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">signal::Signal</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">signal::Signal</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">match</span> <span class="ident">message</span>.<span class="number">0</span> {
-            <span class="ident">signal::SignalType::Int</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">signal::SignalType::Int</span> =&gt; {
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;SIGINT received, exiting&quot;</span>);
                 <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">None</span>);
             }
-            <span class="ident">signal::SignalType::Quit</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">signal::SignalType::Quit</span> =&gt; {
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;SIGQUIT received, exiting&quot;</span>);
                 <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">None</span>);
             }
-            <span class="ident">signal::SignalType::Term</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">signal::SignalType::Term</span> =&gt; {
                 <span class="kw">let</span> <span class="ident">timeout</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">timeout</span>;
                 <span class="macro">relay_log::info!</span>(<span class="string">&quot;SIGTERM received, stopping in {}s&quot;</span>, <span class="ident">timeout</span>.<span class="ident">as_secs</span>());
                 <span class="self">self</span>.<span class="ident">shutdown</span>(<span class="ident">context</span>, <span class="prelude-val">Some</span>(<span class="ident">timeout</span>));
             }
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> (),
+            <span class="kw">_</span> =&gt; (),
         }
     }
 }
@@ -460,7 +460,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Configure</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Configure</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Configure</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="self">self</span>.<span class="ident">timeout</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">shutdown_timeout</span>;
     }
 }
@@ -469,7 +469,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Subscribe</span>(<span class="kw">pub</span> <span class="ident">Recipient</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span>);
 
 <span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Subscribe</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;Subscribe(Shutdown)&quot;</span>)
     }
 }
@@ -481,7 +481,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Subscribe</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Controller</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Subscribe</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Subscribe</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="self">self</span>.<span class="ident">subscribers</span>.<span class="ident">push</span>(<span class="ident">message</span>.<span class="number">0</span>)
     }
 }

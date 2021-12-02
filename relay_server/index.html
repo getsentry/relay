@@ -3,7 +3,7 @@
 multiple supported endpoints, serves queries to downstream relays and send received events to
 the upstream.</p>
 <p>See the <a href="../relay_config/config/struct.Config.html" title="Config"><code>Config</code></a> documentation for more information on configuration options.</p>
-<h1 id="path-of-an-event-through-relay" class="section-header"><a href="#path-of-an-event-through-relay">Path of an Event through Relay</a></h1><h2 id="overview" class="section-header"><a href="#overview">Overview</a></h2>
+<h2 id="path-of-an-event-through-relay" class="section-header"><a href="#path-of-an-event-through-relay">Path of an Event through Relay</a></h2><h3 id="overview" class="section-header"><a href="#overview">Overview</a></h3>
 <p>Simplified overview of event ingestion (ignores snuba/postprocessing):</p>
 <div class="example-wrap"><pre class="language-mermaid"><code>graph LR
 
@@ -24,7 +24,7 @@ ingestconsumer--&gt;preprocess
 preprocess--&gt;process
 preprocess--&gt;save
 process--&gt;save
-</code></pre></div><h2 id="processing-enabled-vs-not" class="section-header"><a href="#processing-enabled-vs-not">Processing enabled vs not?</a></h2>
+</code></pre></div><h3 id="processing-enabled-vs-not" class="section-header"><a href="#processing-enabled-vs-not">Processing enabled vs not?</a></h3>
 <p>Relay can run as part of a Sentry installation, such as within <code>sentry.io</code>’s
 infrastructure, or next to the application as a forwarding proxy. A lot of
 steps described here are skipped or run in a limited form when Relay is <em>not</em>
@@ -48,7 +48,7 @@ from previously mentioned endpoint.</p>
 <p>Filters are not applied at all.</p>
 </li>
 </ul>
-<h2 id="inside-the-endpoint" class="section-header"><a href="#inside-the-endpoint">Inside the endpoint</a></h2>
+<h3 id="inside-the-endpoint" class="section-header"><a href="#inside-the-endpoint">Inside the endpoint</a></h3>
 <p>When an SDK hits <code>/api/X/store</code> on Relay, the code in
 <code>server/src/endpoints/store.rs</code> is called before returning a HTTP response.</p>
 <p>That code looks into an in-memory cache to answer basic information about a project such as:</p>
@@ -99,7 +99,7 @@ events should quickly result in eventually consistent and correct status codes.<
 external services) is deferred into a background task. Except for responding to
 the HTTP request, there’s no I/O done in the endpoint in any form. We didn’t
 even hit Redis to calculate rate limits.</p>
-<h3 id="summary" class="section-header"><a href="#summary">Summary</a></h3>
+<h4 id="summary" class="section-header"><a href="#summary">Summary</a></h4>
 <p>The HTTP response returned is just a best-effort guess at what the actual
 outcome of the event is going to be. We only return a <code>4xx</code> code if we know that
 the response will fail (based on cached information), if we don’t we return a
@@ -110,7 +110,7 @@ processing used to happen synchronously in the Python implementation of
 we might return 200 for events that will ultimately not be accepted.</p>
 <p>Generally Relay will return a 200 in many more situations than the old
 <code>StoreView</code>.</p>
-<h2 id="the-background-task" class="section-header"><a href="#the-background-task">The background task</a></h2>
+<h3 id="the-background-task" class="section-header"><a href="#the-background-task">The background task</a></h3>
 <p>The HTTP response is out by now. The rest of what used to happen synchronously in the
 Python <code>StoreView</code> is done asynchronously, but still in the same process.</p>
 <p>So, now to the real work:</p>
@@ -167,24 +167,24 @@ part of the project config fetched from Sentry.</p>
 </ol>
 <p><strong>Note:</strong> If we discard an event at any point, an outcome is written to Kafka
 if Relay is configured to do so.</p>
-<h3 id="summary-1" class="section-header"><a href="#summary-1">Summary</a></h3>
+<h4 id="summary-1" class="section-header"><a href="#summary-1">Summary</a></h4>
 <p>For events that returned a <code>200</code> we spawn an in-process background task
 that does the rest of what the old <code>StoreView</code> did.</p>
 <p>This task updates in-memory state for rate limits and disabled
 projects/keys.</p>
-<h2 id="the-outcomes-consumer" class="section-header"><a href="#the-outcomes-consumer">The outcomes consumer</a></h2>
+<h3 id="the-outcomes-consumer" class="section-header"><a href="#the-outcomes-consumer">The outcomes consumer</a></h3>
 <p>Outcomes are small messages in Kafka that contain an event ID and information
 about whether that event was rejected, and if so, why.</p>
 <p>The outcomes consumer is mostly responsible for updating (user-visible)
 counters in Sentry (buffers/counters and tsdb, which are two separate systems).</p>
-<h2 id="the-ingest-consumer" class="section-header"><a href="#the-ingest-consumer">The ingest consumer</a></h2>
+<h3 id="the-ingest-consumer" class="section-header"><a href="#the-ingest-consumer">The ingest consumer</a></h3>
 <p>The ingest consumer reads accepted events from Kafka, and also updates some
 stats. Some of <em>those</em> stats are billing-relevant.</p>
 <p>Its main purpose is to do what <code>insert_data_to_database</code> in Python store did:
 Call <code>preprocess_event</code>, after which comes sourcemap processing, native
 symbolication, grouping, snuba and all that other stuff that is of no concern
 to Relay.</p>
-<h2 id="sequence-diagram-of-components-inside-relay" class="section-header"><a href="#sequence-diagram-of-components-inside-relay">Sequence diagram of components inside Relay</a></h2><div class="example-wrap"><pre class="language-mermaid"><code>sequenceDiagram
+<h3 id="sequence-diagram-of-components-inside-relay" class="section-header"><a href="#sequence-diagram-of-components-inside-relay">Sequence diagram of components inside Relay</a></h3><div class="example-wrap"><pre class="language-mermaid"><code>sequenceDiagram
 participant sdk as SDK
 participant endpoint as Endpoint
 participant projectcache as ProjectCache
@@ -225,11 +225,11 @@ mermaid.init({}, ".language-mermaid");
 // Could not get dark mode in mermaid to work
 Array.from(document.getElementsByTagName('svg')).map(x => x.style.background = "white")
 </script></div></details><h2 id="macros" class="section-header"><a href="#macros">Macros</a></h2>
-<div class="item-table"><div class="item-left module-item"><a class="macro" href="macro.project_states_version.html" title="relay_server::project_states_version macro">project_states_version</a></div><div class="item-right docblock-short"><p>The current version of the project states endpoint.</p>
-</div></div><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2>
-<div class="item-table"><div class="item-left module-item"><a class="struct" href="struct.ServerError.html" title="relay_server::ServerError struct">ServerError</a></div><div class="item-right docblock-short"><p>Common error type for the relay server.</p>
-</div></div><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2>
-<div class="item-table"><div class="item-left module-item"><a class="fn" href="fn.run.html" title="relay_server::run fn">run</a></div><div class="item-right docblock-short"><p>Runs a relay web server and spawns all internal worker threads.</p>
-</div></div></section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_server" data-search-index-js="../search-index.js" data-search-js="../search.js"></div>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="macro" href="macro.project_states_version.html" title="relay_server::project_states_version macro">project_states_version</a></div><div class="item-right docblock-short"><p>The current version of the project states endpoint.</p>
+</div></div></div><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.ServerError.html" title="relay_server::ServerError struct">ServerError</a></div><div class="item-right docblock-short"><p>Common error type for the relay server.</p>
+</div></div></div><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.run.html" title="relay_server::run fn">run</a></div><div class="item-right docblock-short"><p>Runs a relay web server and spawns all internal worker threads.</p>
+</div></div></div></section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_server" data-search-index-js="../search-index.js" data-search-js="../search.js"></div>
     <script src="../main.js"></script>
 </body></html>

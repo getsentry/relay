@@ -608,7 +608,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">FromValue</span> <span class="kw">for</span> <span class="ident">Mechanism</span> {
-    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">annotated</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">annotated</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">FromValue</span>)]</span>
         <span class="kw">struct</span> <span class="ident">NewMechanism</span> {
             <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>, <span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
@@ -648,7 +648,7 @@
         }
 
         <span class="kw">match</span> <span class="ident">annotated</span> {
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="ident">object</span>)), <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::Object</span>(<span class="ident">object</span>)), <span class="ident">meta</span>) =&gt; {
                 <span class="kw">if</span> <span class="ident">object</span>.<span class="ident">is_empty</span>() {
                     <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
                 } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">object</span>.<span class="ident">contains_key</span>(<span class="string">&quot;type&quot;</span>) {
@@ -695,12 +695,12 @@
                     })
                 }
             }
-            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
                 <span class="ident">meta</span>.<span class="ident">add_error</span>(<span class="ident">Error::expected</span>(<span class="string">&quot;exception mechanism&quot;</span>));
                 <span class="ident">meta</span>.<span class="ident">set_original_value</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>));
                 <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>)
             }
-            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
+            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>) =&gt; <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
         }
     }
 }

@@ -609,13 +609,13 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ResponseError</span> <span class="kw">for</span> <span class="ident">BadEventMeta</span> {
-    <span class="kw">fn</span> <span class="ident">error_response</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">HttpResponse</span> {
+    <span class="kw">fn</span> <span class="ident">error_response</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">HttpResponse</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident"><span class="self">Self</span>::MissingAuth</span>
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::MultipleAuth</span>
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::BadAuth</span>(<span class="kw">_</span>)
-            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::BadEnvelopeAuth</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">HttpResponse::Unauthorized</span>(),
-            <span class="ident"><span class="self">Self</span>::BadProject</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident"><span class="self">Self</span>::BadPublicKey</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">HttpResponse::BadRequest</span>(),
+            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::BadEnvelopeAuth</span>(<span class="kw">_</span>) =&gt; <span class="ident">HttpResponse::Unauthorized</span>(),
+            <span class="ident"><span class="self">Self</span>::BadProject</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident"><span class="self">Self</span>::BadPublicKey</span>(<span class="kw">_</span>) =&gt; <span class="ident">HttpResponse::BadRequest</span>(),
         };
 
         <span class="ident">builder</span>.<span class="ident">json</span>(<span class="kw-2">&amp;</span><span class="ident">ApiErrorResponse::from_fail</span>(<span class="self">self</span>))
@@ -642,8 +642,8 @@
 
 <span class="kw">impl</span> <span class="ident">PartialDsn</span> {
     <span class="doccomment">/// Ensures a valid public key and project ID in the DSN.</span>
-    <span class="kw">fn</span> <span class="ident">from_dsn</span>(<span class="ident">dsn</span>: <span class="ident">Dsn</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ParseDsnError</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="ident">dsn</span>.<span class="ident">project_id</span>().<span class="ident">value</span>() <span class="op">=</span><span class="op">=</span> <span class="number">0</span> {
+    <span class="kw">fn</span> <span class="ident">from_dsn</span>(<span class="ident">dsn</span>: <span class="ident">Dsn</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ParseDsnError</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="ident">dsn</span>.<span class="ident">project_id</span>().<span class="ident">value</span>() <span class="op">==</span> <span class="number">0</span> {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseDsnError::InvalidProjectId</span>(
                 <span class="ident">ParseProjectIdError::InvalidValue</span>,
             ));
@@ -665,18 +665,18 @@
     }
 
     <span class="doccomment">/// Returns the project identifier that the DSN points to.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">project_id</span>
     }
 
     <span class="doccomment">/// Returns the public key part of the DSN for authentication.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProjectKey</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ProjectKey</span> {
         <span class="self">self</span>.<span class="ident">public_key</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">PartialDsn</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}://{}:@{}&quot;</span>, <span class="self">self</span>.<span class="ident">scheme</span>, <span class="self">self</span>.<span class="ident">public_key</span>, <span class="self">self</span>.<span class="ident">host</span>)<span class="question-mark">?</span>;
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">port</span> <span class="op">!</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">scheme</span>.<span class="ident">default_port</span>() {
             <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;:{}&quot;</span>, <span class="self">self</span>.<span class="ident">port</span>)<span class="question-mark">?</span>;
@@ -689,13 +689,13 @@
 <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">PartialDsn</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseDsnError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
         <span class="ident"><span class="self">Self</span>::from_dsn</span>(<span class="ident">Dsn::from_str</span>(<span class="ident">s</span>)<span class="question-mark">?</span>)
     }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">PartialDsn</span> {
-    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">serde::Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
@@ -705,7 +705,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">PartialDsn</span> {
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S::Ok</span>, <span class="ident">S::Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">serde::Serializer</span>,
     {
@@ -713,15 +713,15 @@
     }
 }
 
-<span class="kw">const</span> <span class="kw">fn</span> <span class="ident">default_version</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u16</span> {
+<span class="kw">const</span> <span class="kw">fn</span> <span class="ident">default_version</span>() -&gt; <span class="ident">u16</span> {
     <span class="ident">relay_common::PROTOCOL_VERSION</span>
 }
 
-<span class="kw">fn</span> <span class="ident">is_false</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">bool</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">is_false</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">bool</span>) -&gt; <span class="ident">bool</span> {
     <span class="op">!</span><span class="kw-2">*</span><span class="ident">value</span>
 }
 
-<span class="kw">fn</span> <span class="ident">make_false</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">make_false</span>() -&gt; <span class="ident">bool</span> {
     <span class="bool-val">false</span>
 }
 
@@ -768,23 +768,23 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span> <span class="ident">RequestMeta</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span> {
     <span class="doccomment">/// Returns the client that sent this event (Sentry SDK identifier).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">client</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">client</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">client</span>.<span class="ident">as_deref</span>()
     }
 
     <span class="doccomment">/// Returns the protocol version of the event payload.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u16</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u16</span> {
         <span class="self">self</span>.<span class="ident">version</span>
     }
 
     <span class="doccomment">/// Returns a reference to the origin URL</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">origin</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Url</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">origin</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Url</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">origin</span>.<span class="ident">as_ref</span>()
     }
 
     <span class="doccomment">/// The IP address of the Relay or client that ingested the event.</span>
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">remote_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">remote_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">remote_addr</span>
     }
 
@@ -792,13 +792,13 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This differs from `remote_addr` if the event was sent through a Relay or any other proxy</span>
     <span class="doccomment">/// before.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">client_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">client_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">forwarded_for</span>().<span class="ident">split</span>(<span class="string">&#39;,&#39;</span>).<span class="ident">next</span>()<span class="question-mark">?</span>;
         <span class="ident">client</span>.<span class="ident">trim</span>().<span class="ident">parse</span>().<span class="ident">ok</span>()
     }
 
     <span class="doccomment">/// Returns the value of the forwarded for header</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">forwarded_for</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">forwarded_for</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">forwarded_for</span>
     }
 
@@ -806,24 +806,24 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is the value of the `User-Agent` header. In contrast, `auth.client_agent()` identifies</span>
     <span class="doccomment">/// the SDK that sent the event.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">user_agent</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">user_agent</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">user_agent</span>.<span class="ident">as_deref</span>()
     }
 
     <span class="doccomment">/// Indicates that caches should be bypassed.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">no_cache</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">no_cache</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">no_cache</span>
     }
 
     <span class="doccomment">/// The time at which the request started.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start_time</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Instant</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start_time</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Instant</span> {
         <span class="self">self</span>.<span class="ident">start_time</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">RequestMeta</span> {
     <span class="doccomment">/// Creates meta for an outbound request of this Relay.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outbound</span>(<span class="ident">dsn</span>: <span class="ident">PartialDsn</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">outbound</span>(<span class="ident">dsn</span>: <span class="ident">PartialDsn</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">dsn</span>,
             <span class="ident">client</span>: <span class="prelude-val">Some</span>(<span class="ident"><span class="kw">crate</span>::constants::CLIENT</span>.<span class="ident">to_owned</span>()),
@@ -839,7 +839,7 @@
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
     <span class="comment">// TODO: Remove Dsn here?</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">dsn</span>: <span class="ident">relay_common::Dsn</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">dsn</span>: <span class="ident">relay_common::Dsn</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">RequestMeta</span> {
             <span class="ident">dsn</span>: <span class="ident">PartialDsn::from_dsn</span>(<span class="ident">dsn</span>).<span class="ident">expect</span>(<span class="string">&quot;invalid DSN&quot;</span>),
             <span class="ident">client</span>: <span class="prelude-val">Some</span>(<span class="string">&quot;sentry/client&quot;</span>.<span class="ident">to_string</span>()),
@@ -857,7 +857,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The DSN declares the project and auth information and upstream address. When RequestMeta is</span>
     <span class="doccomment">/// constructed from a web request, the DSN is set to point to the upstream host.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dsn</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">PartialDsn</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dsn</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">PartialDsn</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">dsn</span>
     }
 
@@ -866,7 +866,7 @@
     <span class="doccomment">/// Returns `None` if the envelope was sent to the legacy `/api/store/` endpoint. In this case,</span>
     <span class="doccomment">/// the DSN will be filled in during normalization. In all other cases, this will return</span>
     <span class="doccomment">/// `Some(ProjectId)`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">dsn</span>.<span class="ident">project_id</span>
     }
 
@@ -876,14 +876,14 @@
     }
 
     <span class="doccomment">/// Returns the public key part of the DSN for authentication.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ProjectKey</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">public_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ProjectKey</span> {
         <span class="self">self</span>.<span class="ident">dsn</span>.<span class="ident">public_key</span>
     }
 
     <span class="doccomment">/// Formats the Sentry authentication header.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This header must be included in store requests.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">auth_header</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">String</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">auth_header</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">auth</span> <span class="op">=</span> <span class="macro">format!</span>(
             <span class="string">&quot;Sentry sentry_key={}, sentry_version={}&quot;</span>,
             <span class="self">self</span>.<span class="ident">public_key</span>(),
@@ -902,7 +902,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The scoping returned from this function is not complete since it lacks info from the Project</span>
     <span class="doccomment">/// state. To fetch full scoping information, invoke the `GetScoping` message on `Project`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_partial_scoping</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Scoping</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_partial_scoping</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Scoping</span> {
         <span class="ident">Scoping</span> {
             <span class="ident">organization_id</span>: <span class="number">0</span>,
             <span class="ident">project_id</span>: <span class="self">self</span>.<span class="ident">project_id</span>().<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">ProjectId::new</span>(<span class="number">0</span>)),
@@ -916,7 +916,7 @@
 
 <span class="kw">impl</span> <span class="ident">PartialMeta</span> {
     <span class="doccomment">/// Extracts header information except for auth info.</span>
-    <span class="kw">fn</span> <span class="ident">from_headers</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from_headers</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">RequestMeta</span> {
             <span class="ident">dsn</span>: <span class="prelude-val">None</span>,
             <span class="ident">version</span>: <span class="ident">default_version</span>(),
@@ -939,14 +939,14 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The DSN declares the project and auth information and upstream address. When RequestMeta is</span>
     <span class="doccomment">/// constructed from a web request, the DSN is set to point to the upstream host.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dsn</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PartialDsn</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dsn</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">PartialDsn</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">dsn</span>.<span class="ident">as_ref</span>()
     }
 
     <span class="doccomment">/// Completes missing information with complete `RequestMeta`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// All fields that set in this instance will remain.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">copy_to</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">complete</span>: <span class="ident">RequestMeta</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestMeta</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">copy_to</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">complete</span>: <span class="ident">RequestMeta</span>) -&gt; <span class="ident">RequestMeta</span> {
         <span class="comment">// DSN needs to be validated by the caller and will not be copied over.</span>
 
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">client</span>.<span class="ident">is_some</span>() {
@@ -975,14 +975,14 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">get_auth_header</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">header_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">get_auth_header</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>, <span class="ident">header_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span> {
     <span class="ident">req</span>.<span class="ident">headers</span>()
         .<span class="ident">get</span>(<span class="ident">header_name</span>)
         .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">to_str</span>().<span class="ident">ok</span>())
         .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">h</span><span class="op">|</span> <span class="ident">h</span>.<span class="ident">len</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="number">7</span> <span class="op">&amp;&amp;</span> <span class="ident">h</span>[..<span class="number">7</span>].<span class="ident">eq_ignore_ascii_case</span>(<span class="string">&quot;sentry &quot;</span>))
 }
 
-<span class="kw">fn</span> <span class="ident">auth_from_request</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Auth</span>, <span class="ident">BadEventMeta</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">auth_from_request</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Auth</span>, <span class="ident">BadEventMeta</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">auth</span> <span class="op">=</span> <span class="prelude-val">None</span>;
 
     <span class="comment">// try to extract authentication info from http header &quot;x-sentry-auth&quot;</span>
@@ -1024,14 +1024,14 @@
     <span class="ident">auth</span>.<span class="ident">ok_or</span>(<span class="ident">BadEventMeta::MissingAuth</span>)
 }
 
-<span class="kw">fn</span> <span class="ident">parse_header_url</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">header</span>: <span class="ident">header::HeaderName</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Url</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">parse_header_url</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">req</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">header</span>: <span class="ident">header::HeaderName</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Url</span><span class="op">&gt;</span> {
     <span class="ident">req</span>.<span class="ident">headers</span>()
         .<span class="ident">get</span>(<span class="ident">header</span>)
         .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">h</span><span class="op">|</span> <span class="ident">h</span>.<span class="ident">to_str</span>().<span class="ident">ok</span>())
         .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Url</span><span class="op">&gt;</span>().<span class="ident">ok</span>())
         .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">u</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">u</span>.<span class="ident">scheme</span>() {
-            <span class="string">&quot;http&quot;</span> <span class="op">|</span> <span class="string">&quot;https&quot;</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">u</span>),
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="string">&quot;http&quot;</span> <span class="op">|</span> <span class="string">&quot;https&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">u</span>),
+            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
         })
 }
 
@@ -1039,18 +1039,18 @@
     <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> ();
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">BadEventMeta</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_request</span>(<span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>, <span class="ident">_cfg</span>: <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">from_request</span>(<span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>, <span class="ident">_cfg</span>: <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Config</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">auth</span> <span class="op">=</span> <span class="ident">auth_from_request</span>(<span class="ident">request</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">partial_meta</span> <span class="op">=</span> <span class="ident">PartialMeta::from_headers</span>(<span class="ident">request</span>);
 
         <span class="kw">let</span> <span class="ident">project_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">request</span>.<span class="ident">match_info</span>().<span class="ident">get</span>(<span class="string">&quot;project&quot;</span>) {
             <span class="comment">// The project_id was declared in the URL. Use it directly.</span>
-            <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">map_err</span>(<span class="ident">BadEventMeta::BadProject</span>)<span class="question-mark">?</span>),
+            <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">map_err</span>(<span class="ident">BadEventMeta::BadProject</span>)<span class="question-mark">?</span>),
 
             <span class="comment">// The legacy endpoint (/api/store) was hit without a project id. Fetch the project</span>
             <span class="comment">// id from the key lookup. Since this is the uncommon case, block the request until the</span>
             <span class="comment">// project id is here.</span>
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="prelude-val">None</span>,
         };
 
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">config</span>();
@@ -1092,12 +1092,12 @@
 <span class="kw">impl</span> <span class="ident">EnvelopeMeta</span> {
     <span class="kw">const</span> <span class="ident">MAX_HEADER_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">2048</span>;
 
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">request_meta</span>: <span class="ident">RequestMeta</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">request_meta</span>: <span class="ident">RequestMeta</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> { <span class="ident">request_meta</span> }
     }
 
     <span class="doccomment">/// Returns the request meta data.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_inner</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestMeta</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_inner</span>(<span class="self">self</span>) -&gt; <span class="ident">RequestMeta</span> {
         <span class="self">self</span>.<span class="ident">request_meta</span>
     }
 }
@@ -1106,7 +1106,7 @@
     <span class="kw">type</span> <span class="ident">Config</span> <span class="op">=</span> ();
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">BadEventMeta</span><span class="op">&gt;</span>, <span class="ident">BadEventMeta</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_request</span>(<span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>, <span class="ident">_config</span>: <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Config</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">from_request</span>(<span class="ident">request</span>: <span class="kw-2">&amp;</span><span class="ident">HttpRequest</span><span class="op">&lt;</span><span class="ident">ServiceState</span><span class="op">&gt;</span>, <span class="ident">_config</span>: <span class="kw-2">&amp;</span><span class="ident"><span class="self">Self</span>::Config</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">RequestMeta::extract</span>(<span class="ident">request</span>).<span class="ident">map</span>(<span class="ident">EnvelopeMeta::new</span>);
         <span class="kw">if</span> <span class="op">!</span><span class="macro">matches!</span>(<span class="ident">result</span>, <span class="prelude-val">Err</span>(<span class="ident">BadEventMeta::MissingAuth</span>)) {
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Box::new</span>(<span class="ident">future::result</span>(<span class="ident">result</span>)));

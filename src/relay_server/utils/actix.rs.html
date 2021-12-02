@@ -148,15 +148,15 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ok</span>(<span class="ident">value</span>: <span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ok</span>(<span class="ident">value</span>: <span class="ident">T</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">Response::Reply</span>(<span class="prelude-val">Ok</span>(<span class="ident">value</span>))
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reply</span>(<span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reply</span>(<span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">Response::Reply</span>(<span class="ident">result</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">future</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">future</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">future</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">future</span>: <span class="ident">F</span>) -&gt; <span class="self">Self</span>
     <span class="kw">where</span>
         <span class="ident">F</span>: <span class="ident">IntoFuture</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span><span class="op">&gt;</span>,
         <span class="ident">F::Future</span>: <span class="lifetime">&#39;static</span>,
@@ -166,13 +166,13 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span>, <span class="ident">E</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">map</span><span class="op">&lt;</span><span class="ident">U</span>, <span class="ident">F</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">f</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">U</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">map</span><span class="op">&lt;</span><span class="ident">U</span>, <span class="ident">F</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">U</span>, <span class="ident">E</span><span class="op">&gt;</span>
     <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">U</span>,
+        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">T</span>) -&gt; <span class="ident">U</span>,
     {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Response::Reply</span>(<span class="ident">result</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Response::reply</span>(<span class="ident">result</span>.<span class="ident">map</span>(<span class="ident">f</span>)),
-            <span class="ident">Response::Future</span>(<span class="ident">future</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">Response::future</span>(<span class="ident">future</span>.<span class="ident">map</span>(<span class="ident">f</span>)),
+            <span class="ident">Response::Reply</span>(<span class="ident">result</span>) =&gt; <span class="ident">Response::reply</span>(<span class="ident">result</span>.<span class="ident">map</span>(<span class="ident">f</span>)),
+            <span class="ident">Response::Future</span>(<span class="ident">future</span>) =&gt; <span class="ident">Response::future</span>(<span class="ident">future</span>.<span class="ident">map</span>(<span class="ident">f</span>)),
         }
     }
 }
@@ -185,7 +185,7 @@
 {
     <span class="kw">fn</span> <span class="ident">handle</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">ResponseChannel</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">A::Context</span>, <span class="ident">tx</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>) {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Response::Future</span>(<span class="ident">fut</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Response::Future</span>(<span class="ident">fut</span>) =&gt; {
                 <span class="ident">Arbiter::spawn</span>(<span class="ident">fut</span>.<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">res</span><span class="op">|</span> {
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">tx</span>) <span class="op">=</span> <span class="ident">tx</span> {
                         <span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">res</span>);
@@ -193,7 +193,7 @@
                     <span class="prelude-val">Ok</span>(())
                 }));
             }
-            <span class="ident">Response::Reply</span>(<span class="ident">res</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">Response::Reply</span>(<span class="ident">res</span>) =&gt; {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">tx</span>) <span class="op">=</span> <span class="ident">tx</span> {
                     <span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">res</span>);
                 }
@@ -208,15 +208,15 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="ident">ActorResponse</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ok</span>(<span class="ident">value</span>: <span class="ident">T</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ok</span>(<span class="ident">value</span>: <span class="ident">T</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">ActorResponse::Reply</span>(<span class="prelude-val">Ok</span>(<span class="ident">value</span>))
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reply</span>(<span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reply</span>(<span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">ActorResponse::Reply</span>(<span class="ident">result</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">future</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">future</span>: <span class="ident">F</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">future</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">future</span>: <span class="ident">F</span>) -&gt; <span class="self">Self</span>
     <span class="kw">where</span>
         <span class="ident">A</span>: <span class="ident">Actor</span>,
         <span class="ident">F</span>: <span class="ident">IntoActorFuture</span><span class="op">&lt;</span><span class="ident">Actor</span> <span class="op">=</span> <span class="ident">A</span>, <span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span><span class="op">&gt;</span>,
@@ -232,13 +232,13 @@
         <span class="ident">actor</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">A</span>,
         <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="ident">A</span> <span class="kw">as</span> <span class="ident">Actor</span><span class="op">&gt;</span><span class="ident">::Context</span>,
         <span class="ident">f</span>: <span class="ident">F</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ActorResponse</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">U</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    ) -&gt; <span class="ident">ActorResponse</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">U</span>, <span class="ident">E</span><span class="op">&gt;</span>
     <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">T</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">A</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="ident">A</span> <span class="kw">as</span> <span class="ident">Actor</span><span class="op">&gt;</span><span class="ident">::Context</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">U</span>,
+        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">T</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">A</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="ident">A</span> <span class="kw">as</span> <span class="ident">Actor</span><span class="op">&gt;</span><span class="ident">::Context</span>) -&gt; <span class="ident">U</span>,
     {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">ActorResponse::Reply</span>(<span class="ident">result</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ActorResponse::reply</span>(<span class="ident">result</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">f</span>(<span class="ident">t</span>, <span class="ident">actor</span>, <span class="ident">ctx</span>))),
-            <span class="ident">ActorResponse::Future</span>(<span class="ident">future</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ActorResponse::future</span>(<span class="ident">future</span>.<span class="ident">map</span>(<span class="ident">f</span>)),
+            <span class="ident">ActorResponse::Reply</span>(<span class="ident">result</span>) =&gt; <span class="ident">ActorResponse::reply</span>(<span class="ident">result</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">f</span>(<span class="ident">t</span>, <span class="ident">actor</span>, <span class="ident">ctx</span>))),
+            <span class="ident">ActorResponse::Future</span>(<span class="ident">future</span>) =&gt; <span class="ident">ActorResponse::future</span>(<span class="ident">future</span>.<span class="ident">map</span>(<span class="ident">f</span>)),
         }
     }
 }
@@ -251,7 +251,7 @@
 {
     <span class="kw">fn</span> <span class="ident">handle</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">ResponseChannel</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">A::Context</span>, <span class="ident">tx</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>) {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">ActorResponse::Future</span>(<span class="ident">fut</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">ActorResponse::Future</span>(<span class="ident">fut</span>) =&gt; {
                 <span class="ident">context</span>.<span class="ident">spawn</span>(<span class="ident">fut</span>.<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">res</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">|</span> {
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">tx</span>) <span class="op">=</span> <span class="ident">tx</span> {
                         <span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">res</span>);
@@ -259,7 +259,7 @@
                     <span class="ident">fut::ok</span>(())
                 }));
             }
-            <span class="ident">ActorResponse::Reply</span>(<span class="ident">res</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">ActorResponse::Reply</span>(<span class="ident">res</span>) =&gt; {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">tx</span>) <span class="op">=</span> <span class="ident">tx</span> {
                     <span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">res</span>);
                 }
@@ -269,10 +269,10 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span>, <span class="ident">E</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_actor</span><span class="op">&lt;</span><span class="ident">A</span>: <span class="ident">Actor</span><span class="op">&gt;</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">ActorResponse</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_actor</span><span class="op">&lt;</span><span class="ident">A</span>: <span class="ident">Actor</span><span class="op">&gt;</span>(<span class="self">self</span>) -&gt; <span class="ident">ActorResponse</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Response::Reply</span>(<span class="ident">result</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ActorResponse::Reply</span>(<span class="ident">result</span>),
-            <span class="ident">Response::Future</span>(<span class="ident">future</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ActorResponse::Future</span>(<span class="ident">Box::new</span>(<span class="ident">fut::wrap_future</span>(<span class="ident">future</span>))),
+            <span class="ident">Response::Reply</span>(<span class="ident">result</span>) =&gt; <span class="ident">ActorResponse::Reply</span>(<span class="ident">result</span>),
+            <span class="ident">Response::Future</span>(<span class="ident">future</span>) =&gt; <span class="ident">ActorResponse::Future</span>(<span class="ident">Box::new</span>(<span class="ident">fut::wrap_future</span>(<span class="ident">future</span>))),
         }
     }
 }

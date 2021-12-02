@@ -428,19 +428,19 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">SelectorPathItem</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">SelectorPathItem::Type</span>(<span class="ident">ty</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;${}&quot;</span>, <span class="ident">ty</span>),
-            <span class="ident">SelectorPathItem::Index</span>(<span class="ident">index</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">index</span>),
-            <span class="ident">SelectorPathItem::Key</span>(<span class="kw-2">ref</span> <span class="ident">key</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">SelectorPathItem::Type</span>(<span class="ident">ty</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;${}&quot;</span>, <span class="ident">ty</span>),
+            <span class="ident">SelectorPathItem::Index</span>(<span class="ident">index</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">index</span>),
+            <span class="ident">SelectorPathItem::Key</span>(<span class="kw-2">ref</span> <span class="ident">key</span>) =&gt; {
                 <span class="kw">if</span> <span class="ident">key_needs_quoting</span>(<span class="ident">key</span>) {
                     <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;&#39;{}&#39;&quot;</span>, <span class="ident">key</span>.<span class="ident">replace</span>(<span class="string">&quot;&#39;&quot;</span>, <span class="string">&quot;&#39;&#39;&quot;</span>))
                 } <span class="kw">else</span> {
                     <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">key</span>)
                 }
             }
-            <span class="ident">SelectorPathItem::Wildcard</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;*&quot;</span>),
-            <span class="ident">SelectorPathItem::DeepWildcard</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;**&quot;</span>),
+            <span class="ident">SelectorPathItem::Wildcard</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;*&quot;</span>),
+            <span class="ident">SelectorPathItem::DeepWildcard</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;**&quot;</span>),
         }
     }
 }
@@ -450,19 +450,19 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// `pii` is not the same as `state.attrs().pii`, but rather the PII flag of the state we&#39;re</span>
     <span class="doccomment">/// actually trying to match against. `i` is the position of the path item within the path.</span>
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">matches_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">pii</span>: <span class="ident">Pii</span>, <span class="ident">i</span>: <span class="ident">usize</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">matches_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">pii</span>: <span class="ident">Pii</span>, <span class="ident">i</span>: <span class="ident">usize</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">match</span> (<span class="self">self</span>, <span class="ident">pii</span>) {
-            (<span class="kw">_</span>, <span class="ident">Pii::False</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            (<span class="kw">_</span>, <span class="ident">Pii::False</span>) =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// necessary because of array indices</span>
-            (<span class="ident">SelectorPathItem::Wildcard</span>, <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
+            (<span class="ident">SelectorPathItem::Wildcard</span>, <span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
 
             <span class="comment">// a deep wildcard is too sweeping to be specific</span>
-            (<span class="ident">SelectorPathItem::DeepWildcard</span>, <span class="ident">Pii::True</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-            (<span class="ident">SelectorPathItem::DeepWildcard</span>, <span class="ident">Pii::Maybe</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+            (<span class="ident">SelectorPathItem::DeepWildcard</span>, <span class="ident">Pii::True</span>) =&gt; <span class="bool-val">true</span>,
+            (<span class="ident">SelectorPathItem::DeepWildcard</span>, <span class="ident">Pii::Maybe</span>) =&gt; <span class="bool-val">false</span>,
 
-            (<span class="ident">SelectorPathItem::Type</span>(<span class="ident">ty</span>), <span class="ident">Pii::True</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">state</span>.<span class="ident">value_type</span>().<span class="ident">contains</span>(<span class="kw-2">*</span><span class="ident">ty</span>),
-            (<span class="ident">SelectorPathItem::Type</span>(<span class="ident">ty</span>), <span class="ident">Pii::Maybe</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            (<span class="ident">SelectorPathItem::Type</span>(<span class="ident">ty</span>), <span class="ident">Pii::True</span>) =&gt; <span class="ident">state</span>.<span class="ident">value_type</span>().<span class="ident">contains</span>(<span class="kw-2">*</span><span class="ident">ty</span>),
+            (<span class="ident">SelectorPathItem::Type</span>(<span class="ident">ty</span>), <span class="ident">Pii::Maybe</span>) =&gt; {
                 <span class="ident">state</span>.<span class="ident">value_type</span>().<span class="ident">contains</span>(<span class="kw-2">*</span><span class="ident">ty</span>)
                     <span class="op">&amp;&amp;</span> <span class="kw">match</span> <span class="ident">ty</span> {
                         <span class="comment">// Basic value types cannot be part of a specific path</span>
@@ -472,7 +472,7 @@
                         <span class="op">|</span> <span class="ident">ValueType::Boolean</span>
                         <span class="op">|</span> <span class="ident">ValueType::DateTime</span>
                         <span class="op">|</span> <span class="ident">ValueType::Array</span>
-                        <span class="op">|</span> <span class="ident">ValueType::Object</span> <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+                        <span class="op">|</span> <span class="ident">ValueType::Object</span> =&gt; <span class="bool-val">false</span>,
 
                         <span class="comment">// Other schema-specific value types can be if they are on the first</span>
                         <span class="comment">// position. This list is explicitly typed out such that the decision</span>
@@ -496,14 +496,14 @@
                         <span class="op">|</span> <span class="ident">ValueType::Minidump</span>
                         <span class="op">|</span> <span class="ident">ValueType::HeapMemory</span>
                         <span class="op">|</span> <span class="ident">ValueType::StackMemory</span>
-                        <span class="op">|</span> <span class="ident">ValueType::ClientSdkInfo</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">i</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span>,
+                        <span class="op">|</span> <span class="ident">ValueType::ClientSdkInfo</span> =&gt; <span class="ident">i</span> <span class="op">==</span> <span class="number">0</span>,
                     }
             }
-            (<span class="ident">SelectorPathItem::Index</span>(<span class="ident">idx</span>), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">state</span>.<span class="ident">path</span>().<span class="ident">index</span>() <span class="op">=</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="kw-2">*</span><span class="ident">idx</span>),
-            (<span class="ident">SelectorPathItem::Key</span>(<span class="kw-2">ref</span> <span class="ident">key</span>), <span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">state</span>
+            (<span class="ident">SelectorPathItem::Index</span>(<span class="ident">idx</span>), <span class="kw">_</span>) =&gt; <span class="ident">state</span>.<span class="ident">path</span>().<span class="ident">index</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="kw-2">*</span><span class="ident">idx</span>),
+            (<span class="ident">SelectorPathItem::Key</span>(<span class="kw-2">ref</span> <span class="ident">key</span>), <span class="kw">_</span>) =&gt; <span class="ident">state</span>
                 .<span class="ident">path</span>()
                 .<span class="ident">key</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">k</span><span class="op">|</span> <span class="ident">k</span>.<span class="ident">to_lowercase</span>() <span class="op">=</span><span class="op">=</span> <span class="ident">key</span>.<span class="ident">to_lowercase</span>())
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">k</span><span class="op">|</span> <span class="ident">k</span>.<span class="ident">to_lowercase</span>() <span class="op">==</span> <span class="ident">key</span>.<span class="ident">to_lowercase</span>())
                 .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>),
         }
     }
@@ -518,19 +518,19 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">SelectorSpec</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">SelectorSpec::And</span>(<span class="kw-2">ref</span> <span class="ident">xs</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">SelectorSpec::And</span>(<span class="kw-2">ref</span> <span class="ident">xs</span>) =&gt; {
                 <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">x</span>) <span class="kw">in</span> <span class="ident">xs</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
                     <span class="kw">if</span> <span class="ident">idx</span> <span class="op">&gt;</span> <span class="number">0</span> {
                         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot; &amp;&amp; &quot;</span>)<span class="question-mark">?</span>;
                     }
 
                     <span class="kw">let</span> <span class="ident">needs_parens</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">x</span> {
-                        <span class="ident">SelectorSpec::And</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-                        <span class="ident">SelectorSpec::Or</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-                        <span class="ident">SelectorSpec::Not</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
-                        <span class="ident">SelectorSpec::Path</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+                        <span class="ident">SelectorSpec::And</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+                        <span class="ident">SelectorSpec::Or</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+                        <span class="ident">SelectorSpec::Not</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+                        <span class="ident">SelectorSpec::Path</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
                     };
 
                     <span class="kw">if</span> <span class="ident">needs_parens</span> {
@@ -540,7 +540,7 @@
                     }
                 }
             }
-            <span class="ident">SelectorSpec::Or</span>(<span class="kw-2">ref</span> <span class="ident">xs</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">SelectorSpec::Or</span>(<span class="kw-2">ref</span> <span class="ident">xs</span>) =&gt; {
                 <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">x</span>) <span class="kw">in</span> <span class="ident">xs</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
                     <span class="kw">if</span> <span class="ident">idx</span> <span class="op">&gt;</span> <span class="number">0</span> {
                         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot; || &quot;</span>)<span class="question-mark">?</span>;
@@ -552,12 +552,12 @@
                     <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>)<span class="question-mark">?</span>;
                 }
             }
-            <span class="ident">SelectorSpec::Not</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">SelectorSpec::Not</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) =&gt; {
                 <span class="kw">let</span> <span class="ident">needs_parens</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">x</span> {
-                    <span class="ident">SelectorSpec::And</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-                    <span class="ident">SelectorSpec::Or</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-                    <span class="ident">SelectorSpec::Not</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">true</span>,
-                    <span class="ident">SelectorSpec::Path</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="bool-val">false</span>,
+                    <span class="ident">SelectorSpec::And</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+                    <span class="ident">SelectorSpec::Or</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+                    <span class="ident">SelectorSpec::Not</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+                    <span class="ident">SelectorSpec::Path</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
                 };
 
                 <span class="kw">if</span> <span class="ident">needs_parens</span> {
@@ -566,7 +566,7 @@
                     <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;!{}&quot;</span>, <span class="ident">x</span>)<span class="question-mark">?</span>;
                 }
             }
-            <span class="ident">SelectorSpec::Path</span>(<span class="kw-2">ref</span> <span class="ident">path</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">SelectorSpec::Path</span>(<span class="kw-2">ref</span> <span class="ident">path</span>) =&gt; {
                 <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">item</span>) <span class="kw">in</span> <span class="ident">path</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
                     <span class="kw">if</span> <span class="ident">idx</span> <span class="op">&gt;</span> <span class="number">0</span> {
                         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;.&quot;</span>)<span class="question-mark">?</span>;
@@ -582,20 +582,20 @@
 <span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">SelectorSpec</span> {
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">InvalidSelectorError</span>;
 
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
         <span class="comment">// these are temporary legacy selectors</span>
         <span class="kw">match</span> <span class="ident">s</span> {
-            <span class="string">&quot;freeform&quot;</span> <span class="op">|</span> <span class="string">&quot;email&quot;</span> <span class="op">|</span> <span class="string">&quot;sensitive&quot;</span> <span class="op">|</span> <span class="string">&quot;text&quot;</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="string">&quot;freeform&quot;</span> <span class="op">|</span> <span class="string">&quot;email&quot;</span> <span class="op">|</span> <span class="string">&quot;sensitive&quot;</span> <span class="op">|</span> <span class="string">&quot;text&quot;</span> =&gt; {
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">SelectorSpec::Path</span>(<span class="macro">vec!</span>[<span class="ident">SelectorPathItem::Type</span>(
                     <span class="ident">ValueType::String</span>,
                 )]));
             }
-            <span class="string">&quot;databag&quot;</span> <span class="op">|</span> <span class="string">&quot;container&quot;</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="string">&quot;databag&quot;</span> <span class="op">|</span> <span class="string">&quot;container&quot;</span> =&gt; {
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">SelectorSpec::Path</span>(<span class="macro">vec!</span>[<span class="ident">SelectorPathItem::Type</span>(
                     <span class="ident">ValueType::Object</span>,
                 )]));
             }
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> {}
+            <span class="kw">_</span> =&gt; {}
         }
 
         <span class="ident">handle_selector</span>(
@@ -613,18 +613,18 @@
 <span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">SelectorSpec</span>, <span class="string">&quot;a selector&quot;</span>);
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">ValueType</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SelectorSpec</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value_type</span>: <span class="ident">ValueType</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value_type</span>: <span class="ident">ValueType</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">SelectorSpec::Path</span>(<span class="macro">vec!</span>[<span class="ident">SelectorPathItem::Type</span>(<span class="ident">value_type</span>)])
     }
 }
 
-<span class="kw">fn</span> <span class="ident">handle_selector</span>(<span class="ident">pair</span>: <span class="ident">Pair</span><span class="op">&lt;</span><span class="ident">Rule</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SelectorSpec</span>, <span class="ident">InvalidSelectorError</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">handle_selector</span>(<span class="ident">pair</span>: <span class="ident">Pair</span><span class="op">&lt;</span><span class="ident">Rule</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SelectorSpec</span>, <span class="ident">InvalidSelectorError</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">map_multiple_or_inner</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(
         <span class="ident">pair</span>: <span class="ident">Pair</span><span class="op">&lt;</span><span class="ident">Rule</span><span class="op">&gt;</span>,
         <span class="ident">f</span>: <span class="ident">F</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SelectorSpec</span>, <span class="ident">InvalidSelectorError</span><span class="op">&gt;</span>
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SelectorSpec</span>, <span class="ident">InvalidSelectorError</span><span class="op">&gt;</span>
     <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">Fn</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SelectorSpec</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">SelectorSpec</span>,
+        <span class="ident">F</span>: <span class="ident">Fn</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SelectorSpec</span><span class="op">&gt;</span>) -&gt; <span class="ident">SelectorSpec</span>,
     {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">pair</span>.<span class="ident">into_inner</span>().<span class="ident">map</span>(<span class="ident">handle_selector</span>).<span class="ident">peekable</span>();
         <span class="kw">let</span> <span class="ident">first</span> <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>()<span class="question-mark">?</span>;
@@ -640,16 +640,16 @@
     }
 
     <span class="kw">match</span> <span class="ident">pair</span>.<span class="ident">as_rule</span>() {
-        <span class="ident">Rule::ParenthesisOrPath</span> <span class="op">|</span> <span class="ident">Rule::MaybeNotSelector</span> <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="ident">Rule::ParenthesisOrPath</span> <span class="op">|</span> <span class="ident">Rule::MaybeNotSelector</span> =&gt; {
             <span class="ident">handle_selector</span>(<span class="ident">pair</span>.<span class="ident">into_inner</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>())
         }
-        <span class="ident">Rule::SelectorPath</span> <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="ident">Rule::SelectorPath</span> =&gt; {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">used_deep_wildcard</span> <span class="op">=</span> <span class="bool-val">false</span>;
             <span class="kw">let</span> <span class="ident">items</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SelectorPathItem</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">pair</span>
                 .<span class="ident">into_inner</span>()
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
                     <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">handle_selector_path_item</span>(<span class="ident">item</span>)<span class="question-mark">?</span>;
-                    <span class="kw">if</span> <span class="ident">rv</span> <span class="op">=</span><span class="op">=</span> <span class="ident">SelectorPathItem::DeepWildcard</span> {
+                    <span class="kw">if</span> <span class="ident">rv</span> <span class="op">==</span> <span class="ident">SelectorPathItem::DeepWildcard</span> {
                         <span class="kw">if</span> <span class="ident">used_deep_wildcard</span> {
                             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InvalidSelectorError::InvalidDeepWildcard</span>);
                         } <span class="kw">else</span> {
@@ -666,60 +666,60 @@
 
             <span class="prelude-val">Ok</span>(<span class="ident">SelectorSpec::Path</span>(<span class="ident">items</span>))
         }
-        <span class="ident">Rule::AndSelector</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">map_multiple_or_inner</span>(<span class="ident">pair</span>, <span class="ident">SelectorSpec::And</span>),
-        <span class="ident">Rule::OrSelector</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">map_multiple_or_inner</span>(<span class="ident">pair</span>, <span class="ident">SelectorSpec::Or</span>),
-        <span class="ident">Rule::NotSelector</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">SelectorSpec::Not</span>(<span class="ident">Box::new</span>(<span class="ident">handle_selector</span>(
+        <span class="ident">Rule::AndSelector</span> =&gt; <span class="ident">map_multiple_or_inner</span>(<span class="ident">pair</span>, <span class="ident">SelectorSpec::And</span>),
+        <span class="ident">Rule::OrSelector</span> =&gt; <span class="ident">map_multiple_or_inner</span>(<span class="ident">pair</span>, <span class="ident">SelectorSpec::Or</span>),
+        <span class="ident">Rule::NotSelector</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">SelectorSpec::Not</span>(<span class="ident">Box::new</span>(<span class="ident">handle_selector</span>(
             <span class="ident">pair</span>.<span class="ident">into_inner</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>(),
         )<span class="question-mark">?</span>))),
-        <span class="ident">rule</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">InvalidSelectorError::UnexpectedToken</span>(
+        <span class="ident">rule</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">InvalidSelectorError::UnexpectedToken</span>(
             <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">rule</span>),
             <span class="string">&quot;a selector&quot;</span>,
         )),
     }
 }
 
-<span class="kw">fn</span> <span class="ident">handle_selector_path_item</span>(<span class="ident">pair</span>: <span class="ident">Pair</span><span class="op">&lt;</span><span class="ident">Rule</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SelectorPathItem</span>, <span class="ident">InvalidSelectorError</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">handle_selector_path_item</span>(<span class="ident">pair</span>: <span class="ident">Pair</span><span class="op">&lt;</span><span class="ident">Rule</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SelectorPathItem</span>, <span class="ident">InvalidSelectorError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">pair</span> <span class="op">=</span> <span class="ident">pair</span>.<span class="ident">into_inner</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>();
     <span class="kw">match</span> <span class="ident">pair</span>.<span class="ident">as_rule</span>() {
-        <span class="ident">Rule::ObjectType</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">SelectorPathItem::Type</span>(
+        <span class="ident">Rule::ObjectType</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">SelectorPathItem::Type</span>(
             <span class="ident">pair</span>.<span class="ident">as_str</span>()[<span class="number">1</span>..]
                 .<span class="ident">parse</span>()
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">InvalidSelectorError::UnknownType</span>)<span class="question-mark">?</span>,
         )),
-        <span class="ident">Rule::Wildcard</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">SelectorPathItem::Wildcard</span>),
-        <span class="ident">Rule::DeepWildcard</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">SelectorPathItem::DeepWildcard</span>),
-        <span class="ident">Rule::Index</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">SelectorPathItem::Index</span>(
+        <span class="ident">Rule::Wildcard</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">SelectorPathItem::Wildcard</span>),
+        <span class="ident">Rule::DeepWildcard</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">SelectorPathItem::DeepWildcard</span>),
+        <span class="ident">Rule::Index</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">SelectorPathItem::Index</span>(
             <span class="ident">pair</span>.<span class="ident">as_str</span>()
                 .<span class="ident">parse</span>()
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">InvalidSelectorError::InvalidIndex</span>)<span class="question-mark">?</span>,
         )),
-        <span class="ident">Rule::Key</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">SelectorPathItem::Key</span>(<span class="ident">handle_key</span>(<span class="ident">pair</span>)<span class="question-mark">?</span>)),
-        <span class="ident">rule</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">InvalidSelectorError::UnexpectedToken</span>(
+        <span class="ident">Rule::Key</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">SelectorPathItem::Key</span>(<span class="ident">handle_key</span>(<span class="ident">pair</span>)<span class="question-mark">?</span>)),
+        <span class="ident">rule</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">InvalidSelectorError::UnexpectedToken</span>(
             <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">rule</span>),
             <span class="string">&quot;a selector path item&quot;</span>,
         )),
     }
 }
 
-<span class="kw">fn</span> <span class="ident">handle_key</span>(<span class="ident">pair</span>: <span class="ident">Pair</span><span class="op">&lt;</span><span class="ident">Rule</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">InvalidSelectorError</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">handle_key</span>(<span class="ident">pair</span>: <span class="ident">Pair</span><span class="op">&lt;</span><span class="ident">Rule</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">InvalidSelectorError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">pair</span> <span class="op">=</span> <span class="ident">pair</span>.<span class="ident">into_inner</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>();
     <span class="kw">match</span> <span class="ident">pair</span>.<span class="ident">as_rule</span>() {
-        <span class="ident">Rule::UnquotedKey</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">pair</span>.<span class="ident">as_str</span>().<span class="ident">to_owned</span>()),
-        <span class="ident">Rule::QuotedKey</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>({
+        <span class="ident">Rule::UnquotedKey</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">pair</span>.<span class="ident">as_str</span>().<span class="ident">to_owned</span>()),
+        <span class="ident">Rule::QuotedKey</span> =&gt; <span class="prelude-val">Ok</span>({
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">String::new</span>();
             <span class="kw">for</span> <span class="ident">token</span> <span class="kw">in</span> <span class="ident">pair</span>.<span class="ident">into_inner</span>() {
                 <span class="ident">key</span>.<span class="ident">push_str</span>(<span class="ident">token</span>.<span class="ident">as_str</span>());
             }
             <span class="ident">key</span>
         }),
-        <span class="ident">rule</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">InvalidSelectorError::UnexpectedToken</span>(
+        <span class="ident">rule</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">InvalidSelectorError::UnexpectedToken</span>(
             <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">rule</span>),
             <span class="string">&quot;a key&quot;</span>,
         )),
     }
 }
 
-<span class="kw">fn</span> <span class="ident">key_needs_quoting</span>(<span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">key_needs_quoting</span>(<span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
     <span class="ident">SelectorParser::parse</span>(<span class="ident">Rule::RootUnquotedKey</span>, <span class="ident">key</span>).<span class="ident">is_err</span>()
 }
 

@@ -7,7 +7,7 @@
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Event</span>;
 
 <span class="doccomment">/// Get the event schema as JSON schema. The return type is serde-serializable.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">event_json_schema</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="kw">impl</span> <span class="ident">serde::Serialize</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">event_json_schema</span>() -&gt; <span class="kw">impl</span> <span class="ident">serde::Serialize</span> {
     <span class="macro">schemars::schema_for!</span>(<span class="ident">Event</span>)
 }
 </code></pre></div>

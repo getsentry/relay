@@ -237,7 +237,7 @@
 
 <span class="kw">impl</span> <span class="ident">RelayStr</span> {
     <span class="doccomment">/// Creates a new `RelayStr` by borrowing the given `&amp;str`.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayStr</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">RelayStr</span> {
         <span class="ident">RelayStr</span> {
             <span class="ident">data</span>: <span class="ident">s</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_char</span>,
             <span class="ident">len</span>: <span class="ident">s</span>.<span class="ident">len</span>(),
@@ -248,7 +248,7 @@
     <span class="doccomment">/// Creates a new `RelayStr` by assuming ownership over the given `String`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// When dropping this `RelayStr` instance, the buffer is freed.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">from_string</span>(<span class="kw-2">mut</span> <span class="ident">s</span>: <span class="ident">String</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayStr</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">from_string</span>(<span class="kw-2">mut</span> <span class="ident">s</span>: <span class="ident">String</span>) -&gt; <span class="ident">RelayStr</span> {
         <span class="ident">s</span>.<span class="ident">shrink_to_fit</span>();
         <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">RelayStr</span> {
             <span class="ident">data</span>: <span class="ident">s</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_char</span>,
@@ -270,7 +270,7 @@
     }
 
     <span class="doccomment">/// Returns a borrowed string.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="ident">str::from_utf8_unchecked</span>(<span class="ident">slice::from_raw_parts</span>(<span class="self">self</span>.<span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span>, <span class="self">self</span>.<span class="ident">len</span>))
     }
 }
@@ -280,7 +280,7 @@
 <span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">RelayStr</span> {}
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">RelayStr</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayStr</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">RelayStr</span> {
         <span class="ident">RelayStr</span> {
             <span class="ident">data</span>: <span class="ident">ptr::null_mut</span>(),
             <span class="ident">len</span>: <span class="number">0</span>,
@@ -290,13 +290,13 @@
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayStr</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">string</span>: <span class="ident">String</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayStr</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">string</span>: <span class="ident">String</span>) -&gt; <span class="ident">RelayStr</span> {
         <span class="ident">RelayStr::from_string</span>(<span class="ident">string</span>)
     }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayStr</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayStr</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">RelayStr</span> {
         <span class="ident">RelayStr::new</span>(<span class="ident">string</span>)
     }
 }
@@ -304,7 +304,7 @@
 <span class="doccomment">/// Creates a Relay string from a c string.</span>
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
 <span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_str_from_cstr</span>(<span class="ident">s</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayStr</span> {
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_str_from_cstr</span>(<span class="ident">s</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>) -&gt; <span class="ident">RelayStr</span> {
     <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">CStr::from_ptr</span>(<span class="ident">s</span>).<span class="ident">to_str</span>()<span class="question-mark">?</span>;
     <span class="ident">RelayStr</span> {
         <span class="ident">data</span>: <span class="ident">s</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
@@ -333,14 +333,14 @@
 }
 
 <span class="kw">impl</span> <span class="ident">RelayUuid</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">uuid</span>: <span class="ident">Uuid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayUuid</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">uuid</span>: <span class="ident">Uuid</span>) -&gt; <span class="ident">RelayUuid</span> {
         <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">uuid</span>.<span class="ident">as_bytes</span>();
         <span class="self">Self</span> { <span class="ident">data</span> }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RelayUuid</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">uuid</span>: <span class="ident">Uuid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayUuid</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">uuid</span>: <span class="ident">Uuid</span>) -&gt; <span class="ident">RelayUuid</span> {
         <span class="ident">RelayUuid::new</span>(<span class="ident">uuid</span>)
     }
 }
@@ -348,9 +348,9 @@
 <span class="doccomment">/// Returns true if the uuid is nil.</span>
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
 <span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_uuid_is_nil</span>(<span class="ident">uuid</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">RelayUuid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_uuid_is_nil</span>(<span class="ident">uuid</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">RelayUuid</span>) -&gt; <span class="ident">bool</span> {
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">uuid</span>) <span class="op">=</span> <span class="ident">Uuid::from_slice</span>(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span><span class="ident">uuid</span>).<span class="ident">data</span>[..]) {
-        <span class="ident">uuid</span> <span class="op">=</span><span class="op">=</span> <span class="ident">Uuid::nil</span>()
+        <span class="ident">uuid</span> <span class="op">==</span> <span class="ident">Uuid::nil</span>()
     } <span class="kw">else</span> {
         <span class="bool-val">false</span>
     }
@@ -362,7 +362,7 @@
 <span class="doccomment">/// `relay_cstr_free`.</span>
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
 <span class="attribute">#[<span class="ident">relay_ffi::catch_unwind</span>]</span>
-<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_uuid_to_str</span>(<span class="ident">uuid</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">RelayUuid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayStr</span> {
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_uuid_to_str</span>(<span class="ident">uuid</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">RelayUuid</span>) -&gt; <span class="ident">RelayStr</span> {
     <span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid::from_slice</span>(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span><span class="ident">uuid</span>).<span class="ident">data</span>[..]).<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Uuid::nil</span>());
     <span class="ident">RelayStr::from_string</span>(<span class="ident">uuid</span>.<span class="ident">to_hyphenated_ref</span>().<span class="ident">to_string</span>())
 }
@@ -394,13 +394,13 @@
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
         <span class="ident">slice::from_raw_parts</span>(<span class="self">self</span>.<span class="ident">data</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>, <span class="self">self</span>.<span class="ident">len</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">RelayBuf</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RelayBuf</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">RelayBuf</span> {
         <span class="ident">RelayBuf</span> {
             <span class="ident">data</span>: <span class="ident">ptr::null_mut</span>(),
             <span class="ident">len</span>: <span class="number">0</span>,

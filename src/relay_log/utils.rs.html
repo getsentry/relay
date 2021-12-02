@@ -81,7 +81,7 @@
 <span class="doccomment">/// std::env::set_var(&quot;RUST_BACKTRACE&quot;, &quot;full&quot;);</span>
 <span class="doccomment">/// assert!(relay_log::backtrace_enabled());</span>
 <span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">backtrace_enabled</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">backtrace_enabled</span>() -&gt; <span class="ident">bool</span> {
     <span class="macro">matches!</span>(
         <span class="ident">std::env::var</span>(<span class="string">&quot;RUST_BACKTRACE&quot;</span>).<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="ident">String::as_str</span>),
         <span class="prelude-val">Ok</span>(<span class="string">&quot;1&quot;</span>) <span class="op">|</span> <span class="prelude-val">Ok</span>(<span class="string">&quot;full&quot;</span>)
@@ -123,7 +123,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LogError</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span>: <span class="ident">AsFail</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">E</span>);
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span>: <span class="ident">AsFail</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">LogError</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">let</span> <span class="ident">fail</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">as_fail</span>();
 
         <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">fail</span>)<span class="question-mark">?</span>;
