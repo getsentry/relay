@@ -12,7 +12,7 @@ lazy_static! {
 }
 
 /// Controls the options of the globber.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct GlobOptions {
     /// When enabled `**` matches over path separators and `*` does not.
     pub double_star: bool,
@@ -22,17 +22,6 @@ pub struct GlobOptions {
     pub path_normalize: bool,
     /// Allows newlines.
     pub allow_newline: bool,
-}
-
-impl Default for GlobOptions {
-    fn default() -> GlobOptions {
-        GlobOptions {
-            double_star: false,
-            case_insensitive: false,
-            path_normalize: false,
-            allow_newline: false,
-        }
-    }
 }
 
 fn translate_pattern(pat: &str, options: GlobOptions) -> Option<Regex> {

@@ -260,7 +260,7 @@ impl Quota {
     ///  - The quota only applies to `Unknown` data categories.
     ///  - The quota is counted (not limit `0`) but specifies categories with different units.
     pub fn is_valid(&self) -> bool {
-        let mut units = self.categories.iter().filter_map(|c| CategoryUnit::from(c));
+        let mut units = self.categories.iter().filter_map(CategoryUnit::from);
 
         match units.next() {
             // There are only unknown categories, which is always invalid

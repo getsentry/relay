@@ -226,9 +226,8 @@ impl CspRaw {
         }
 
         self.violated_directive
-            .splitn(2, ' ')
-            .next()
-            .and_then(|v| v.parse().ok())
+            .split_once(' ')
+            .and_then(|(v, _)| v.parse().ok())
             .ok_or(InvalidSecurityError)
     }
 
@@ -364,7 +363,7 @@ impl CspRaw {
             None => "",
         };
 
-        match original_uri.splitn(2, ':').next().unwrap_or_default() {
+        match original_uri.split_once(':').unwrap_or_default().0 {
             "http" | "https" => Cow::Borrowed(value),
             scheme => Cow::Owned(unsplit_uri(scheme, value)),
         }

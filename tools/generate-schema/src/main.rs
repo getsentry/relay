@@ -62,11 +62,15 @@ struct Cli {
 
 impl Cli {
     pub fn run(self) -> Result<()> {
-        let schema = relay_general::protocol::event_json_schema();
+        match self.format {
+            SchemaFormat::JsonSchema => {
+                let schema = relay_general::protocol::event_json_schema();
 
-        match self.output {
-            Some(path) => serde_json::to_writer_pretty(File::create(path)?, &schema)?,
-            None => serde_json::to_writer_pretty(io::stdout(), &schema)?,
+                match self.output {
+                    Some(path) => serde_json::to_writer_pretty(File::create(path)?, &schema)?,
+                    None => serde_json::to_writer_pretty(io::stdout(), &schema)?,
+                }
+            }
         }
 
         Ok(())
