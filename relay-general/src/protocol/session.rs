@@ -92,6 +92,25 @@ fn is_false(val: &bool) -> bool {
     !val
 }
 
+/// Contains information about errored sessions. See [`SessionLike`].
+pub enum SessionErrored {
+    /// Contains the UUID for a single errored session.
+    Individual(Uuid),
+    /// Contains the number of errored sessions in an aggregate.
+    Aggregated(u32),
+}
+
+/// Common interface for [`SessionUpdate`] and [`SessionAggregateItem`].
+pub trait SessionLike {
+    fn started(&self) -> DateTime<Utc>;
+    fn distinct_id(&self) -> Option<&String>;
+    fn total_count(&self) -> u32;
+    fn abnormal_count(&self) -> u32;
+    fn crashed_count(&self) -> u32;
+    fn errors(&self) -> Option<SessionErrored>;
+    fn final_duration(&self) -> Option<(f64, SessionStatus)>;
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionUpdate {
     /// The session identifier.
@@ -137,6 +156,55 @@ impl SessionUpdate {
     }
 }
 
+impl SessionLike for SessionUpdate {
+    fn started(&self) -> DateTime<Utc> {
+        self.started
+    }
+
+    fn distinct_id(&self) -> Option<&String> {
+        self.distinct_id.as_ref()
+    }
+
+    fn total_count(&self) -> u32 {
+        if self.init {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn abnormal_count(&self) -> u32 {
+        match self.status {
+            SessionStatus::Abnormal => 1,
+            _ => 0,
+        }
+    }
+
+    fn crashed_count(&self) -> u32 {
+        match self.status {
+            SessionStatus::Crashed => 1,
+            _ => 0,
+        }
+    }
+
+    fn final_duration(&self) -> Option<(f64, SessionStatus)> {
+        if self.status.is_terminal() {
+            if let Some(duration) = self.duration {
+                return Some((duration, self.status));
+            }
+        }
+        None
+    }
+
+    fn errors(&self) -> Option<SessionErrored> {
+        if self.errors > 0 || self.status.is_error() {
+            Some(SessionErrored::Individual(self.session_id))
+        } else {
+            None
+        }
+    }
+}
+
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn is_zero(val: &u32) -> bool {
     *val == 0
@@ -161,6 +229,40 @@ pub struct SessionAggregateItem {
     /// The number of crashed sessions that ocurred.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub crashed: u32,
+}
+
+impl SessionLike for SessionAggregateItem {
+    fn started(&self) -> DateTime<Utc> {
+        self.started
+    }
+
+    fn distinct_id(&self) -> Option<&String> {
+        self.distinct_id.as_ref()
+    }
+
+    fn total_count(&self) -> u32 {
+        self.exited + self.errored + self.abnormal + self.crashed
+    }
+
+    fn abnormal_count(&self) -> u32 {
+        self.abnormal
+    }
+
+    fn crashed_count(&self) -> u32 {
+        self.crashed
+    }
+
+    fn final_duration(&self) -> Option<(f64, SessionStatus)> {
+        None
+    }
+
+    fn errors(&self) -> Option<SessionErrored> {
+        if self.errored > 0 {
+            Some(SessionErrored::Aggregated(self.errored))
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

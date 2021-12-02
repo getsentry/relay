@@ -26,7 +26,8 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionUpdate, Timestamp,
+    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
+    SessionAttributes, SessionErrored, SessionLike, SessionStatus, SessionUpdate, Timestamp,
     UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
@@ -418,8 +419,8 @@ fn with_tag(
 }
 
 /// Convert contained nil UUIDs to None
-fn nil_to_none(distinct_id: &Option<String>) -> Option<&String> {
-    let distinct_id = distinct_id.as_ref()?;
+fn nil_to_none(distinct_id: Option<&String>) -> Option<&String> {
+    let distinct_id = distinct_id?;
     if let Ok(uuid) = distinct_id.parse::<Uuid>() {
         if uuid.is_nil() {
             return None;
@@ -429,33 +430,37 @@ fn nil_to_none(distinct_id: &Option<String>) -> Option<&String> {
     Some(distinct_id)
 }
 
-fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
-    let timestamp = match UnixTimestamp::from_datetime(session.started) {
+fn extract_session_metrics<T: SessionLike>(
+    attributes: &SessionAttributes,
+    session: &T,
+    target: &mut Vec<Metric>,
+) {
+    let timestamp = match UnixTimestamp::from_datetime(session.started()) {
         Some(ts) => ts,
         None => {
-            relay_log::error!("invalid session started timestamp: {}", session.started);
+            relay_log::error!("invalid session started timestamp: {}", session.started());
             return;
         }
     };
 
     let mut tags = BTreeMap::new();
-    tags.insert("release".to_owned(), session.attributes.release.clone());
-    if let Some(ref environment) = session.attributes.environment {
+    tags.insert("release".to_owned(), attributes.release.clone());
+    if let Some(ref environment) = attributes.environment {
         tags.insert("environment".to_owned(), environment.clone());
     }
 
     // Always capture with "init" tag for the first session update of a session. This is used
     // for adoption and as baseline for crash rates.
-    if session.init {
+    if session.total_count() > 0 {
         target.push(Metric {
             name: "session".to_owned(),
             unit: MetricUnit::None,
-            value: MetricValue::Counter(1.0),
+            value: MetricValue::Counter(session.total_count() as f64),
             timestamp,
             tags: with_tag(&tags, "session.status", "init"),
         });
 
-        if let Some(ref distinct_id) = session.distinct_id {
+        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -467,16 +472,25 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
     }
 
     // Mark the session as errored, which includes fatal sessions.
-    if session.errors > 0 || session.status.is_error() {
-        target.push(Metric {
-            name: "session.error".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::set_from_display(session.session_id),
-            timestamp,
-            tags: tags.clone(),
+    if let Some(errors) = session.errors() {
+        target.push(match errors {
+            SessionErrored::Individual(session_id) => Metric {
+                name: "session.error".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_display(session_id),
+                timestamp,
+                tags: tags.clone(),
+            },
+            SessionErrored::Aggregated(count) => Metric {
+                name: "session".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::Counter(count as f64),
+                timestamp,
+                tags: with_tag(&tags, "session.status", "errored_preaggr"),
+            },
         });
 
-        if let Some(distinct_id) = nil_to_none(&session.distinct_id) {
+        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
@@ -489,22 +503,41 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
 
     // Record fatal sessions for crash rate computation. This is a strict subset of errored
     // sessions above.
-    if session.status.is_fatal() {
+    if session.abnormal_count() > 0 {
         target.push(Metric {
             name: "session".to_owned(),
             unit: MetricUnit::None,
-            value: MetricValue::Counter(1.0),
+            value: MetricValue::Counter(session.abnormal_count() as f64),
             timestamp,
-            tags: with_tag(&tags, "session.status", session.status),
+            tags: with_tag(&tags, "session.status", SessionStatus::Abnormal),
         });
 
-        if let Some(distinct_id) = nil_to_none(&session.distinct_id) {
+        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             target.push(Metric {
                 name: "user".to_owned(),
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_str(distinct_id),
                 timestamp,
-                tags: with_tag(&tags, "session.status", session.status),
+                tags: with_tag(&tags, "session.status", SessionStatus::Abnormal),
+            });
+        }
+    }
+    if session.crashed_count() > 0 {
+        target.push(Metric {
+            name: "session".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(session.crashed_count() as f64),
+            timestamp,
+            tags: with_tag(&tags, "session.status", SessionStatus::Crashed),
+        });
+
+        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
+            target.push(Metric {
+                name: "user".to_owned(),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(distinct_id),
+                timestamp,
+                tags: with_tag(&tags, "session.status", SessionStatus::Crashed),
             });
         }
     }
@@ -512,17 +545,17 @@ fn extract_session_metrics(session: &SessionUpdate, target: &mut Vec<Metric>) {
     // Count durations for all exited/crashed sessions. Note that right now, in the product we
     // really only use durations from session.status=exited, but decided it may be worth ingesting
     // this data in case we need it. If we need to cut cost, this is one place to start though.
-    if session.status.is_terminal() {
-        if let Some(duration) = session.duration {
-            target.push(Metric {
-                name: "session.duration".to_owned(),
-                unit: MetricUnit::Duration(DurationPrecision::Second),
-                value: MetricValue::Distribution(duration),
-                timestamp,
-                tags: with_tag(&tags, "session.status", session.status),
-            });
-        }
+    // if session.status.is_terminal() {
+    if let Some((duration, status)) = session.final_duration() {
+        target.push(Metric {
+            name: "session.duration".to_owned(),
+            unit: MetricUnit::Duration(DurationPrecision::Second),
+            value: MetricValue::Distribution(duration),
+            timestamp,
+            tags: with_tag(&tags, "session.status", status),
+        });
     }
+    // }
 }
 
 /// Synchronous service for processing envelopes.
@@ -597,13 +630,222 @@ impl EnvelopeProcessor {
         self
     }
 
-    /// Validates all sessions in the envelope, if any.
+    /// Returns Ok(true) if attributes were modified.
+    /// Returns Err if the session should be dropped.
+    fn validate_attributes(
+        &self,
+        client_addr: &Option<net::IpAddr>,
+        attributes: &mut SessionAttributes,
+    ) -> Result<bool, ()> {
+        let mut changed = false;
+
+        let release = &attributes.release;
+        if let Err(e) = protocol::validate_release(release) {
+            relay_log::trace!("skipping session with invalid release '{}': {}", release, e);
+            return Err(());
+        }
+
+        if let Some(ref env) = attributes.environment {
+            if let Err(e) = protocol::validate_environment(env) {
+                relay_log::trace!("removing invalid environment '{}': {}", env, e);
+                attributes.environment = None;
+                changed = true;
+            }
+        }
+
+        if let Some(ref ip_address) = attributes.ip_address {
+            if ip_address.is_auto() {
+                attributes.ip_address = client_addr.map(IpAddr::from);
+                changed = true;
+            }
+        }
+
+        Ok(changed)
+    }
+
+    fn is_valid_session_timestamp(
+        &self,
+        received: &DateTime<Utc>,
+        timestamp: &DateTime<Utc>,
+    ) -> bool {
+        let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
+        if (*received - *timestamp) > max_age {
+            relay_log::trace!("skipping session older than {} days", max_age.num_days());
+            return false;
+        }
+
+        let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
+        if (*timestamp - *received) > max_future {
+            relay_log::trace!(
+                "skipping session more than {}s in the future",
+                max_future.num_seconds()
+            );
+            return false;
+        }
+
+        true
+    }
+
+    /// Returns true if the item should be kept.
+    fn process_session(
+        &self,
+        metrics_extraction_enabled: bool,
+        clock_drift_processor: &ClockDriftProcessor,
+        received: &DateTime<Utc>,
+        client_addr: &Option<net::IpAddr>,
+        item: &mut Item,
+        extracted_metrics: &mut Vec<Metric>,
+    ) -> bool {
+        let mut changed = false;
+        let payload = item.payload();
+
+        let mut session = match SessionUpdate::parse(&payload) {
+            Ok(session) => session,
+            Err(error) => {
+                relay_log::trace!("skipping invalid session payload: {}", LogError(&error));
+                return false;
+            }
+        };
+
+        if session.sequence == u64::MAX {
+            relay_log::trace!("skipping session due to sequence overflow");
+            return false;
+        }
+
+        if clock_drift_processor.is_drifted() {
+            relay_log::trace!("applying clock drift correction to session");
+            clock_drift_processor.process_datetime(&mut session.started);
+            clock_drift_processor.process_datetime(&mut session.timestamp);
+            changed = true;
+        }
+
+        if session.timestamp < session.started {
+            relay_log::trace!("fixing session timestamp to {}", session.timestamp);
+            session.timestamp = session.started;
+            changed = true;
+        }
+
+        // Log the timestamp delay for all sessions after clock drift correction.
+        let session_delay = *received - session.timestamp;
+        if session_delay > SignedDuration::minutes(1) {
+            metric!(
+                timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
+                category = "session",
+            );
+        }
+
+        // Validate timestamps
+        for t in &[&session.timestamp, &session.started] {
+            if !self.is_valid_session_timestamp(received, t) {
+                return false;
+            }
+        }
+
+        // Validate attributes
+        match self.validate_attributes(client_addr, &mut session.attributes) {
+            Err(_) => return false,
+            Ok(changed_attributes) => {
+                changed |= changed_attributes;
+            }
+        }
+
+        // Extract metrics
+        if metrics_extraction_enabled && !item.metrics_extracted() {
+            extract_session_metrics(&session.attributes, &session, extracted_metrics);
+            item.set_metrics_extracted(true);
+        }
+
+        if changed {
+            let json_string = match serde_json::to_string(&session) {
+                Ok(json) => json,
+                Err(err) => {
+                    relay_log::error!("failed to serialize session: {}", LogError(&err));
+                    return false;
+                }
+            };
+
+            item.set_payload(ContentType::Json, json_string);
+        }
+
+        true
+    }
+
+    fn process_session_aggregates(
+        &self,
+        metrics_extraction_enabled: bool,
+        clock_drift_processor: &ClockDriftProcessor,
+        received: &DateTime<Utc>,
+        client_addr: &Option<net::IpAddr>,
+        item: &mut Item,
+        extracted_metrics: &mut Vec<Metric>,
+    ) -> bool {
+        let mut changed = false;
+        let payload = item.payload();
+
+        let mut session = match SessionAggregates::parse(&payload) {
+            Ok(session) => session,
+            Err(error) => {
+                relay_log::trace!("skipping invalid sessions payload: {}", LogError(&error));
+                return false;
+            }
+        };
+
+        if clock_drift_processor.is_drifted() {
+            relay_log::trace!("applying clock drift correction to session");
+            for aggregate in &mut session.aggregates {
+                clock_drift_processor.process_datetime(&mut aggregate.started);
+            }
+            changed = true;
+        }
+
+        // Validate timestamps
+        session
+            .aggregates
+            .retain(|aggregate| self.is_valid_session_timestamp(received, &aggregate.started));
+
+        // Aftter timestamp validation, aggregates could now be empty
+        if session.aggregates.is_empty() {
+            return false;
+        }
+
+        // Validate attributes
+        match self.validate_attributes(client_addr, &mut session.attributes) {
+            Err(_) => return false,
+            Ok(changed_attributes) => {
+                changed |= changed_attributes;
+            }
+        }
+
+        // Extract metrics
+        if metrics_extraction_enabled && !item.metrics_extracted() {
+            for aggregate in &session.aggregates {
+                extract_session_metrics(&session.attributes, aggregate, extracted_metrics);
+                item.set_metrics_extracted(true);
+            }
+        }
+
+        if changed {
+            let json_string = match serde_json::to_string(&session) {
+                Ok(json) => json,
+                Err(err) => {
+                    relay_log::error!("failed to serialize session: {}", LogError(&err));
+                    return false;
+                }
+            };
+
+            item.set_payload(ContentType::Json, json_string);
+        }
+
+        true
+    }
+
+    /// Validates all sessions and session aggregates in the envelope, if any.
     ///
-    /// Sessions are removed from the envelope if they contain invalid JSON or if their timestamps
+    /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.envelope_context.received_at;
-        let _extracted_metrics = &mut state.extracted_metrics;
+        let extracted_metrics = &mut state.extracted_metrics;
         let metrics_extraction_enabled =
             state.project_state.has_feature(Feature::MetricsExtraction);
         let envelope = &mut state.envelope;
@@ -613,104 +855,25 @@ impl EnvelopeProcessor {
             ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
         envelope.retain_items(|item| {
-            if item.ty() != ItemType::Session {
-                return true;
+            match item.ty() {
+                ItemType::Session => self.process_session(
+                    metrics_extraction_enabled,
+                    &clock_drift_processor,
+                    &received,
+                    &client_addr,
+                    item,
+                    extracted_metrics,
+                ),
+                ItemType::Sessions => self.process_session_aggregates(
+                    metrics_extraction_enabled,
+                    &clock_drift_processor,
+                    &received,
+                    &client_addr,
+                    item,
+                    extracted_metrics,
+                ),
+                _ => true, // Keep all other item types
             }
-
-            let mut changed = false;
-            let payload = item.payload();
-
-            let mut session = match SessionUpdate::parse(&payload) {
-                Ok(session) => session,
-                Err(error) => {
-                    relay_log::trace!("skipping invalid session payload: {}", LogError(&error));
-                    return false;
-                }
-            };
-
-            if session.sequence == u64::MAX {
-                relay_log::trace!("skipping session due to sequence overflow");
-                return false;
-            }
-
-            if clock_drift_processor.is_drifted() {
-                relay_log::trace!("applying clock drift correction to session");
-                clock_drift_processor.process_session(&mut session);
-                changed = true;
-            }
-
-            if session.timestamp < session.started {
-                relay_log::trace!("fixing session timestamp to {}", session.timestamp);
-                session.timestamp = session.started;
-                changed = true;
-            }
-
-            let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
-
-            // Log the timestamp delay for all sessions after clock drift correction.
-            let session_delay = received - session.timestamp;
-            if session_delay > SignedDuration::minutes(1) {
-                metric!(
-                    timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
-                    category = "session",
-                );
-            }
-
-            if (received - session.started) > max_age || (received - session.timestamp) > max_age {
-                relay_log::trace!("skipping session older than {} days", max_age.num_days());
-                return false;
-            }
-
-            let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
-            if (session.started - received) > max_future
-                || (session.timestamp - received) > max_future
-            {
-                relay_log::trace!(
-                    "skipping session more than {}s in the future",
-                    max_future.num_seconds()
-                );
-                return false;
-            }
-
-            let release = &session.attributes.release;
-            if let Err(e) = protocol::validate_release(release) {
-                relay_log::trace!("skipping session with invalid release '{}': {}", release, e);
-                return false;
-            }
-
-            if let Some(ref env) = session.attributes.environment {
-                if let Err(e) = protocol::validate_environment(env) {
-                    relay_log::trace!("removing invalid environment '{}': {}", env, e);
-                    session.attributes.environment = None;
-                    changed = true;
-                }
-            }
-
-            if let Some(ref ip_address) = session.attributes.ip_address {
-                if ip_address.is_auto() {
-                    session.attributes.ip_address = client_addr.map(IpAddr::from);
-                    changed = true;
-                }
-            }
-
-            if metrics_extraction_enabled && !item.metrics_extracted() {
-                extract_session_metrics(&session, _extracted_metrics);
-                item.set_metrics_extracted(true);
-            }
-
-            if changed {
-                let json_string = match serde_json::to_string(&session) {
-                    Ok(json) => json,
-                    Err(err) => {
-                        relay_log::error!("failed to serialize session: {}", LogError(&err));
-                        return false;
-                    }
-                };
-
-                item.set_payload(ContentType::Json, json_string);
-            }
-
-            true
         });
     }
 
@@ -3087,19 +3250,22 @@ mod tests {
 
     #[test]
     fn test_nil_to_none() {
-        assert!(nil_to_none(&None).is_none());
+        assert!(nil_to_none(None).is_none());
 
         let asdf = Some("asdf".to_owned());
-        assert_eq!(nil_to_none(&asdf).unwrap(), "asdf");
+        assert_eq!(nil_to_none(asdf.as_ref()).unwrap(), "asdf");
 
         let nil = Some("00000000-0000-0000-0000-000000000000".to_owned());
-        assert!(nil_to_none(&nil).is_none());
+        assert!(nil_to_none(nil.as_ref()).is_none());
 
         let nil2 = Some("00000000000000000000000000000000".to_owned());
-        assert!(nil_to_none(&nil2).is_none());
+        assert!(nil_to_none(nil2.as_ref()).is_none());
 
         let not_nil = Some("00000000-0000-0000-0000-000000000123".to_owned());
-        assert_eq!(nil_to_none(&not_nil).unwrap(), not_nil.as_ref().unwrap());
+        assert_eq!(
+            nil_to_none(not_nil.as_ref()).unwrap(),
+            not_nil.as_ref().unwrap()
+        );
     }
 
     #[test]
@@ -3120,7 +3286,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, &mut metrics);
 
         assert_eq!(metrics.len(), 2);
 
@@ -3156,7 +3322,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, &mut metrics);
 
         // A none-initial update will not trigger any metric if it's not errored/crashed
         assert_eq!(metrics.len(), 0);
@@ -3225,7 +3391,7 @@ mod tests {
             (update3, 2),
         ] {
             let mut metrics = vec![];
-            extract_session_metrics(&update, &mut metrics);
+            extract_session_metrics(&update.attributes, &update, &mut metrics);
 
             assert_eq!(metrics.len(), expected_metrics);
 
@@ -3263,7 +3429,7 @@ mod tests {
 
             let mut metrics = vec![];
 
-            extract_session_metrics(&session, &mut metrics);
+            extract_session_metrics(&session.attributes, &session, &mut metrics);
 
             assert_eq!(metrics.len(), 4);
 
@@ -3304,7 +3470,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, &mut metrics);
 
         assert_eq!(metrics.len(), 1);
 
@@ -3314,5 +3480,135 @@ mod tests {
             duration_metric.value,
             MetricValue::Distribution(_)
         ));
+    }
+
+    #[test]
+    fn test_extract_session_metrics_aggregate() {
+        let mut metrics = vec![];
+
+        let session = SessionAggregates::parse(
+            r#"{
+                "aggregates": [
+                    {
+                    "started": "2020-02-07T14:16:00Z",
+                    "exited": 123,
+                    "abnormal": 5,
+                    "crashed": 7
+                    },
+                    {
+                    "started": "2020-02-07T14:16:01Z",
+                    "did": "optional distinct user id",
+                    "exited": 12,
+                    "errored": 3
+                    }
+                ],
+                "attrs": {
+                    "release": "my-project-name@1.0.0",
+                    "environment": "development"
+                }
+            }"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        for aggregate in &session.aggregates {
+            extract_session_metrics(&session.attributes, aggregate, &mut metrics);
+        }
+
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "session",
+                unit: None,
+                value: Counter(
+                    135.0,
+                ),
+                timestamp: UnixTimestamp(1581084960),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "init",
+                },
+            },
+            Metric {
+                name: "session",
+                unit: None,
+                value: Counter(
+                    5.0,
+                ),
+                timestamp: UnixTimestamp(1581084960),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "abnormal",
+                },
+            },
+            Metric {
+                name: "session",
+                unit: None,
+                value: Counter(
+                    7.0,
+                ),
+                timestamp: UnixTimestamp(1581084960),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "crashed",
+                },
+            },
+            Metric {
+                name: "session",
+                unit: None,
+                value: Counter(
+                    15.0,
+                ),
+                timestamp: UnixTimestamp(1581084961),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "init",
+                },
+            },
+            Metric {
+                name: "user",
+                unit: None,
+                value: Set(
+                    3097475539,
+                ),
+                timestamp: UnixTimestamp(1581084961),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "init",
+                },
+            },
+            Metric {
+                name: "session",
+                unit: None,
+                value: Counter(
+                    3.0,
+                ),
+                timestamp: UnixTimestamp(1581084961),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "errored_preaggr",
+                },
+            },
+            Metric {
+                name: "user",
+                unit: None,
+                value: Set(
+                    3097475539,
+                ),
+                timestamp: UnixTimestamp(1581084961),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "session.status": "errored",
+                },
+            },
+        ]
+        "###);
     }
 }

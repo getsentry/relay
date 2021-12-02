@@ -11,6 +11,7 @@
 **Bug Fixes**:
 
 - Support Unreal Engine 5 crash reports. ([#1132](https://github.com/getsentry/relay/pull/1132))
+- Perform same validation for aggregate sessions as for individual sessions. ([#1140](https://github.com/getsentry/relay/pull/1140))
 - Add missing .NET 4.8 release value. ([#1142](https://github.com/getsentry/relay/pull/1142))
 
 **Internal**:
@@ -19,6 +20,7 @@
 - Add an internal option to capture minidumps for hard crashes. This has to be enabled via the `sentry._crash_db` config parameter. ([#1127](https://github.com/getsentry/relay/pull/1127))
 - Fold processing vs non-processing into single actor. ([#1133](https://github.com/getsentry/relay/pull/1133))
 - Aggregate outcomes for dynamic sampling, invalid project ID, and rate limits. ([#1134](https://github.com/getsentry/relay/pull/1134))
+- Extract session metrics from aggregate sessions. ([#1140](https://github.com/getsentry/relay/pull/1140))
 
 ## 21.11.0
 
