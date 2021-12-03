@@ -13,7 +13,7 @@ publish = false
 globset = "0.4.5"
 ipnetwork = "0.14.0"
 lazy_static = "1.4.0"
-regex = "1.3.9"
+regex = "1.5.4"
 relay-general = { path = "../relay-general" }
 relay-common = { path = "../relay-common" }
 serde = { version = "1.0.114", features = ["derive"] }
