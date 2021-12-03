@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Update the user agent parser (uap-core Feb 2020 to Nov 2021). ([#1143](https://github.com/getsentry/relay/pull/1143), [#1145](https://github.com/getsentry/relay/pull/1145))
+
 ## 0.8.9
 
 - Add the exclusive time of a span. ([#1061](https://github.com/getsentry/relay/pull/1061))
