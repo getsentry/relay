@@ -2729,7 +2729,6 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
-    use relay_general::protocol::SessionStatus;
 
     use crate::extractors::RequestMeta;
 
