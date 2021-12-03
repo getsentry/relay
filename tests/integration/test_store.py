@@ -119,7 +119,7 @@ def test_web_crawlers_filter_are_applied(
     filter_settings["webCrawlers"] = {"isEnabled": is_enabled}
 
     # UA parsing introduces higher latency in debug mode
-    events_consumer = events_consumer(timeout=5)
+    events_consumer = events_consumer(timeout=10)
 
     # create a unique message so we can make sure we don't test with stale data
     now = datetime.datetime.utcnow()

@@ -58,7 +58,8 @@ def test_security_report_with_processing(
     test_case,
     json_fixture_provider,
 ):
-    events_consumer = events_consumer(timeout=5)
+    # UA parsing introduces higher latency in debug mode
+    events_consumer = events_consumer(timeout=10)
 
     fixture_provider = json_fixture_provider(__file__)
     test_name, ignored_properties = test_case
