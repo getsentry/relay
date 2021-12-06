@@ -18,6 +18,17 @@ pub struct TransactionMetricsConfig {
     extract_custom_tags: BTreeSet<String>,
 }
 
+const METRIC_NAME_PREFIX: &str = "sentry.performance";
+
+/// Generate a transaction-related metric name
+fn metric_name(parts: &[&str]) -> String {
+    let mut name = METRIC_NAME_PREFIX.to_owned();
+    for part in parts {
+        name = format!("{}.{}", name, part);
+    }
+    name
+}
+
 #[cfg(feature = "processing")]
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
@@ -79,15 +90,15 @@ pub fn extract_transaction_metrics(
     }
 
     if let Some(measurements) = event.measurements.value() {
-        for (name, annotated) in measurements.iter() {
+        for (measurement_name, annotated) in measurements.iter() {
             let measurement = match annotated.value().and_then(|m| m.value.value()) {
                 Some(measurement) => *measurement,
                 None => continue,
             };
 
-            let name = format!("measurements.{}", name);
+            let name = metric_name(&["measurements", measurement_name]);
             let mut tags = tags.clone();
-            if let Some(rating) = get_measurement_rating(&name, measurement) {
+            if let Some(rating) = get_measurement_rating(&measurement_name, measurement) {
                 tags.insert("measurement_rating".to_owned(), rating);
             }
 
@@ -115,7 +126,7 @@ pub fn extract_transaction_metrics(
                 };
 
                 push_metric(Metric {
-                    name: format!("breakdown.{}.{}", breakdown, name),
+                    name: metric_name(&["breakdowns", breakdown, name]),
                     unit: MetricUnit::None,
                     value: MetricValue::Distribution(measurement),
                     timestamp,
@@ -140,10 +151,10 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
     };
 
     match name {
-        "measurements.lcp" => rate_range(2500.0, 4000.0),
-        "measurements.fcp" => rate_range(1000.0, 3000.0),
-        "measurements.fid" => rate_range(100.0, 300.0),
-        "measurements.cls" => rate_range(0.1, 0.25),
+        "lcp" => rate_range(2500.0, 4000.0),
+        "fcp" => rate_range(1000.0, 3000.0),
+        "fid" => rate_range(100.0, 300.0),
+        "cls" => rate_range(0.1, 0.25),
         _ => None,
     }
 }
@@ -215,11 +226,20 @@ mod tests {
 
         assert_eq!(metrics.len(), 5);
 
-        assert_eq!(metrics[0].name, "measurements.foo");
-        assert_eq!(metrics[1].name, "measurements.lcp");
-        assert_eq!(metrics[2].name, "breakdown.breakdown1.bar");
-        assert_eq!(metrics[3].name, "breakdown.breakdown2.baz");
-        assert_eq!(metrics[4].name, "breakdown.breakdown2.zap");
+        assert_eq!(metrics[0].name, "sentry.performance.measurements.foo");
+        assert_eq!(metrics[1].name, "sentry.performance.measurements.lcp");
+        assert_eq!(
+            metrics[2].name,
+            "sentry.performance.breakdowns.breakdown1.bar"
+        );
+        assert_eq!(
+            metrics[3].name,
+            "sentry.performance.breakdowns.breakdown2.baz"
+        );
+        assert_eq!(
+            metrics[4].name,
+            "sentry.performance.breakdowns.breakdown2.zap"
+        );
 
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
