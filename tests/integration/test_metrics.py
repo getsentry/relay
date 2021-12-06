@@ -434,9 +434,9 @@ def test_transaction_metrics(
     elif extract_metrics:
         mini_sentry.project_configs[project_id]["config"]["transactionMetrics"] = {
             "extractMetrics": [
-                "sentry.performance.measurements.foo",
-                "sentry.performance.measurements.bar",
-                "sentry.performance.breakdowns.breakdown1.baz",
+                "sentry.transactions.measurements.foo",
+                "sentry.transactions.measurements.bar",
+                "sentry.transactions.breakdowns.breakdown1.baz",
             ]
         }
 
@@ -476,25 +476,25 @@ def test_transaction_metrics(
         "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
     }
 
-    assert metrics["sentry.performance.measurements.foo"] == {
+    assert metrics["sentry.transactions.measurements.foo"] == {
         **common,
-        "name": "sentry.performance.measurements.foo",
+        "name": "sentry.transactions.measurements.foo",
         "type": "d",
         "unit": "",
         "value": [1.2, 2.2],
     }
 
-    assert metrics["sentry.performance.measurements.bar"] == {
+    assert metrics["sentry.transactions.measurements.bar"] == {
         **common,
-        "name": "sentry.performance.measurements.bar",
+        "name": "sentry.transactions.measurements.bar",
         "type": "d",
         "unit": "",
         "value": [1.3],
     }
 
-    assert metrics["sentry.performance.breakdowns.breakdown1.baz"] == {
+    assert metrics["sentry.transactions.breakdowns.breakdown1.baz"] == {
         **common,
-        "name": "sentry.performance.breakdowns.breakdown1.baz",
+        "name": "sentry.transactions.breakdowns.breakdown1.baz",
         "type": "d",
         "unit": "",
         "value": [1.4, 2.4],

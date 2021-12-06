@@ -19,7 +19,7 @@ pub struct TransactionMetricsConfig {
 }
 
 #[cfg(feature = "processing")]
-const METRIC_NAME_PREFIX: &str = "sentry.performance";
+const METRIC_NAME_PREFIX: &str = "sentry.transactions";
 
 /// Generate a transaction-related metric name
 #[cfg(feature = "processing")]
@@ -211,11 +211,11 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "sentry.performance.measurements.foo",
-                "sentry.performance.measurements.lcp",
-                "sentry.performance.breakdowns.breakdown1.bar",
-                "sentry.performance.breakdowns.breakdown2.baz",
-                "sentry.performance.breakdowns.breakdown2.zap"
+                "sentry.transactions.measurements.foo",
+                "sentry.transactions.measurements.lcp",
+                "sentry.transactions.breakdowns.breakdown1.bar",
+                "sentry.transactions.breakdowns.breakdown2.baz",
+                "sentry.transactions.breakdowns.breakdown2.zap"
             ],
             "extractCustomTags": ["fOO"]
         }
@@ -228,19 +228,19 @@ mod tests {
 
         assert_eq!(metrics.len(), 5);
 
-        assert_eq!(metrics[0].name, "sentry.performance.measurements.foo");
-        assert_eq!(metrics[1].name, "sentry.performance.measurements.lcp");
+        assert_eq!(metrics[0].name, "sentry.transactions.measurements.foo");
+        assert_eq!(metrics[1].name, "sentry.transactions.measurements.lcp");
         assert_eq!(
             metrics[2].name,
-            "sentry.performance.breakdowns.breakdown1.bar"
+            "sentry.transactions.breakdowns.breakdown1.bar"
         );
         assert_eq!(
             metrics[3].name,
-            "sentry.performance.breakdowns.breakdown2.baz"
+            "sentry.transactions.breakdowns.breakdown2.baz"
         );
         assert_eq!(
             metrics[4].name,
-            "sentry.performance.breakdowns.breakdown2.zap"
+            "sentry.transactions.breakdowns.breakdown2.zap"
         );
 
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
