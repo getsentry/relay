@@ -77,7 +77,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     if let Some(errors) = session.errors() {
         target.push(match errors {
             SessionErrored::Individual(session_id) => Metric {
-                name: metric_name("user"),
+                name: metric_name("session.error"),
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_display(session_id),
                 timestamp,
@@ -218,14 +218,14 @@ mod tests {
 
         let session_metric = &metrics[0];
         assert_eq!(session_metric.timestamp, started());
-        assert_eq!(session_metric.name, "session");
+        assert_eq!(session_metric.name, "sentry.sessions.session");
         assert!(matches!(session_metric.value, MetricValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(session_metric.tags["release"], "1.0.0");
 
         let user_metric = &metrics[1];
         assert_eq!(session_metric.timestamp, started());
-        assert_eq!(user_metric.name, "user");
+        assert_eq!(user_metric.name, "sentry.sessions.user");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(user_metric.tags["release"], "1.0.0");
@@ -289,13 +289,13 @@ mod tests {
 
             let session_metric = &metrics[expected_metrics - 2];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(session_metric.name, "session.error");
+            assert_eq!(session_metric.name, "sentry.sessions.session.error");
             assert!(matches!(session_metric.value, MetricValue::Set(_)));
             assert_eq!(session_metric.tags.len(), 1); // Only the release tag
 
             let user_metric = &metrics[expected_metrics - 1];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(user_metric.name, "user");
+            assert_eq!(user_metric.name, "sentry.sessions.user");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "errored");
             assert_eq!(user_metric.tags["release"], "1.0.0");
@@ -325,19 +325,19 @@ mod tests {
 
             assert_eq!(metrics.len(), 4);
 
-            assert_eq!(metrics[0].name, "session.error");
-            assert_eq!(metrics[1].name, "user");
+            assert_eq!(metrics[0].name, "sentry.sessions.session.error");
+            assert_eq!(metrics[1].name, "sentry.sessions.user");
             assert_eq!(metrics[1].tags["session.status"], "errored");
 
             let session_metric = &metrics[2];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(session_metric.name, "session");
+            assert_eq!(session_metric.name, "sentry.sessions.session");
             assert!(matches!(session_metric.value, MetricValue::Counter(_)));
             assert_eq!(session_metric.tags["session.status"], status.to_string());
 
             let user_metric = &metrics[3];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(user_metric.name, "user");
+            assert_eq!(user_metric.name, "sentry.sessions.user");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], status.to_string());
         }
@@ -462,7 +462,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "user",
+                name: "sentry.sessions.user",
                 unit: None,
                 value: Set(
                     3097475539,

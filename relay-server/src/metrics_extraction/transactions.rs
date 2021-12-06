@@ -100,7 +100,7 @@ pub fn extract_transaction_metrics(
 
             let name = metric_name(&["measurements", measurement_name]);
             let mut tags = tags.clone();
-            if let Some(rating) = get_measurement_rating(&measurement_name, measurement) {
+            if let Some(rating) = get_measurement_rating(measurement_name, measurement) {
                 tags.insert("measurement_rating".to_owned(), rating);
             }
 
@@ -211,11 +211,11 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "measurements.foo",
-                "measurements.lcp",
-                "breakdown.breakdown1.bar",
-                "breakdown.breakdown2.baz",
-                "breakdown.breakdown2.zap"
+                "sentry.performance.measurements.foo",
+                "sentry.performance.measurements.lcp",
+                "sentry.performance.breakdowns.breakdown1.bar",
+                "sentry.performance.breakdowns.breakdown2.baz",
+                "sentry.performance.breakdowns.breakdown2.zap"
             ],
             "extractCustomTags": ["fOO"]
         }
