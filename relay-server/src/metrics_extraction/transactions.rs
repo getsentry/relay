@@ -18,9 +18,11 @@ pub struct TransactionMetricsConfig {
     extract_custom_tags: BTreeSet<String>,
 }
 
+#[cfg(feature = "processing")]
 const METRIC_NAME_PREFIX: &str = "sentry.performance";
 
 /// Generate a transaction-related metric name
+#[cfg(feature = "processing")]
 fn metric_name(parts: &[&str]) -> String {
     let mut name = METRIC_NAME_PREFIX.to_owned();
     for part in parts {
