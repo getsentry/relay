@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +27,9 @@ const METRIC_NAME_PREFIX: &str = "sentry.transactions";
 fn metric_name(parts: &[&str]) -> String {
     let mut name = METRIC_NAME_PREFIX.to_owned();
     for part in parts {
-        name = format!("{}.{}", name, part);
+        // Unwrapping here should be fine:
+        // https://github.com/rust-lang/rust/blob/1.57.0/library/alloc/src/string.rs#L2721-L2724
+        write!(name, ".{}", part).unwrap();
     }
     name
 }
