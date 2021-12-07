@@ -1,7 +1,5 @@
-use std::collections::BTreeSet;
-use std::fmt::Write;
-
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 #[cfg(feature = "processing")]
 use {
@@ -9,6 +7,7 @@ use {
     relay_general::protocol::{AsPair, Event, EventType},
     relay_metrics::{Metric, MetricUnit, MetricValue},
     std::collections::BTreeMap,
+    std::fmt::Write,
 };
 
 /// Configuration in relation to extracting metrics from transaction events.
