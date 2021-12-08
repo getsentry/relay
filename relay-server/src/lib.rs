@@ -267,8 +267,9 @@ mod utils;
 
 use relay_config::Config;
 
-use crate::actors::controller::Controller;
-use crate::actors::server::Server;
+pub use crate::actors::controller::{Controller, ShutdownExternal};
+pub use crate::actors::envelopes::{EnvelopeManager, SetCapturedEnvelopeHook};
+pub use crate::actors::server::Server;
 
 pub use crate::actors::controller::ServerError;
 

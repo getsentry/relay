@@ -33,6 +33,7 @@ bytes = { version = "0.4.12", features = ["serde"] }
 chrono = { version = "0.4.11", features = ["serde"] }
 clap = "2.33.1"
 failure = "0.1.8"
+crossbeam-channel = "0.5.1"
 flate2 = "1.0.19"
 fragile = "1.0.0" # used for vendoring sentry-actix
 futures = "0.1.28"

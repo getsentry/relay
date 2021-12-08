@@ -12,6 +12,7 @@ use actix::prelude::*;
 use actix_web::http::Method;
 use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
+use crossbeam_channel::Sender;
 use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
@@ -2078,6 +2079,7 @@ pub struct EnvelopeManager {
     config: Arc<Config>,
     active_envelopes: u32,
     captures: BTreeMap<EventId, CapturedEnvelope>,
+    capture_hook: Option<Sender<Result<String, String>>>,
     processor: Addr<EnvelopeProcessor>,
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
@@ -2100,6 +2102,7 @@ impl EnvelopeManager {
             config,
             active_envelopes: 0,
             captures: BTreeMap::new(),
+            capture_hook: None,
             processor,
             #[cfg(feature = "processing")]
             store_forwarder,
@@ -2133,6 +2136,16 @@ impl EnvelopeManager {
 
         // if we are in capture mode, we stash away the event instead of forwarding it.
         if self.config.relay_mode() == RelayMode::Capture {
+            if let Some(hook) = &self.capture_hook {
+                if let Some(str) = envelope
+                    .serialize_to_json()
+                    .ok()
+                    .and_then(|b| String::from_utf8(b).ok())
+                {
+                    let _ = hook.send(Ok(str));
+                }
+            }
+
             // XXX: this is wrong because captured_events does not take envelopes without
             // event_id into account.
             if let Some(event_id) = envelope.event_id() {
@@ -2546,7 +2559,12 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     if let Some(event_id) = event_id {
                         relay_log::debug!("capturing failed event {}", event_id);
                         let msg = LogError(&error).to_string();
-                        slf.captures.insert(event_id, Err(msg));
+
+                        if let Some(hook) = &slf.capture_hook {
+                            let _ = hook.send(Err(msg));
+                        } else {
+                            slf.captures.insert(event_id, Err(msg));
+                        }
                     } else {
                         relay_log::debug!("dropping failed envelope without event");
                     }
@@ -2704,6 +2722,26 @@ impl Handler<GetCapturedEnvelope> for EnvelopeManager {
         _context: &mut Self::Context,
     ) -> Self::Result {
         self.captures.get(&message.event_id).cloned()
+    }
+}
+
+pub struct SetCapturedEnvelopeHook {
+    pub tx: Sender<Result<String, String>>,
+}
+
+impl Message for SetCapturedEnvelopeHook {
+    type Result = ();
+}
+
+impl Handler<SetCapturedEnvelopeHook> for EnvelopeManager {
+    type Result = ();
+
+    fn handle(
+        &mut self,
+        message: SetCapturedEnvelopeHook,
+        _context: &mut Self::Context,
+    ) -> Self::Result {
+        self.capture_hook = Some(message.tx);
     }
 }
 

@@ -1,0 +1,27 @@
+[package]
+authors = ["Tim Fish <tim@timfish.uk>"]
+edition = "2018"
+name = "sentry-test-server"
+version = "0.0.1"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+actix = "0.7.9"
+actix-web = {version = "0.7.19", default-features = false}
+crossbeam-channel = "0.5.1"
+futures = "0.1.28"
+napi = {version = "2.0.0-beta.2", features = ["async", "serde-json", "napi5"]}
+napi-derive = "2.0.0-beta.1"
+relay-config = {path = "../relay-config"}
+relay-server = {path = "../relay-server"}
+serde = {version = "1", features = ["derive"]}
+serde_json = {version = "1"}
+
+[build-dependencies]
+napi-build = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true

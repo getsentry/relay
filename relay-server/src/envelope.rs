@@ -923,6 +923,48 @@ impl Envelope {
         Ok(vec)
     }
 
+    pub fn serialize_to_json(&self) -> Result<Vec<u8>, EnvelopeError> {
+        #[derive(Debug, Serialize)]
+        struct JsonEnvelope {
+            headers: EnvelopeHeaders,
+            items: Vec<JsonItem>,
+        }
+
+        #[derive(Debug, Serialize)]
+        struct JsonItem {
+            headers: ItemHeaders,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            payload: Option<serde_json::Value>,
+        }
+
+        let items = self
+            .items()
+            .map(|item| {
+                Ok(if let Some(ContentType::Json) = item.content_type() {
+                    JsonItem {
+                        headers: item.headers.clone(),
+                        payload: Some(serde_json::from_slice(item.payload().as_ref())?),
+                    }
+                } else {
+                    JsonItem {
+                        headers: item.headers.clone(),
+                        payload: None,
+                    }
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(EnvelopeError::HeaderIoFailed)?;
+
+        let envelope = JsonEnvelope {
+            headers: self.headers.clone(),
+            items,
+        };
+
+        let mut vec = Vec::new();
+        serde_json::to_writer(&mut vec, &envelope).map_err(EnvelopeError::HeaderIoFailed)?;
+        Ok(vec)
+    }
+
     fn parse_headers<M>(slice: &[u8]) -> Result<(EnvelopeHeaders<M>, usize), EnvelopeError>
     where
         M: DeserializeOwned,

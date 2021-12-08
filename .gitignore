@@ -15,5 +15,6 @@ target
 .DS_Store
 
 # NPM utilities for building docs
-/node_modules/
+node_modules/
 package-lock.json
+*.node

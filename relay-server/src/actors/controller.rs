@@ -232,6 +232,20 @@ impl Handler<Subscribe> for Controller {
     }
 }
 
+pub struct ShutdownExternal {}
+
+impl Message for ShutdownExternal {
+    type Result = ();
+}
+
+impl Handler<ShutdownExternal> for Controller {
+    type Result = ();
+
+    fn handle(&mut self, _message: ShutdownExternal, context: &mut Self::Context) -> Self::Result {
+        self.shutdown(context, None)
+    }
+}
+
 /// Shutdown request message sent by the [`Controller`] to subscribed actors.
 ///
 /// A handler has to ensure that it doesn't take longer than `timeout` to resolve the future.
