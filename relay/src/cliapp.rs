@@ -38,7 +38,7 @@ pub fn make_app() -> App<'static, 'static> {
                         .long("mode")
                         .help("The relay mode to set")
                         .value_name("MODE")
-                        .possible_values(&["managed", "proxy", "static"]),
+                        .possible_values(&["managed", "proxy", "static", "capture"]),
                 )
                 .arg(
                     Arg::with_name("secret_key")

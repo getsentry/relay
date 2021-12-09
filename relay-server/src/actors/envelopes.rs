@@ -2688,7 +2688,7 @@ impl Handler<SendClientReports> for EnvelopeManager {
 
 /// Resolves a [`CapturedEnvelope`] by the given `event_id`.
 pub struct GetCapturedEnvelope {
-    pub event_id: EventId,
+    pub event_id: Option<EventId>,
 }
 
 impl Message for GetCapturedEnvelope {
@@ -2703,7 +2703,24 @@ impl Handler<GetCapturedEnvelope> for EnvelopeManager {
         message: GetCapturedEnvelope,
         _context: &mut Self::Context,
     ) -> Self::Result {
-        self.captures.get(&message.event_id).cloned()
+        match &message.event_id {
+            Some(event_id) => self.captures.get(event_id).cloned(),
+            None => {
+                // self.captures.pop_last() ?
+                match self
+                    .captures
+                    .iter()
+                    .next_back()
+                    .and_then(|(key, env)| Some((*key, env.clone())))
+                {
+                    Some((key, envelope)) => {
+                        self.captures.remove(&key);
+                        Some(envelope)
+                    }
+                    None => None,
+                }
+            }
+        }
     }
 }
 

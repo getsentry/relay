@@ -417,6 +417,10 @@ impl Item {
         }
     }
 
+    pub fn headers(&self) -> &ItemHeaders {
+        &self.headers
+    }
+
     /// Returns the `ItemType` of this item.
     pub fn ty(&self) -> ItemType {
         self.headers.ty
@@ -741,6 +745,10 @@ impl Envelope {
     #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    pub fn headers(&self) -> &EnvelopeHeaders {
+        &self.headers
     }
 
     /// Unique identifier of the event associated to this envelope.
