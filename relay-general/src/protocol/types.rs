@@ -976,9 +976,9 @@ impl FromValue for Timestamp {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let rv = match value {
             Annotated(Some(Value::String(value)), mut meta) => {
-                let parsed = match value.parse::<NaiveDateTime>() {
+                let parsed = match NaiveDateTime::parse_from_str(&value, "%Y-%m-%dT%H:%M:%S%.f") {
                     Ok(dt) => Ok(DateTime::from_utc(dt, Utc)),
-                    Err(_) => value.parse(),
+                    Err(_) => DateTime::parse_from_rfc3339(&value).map(|dt| dt.with_timezone(&Utc)),
                 };
                 match parsed {
                     Ok(value) => Annotated(Some(value), meta),
