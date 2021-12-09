@@ -13,9 +13,12 @@ lazy_static::lazy_static! {
     /// Format sent by Unreal Engine on macOS
     static ref OS_MACOS_REGEX: Regex = Regex::new(r#"^Mac OS X (?P<version>\d+\.\d+\.\d+)( \((?P<build>[a-fA-F0-9]+)\))?$"#).unwrap();
 
+    /// Specific regex to parse Linux distros
+    static ref OS_LINUX_DISTRO_UNAME_REGEX: Regex = Regex::new(r#"^Linux (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P<name>[a-zA-Z]+) (?P<version>\d+(\.\d+){0,2})"#).unwrap();
+
     /// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on
     /// macOS, iOS, Linux, etc.
-    static ref OS_UNAME_REGEX: Regex = Regex::new(r#"^((?P<name>[a-zA-Z]+) (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?))"#).unwrap();
+    static ref OS_UNAME_REGEX: Regex = Regex::new(r#"^(?P<name>[a-zA-Z]+) (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?)"#).unwrap();
 
     /// Mono 5.4, .NET Core 2.0
     static ref RUNTIME_DOTNET_REGEX: Regex = Regex::new(r#"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+){0,2}).*$"#).unwrap();
@@ -111,6 +114,16 @@ fn normalize_os_context(os: &mut OsContext) {
             os.build = captures
                 .name("build")
                 .map(|m| m.as_str().to_string().into())
+                .into();
+        } else if let Some(captures) = OS_LINUX_DISTRO_UNAME_REGEX.captures(raw_description) {
+            os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+            os.version = captures
+                .name("version")
+                .map(|m| m.as_str().to_string())
+                .into();
+            os.kernel_version = captures
+                .name("kernel_version")
+                .map(|m| m.as_str().to_string())
                 .into();
         } else if let Some(captures) = OS_UNAME_REGEX.captures(raw_description) {
             os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
@@ -430,8 +443,8 @@ fn test_linux_5_11() {
         ..OsContext::default()
     };
     normalize_os_context(&mut os);
-    // XXX: Undesirable behavior? Want to have Ubuntu and 20.04 in here.
-    assert_eq_dbg!(Some("Linux"), os.name.as_str());
+    assert_eq_dbg!(Some("Ubuntu"), os.name.as_str());
+    assert_eq_dbg!(Some("20.04"), os.version.as_str());
     assert_eq_dbg!(Some("5.11"), os.kernel_version.as_str());
     assert_eq_dbg!(None, os.build.value());
 }
