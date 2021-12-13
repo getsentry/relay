@@ -976,10 +976,19 @@ impl FromValue for Timestamp {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let rv = match value {
             Annotated(Some(Value::String(value)), mut meta) => {
-                // Use the same format as `NaiveDateTime::FromStr`: https://docs.rs/chrono/0.4.19/chrono/naive/struct.NaiveDateTime.html#impl-FromStr
+                // Use the same format as `NaiveDateTime::FromStr`, just fixed so that it won't
+                // change between library upgrades:
+                // https://docs.rs/chrono/0.4.19/chrono/naive/struct.NaiveDateTime.html#impl-FromStr
                 let parsed = match NaiveDateTime::parse_from_str(&value, "%Y-%m-%dT%H:%M:%S%.f") {
                     Ok(dt) => Ok(DateTime::from_utc(dt, Utc)),
-                    Err(_) => DateTime::parse_from_rfc3339(&value).map(|dt| dt.with_timezone(&Utc)),
+
+                    // XXX: This actually accepts more than RFC 3339. SDKs are strongly discouraged
+                    // from exercising that freedom. We should only support RFC3339.
+                    //
+                    // See https://github.com/chronotope/chrono/pull/516 (docs PR) for what this
+                    // actually does: It appears to accept a superset of RFC3339, but only a subset
+                    // of ISO 8601.
+                    Err(_) => value.parse(),
                 };
                 match parsed {
                     Ok(value) => Annotated(Some(value), meta),
