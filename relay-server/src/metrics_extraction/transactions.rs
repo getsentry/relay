@@ -216,6 +216,7 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use super::*;
     use relay_general::types::Annotated;
+    use relay_metrics::DurationPrecision;
 
     #[test]
     fn test_extract_transaction_metrics() {
@@ -293,7 +294,17 @@ mod tests {
             metrics[4].name,
             "sentry.transactions.breakdowns.breakdown2.zap"
         );
-        assert_eq!(metrics[5].name, "sentry.transactions.transaction.duration");
+
+        let duration_metric = &metrics[5];
+        assert_eq!(
+            duration_metric.name,
+            "sentry.transactions.transaction.duration"
+        );
+        if let MetricValue::Distribution(value) = duration_metric.value {
+            assert_eq!(value, 0.0);
+        } else {
+            panic!(); // Duration must be set
+        }
 
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
@@ -305,5 +316,61 @@ mod tests {
             assert_eq!(metric.tags["fOO"], "bar");
             assert!(!metric.tags.contains_key("bogus"));
         }
+    }
+
+    #[test]
+    fn test_transaction_duration() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "release": "1.2.3",
+            "environment": "fake_environment",
+            "transaction": "mytransaction",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "sentry.transactions.transaction.duration"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 1);
+
+        let duration_metric = &metrics[0];
+        assert_eq!(
+            duration_metric.name,
+            "sentry.transactions.transaction.duration"
+        );
+        assert_eq!(
+            duration_metric.unit,
+            MetricUnit::Duration(DurationPrecision::MilliSecond)
+        );
+        if let MetricValue::Distribution(value) = duration_metric.value {
+            assert_eq!(value, 59000.0); // millis
+        } else {
+            panic!(); // Duration must be set
+        }
+
+        assert_eq!(duration_metric.tags.len(), 4);
+        assert_eq!(duration_metric.tags["transaction.status"], "ok");
+        assert_eq!(duration_metric.tags["environment"], "fake_environment");
+        assert_eq!(duration_metric.tags["transaction"], "mytransaction");
     }
 }
