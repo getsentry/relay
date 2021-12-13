@@ -14,6 +14,7 @@
 - Support Unreal Engine 5 crash reports. ([#1132](https://github.com/getsentry/relay/pull/1132))
 - Perform same validation for aggregate sessions as for individual sessions. ([#1140](https://github.com/getsentry/relay/pull/1140))
 - Add missing .NET 4.8 release value. ([#1142](https://github.com/getsentry/relay/pull/1142))
+- Properly document which timestamps are accepted. ([#1152](https://github.com/getsentry/relay/pull/1152))
 
 **Internal**:
 
