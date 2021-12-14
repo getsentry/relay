@@ -16,6 +16,8 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+
     steps:
       - name: Install libcurl-dev
         run: sudo apt-get install -y libcurl4-openssl-dev
@@ -61,6 +63,7 @@ jobs:
           args: --workspace --all-features --tests -- -D clippy::all
 
   test:
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -94,6 +97,7 @@ jobs:
           args: --workspace
 
   test_all:
+    timeout-minutes: 25
     name: Test All Features (ubuntu-latest)
     runs-on: ubuntu-latest
 
@@ -136,6 +140,7 @@ jobs:
           args: --workspace --all-features
 
   test_py:
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -180,6 +185,7 @@ jobs:
   test_integration:
     name: Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
