@@ -498,6 +498,12 @@
 <span id="498">498</span>
 <span id="499">499</span>
 <span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">collections::BTreeMap</span>, <span class="ident">fmt</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
@@ -526,6 +532,12 @@
     <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>)
 }
 
+<span class="doccomment">/// Generate a sessions-related metric name</span>
+<span class="doccomment">/// Would be nice to have this as a `const fn`, but [`Metric`] requires a [`String`] anyway.</span>
+<span class="kw">fn</span> <span class="ident">metric_name</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">String</span> {
+    <span class="macro">format!</span>(<span class="string">&quot;sentry.sessions.{}&quot;</span>, <span class="ident">name</span>)
+}
+
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">extract_session_metrics</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">SessionLike</span><span class="op">&gt;</span>(
     <span class="ident">attributes</span>: <span class="kw-2">&amp;</span><span class="ident">SessionAttributes</span>,
     <span class="ident">session</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>,
@@ -549,7 +561,7 @@
     <span class="comment">// for adoption and as baseline for crash rates.</span>
     <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">total_count</span>() <span class="op">&gt;</span> <span class="number">0</span> {
         <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
-            <span class="ident">name</span>: <span class="string">&quot;session&quot;</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">name</span>: <span class="ident">metric_name</span>(<span class="string">&quot;session&quot;</span>),
             <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
             <span class="ident">value</span>: <span class="ident">MetricValue::Counter</span>(<span class="ident">session</span>.<span class="ident">total_count</span>() <span class="kw">as</span> <span class="ident">f64</span>),
             <span class="ident">timestamp</span>,
@@ -558,7 +570,7 @@
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">nil_to_none</span>(<span class="ident">session</span>.<span class="ident">distinct_id</span>()) {
             <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
-                <span class="ident">name</span>: <span class="string">&quot;user&quot;</span>.<span class="ident">to_owned</span>(),
+                <span class="ident">name</span>: <span class="ident">metric_name</span>(<span class="string">&quot;user&quot;</span>),
                 <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
                 <span class="ident">value</span>: <span class="ident">MetricValue::set_from_str</span>(<span class="ident">distinct_id</span>),
                 <span class="ident">timestamp</span>,
@@ -571,14 +583,14 @@
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">errors</span>) <span class="op">=</span> <span class="ident">session</span>.<span class="ident">errors</span>() {
         <span class="ident">target</span>.<span class="ident">push</span>(<span class="kw">match</span> <span class="ident">errors</span> {
             <span class="ident">SessionErrored::Individual</span>(<span class="ident">session_id</span>) =&gt; <span class="ident">Metric</span> {
-                <span class="ident">name</span>: <span class="string">&quot;session.error&quot;</span>.<span class="ident">to_owned</span>(),
+                <span class="ident">name</span>: <span class="ident">metric_name</span>(<span class="string">&quot;session.error&quot;</span>),
                 <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
                 <span class="ident">value</span>: <span class="ident">MetricValue::set_from_display</span>(<span class="ident">session_id</span>),
                 <span class="ident">timestamp</span>,
                 <span class="ident">tags</span>: <span class="ident">tags</span>.<span class="ident">clone</span>(),
             },
             <span class="ident">SessionErrored::Aggregated</span>(<span class="ident">count</span>) =&gt; <span class="ident">Metric</span> {
-                <span class="ident">name</span>: <span class="string">&quot;session&quot;</span>.<span class="ident">to_owned</span>(),
+                <span class="ident">name</span>: <span class="ident">metric_name</span>(<span class="string">&quot;session&quot;</span>),
                 <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
                 <span class="ident">value</span>: <span class="ident">MetricValue::Counter</span>(<span class="ident">count</span> <span class="kw">as</span> <span class="ident">f64</span>),
                 <span class="ident">timestamp</span>,
@@ -588,7 +600,7 @@
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">nil_to_none</span>(<span class="ident">session</span>.<span class="ident">distinct_id</span>()) {
             <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
-                <span class="ident">name</span>: <span class="string">&quot;user&quot;</span>.<span class="ident">to_owned</span>(),
+                <span class="ident">name</span>: <span class="ident">metric_name</span>(<span class="string">&quot;user&quot;</span>),
                 <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
                 <span class="ident">value</span>: <span class="ident">MetricValue::set_from_str</span>(<span class="ident">distinct_id</span>),
                 <span class="ident">timestamp</span>,
@@ -601,7 +613,7 @@
     <span class="comment">// sessions above.</span>
     <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">abnormal_count</span>() <span class="op">&gt;</span> <span class="number">0</span> {
         <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
-            <span class="ident">name</span>: <span class="string">&quot;session&quot;</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">name</span>: <span class="ident">metric_name</span>(<span class="string">&quot;session&quot;</span>),
             <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
             <span class="ident">value</span>: <span class="ident">MetricValue::Counter</span>(<span class="ident">session</span>.<span class="ident">abnormal_count</span>() <span class="kw">as</span> <span class="ident">f64</span>),
             <span class="ident">timestamp</span>,
@@ -610,7 +622,7 @@
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">nil_to_none</span>(<span class="ident">session</span>.<span class="ident">distinct_id</span>()) {
             <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
-                <span class="ident">name</span>: <span class="string">&quot;user&quot;</span>.<span class="ident">to_owned</span>(),
+                <span class="ident">name</span>: <span class="ident">metric_name</span>(<span class="string">&quot;user&quot;</span>),
                 <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
                 <span class="ident">value</span>: <span class="ident">MetricValue::set_from_str</span>(<span class="ident">distinct_id</span>),
                 <span class="ident">timestamp</span>,
@@ -620,7 +632,7 @@
     }
     <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">crashed_count</span>() <span class="op">&gt;</span> <span class="number">0</span> {
         <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
-            <span class="ident">name</span>: <span class="string">&quot;session&quot;</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">name</span>: <span class="ident">metric_name</span>(<span class="string">&quot;session&quot;</span>),
             <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
             <span class="ident">value</span>: <span class="ident">MetricValue::Counter</span>(<span class="ident">session</span>.<span class="ident">crashed_count</span>() <span class="kw">as</span> <span class="ident">f64</span>),
             <span class="ident">timestamp</span>,
@@ -629,7 +641,7 @@
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">distinct_id</span>) <span class="op">=</span> <span class="ident">nil_to_none</span>(<span class="ident">session</span>.<span class="ident">distinct_id</span>()) {
             <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
-                <span class="ident">name</span>: <span class="string">&quot;user&quot;</span>.<span class="ident">to_owned</span>(),
+                <span class="ident">name</span>: <span class="ident">metric_name</span>(<span class="string">&quot;user&quot;</span>),
                 <span class="ident">unit</span>: <span class="ident">MetricUnit::None</span>,
                 <span class="ident">value</span>: <span class="ident">MetricValue::set_from_str</span>(<span class="ident">distinct_id</span>),
                 <span class="ident">timestamp</span>,
@@ -644,7 +656,7 @@
     <span class="comment">// if session.status.is_terminal() {</span>
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">duration</span>, <span class="ident">status</span>)) <span class="op">=</span> <span class="ident">session</span>.<span class="ident">final_duration</span>() {
         <span class="ident">target</span>.<span class="ident">push</span>(<span class="ident">Metric</span> {
-            <span class="ident">name</span>: <span class="string">&quot;session.duration&quot;</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">name</span>: <span class="ident">metric_name</span>(<span class="string">&quot;session.duration&quot;</span>),
             <span class="ident">unit</span>: <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationPrecision::Second</span>),
             <span class="ident">value</span>: <span class="ident">MetricValue::Distribution</span>(<span class="ident">duration</span>),
             <span class="ident">timestamp</span>,
@@ -712,14 +724,14 @@
 
         <span class="kw">let</span> <span class="ident">session_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">0</span>];
         <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">name</span>, <span class="string">&quot;session&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">name</span>, <span class="string">&quot;sentry.sessions.session&quot;</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">session_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Counter</span>(<span class="kw">_</span>)));
         <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;init&quot;</span>);
         <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
 
         <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">1</span>];
         <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;user&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;sentry.sessions.user&quot;</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
         <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;init&quot;</span>);
         <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
@@ -783,13 +795,13 @@
 
             <span class="kw">let</span> <span class="ident">session_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="ident">expected_metrics</span> <span class="op">-</span> <span class="number">2</span>];
             <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">name</span>, <span class="string">&quot;session.error&quot;</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">name</span>, <span class="string">&quot;sentry.sessions.session.error&quot;</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">session_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>.<span class="ident">len</span>(), <span class="number">1</span>); <span class="comment">// Only the release tag</span>
 
             <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="ident">expected_metrics</span> <span class="op">-</span> <span class="number">1</span>];
             <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;user&quot;</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;sentry.sessions.user&quot;</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;errored&quot;</span>);
             <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
@@ -819,19 +831,19 @@
 
             <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">4</span>);
 
-            <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">name</span>, <span class="string">&quot;session.error&quot;</span>);
-            <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">1</span>].<span class="ident">name</span>, <span class="string">&quot;user&quot;</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">name</span>, <span class="string">&quot;sentry.sessions.session.error&quot;</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">1</span>].<span class="ident">name</span>, <span class="string">&quot;sentry.sessions.user&quot;</span>);
             <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">1</span>].<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;errored&quot;</span>);
 
             <span class="kw">let</span> <span class="ident">session_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">2</span>];
             <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">name</span>, <span class="string">&quot;session&quot;</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">name</span>, <span class="string">&quot;sentry.sessions.session&quot;</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">session_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Counter</span>(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="ident">status</span>.<span class="ident">to_string</span>());
 
             <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">3</span>];
             <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
-            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;user&quot;</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;sentry.sessions.user&quot;</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="ident">status</span>.<span class="ident">to_string</span>());
         }
@@ -861,7 +873,7 @@
         <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">1</span>);
 
         <span class="kw">let</span> <span class="ident">duration_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">0</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">name</span>, <span class="string">&quot;session.duration&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">name</span>, <span class="string">&quot;sentry.sessions.session.duration&quot;</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             <span class="ident">duration_metric</span>.<span class="ident">value</span>,
             <span class="ident">MetricValue::Distribution</span>(<span class="kw">_</span>)
@@ -904,7 +916,7 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics</span>, @<span class="string">r###&quot;
         [
             Metric {
-                name: &quot;session&quot;,
+                name: &quot;sentry.sessions.session&quot;,
                 unit: None,
                 value: Counter(
                     135.0,
@@ -917,7 +929,7 @@
                 },
             },
             Metric {
-                name: &quot;session&quot;,
+                name: &quot;sentry.sessions.session&quot;,
                 unit: None,
                 value: Counter(
                     5.0,
@@ -930,7 +942,7 @@
                 },
             },
             Metric {
-                name: &quot;session&quot;,
+                name: &quot;sentry.sessions.session&quot;,
                 unit: None,
                 value: Counter(
                     7.0,
@@ -943,7 +955,7 @@
                 },
             },
             Metric {
-                name: &quot;session&quot;,
+                name: &quot;sentry.sessions.session&quot;,
                 unit: None,
                 value: Counter(
                     15.0,
@@ -956,7 +968,7 @@
                 },
             },
             Metric {
-                name: &quot;user&quot;,
+                name: &quot;sentry.sessions.user&quot;,
                 unit: None,
                 value: Set(
                     3097475539,
@@ -969,7 +981,7 @@
                 },
             },
             Metric {
-                name: &quot;session&quot;,
+                name: &quot;sentry.sessions.session&quot;,
                 unit: None,
                 value: Counter(
                     3.0,
@@ -982,7 +994,7 @@
                 },
             },
             Metric {
-                name: &quot;user&quot;,
+                name: &quot;sentry.sessions.user&quot;,
                 unit: None,
                 value: Set(
                     3097475539,
