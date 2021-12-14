@@ -304,14 +304,13 @@ pub struct Event {
     /// value representing the number of seconds that have elapsed since the [Unix
     /// epoch](https://en.wikipedia.org/wiki/Unix_time).
     ///
-    /// Timezone is assumed to be UTC if unclear.
+    /// Timezone is assumed to be UTC if missing.
     ///
     /// Sub-microsecond precision is not preserved with numeric values due to precision
     /// limitations with floats (at least in our systems). With that caveat in mind, just send
     /// whatever is easiest to produce.
     ///
-    /// All timestamps in the event protocol, be it errors, transactions or the spans within a
-    /// transaction, are formatted this way.
+    /// All timestamps in the event protocol are formatted this way.
     ///
     /// # Example
     ///

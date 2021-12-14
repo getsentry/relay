@@ -976,10 +976,8 @@ impl FromValue for Timestamp {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         let rv = match value {
             Annotated(Some(Value::String(value)), mut meta) => {
-                // Use the same format as `NaiveDateTime::FromStr`, just fixed so that it won't
-                // change between library upgrades:
-                // https://docs.rs/chrono/0.4.19/chrono/naive/struct.NaiveDateTime.html#impl-FromStr
-                let parsed = match NaiveDateTime::parse_from_str(&value, "%Y-%m-%dT%H:%M:%S%.f") {
+                // NaiveDateTime parses "%Y-%m-%dT%H:%M:%S%.f"
+                let parsed = match value.parse::<NaiveDateTime>() {
                     Ok(dt) => Ok(DateTime::from_utc(dt, Utc)),
 
                     // XXX: This actually accepts more than RFC 3339. SDKs are strongly discouraged
