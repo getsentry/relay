@@ -2711,7 +2711,7 @@ impl Handler<GetCapturedEnvelope> for EnvelopeManager {
                     .captures
                     .iter()
                     .next_back()
-                    .and_then(|(key, env)| Some((*key, env.clone())))
+                    .map(|(key, env)| (*key, env.clone()))
                 {
                     Some((key, envelope)) => {
                         self.captures.remove(&key);
