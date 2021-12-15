@@ -1,6 +1,5 @@
-use std::collections::BTreeSet;
-
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 #[cfg(feature = "processing")]
 use {
@@ -8,6 +7,7 @@ use {
     relay_general::protocol::{AsPair, Event, EventType},
     relay_metrics::{Metric, MetricUnit, MetricValue},
     std::collections::BTreeMap,
+    std::fmt::Write,
 };
 
 /// Configuration in relation to extracting metrics from transaction events.
@@ -16,6 +16,21 @@ use {
 pub struct TransactionMetricsConfig {
     extract_metrics: BTreeSet<String>,
     extract_custom_tags: BTreeSet<String>,
+}
+
+#[cfg(feature = "processing")]
+const METRIC_NAME_PREFIX: &str = "sentry.transactions";
+
+/// Generate a transaction-related metric name
+#[cfg(feature = "processing")]
+fn metric_name(parts: &[&str]) -> String {
+    let mut name = METRIC_NAME_PREFIX.to_owned();
+    for part in parts {
+        // Unwrapping here should be fine:
+        // https://github.com/rust-lang/rust/blob/1.57.0/library/alloc/src/string.rs#L2721-L2724
+        write!(name, ".{}", part).unwrap();
+    }
+    name
 }
 
 #[cfg(feature = "processing")]
@@ -79,15 +94,15 @@ pub fn extract_transaction_metrics(
     }
 
     if let Some(measurements) = event.measurements.value() {
-        for (name, annotated) in measurements.iter() {
+        for (measurement_name, annotated) in measurements.iter() {
             let measurement = match annotated.value().and_then(|m| m.value.value()) {
                 Some(measurement) => *measurement,
                 None => continue,
             };
 
-            let name = format!("measurements.{}", name);
+            let name = metric_name(&["measurements", measurement_name]);
             let mut tags = tags.clone();
-            if let Some(rating) = get_measurement_rating(&name, measurement) {
+            if let Some(rating) = get_measurement_rating(measurement_name, measurement) {
                 tags.insert("measurement_rating".to_owned(), rating);
             }
 
@@ -115,7 +130,7 @@ pub fn extract_transaction_metrics(
                 };
 
                 push_metric(Metric {
-                    name: format!("breakdown.{}.{}", breakdown, name),
+                    name: metric_name(&["breakdowns", breakdown, name]),
                     unit: MetricUnit::None,
                     value: MetricValue::Distribution(measurement),
                     timestamp,
@@ -140,10 +155,10 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
     };
 
     match name {
-        "measurements.lcp" => rate_range(2500.0, 4000.0),
-        "measurements.fcp" => rate_range(1000.0, 3000.0),
-        "measurements.fid" => rate_range(100.0, 300.0),
-        "measurements.cls" => rate_range(0.1, 0.25),
+        "lcp" => rate_range(2500.0, 4000.0),
+        "fcp" => rate_range(1000.0, 3000.0),
+        "fid" => rate_range(100.0, 300.0),
+        "cls" => rate_range(0.1, 0.25),
         _ => None,
     }
 }
@@ -198,11 +213,11 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "measurements.foo",
-                "measurements.lcp",
-                "breakdown.breakdown1.bar",
-                "breakdown.breakdown2.baz",
-                "breakdown.breakdown2.zap"
+                "sentry.transactions.measurements.foo",
+                "sentry.transactions.measurements.lcp",
+                "sentry.transactions.breakdowns.breakdown1.bar",
+                "sentry.transactions.breakdowns.breakdown2.baz",
+                "sentry.transactions.breakdowns.breakdown2.zap"
             ],
             "extractCustomTags": ["fOO"]
         }
@@ -215,11 +230,20 @@ mod tests {
 
         assert_eq!(metrics.len(), 5);
 
-        assert_eq!(metrics[0].name, "measurements.foo");
-        assert_eq!(metrics[1].name, "measurements.lcp");
-        assert_eq!(metrics[2].name, "breakdown.breakdown1.bar");
-        assert_eq!(metrics[3].name, "breakdown.breakdown2.baz");
-        assert_eq!(metrics[4].name, "breakdown.breakdown2.zap");
+        assert_eq!(metrics[0].name, "sentry.transactions.measurements.foo");
+        assert_eq!(metrics[1].name, "sentry.transactions.measurements.lcp");
+        assert_eq!(
+            metrics[2].name,
+            "sentry.transactions.breakdowns.breakdown1.bar"
+        );
+        assert_eq!(
+            metrics[3].name,
+            "sentry.transactions.breakdowns.breakdown2.baz"
+        );
+        assert_eq!(
+            metrics[4].name,
+            "sentry.transactions.breakdowns.breakdown2.zap"
+        );
 
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
