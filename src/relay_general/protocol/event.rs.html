@@ -751,6 +751,14 @@
 <span id="751">751</span>
 <span id="752">752</span>
 <span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
 
@@ -1057,14 +1065,22 @@
     <span class="doccomment">/// value representing the number of seconds that have elapsed since the [Unix</span>
     <span class="doccomment">/// epoch](https://en.wikipedia.org/wiki/Unix_time).</span>
     <span class="doccomment">///</span>
+    <span class="doccomment">/// Timezone is assumed to be UTC if missing.</span>
+    <span class="doccomment">///</span>
     <span class="doccomment">/// Sub-microsecond precision is not preserved with numeric values due to precision</span>
     <span class="doccomment">/// limitations with floats (at least in our systems). With that caveat in mind, just send</span>
     <span class="doccomment">/// whatever is easiest to produce.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// All timestamps in the event protocol are formatted this way.</span>
     <span class="doccomment">///</span>
+    <span class="doccomment">/// # Example</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// All of these are the same date:</span>
+    <span class="doccomment">///</span>
     <span class="doccomment">/// ```json</span>
     <span class="doccomment">/// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36Z&quot; }</span>
+    <span class="doccomment">/// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36&quot; }</span>
+    <span class="doccomment">/// { &quot;timestamp&quot;: &quot;2011-05-02T17:41:36.000&quot; }</span>
     <span class="doccomment">/// { &quot;timestamp&quot;: 1304358096.0 }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="ident">timestamp</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Timestamp</span><span class="op">&gt;</span>,

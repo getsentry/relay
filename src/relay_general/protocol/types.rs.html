@@ -1269,6 +1269,14 @@
 <span id="1269">1269</span>
 <span id="1270">1270</span>
 <span id="1271">1271</span>
+<span id="1272">1272</span>
+<span id="1273">1273</span>
+<span id="1274">1274</span>
+<span id="1275">1275</span>
+<span id="1276">1276</span>
+<span id="1277">1277</span>
+<span id="1278">1278</span>
+<span id="1279">1279</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Common types of the protocol.</span>
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::Ordering</span>;
@@ -2247,8 +2255,16 @@
     <span class="kw">fn</span> <span class="ident">from_value</span>(<span class="ident">value</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">value</span> {
             <span class="ident">Annotated</span>(<span class="prelude-val">Some</span>(<span class="ident">Value::String</span>(<span class="ident">value</span>)), <span class="kw-2">mut</span> <span class="ident">meta</span>) =&gt; {
+                <span class="comment">// NaiveDateTime parses &quot;%Y-%m-%dT%H:%M:%S%.f&quot;</span>
                 <span class="kw">let</span> <span class="ident">parsed</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">value</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">NaiveDateTime</span><span class="op">&gt;</span>() {
                     <span class="prelude-val">Ok</span>(<span class="ident">dt</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="ident">DateTime::from_utc</span>(<span class="ident">dt</span>, <span class="ident">Utc</span>)),
+
+                    <span class="comment">// XXX: This actually accepts more than RFC 3339. SDKs are strongly discouraged</span>
+                    <span class="comment">// from exercising that freedom. We should only support RFC3339.</span>
+                    <span class="comment">//</span>
+                    <span class="comment">// See https://github.com/chronotope/chrono/pull/516 (docs PR) for what this</span>
+                    <span class="comment">// actually does: It appears to accept a superset of RFC3339, but only a subset</span>
+                    <span class="comment">// of ISO 8601.</span>
                     <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="ident">value</span>.<span class="ident">parse</span>(),
                 };
                 <span class="kw">match</span> <span class="ident">parsed</span> {
