@@ -8,14 +8,17 @@ lazy_static::lazy_static! {
     static ref OS_WINDOWS_REGEX1: Regex = Regex::new(r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.\d+).*$"#).unwrap();
     static ref OS_WINDOWS_REGEX2: Regex = Regex::new(r#"^Windows\s+\d+\s+\((?P<version>\d+\.\d+\.\d+).*$"#).unwrap();
 
-    static ref OS_ANDROID_REGEX: Regex = Regex::new(r#"^Android OS (?P<version>(\d+)) / API-(?P<api>(\d+))"#).unwrap();
+    static ref OS_ANDROID_REGEX: Regex = Regex::new(r#"^Android (OS )?(?P<version>\d+(\.\d+){0,2}) / API-(?P<api>(\d+))"#).unwrap();
 
     /// Format sent by Unreal Engine on macOS
     static ref OS_MACOS_REGEX: Regex = Regex::new(r#"^Mac OS X (?P<version>\d+\.\d+\.\d+)( \((?P<build>[a-fA-F0-9]+)\))?$"#).unwrap();
 
+    /// Specific regex to parse Linux distros
+    static ref OS_LINUX_DISTRO_UNAME_REGEX: Regex = Regex::new(r#"^Linux (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P<name>[a-zA-Z]+) (?P<version>\d+(\.\d+){0,2})"#).unwrap();
+
     /// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on
     /// macOS, iOS, Linux, etc.
-    static ref OS_UNAME_REGEX: Regex = Regex::new(r#"^(?P<name>[a-zA-Z]+) (?P<version>\d+\.\d+\.\d+(\.[1-9]+)?).*$"#).unwrap();
+    static ref OS_UNAME_REGEX: Regex = Regex::new(r#"^(?P<name>[a-zA-Z]+) (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?)"#).unwrap();
 
     /// Mono 5.4, .NET Core 2.0
     static ref RUNTIME_DOTNET_REGEX: Regex = Regex::new(r#"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+){0,2}).*$"#).unwrap();
@@ -112,10 +115,20 @@ fn normalize_os_context(os: &mut OsContext) {
                 .name("build")
                 .map(|m| m.as_str().to_string().into())
                 .into();
+        } else if let Some(captures) = OS_LINUX_DISTRO_UNAME_REGEX.captures(raw_description) {
+            os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
+            os.version = captures
+                .name("version")
+                .map(|m| m.as_str().to_string())
+                .into();
+            os.kernel_version = captures
+                .name("kernel_version")
+                .map(|m| m.as_str().to_string())
+                .into();
         } else if let Some(captures) = OS_UNAME_REGEX.captures(raw_description) {
             os.name = captures.name("name").map(|m| m.as_str().to_string()).into();
             os.kernel_version = captures
-                .name("version")
+                .name("kernel_version")
                 .map(|m| m.as_str().to_string())
                 .into();
         } else if let Some(captures) = OS_ANDROID_REGEX.captures(raw_description) {
@@ -421,4 +434,46 @@ fn test_unity_android_os() {
 fn test_unity_android_api_version() {
     let description = "Android OS 11 / API-30 (RP1A.201005.001/2107031736)";
     assert_eq_dbg!(Some("30"), get_android_api_version(description));
+}
+
+#[test]
+fn test_linux_5_11() {
+    let mut os = OsContext {
+        raw_description: "Linux 5.11 Ubuntu 20.04 64bit".to_string().into(),
+        ..OsContext::default()
+    };
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("Ubuntu"), os.name.as_str());
+    assert_eq_dbg!(Some("20.04"), os.version.as_str());
+    assert_eq_dbg!(Some("5.11"), os.kernel_version.as_str());
+    assert_eq_dbg!(None, os.build.value());
+}
+
+#[test]
+fn test_android_4_4_2() {
+    let mut os = OsContext {
+        raw_description: "Android OS 4.4.2 / API-19 (KOT49H/A536_S186_150813_ROW)"
+            .to_string()
+            .into(),
+        ..OsContext::default()
+    };
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("Android"), os.name.as_str());
+    assert_eq_dbg!(Some("4.4.2"), os.version.as_str());
+    assert_eq_dbg!(None, os.build.value());
+}
+
+#[test]
+fn test_ios_15_0() {
+    let mut os = OsContext {
+        raw_description: "iOS 15.0".to_string().into(),
+        ..OsContext::default()
+    };
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("iOS"), os.name.as_str());
+
+    // XXX: This behavior of putting it into kernel_version vs version is probably not desired and
+    // may be revisited
+    assert_eq_dbg!(Some("15.0"), os.kernel_version.as_str());
+    assert_eq_dbg!(None, os.build.value());
 }
