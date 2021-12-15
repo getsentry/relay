@@ -34,11 +34,31 @@ fn metric_name(parts: &[&str]) -> String {
 }
 
 #[cfg(feature = "processing")]
+fn transaction_status(transaction: &Event) -> Option<String> {
+    use relay_general::{
+        protocol::{Context, ContextInner},
+        types::Annotated,
+    };
+
+    let contexts = transaction.contexts.value()?;
+    let trace_context = match contexts.get("trace").map(Annotated::value) {
+        Some(Some(ContextInner(Context::Trace(trace_context)))) => trace_context,
+        _ => return None,
+    };
+    let span_status = trace_context.status.value()?;
+    Some(span_status.to_string())
+}
+
+#[cfg(feature = "processing")]
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
     event: &Event,
     target: &mut Vec<Metric>,
 ) {
+    use relay_metrics::DurationPrecision;
+
+    use crate::metrics_extraction::utils::with_tag;
+
     if event.ty.value() != Some(&EventType::Transaction) {
         return;
     }
@@ -93,6 +113,7 @@ pub fn extract_transaction_metrics(
         }
     }
 
+    // Measurements
     if let Some(measurements) = event.measurements.value() {
         for (measurement_name, annotated) in measurements.iter() {
             let measurement = match annotated.value().and_then(|m| m.value.value()) {
@@ -116,6 +137,7 @@ pub fn extract_transaction_metrics(
         }
     }
 
+    // Breakdowns
     if let Some(breakdowns) = event.breakdowns.value() {
         for (breakdown, annotated) in breakdowns.iter() {
             let measurements = match annotated.value() {
@@ -139,6 +161,32 @@ pub fn extract_transaction_metrics(
             }
         }
     }
+
+    // Duration
+    let start = event.start_timestamp.value();
+    let end = event.timestamp.value();
+    let duration_millis = match (start, end) {
+        (Some(start), Some(end)) => {
+            let start = start.timestamp_millis();
+            let end = end.timestamp_millis();
+            end.saturating_sub(start)
+        }
+        _ => 0,
+    };
+
+    // We always push the duration even if it's 0, because we use count(transaction.duration)
+    // to get the total number of transactions.
+    // This may need to be changed if it turns out that this skews the duration metric.
+    push_metric(Metric {
+        name: metric_name(&["transaction.duration"]),
+        unit: MetricUnit::Duration(DurationPrecision::MilliSecond),
+        value: MetricValue::Distribution(duration_millis as f64),
+        timestamp,
+        tags: match transaction_status(event) {
+            Some(status) => with_tag(&tags, "transaction.status", status),
+            None => tags.clone(),
+        },
+    });
 }
 
 #[cfg(feature = "processing")]
@@ -168,6 +216,7 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use super::*;
     use relay_general::types::Annotated;
+    use relay_metrics::DurationPrecision;
 
     #[test]
     fn test_extract_transaction_metrics() {
@@ -217,7 +266,8 @@ mod tests {
                 "sentry.transactions.measurements.lcp",
                 "sentry.transactions.breakdowns.breakdown1.bar",
                 "sentry.transactions.breakdowns.breakdown2.baz",
-                "sentry.transactions.breakdowns.breakdown2.zap"
+                "sentry.transactions.breakdowns.breakdown2.zap",
+                "sentry.transactions.transaction.duration"
             ],
             "extractCustomTags": ["fOO"]
         }
@@ -228,7 +278,7 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(&config, event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 5);
+        assert_eq!(metrics.len(), 6);
 
         assert_eq!(metrics[0].name, "sentry.transactions.measurements.foo");
         assert_eq!(metrics[1].name, "sentry.transactions.measurements.lcp");
@@ -245,6 +295,17 @@ mod tests {
             "sentry.transactions.breakdowns.breakdown2.zap"
         );
 
+        let duration_metric = &metrics[5];
+        assert_eq!(
+            duration_metric.name,
+            "sentry.transactions.transaction.duration"
+        );
+        if let MetricValue::Distribution(value) = duration_metric.value {
+            assert_eq!(value, 0.0);
+        } else {
+            panic!(); // Duration must be set
+        }
+
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
         for metric in metrics {
@@ -255,5 +316,61 @@ mod tests {
             assert_eq!(metric.tags["fOO"], "bar");
             assert!(!metric.tags.contains_key("bogus"));
         }
+    }
+
+    #[test]
+    fn test_transaction_duration() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "release": "1.2.3",
+            "environment": "fake_environment",
+            "transaction": "mytransaction",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "sentry.transactions.transaction.duration"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 1);
+
+        let duration_metric = &metrics[0];
+        assert_eq!(
+            duration_metric.name,
+            "sentry.transactions.transaction.duration"
+        );
+        assert_eq!(
+            duration_metric.unit,
+            MetricUnit::Duration(DurationPrecision::MilliSecond)
+        );
+        if let MetricValue::Distribution(value) = duration_metric.value {
+            assert_eq!(value, 59000.0); // millis
+        } else {
+            panic!(); // Duration must be set
+        }
+
+        assert_eq!(duration_metric.tags.len(), 4);
+        assert_eq!(duration_metric.tags["transaction.status"], "ok");
+        assert_eq!(duration_metric.tags["environment"], "fake_environment");
+        assert_eq!(duration_metric.tags["transaction"], "mytransaction");
     }
 }
