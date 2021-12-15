@@ -22,7 +22,6 @@
 - Fold processing vs non-processing into single actor. ([#1133](https://github.com/getsentry/relay/pull/1133))
 - Aggregate outcomes for dynamic sampling, invalid project ID, and rate limits. ([#1134](https://github.com/getsentry/relay/pull/1134))
 - Extract session metrics from aggregate sessions. ([#1140](https://github.com/getsentry/relay/pull/1140))
-- Prefix names of extracted metrics by `sentry.sessions.` or `sentry.transactions.`. ([#1147](https://github.com/getsentry/relay/pull/1147))
 
 ## 21.11.0
 
