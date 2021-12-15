@@ -304,14 +304,22 @@ pub struct Event {
     /// value representing the number of seconds that have elapsed since the [Unix
     /// epoch](https://en.wikipedia.org/wiki/Unix_time).
     ///
+    /// Timezone is assumed to be UTC if missing.
+    ///
     /// Sub-microsecond precision is not preserved with numeric values due to precision
     /// limitations with floats (at least in our systems). With that caveat in mind, just send
     /// whatever is easiest to produce.
     ///
     /// All timestamps in the event protocol are formatted this way.
     ///
+    /// # Example
+    ///
+    /// All of these are the same date:
+    ///
     /// ```json
     /// { "timestamp": "2011-05-02T17:41:36Z" }
+    /// { "timestamp": "2011-05-02T17:41:36" }
+    /// { "timestamp": "2011-05-02T17:41:36.000" }
     /// { "timestamp": 1304358096.0 }
     /// ```
     pub timestamp: Annotated<Timestamp>,
