@@ -227,7 +227,7 @@ def test_session_metrics_non_processing(
         ts = int(started.timestamp())
         assert session_metrics == [
             {
-                "name": "session",
+                "name": "sentry.sessions.session",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -239,7 +239,7 @@ def test_session_metrics_non_processing(
                 "value": 1.0,
             },
             {
-                "name": "session.duration",
+                "name": "sentry.sessions.session.duration",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -252,7 +252,7 @@ def test_session_metrics_non_processing(
                 "value": [1947.49],
             },
             {
-                "name": "user",
+                "name": "sentry.sessions.user",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -313,10 +313,10 @@ def test_metrics_extracted_only_once(
     metrics = metrics_by_name(metrics_consumer, 3, timeout=6)
 
     # if it is not 1 it means the session was extracted multiple times
-    assert metrics["session"]["value"] == 1.0
+    assert metrics["sentry.sessions.session"]["value"] == 1.0
 
     # if the vector contains multiple duration we have the session extracted multiple times
-    assert len(metrics["session.duration"]["value"]) == 1
+    assert len(metrics["sentry.sessions.session.duration"]["value"]) == 1
 
 
 @pytest.mark.parametrize(
@@ -356,11 +356,11 @@ def test_session_metrics_processing(
     metrics = metrics_by_name(metrics_consumer, 3)
 
     expected_timestamp = int(started.timestamp())
-    assert metrics["session"] == {
+    assert metrics["sentry.sessions.session"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "session",
+        "name": "sentry.sessions.session",
         "type": "c",
         "unit": "",
         "value": 1.0,
@@ -371,11 +371,11 @@ def test_session_metrics_processing(
         },
     }
 
-    assert metrics["user"] == {
+    assert metrics["sentry.sessions.user"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "user",
+        "name": "sentry.sessions.user",
         "type": "s",
         "unit": "",
         "value": [1617781333],
@@ -386,11 +386,11 @@ def test_session_metrics_processing(
         },
     }
 
-    assert metrics["session.duration"] == {
+    assert metrics["sentry.sessions.session.duration"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "session.duration",
+        "name": "sentry.sessions.session.duration",
         "type": "d",
         "unit": "s",
         "value": [1947.49],
@@ -434,9 +434,9 @@ def test_transaction_metrics(
     elif extract_metrics:
         mini_sentry.project_configs[project_id]["config"]["transactionMetrics"] = {
             "extractMetrics": [
-                "measurements.foo",
-                "measurements.bar",
-                "breakdown.breakdown1.baz",
+                "sentry.transactions.measurements.foo",
+                "sentry.transactions.measurements.bar",
+                "sentry.transactions.breakdowns.breakdown1.baz",
             ]
         }
 
@@ -476,25 +476,25 @@ def test_transaction_metrics(
         "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
     }
 
-    assert metrics["measurements.foo"] == {
+    assert metrics["sentry.transactions.measurements.foo"] == {
         **common,
-        "name": "measurements.foo",
+        "name": "sentry.transactions.measurements.foo",
         "type": "d",
         "unit": "",
         "value": [1.2, 2.2],
     }
 
-    assert metrics["measurements.bar"] == {
+    assert metrics["sentry.transactions.measurements.bar"] == {
         **common,
-        "name": "measurements.bar",
+        "name": "sentry.transactions.measurements.bar",
         "type": "d",
         "unit": "",
         "value": [1.3],
     }
 
-    assert metrics["breakdown.breakdown1.baz"] == {
+    assert metrics["sentry.transactions.breakdowns.breakdown1.baz"] == {
         **common,
-        "name": "breakdown.breakdown1.baz",
+        "name": "sentry.transactions.breakdowns.breakdown1.baz",
         "type": "d",
         "unit": "",
         "value": [1.4, 2.4],
