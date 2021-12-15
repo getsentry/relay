@@ -422,6 +422,61 @@
 <span id="422">422</span>
 <span id="423">423</span>
 <span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">regex::Regex</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">OsContext</span>, <span class="ident">RuntimeContext</span>};
@@ -432,14 +487,17 @@
     <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_WINDOWS_REGEX1</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.\d+).*$&quot;#</span>).<span class="ident">unwrap</span>();
     <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_WINDOWS_REGEX2</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Windows\s+\d+\s+\((?P&lt;version&gt;\d+\.\d+\.\d+).*$&quot;#</span>).<span class="ident">unwrap</span>();
 
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_ANDROID_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Android OS (?P&lt;version&gt;(\d+)) / API-(?P&lt;api&gt;(\d+))&quot;#</span>).<span class="ident">unwrap</span>();
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_ANDROID_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Android (OS )?(?P&lt;version&gt;\d+(\.\d+){0,2}) / API-(?P&lt;api&gt;(\d+))&quot;#</span>).<span class="ident">unwrap</span>();
 
     <span class="doccomment">/// Format sent by Unreal Engine on macOS</span>
     <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_MACOS_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Mac OS X (?P&lt;version&gt;\d+\.\d+\.\d+)( \((?P&lt;build&gt;[a-fA-F0-9]+)\))?$&quot;#</span>).<span class="ident">unwrap</span>();
 
+    <span class="doccomment">/// Specific regex to parse Linux distros</span>
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_LINUX_DISTRO_UNAME_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Linux (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P&lt;name&gt;[a-zA-Z]+) (?P&lt;version&gt;\d+(\.\d+){0,2})&quot;#</span>).<span class="ident">unwrap</span>();
+
     <span class="doccomment">/// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on</span>
     <span class="doccomment">/// macOS, iOS, Linux, etc.</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_UNAME_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;[a-zA-Z]+) (?P&lt;version&gt;\d+\.\d+\.\d+(\.[1-9]+)?).*$&quot;#</span>).<span class="ident">unwrap</span>();
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_UNAME_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;[a-zA-Z]+) (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?)&quot;#</span>).<span class="ident">unwrap</span>();
 
     <span class="doccomment">/// Mono 5.4, .NET Core 2.0</span>
     <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">RUNTIME_DOTNET_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;.*) (?P&lt;version&gt;\d+\.\d+(\.\d+){0,2}).*$&quot;#</span>).<span class="ident">unwrap</span>();
@@ -536,10 +594,20 @@
                 .<span class="ident">name</span>(<span class="string">&quot;build&quot;</span>)
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>().<span class="ident">into</span>())
                 .<span class="ident">into</span>();
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_LINUX_DISTRO_UNAME_REGEX</span>.<span class="ident">captures</span>(<span class="ident">raw_description</span>) {
+            <span class="ident">os</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;name&quot;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>()).<span class="ident">into</span>();
+            <span class="ident">os</span>.<span class="ident">version</span> <span class="op">=</span> <span class="ident">captures</span>
+                .<span class="ident">name</span>(<span class="string">&quot;version&quot;</span>)
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>())
+                .<span class="ident">into</span>();
+            <span class="ident">os</span>.<span class="ident">kernel_version</span> <span class="op">=</span> <span class="ident">captures</span>
+                .<span class="ident">name</span>(<span class="string">&quot;kernel_version&quot;</span>)
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>())
+                .<span class="ident">into</span>();
         } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_UNAME_REGEX</span>.<span class="ident">captures</span>(<span class="ident">raw_description</span>) {
             <span class="ident">os</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;name&quot;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>()).<span class="ident">into</span>();
             <span class="ident">os</span>.<span class="ident">kernel_version</span> <span class="op">=</span> <span class="ident">captures</span>
-                .<span class="ident">name</span>(<span class="string">&quot;version&quot;</span>)
+                .<span class="ident">name</span>(<span class="string">&quot;kernel_version&quot;</span>)
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>().<span class="ident">to_string</span>())
                 .<span class="ident">into</span>();
         } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_ANDROID_REGEX</span>.<span class="ident">captures</span>(<span class="ident">raw_description</span>) {
@@ -845,6 +913,48 @@
 <span class="kw">fn</span> <span class="ident">test_unity_android_api_version</span>() {
     <span class="kw">let</span> <span class="ident">description</span> <span class="op">=</span> <span class="string">&quot;Android OS 11 / API-30 (RP1A.201005.001/2107031736)&quot;</span>;
     <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;30&quot;</span>), <span class="ident">get_android_api_version</span>(<span class="ident">description</span>));
+}
+
+<span class="attribute">#[<span class="ident">test</span>]</span>
+<span class="kw">fn</span> <span class="ident">test_linux_5_11</span>() {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
+        <span class="ident">raw_description</span>: <span class="string">&quot;Linux 5.11 Ubuntu 20.04 64bit&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
+        ..<span class="ident">OsContext::default</span>()
+    };
+    <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Ubuntu&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;20.04&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;5.11&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+}
+
+<span class="attribute">#[<span class="ident">test</span>]</span>
+<span class="kw">fn</span> <span class="ident">test_android_4_4_2</span>() {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
+        <span class="ident">raw_description</span>: <span class="string">&quot;Android OS 4.4.2 / API-19 (KOT49H/A536_S186_150813_ROW)&quot;</span>
+            .<span class="ident">to_string</span>()
+            .<span class="ident">into</span>(),
+        ..<span class="ident">OsContext::default</span>()
+    };
+    <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Android&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;4.4.2&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+}
+
+<span class="attribute">#[<span class="ident">test</span>]</span>
+<span class="kw">fn</span> <span class="ident">test_ios_15_0</span>() {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
+        <span class="ident">raw_description</span>: <span class="string">&quot;iOS 15.0&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
+        ..<span class="ident">OsContext::default</span>()
+    };
+    <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>);
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;iOS&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+
+    <span class="comment">// XXX: This behavior of putting it into kernel_version vs version is probably not desired and</span>
+    <span class="comment">// may be revisited</span>
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;15.0&quot;</span>), <span class="ident">os</span>.<span class="ident">kernel_version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
 }
 </code></pre></div>
 </section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-search-index-js="../../../../search-index.js" data-search-js="../../../../search.js"></div>
