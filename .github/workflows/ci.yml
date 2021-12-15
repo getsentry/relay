@@ -188,7 +188,9 @@ jobs:
     timeout-minutes: 25
 
     # Skip redundant checks for library releases
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+    # if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+
+    if: "false"
 
     services:
       redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
