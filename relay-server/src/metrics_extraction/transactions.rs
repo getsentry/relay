@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use {
     relay_common::UnixTimestamp,
     relay_general::protocol::{AsPair, Event, EventType},
+    relay_general::store::normalize_dist,
     relay_metrics::{Metric, MetricUnit, MetricValue},
     std::collections::BTreeMap,
     std::fmt::Write,
@@ -34,7 +35,7 @@ fn metric_name(parts: &[&str]) -> String {
 }
 
 #[cfg(feature = "processing")]
-fn transaction_status(transaction: &Event) -> Option<String> {
+fn extract_transaction_status(transaction: &Event) -> Option<String> {
     use relay_general::{
         protocol::{Context, ContextInner},
         types::Annotated,
@@ -47,6 +48,11 @@ fn transaction_status(transaction: &Event) -> Option<String> {
     };
     let span_status = trace_context.status.value()?;
     Some(span_status.to_string())
+}
+
+#[cfg(feature = "processing")]
+fn extract_dist(transaction: &Event) -> Option<String> {
+    normalize_release_dist(transaction)
 }
 
 #[cfg(feature = "processing")]
@@ -89,6 +95,9 @@ pub fn extract_transaction_metrics(
     let mut tags = BTreeMap::new();
     if let Some(release) = event.release.as_str() {
         tags.insert("release".to_owned(), release.to_owned());
+    }
+    if let Some(dist) = extract_dist(&event) {
+        tags.insert("dist".to_owned(), dist);
     }
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
@@ -182,7 +191,7 @@ pub fn extract_transaction_metrics(
         unit: MetricUnit::Duration(DurationPrecision::MilliSecond),
         value: MetricValue::Distribution(duration_millis as f64),
         timestamp,
-        tags: match transaction_status(event) {
+        tags: match extract_transaction_status(event) {
             Some(status) => with_tag(&tags, "transaction.status", status),
             None => tags.clone(),
         },

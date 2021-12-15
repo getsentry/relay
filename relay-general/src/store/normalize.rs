@@ -66,6 +66,22 @@ fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
 }
 
+pub fn normalize_dist(dist: &mut Option<String>) {
+    let mut erase = false;
+    if let Some(val) = dist {
+        if val.is_empty() {
+            erase = true;
+        }
+        let trimmed = val.trim();
+        if trimmed != val {
+            *val = trimmed.to_string()
+        }
+    }
+    if erase {
+        *dist = None;
+    }
+}
+
 /// The processor that normalizes events for store.
 pub struct NormalizeProcessor<'a> {
     config: Arc<StoreConfig>,
@@ -120,15 +136,7 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Ensures that the `release` and `dist` fields match up.
     fn normalize_release_dist(&self, event: &mut Event) {
-        if event.dist.value().is_some() && event.release.value().is_empty() {
-            event.dist.set_value(None);
-        }
-
-        if let Some(dist) = event.dist.value_mut() {
-            if dist.trim() != dist {
-                *dist = dist.trim().to_string();
-            }
-        }
+        normalize_dist(event.dist.value_mut());
     }
 
     /// Validates the timestamp range and sets a default value.
@@ -1599,4 +1607,32 @@ fn test_past_timestamp() {
       },
     }
     "###);
+}
+
+#[test]
+fn test_normalize_dist_none() {
+    let mut dist = Option::None;
+    normalize_dist(&mut dist);
+    assert_eq!(dist, None);
+}
+
+#[test]
+fn test_normalize_dist_empty() {
+    let mut dist = Option::Some("".to_owned());
+    normalize_dist(&mut dist);
+    assert_eq!(dist, None);
+}
+
+#[test]
+fn test_normalize_dist_trim() {
+    let mut dist = Option::Some(" foo  ".to_owned());
+    normalize_dist(&mut dist);
+    assert_eq!(dist.unwrap(), "foo");
+}
+
+#[test]
+fn test_normalize_dist_whitespace() {
+    let mut dist = Option::Some(" ".to_owned());
+    normalize_dist(&mut dist);
+    assert_eq!(dist.unwrap(), ""); // Not sure if this is what we want
 }
