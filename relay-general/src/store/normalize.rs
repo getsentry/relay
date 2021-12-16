@@ -1618,21 +1618,21 @@ fn test_normalize_dist_none() {
 
 #[test]
 fn test_normalize_dist_empty() {
-    let mut dist = Option::Some("".to_owned());
+    let mut dist = Some("".to_owned());
     normalize_dist(&mut dist);
     assert_eq!(dist, None);
 }
 
 #[test]
 fn test_normalize_dist_trim() {
-    let mut dist = Option::Some(" foo  ".to_owned());
+    let mut dist = Some(" foo  ".to_owned());
     normalize_dist(&mut dist);
     assert_eq!(dist.unwrap(), "foo");
 }
 
 #[test]
 fn test_normalize_dist_whitespace() {
-    let mut dist = Option::Some(" ".to_owned());
+    let mut dist = Some(" ".to_owned());
     normalize_dist(&mut dist);
     assert_eq!(dist.unwrap(), ""); // Not sure if this is what we want
 }
