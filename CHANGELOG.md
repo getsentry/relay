@@ -26,6 +26,7 @@
 - Extract session metrics from aggregate sessions. ([#1140](https://github.com/getsentry/relay/pull/1140))
 - Prefix names of extracted metrics by `sentry.sessions.` or `sentry.transactions.`. ([#1147](https://github.com/getsentry/relay/pull/1147))
 - Extract transaction duration as metric. ([#1148](https://github.com/getsentry/relay/pull/1148))
+- Extract normalized dist as metric. ([#1158](https://github.com/getsentry/relay/pull/1158))
 
 ## 21.11.0
 
