@@ -715,7 +715,6 @@ def test_outcomes_do_not_aggregate(
 
 
 def test_graceful_shutdown(relay, mini_sentry):
-    """Dynamic sampling is aggregated"""
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)

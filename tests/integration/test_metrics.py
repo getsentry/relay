@@ -505,7 +505,6 @@ def test_transaction_metrics(
 
 
 def test_graceful_shutdown(mini_sentry, relay):
-
     relay = relay(
         mini_sentry,
         options={
