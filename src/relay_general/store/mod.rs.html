@@ -128,6 +128,7 @@
 <span id="128">128</span>
 <span id="129">129</span>
 <span id="130">130</span>
+<span id="131">131</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility code for sentry&#39;s internal store.</span>
 <span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -153,6 +154,7 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::clock_drift::ClockDriftProcessor</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::geo</span>::{<span class="ident">GeoIpError</span>, <span class="ident">GeoIpLookup</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize::breakdowns::BreakdownsConfig</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize::normalize_dist</span>;
 
 <span class="doccomment">/// The config for store.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
