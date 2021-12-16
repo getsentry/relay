@@ -3372,6 +3372,7 @@ dependencies = [
  "insta",
  "lazy_static",
  "relay-common",
+ "relay-common-actors",
  "relay-log",
  "relay-statsd",
  "relay-test",

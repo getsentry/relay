@@ -7,6 +7,7 @@ use actix::prelude::*;
 
 use failure::Fail;
 use float_ord::FloatOrd;
+use relay_common_actors::controller::{Controller, Shutdown};
 use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
@@ -1094,7 +1095,7 @@ impl Aggregator {
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
-    pub fn pop_flush_buckets(&mut self) -> HashMap<ProjectKey, Vec<Bucket>> {
+    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<Bucket>> {
         relay_statsd::metric!(gauge(MetricGauges::Buckets) = self.buckets.len() as u64);
 
         let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
@@ -1102,7 +1103,7 @@ impl Aggregator {
         relay_statsd::metric!(timer(MetricTimers::BucketsScanDuration), {
             let bucket_interval = self.config.bucket_interval;
             self.buckets.retain(|key, entry| {
-                if entry.elapsed() {
+                if force || entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
                     let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
@@ -1120,8 +1121,9 @@ impl Aggregator {
     /// Sends the [`FlushBuckets`] message to the receiver.
     ///
     /// If the receiver returns buckets, they are merged back into the cache.
-    fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
-        let flush_buckets = self.pop_flush_buckets();
+    /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
+    fn try_flush(&mut self, context: &mut <Self as Actor>::Context, force: bool) {
+        let flush_buckets = self.pop_flush_buckets(force);
 
         if flush_buckets.is_empty() {
             return;
@@ -1130,6 +1132,7 @@ impl Aggregator {
         relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
 
         let mut total_bucket_count = 0u64;
+        let merge_back = !force;
         for (project_key, project_buckets) in flush_buckets.into_iter() {
             let bucket_count = project_buckets.len() as u64;
             relay_statsd::metric!(
@@ -1142,11 +1145,18 @@ impl Aggregator {
                 .into_actor(self)
                 .and_then(move |result, slf, _ctx| {
                     if let Err(buckets) = result {
-                        relay_log::trace!(
-                            "returned {} buckets from receiver, merging back",
-                            buckets.len()
-                        );
-                        slf.merge_all(project_key, buckets).ok();
+                        if merge_back {
+                            relay_log::trace!(
+                                "returned {} buckets from receiver, merging back",
+                                buckets.len()
+                            );
+                            slf.merge_all(project_key, buckets).ok();
+                        } else {
+                            relay_log::trace!(
+                                "returned {} buckets from receiver, dropping",
+                                buckets.len()
+                            );
+                        }
                     }
                     fut::ok(())
                 })
@@ -1174,8 +1184,13 @@ impl Actor for Aggregator {
     fn started(&mut self, ctx: &mut Self::Context) {
         relay_log::info!("aggregator started");
 
+        // Subscribe to shutdown
+        Controller::subscribe(ctx.address());
+
         // TODO: Consider a better approach than busy polling
-        ctx.run_interval(Duration::from_millis(500), Self::try_flush);
+        ctx.run_interval(Duration::from_millis(500), |slf, context| {
+            slf.try_flush(context, false);
+        });
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -1192,6 +1207,19 @@ impl Default for Aggregator {
 impl Supervised for Aggregator {}
 
 impl SystemService for Aggregator {}
+
+impl Handler<Shutdown> for Aggregator {
+    type Result = Result<(), ()>;
+
+    fn handle(&mut self, message: Shutdown, context: &mut Self::Context) -> Self::Result {
+        if message.timeout.is_some() {
+            relay_log::trace!("Shutting down...");
+            // is graceful shutdown
+            self.try_flush(context, true);
+        }
+        Ok(())
+    }
+}
 
 /// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]

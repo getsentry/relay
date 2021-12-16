@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
 import json
+import signal
 
 import pytest
+import requests
 
 from .test_envelope import generate_transaction_item
 
@@ -499,3 +501,38 @@ def test_transaction_metrics(
         "unit": "",
         "value": [1.4, 2.4],
     }
+
+
+def test_graceful_shutdown(mini_sentry, relay):
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {"shutdown_timeout": 2},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 10,  # Delay is longer than shutdown period
+                "debounce_delay": 10,
+            },
+        },
+    )
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"foo:42|c"
+    relay.send_metrics(project_id, metrics_payload, timestamp)
+
+    # Shutdown relay
+    relay.shutdown(sig=signal.SIGTERM)
+
+    # Try to send another metric (will be rejected)
+    metrics_payload = f"bar:42|c"
+    with pytest.raises(requests.ConnectionError):
+        relay.send_metrics(project_id, metrics_payload, timestamp)
+
+    envelope = mini_sentry.captured_events.get(timeout=2)
+    assert len(envelope.items) == 1
+
+    print(envelope)
