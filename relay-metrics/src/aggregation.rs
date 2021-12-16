@@ -1152,6 +1152,7 @@ impl Aggregator {
                             );
                             slf.merge_all(project_key, buckets).ok();
                         } else {
+                            // NOTE: This means we drop buckets if the project state is expired.
                             relay_log::trace!(
                                 "returned {} buckets from receiver, dropping",
                                 buckets.len()
