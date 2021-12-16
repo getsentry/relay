@@ -11,8 +11,6 @@ use ::actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 
-pub use crate::service::ServerError;
-
 /// Actor to start and gracefully stop an actix system.
 ///
 /// This actor contains a static `run` method which will run an actix system and block the current

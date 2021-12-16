@@ -31,7 +31,6 @@
 //! Controller::run(|| Server::start())
 //!     .expect("failed to start relay");
 //! ```
-pub mod controller;
 pub mod envelopes;
 pub mod healthcheck;
 pub mod outcome;

@@ -3222,6 +3222,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-common-actors"
+version = "21.12.0"
+dependencies = [
+ "actix",
+ "failure",
+ "futures 0.1.29",
+ "relay-log",
+]
+
+[[package]]
 name = "relay-config"
 version = "21.12.0"
 dependencies = [
@@ -3440,6 +3450,7 @@ dependencies = [
  "regex",
  "relay-auth",
  "relay-common",
+ "relay-common-actors",
  "relay-config",
  "relay-filter",
  "relay-general",
