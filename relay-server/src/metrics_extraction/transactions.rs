@@ -98,7 +98,7 @@ pub fn extract_transaction_metrics(
     if let Some(release) = event.release.as_str() {
         tags.insert("release".to_owned(), release.to_owned());
     }
-    if let Some(dist) = extract_dist(&event) {
+    if let Some(dist) = extract_dist(event) {
         tags.insert("dist".to_owned(), dist);
     }
     if let Some(environment) = event.environment.as_str() {
