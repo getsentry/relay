@@ -1611,7 +1611,7 @@ fn test_past_timestamp() {
 
 #[test]
 fn test_normalize_dist_none() {
-    let mut dist = Option::None;
+    let mut dist = None;
     normalize_dist(&mut dist);
     assert_eq!(dist, None);
 }
