@@ -403,36 +403,51 @@ def test_session_metrics_processing(
 
 
 @pytest.mark.parametrize(
-    "extract_metrics",
-    [True, False, "corrupted"],
-    ids=["extract", "don't extract", "corrupted config"],
-)
-@pytest.mark.parametrize(
-    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
+    "extract_metrics,transaction_sampled",
+    [(True, True), (True, False), (False, True), (False, False), ("corrupted", True)],
+    ids=[
+        "extract from sampled",
+        "don't extract from unsampled",
+        "don't extract from sampled",
+        "don't extract from unsampled",
+        "corrupted config",
+    ],
 )
 def test_transaction_metrics(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
-    metrics_extracted,
     extract_metrics,
+    transaction_sampled,
+    transactions_consumer,
 ):
     metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
     timestamp = datetime.now(tz=timezone.utc)
 
-    mini_sentry.project_configs[project_id]["config"]["features"] = (
-        ["organizations:metrics-extraction"] if extract_metrics else []
-    )
+    config["features"] = ["organizations:metrics-extraction"] if extract_metrics else []
+
+    if transaction_sampled:
+        # Make sure Relay drops the transaction
+        config.setdefault("dynamicSampling", {}).setdefault("rules", []).append(
+            {
+                "sampleRate": 0,
+                "type": "transaction",
+                "condition": {"op": "and", "inner": []},
+                "id": 1,
+            }
+        )
 
     if extract_metrics == "corrupted":
-        mini_sentry.project_configs[project_id]["config"]["transactionMetrics"] = 42
+        config["transactionMetrics"] = 42
 
     elif extract_metrics:
-        mini_sentry.project_configs[project_id]["config"]["transactionMetrics"] = {
+        config["transactionMetrics"] = {
             "extractMetrics": [
                 "sentry.transactions.measurements.foo",
                 "sentry.transactions.measurements.bar",
@@ -448,18 +463,19 @@ def test_transaction_metrics(
     }
     transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4},}}
 
-    #: The `metrics_extracted` header is ignored for transactions for now.
-    #: This means that transaction metrics are extracted regardless of the header.
-    item_headers = {"metrics_extracted": metrics_extracted}
-
-    relay.send_transaction(42, transaction, item_headers=item_headers)
+    relay.send_transaction(42, transaction)
 
     # Send another transaction:
     transaction["measurements"] = {
         "foo": {"value": 2.2},
     }
     transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
-    relay.send_transaction(42, transaction, item_headers=item_headers)
+    relay.send_transaction(42, transaction)
+
+    if transaction_sampled:
+        transactions_consumer.assert_empty()
+    else:
+        transactions_consumer.get_event()
 
     if not extract_metrics or extract_metrics == "corrupted":
         message = metrics_consumer.poll(timeout=None)

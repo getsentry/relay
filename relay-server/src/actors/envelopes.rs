@@ -1540,8 +1540,17 @@ impl EnvelopeProcessor {
         };
 
         if let Some(event) = state.event.value() {
-            // Actual logic outsourced for unit tests
-            extract_transaction_metrics(config, event, &mut state.extracted_metrics);
+            let extracted_anything;
+
+            metric!(
+                timer(RelayTimers::TransactionMetricsExtraction),
+                extracted_anything = &extracted_anything.to_string(),
+                {
+                    // Actual logic outsourced for unit tests
+                    extracted_anything =
+                        extract_transaction_metrics(config, event, &mut state.extracted_metrics);
+                }
+            );
             Ok(())
         } else {
             Err(ProcessingError::NoEventPayload)
@@ -1702,11 +1711,15 @@ impl EnvelopeProcessor {
             });
 
             self.finalize_event(&mut state)?;
+
+            if_processing!({
+                self.extract_transaction_metrics(&mut state)?;
+            });
+
             self.sample_event(&mut state)?;
 
             if_processing!({
                 self.store_process_event(&mut state)?;
-                self.extract_transaction_metrics(&mut state)?;
                 self.filter_event(&mut state)?;
             });
         }

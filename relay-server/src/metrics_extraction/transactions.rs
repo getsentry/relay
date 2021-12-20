@@ -54,17 +54,17 @@ pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
     event: &Event,
     target: &mut Vec<Metric>,
-) {
+) -> bool {
     use relay_metrics::DurationPrecision;
 
     use crate::metrics_extraction::utils::with_tag;
 
     if event.ty.value() != Some(&EventType::Transaction) {
-        return;
+        return false;
     }
 
     if config.extract_metrics.is_empty() {
-        return;
+        return false;
     }
 
     let mut push_metric = move |metric: Metric| {
@@ -83,7 +83,7 @@ pub fn extract_transaction_metrics(
         .and_then(|ts| UnixTimestamp::from_datetime(ts.into_inner()))
     {
         Some(ts) => ts,
-        None => return,
+        None => return false,
     };
 
     let mut tags = BTreeMap::new();
@@ -187,6 +187,8 @@ pub fn extract_transaction_metrics(
             None => tags.clone(),
         },
     });
+
+    true
 }
 
 #[cfg(feature = "processing")]
