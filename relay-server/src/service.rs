@@ -11,7 +11,6 @@ use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 
-use crate::actors::controller::{Configure, Controller};
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeProcessor};
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::outcome::OutcomeProducer;
@@ -23,6 +22,7 @@ use crate::endpoints;
 use crate::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
+use relay_common_actors::controller::{Configure, Controller};
 
 /// Common error type for the relay server.
 #[derive(Debug)]

@@ -1,7 +1,10 @@
 from datetime import datetime, timedelta, timezone
 import json
+import signal
+from time import sleep
 
 import pytest
+import requests
 
 from .test_envelope import generate_transaction_item
 
@@ -499,3 +502,61 @@ def test_transaction_metrics(
         "unit": "",
         "value": [1.4, 2.4],
     }
+
+
+def test_graceful_shutdown(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {"shutdown_timeout": 2},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 10,
+                "debounce_delay": 0,
+            },
+        },
+    )
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+
+    # Backdated metric will be flushed immediately due to debounce delay
+    past_timestamp = timestamp - 1000
+    metrics_payload = f"foo:42|c"
+    relay.send_metrics(project_id, metrics_payload, past_timestamp)
+
+    # Future timestamp will not be flushed regularly, only through force flush
+    metrics_payload = f"bar:17|c"
+    future_timestamp = timestamp + 60
+    relay.send_metrics(project_id, metrics_payload, future_timestamp)
+    relay.shutdown(sig=signal.SIGTERM)
+
+    # Try to send another metric (will be rejected)
+    metrics_payload = f"zap:666|c"
+    with pytest.raises(requests.ConnectionError):
+        relay.send_metrics(project_id, metrics_payload, timestamp)
+
+    envelope = mini_sentry.captured_events.get(timeout=2)
+    assert len(envelope.items) == 1
+    metrics_item = envelope.items[0]
+    assert metrics_item.type == "metric_buckets"
+    received_metrics = json.loads(metrics_item.get_bytes().decode())
+    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    assert received_metrics == [
+        {
+            "timestamp": future_timestamp,
+            "width": 1,
+            "name": "bar",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": past_timestamp,
+            "width": 1,
+            "name": "foo",
+            "value": 42.0,
+            "type": "c",
+        },
+    ]

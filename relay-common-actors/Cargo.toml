@@ -1,0 +1,16 @@
+[package]
+name = "relay-common-actors"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Actors used by multiple services in Relay"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "21.12.0"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+actix = "0.7.9"
+failure = "0.1.8"
+futures = "0.1.28"
+relay-log = { path = "../relay-log" }
