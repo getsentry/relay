@@ -108,9 +108,9 @@
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::controller</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">IsAuthenticated</span>, <span class="ident">IsNetworkOutage</span>, <span class="ident">UpstreamRelay</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayGauges</span>;
+<span class="kw">use</span> <span class="ident">relay_common_actors::controller</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Healthcheck</span> {
     <span class="ident">is_shutting_down</span>: <span class="ident">bool</span>,

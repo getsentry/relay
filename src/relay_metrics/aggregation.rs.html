@@ -1978,6 +1978,35 @@
 <span id="1978">1978</span>
 <span id="1979">1979</span>
 <span id="1980">1980</span>
+<span id="1981">1981</span>
+<span id="1982">1982</span>
+<span id="1983">1983</span>
+<span id="1984">1984</span>
+<span id="1985">1985</span>
+<span id="1986">1986</span>
+<span id="1987">1987</span>
+<span id="1988">1988</span>
+<span id="1989">1989</span>
+<span id="1990">1990</span>
+<span id="1991">1991</span>
+<span id="1992">1992</span>
+<span id="1993">1993</span>
+<span id="1994">1994</span>
+<span id="1995">1995</span>
+<span id="1996">1996</span>
+<span id="1997">1997</span>
+<span id="1998">1998</span>
+<span id="1999">1999</span>
+<span id="2000">2000</span>
+<span id="2001">2001</span>
+<span id="2002">2002</span>
+<span id="2003">2003</span>
+<span id="2004">2004</span>
+<span id="2005">2005</span>
+<span id="2006">2006</span>
+<span id="2007">2007</span>
+<span id="2008">2008</span>
+<span id="2009">2009</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -1987,6 +2016,7 @@
 
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="kw">use</span> <span class="ident">float_ord::FloatOrd</span>;
+<span class="kw">use</span> <span class="ident">relay_common_actors::controller</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">MonotonicResult</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
@@ -3074,7 +3104,7 @@
     <span class="doccomment">/// Pop and return the buckets that are eligible for flushing out according to bucket interval.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that this function is primarily intended for tests.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pop_flush_buckets</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pop_flush_buckets</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">force</span>: <span class="ident">bool</span>) -&gt; <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="macro">relay_statsd::metric!</span>(<span class="ident">gauge</span>(<span class="ident">MetricGauges::Buckets</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="ident">::new</span>();
@@ -3082,7 +3112,7 @@
         <span class="macro">relay_statsd::metric!</span>(<span class="ident">timer</span>(<span class="ident">MetricTimers::BucketsScanDuration</span>), {
             <span class="kw">let</span> <span class="ident">bucket_interval</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">bucket_interval</span>;
             <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">retain</span>(<span class="op">|</span><span class="ident">key</span>, <span class="ident">entry</span><span class="op">|</span> {
-                <span class="kw">if</span> <span class="ident">entry</span>.<span class="ident">elapsed</span>() {
+                <span class="kw">if</span> <span class="ident">force</span> <span class="op">|</span><span class="op">|</span> <span class="ident">entry</span>.<span class="ident">elapsed</span>() {
                     <span class="comment">// Take the value and leave a placeholder behind. It&#39;ll be removed right after.</span>
                     <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">std::mem::replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">entry</span>.<span class="ident">value</span>, <span class="ident">BucketValue::Counter</span>(<span class="number">0.0</span>));
                     <span class="kw">let</span> <span class="ident">bucket</span> <span class="op">=</span> <span class="ident">Bucket::from_parts</span>(<span class="ident">key</span>.<span class="ident">clone</span>(), <span class="ident">bucket_interval</span>, <span class="ident">value</span>);
@@ -3100,8 +3130,9 @@
     <span class="doccomment">/// Sends the [`FlushBuckets`] message to the receiver.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the receiver returns buckets, they are merged back into the cache.</span>
-    <span class="kw">fn</span> <span class="ident">try_flush</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="self">Self</span> <span class="kw">as</span> <span class="ident">Actor</span><span class="op">&gt;</span><span class="ident">::Context</span>) {
-        <span class="kw">let</span> <span class="ident">flush_buckets</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_flush_buckets</span>();
+    <span class="doccomment">/// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.</span>
+    <span class="kw">fn</span> <span class="ident">try_flush</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="self">Self</span> <span class="kw">as</span> <span class="ident">Actor</span><span class="op">&gt;</span><span class="ident">::Context</span>, <span class="ident">force</span>: <span class="ident">bool</span>) {
+        <span class="kw">let</span> <span class="ident">flush_buckets</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_flush_buckets</span>(<span class="ident">force</span>);
 
         <span class="kw">if</span> <span class="ident">flush_buckets</span>.<span class="ident">is_empty</span>() {
             <span class="kw">return</span>;
@@ -3110,6 +3141,7 @@
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;flushing {} projects to receiver&quot;</span>, <span class="ident">flush_buckets</span>.<span class="ident">len</span>());
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_bucket_count</span> <span class="op">=</span> <span class="number">0u64</span>;
+        <span class="kw">let</span> <span class="ident">merge_back</span> <span class="op">=</span> <span class="op">!</span><span class="ident">force</span>;
         <span class="kw">for</span> (<span class="ident">project_key</span>, <span class="ident">project_buckets</span>) <span class="kw">in</span> <span class="ident">flush_buckets</span>.<span class="ident">into_iter</span>() {
             <span class="kw">let</span> <span class="ident">bucket_count</span> <span class="op">=</span> <span class="ident">project_buckets</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>;
             <span class="macro">relay_statsd::metric!</span>(
@@ -3122,11 +3154,19 @@
                 .<span class="ident">into_actor</span>(<span class="self">self</span>)
                 .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span>, <span class="ident">slf</span>, <span class="ident">_ctx</span><span class="op">|</span> {
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">buckets</span>) <span class="op">=</span> <span class="ident">result</span> {
-                        <span class="macro">relay_log::trace!</span>(
-                            <span class="string">&quot;returned {} buckets from receiver, merging back&quot;</span>,
-                            <span class="ident">buckets</span>.<span class="ident">len</span>()
-                        );
-                        <span class="ident">slf</span>.<span class="ident">merge_all</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>).<span class="ident">ok</span>();
+                        <span class="kw">if</span> <span class="ident">merge_back</span> {
+                            <span class="macro">relay_log::trace!</span>(
+                                <span class="string">&quot;returned {} buckets from receiver, merging back&quot;</span>,
+                                <span class="ident">buckets</span>.<span class="ident">len</span>()
+                            );
+                            <span class="ident">slf</span>.<span class="ident">merge_all</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>).<span class="ident">ok</span>();
+                        } <span class="kw">else</span> {
+                            <span class="comment">// NOTE: This means we drop buckets if the project state is expired.</span>
+                            <span class="macro">relay_log::trace!</span>(
+                                <span class="string">&quot;returned {} buckets from receiver, dropping&quot;</span>,
+                                <span class="ident">buckets</span>.<span class="ident">len</span>()
+                            );
+                        }
                     }
                     <span class="ident">fut::ok</span>(())
                 })
@@ -3154,8 +3194,13 @@
     <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;aggregator started&quot;</span>);
 
+        <span class="comment">// Subscribe to shutdown</span>
+        <span class="ident">Controller::subscribe</span>(<span class="ident">ctx</span>.<span class="ident">address</span>());
+
         <span class="comment">// TODO: Consider a better approach than busy polling</span>
-        <span class="ident">ctx</span>.<span class="ident">run_interval</span>(<span class="ident">Duration::from_millis</span>(<span class="number">500</span>), <span class="ident"><span class="self">Self</span>::try_flush</span>);
+        <span class="ident">ctx</span>.<span class="ident">run_interval</span>(<span class="ident">Duration::from_millis</span>(<span class="number">500</span>), <span class="op">|</span><span class="ident">slf</span>, <span class="ident">context</span><span class="op">|</span> {
+            <span class="ident">slf</span>.<span class="ident">try_flush</span>(<span class="ident">context</span>, <span class="bool-val">false</span>);
+        });
     }
 
     <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
@@ -3172,6 +3217,19 @@
 <span class="kw">impl</span> <span class="ident">Supervised</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {}
 
 <span class="kw">impl</span> <span class="ident">SystemService</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {}
+
+<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span>;
+
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Shutdown</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+        <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">timeout</span>.<span class="ident">is_some</span>() {
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Shutting down...&quot;</span>);
+            <span class="comment">// is graceful shutdown</span>
+            <span class="self">self</span>.<span class="ident">try_flush</span>(<span class="ident">context</span>, <span class="bool-val">true</span>);
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+}
 
 <span class="doccomment">/// A message containing a list of [`Metric`]s to be inserted into the aggregator.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>

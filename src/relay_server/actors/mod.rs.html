@@ -47,13 +47,12 @@
 <span id="47">47</span>
 <span id="48">48</span>
 <span id="49">49</span>
-<span id="50">50</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Defines all actors of the relay.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Actors require an actix system to run. The system can be started using the</span>
-<span class="doccomment">//! [`Controller`](controller::Controller) actor, which will also listen for shutdown signals and</span>
+<span class="doccomment">//! [`Controller`](relay_common_actors::controller::Controller) actor, which will also listen for shutdown signals and</span>
 <span class="doccomment">//! trigger a graceful shutdown. Note that actors must implement a handler for the</span>
-<span class="doccomment">//! [`Shutdown`](controller::Shutdown) message and register with the controller to receive this</span>
+<span class="doccomment">//! [`Shutdown`](relay_common_actors::controller::Shutdown) message and register with the controller to receive this</span>
 <span class="doccomment">//! signal. See the struct level documentation for more information.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The web server is wrapped by the [`Server`](server::Server) actor. It starts the actix http web</span>
@@ -81,7 +80,6 @@
 <span class="doccomment">//! Controller::run(|| Server::start())</span>
 <span class="doccomment">//!     .expect(&quot;failed to start relay&quot;);</span>
 <span class="doccomment">//! ```</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">controller</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">envelopes</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">healthcheck</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">outcome</span>;

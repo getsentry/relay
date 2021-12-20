@@ -552,10 +552,10 @@
 
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::controller::Controller</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::server::Server</span>;
+<span class="kw">use</span> <span class="ident">relay_common_actors::controller::Controller</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::controller::ServerError</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServerError</span>;
 
 <span class="doccomment">/// Runs a relay web server and spawns all internal worker threads.</span>
 <span class="doccomment">///</span>
