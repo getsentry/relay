@@ -407,7 +407,7 @@ def test_session_metrics_processing(
     [(True, True), (True, False), (False, True), (False, False), ("corrupted", True)],
     ids=[
         "extract from sampled",
-        "don't extract from unsampled",
+        "extract from unsampled",
         "don't extract from sampled",
         "don't extract from unsampled",
         "corrupted config",
@@ -431,6 +431,9 @@ def test_transaction_metrics(
     timestamp = datetime.now(tz=timezone.utc)
 
     config["features"] = ["organizations:metrics-extraction"] if extract_metrics else []
+    config["breakdownsV2"] = {
+        "span_ops": {"type": "spanOperations", "matches": ["react.mount"]}
+    }
 
     if transaction_sampled:
         # Make sure Relay drops the transaction
@@ -461,7 +464,6 @@ def test_transaction_metrics(
         "foo": {"value": 1.2},
         "bar": {"value": 1.3},
     }
-    transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4},}}
 
     relay.send_transaction(42, transaction)
 
@@ -469,7 +471,6 @@ def test_transaction_metrics(
     transaction["measurements"] = {
         "foo": {"value": 2.2},
     }
-    transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
     relay.send_transaction(42, transaction)
 
     if transaction_sampled:
@@ -508,10 +509,6 @@ def test_transaction_metrics(
         "value": [1.3],
     }
 
-    assert metrics["sentry.transactions.breakdowns.breakdown1.baz"] == {
+    assert metrics["sentry.transactions.breakdowns.span_ops.react.mount"] == {
         **common,
-        "name": "sentry.transactions.breakdowns.breakdown1.baz",
-        "type": "d",
-        "unit": "",
-        "value": [1.4, 2.4],
     }

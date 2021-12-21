@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use {
     relay_common::UnixTimestamp,
     relay_general::protocol::{AsPair, Event, EventType},
+    relay_general::store::{get_breakdown_measurements, BreakdownsConfig},
     relay_metrics::{Metric, MetricUnit, MetricValue},
     std::collections::BTreeMap,
     std::fmt::Write,
@@ -52,6 +53,7 @@ fn transaction_status(transaction: &Event) -> Option<String> {
 #[cfg(feature = "processing")]
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
+    breakdowns_config: Option<&BreakdownsConfig>,
     event: &Event,
     target: &mut Vec<Metric>,
 ) -> bool {
@@ -138,21 +140,16 @@ pub fn extract_transaction_metrics(
     }
 
     // Breakdowns
-    if let Some(breakdowns) = event.breakdowns.value() {
-        for (breakdown, annotated) in breakdowns.iter() {
-            let measurements = match annotated.value() {
-                Some(measurements) => measurements,
-                None => continue,
-            };
-
-            for (name, annotated) in measurements.iter() {
+    if let Some(breakdowns_config) = breakdowns_config {
+        for (breakdown_name, measurements) in get_breakdown_measurements(event, breakdowns_config) {
+            for (measurement_name, annotated) in measurements.iter() {
                 let measurement = match annotated.value().and_then(|m| m.value.value()) {
                     Some(measurement) => *measurement,
                     None => continue,
                 };
 
                 push_metric(Metric {
-                    name: metric_name(&["breakdowns", breakdown, name]),
+                    name: metric_name(&["breakdowns", breakdown_name, measurement_name]),
                     unit: MetricUnit::None,
                     value: MetricValue::Distribution(measurement),
                     timestamp,

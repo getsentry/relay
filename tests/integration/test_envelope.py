@@ -207,7 +207,6 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     transaction_item = generate_transaction_item()
     transaction_item.update(
         {
-            "breakdowns": {"span_ops": {"lcp": {"value": 202.1}}},
             "spans": [
                 {
                     "description": "GET /api/0/organizations/?member=1",
@@ -268,7 +267,6 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     assert "breakdowns" in event, event
     assert event["breakdowns"] == {
         "span_ops": {
-            "lcp": {"value": 202.1},
             "ops.http": {"value": 2000000.0},
             "ops.resource": {"value": 100001.003},
             "total.time": {"value": 2200001.003},

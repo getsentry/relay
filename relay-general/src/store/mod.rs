@@ -22,7 +22,7 @@ mod trimming;
 
 pub use self::clock_drift::ClockDriftProcessor;
 pub use self::geo::{GeoIpError, GeoIpLookup};
-pub use normalize::breakdowns::BreakdownsConfig;
+pub use normalize::breakdowns::{get_breakdown_measurements, BreakdownsConfig};
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]

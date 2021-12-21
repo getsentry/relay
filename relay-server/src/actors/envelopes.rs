@@ -1547,6 +1547,8 @@ impl EnvelopeProcessor {
             _ => return Ok(()),
         };
 
+        let breakdowns_config = state.project_state.config.breakdowns_v2.as_ref();
+
         if let Some(event) = state.event.value() {
             let extracted_anything;
 
@@ -1555,8 +1557,12 @@ impl EnvelopeProcessor {
                 extracted_anything = &extracted_anything.to_string(),
                 {
                     // Actual logic outsourced for unit tests
-                    extracted_anything =
-                        extract_transaction_metrics(config, event, &mut state.extracted_metrics);
+                    extracted_anything = extract_transaction_metrics(
+                        config,
+                        breakdowns_config,
+                        event,
+                        &mut state.extracted_metrics,
+                    );
                 }
             );
             Ok(())
