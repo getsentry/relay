@@ -205,11 +205,7 @@ impl ProcessingError {
     }
 
     fn should_keep_metrics(&self) -> bool {
-        match *self {
-            Self::TraceSampled(_) => true,
-            Self::EventSampled(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::TraceSampled(_) | Self::EventSampled(_))
     }
 }
 

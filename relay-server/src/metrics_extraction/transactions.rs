@@ -266,6 +266,7 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(
             &TransactionMetricsConfig::default(),
+            None,
             event.value().unwrap(),
             &mut metrics,
         );
@@ -289,7 +290,7 @@ mod tests {
         .unwrap();
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
 
         assert_eq!(metrics.len(), 6);
 
@@ -363,7 +364,7 @@ mod tests {
         )
         .unwrap();
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
 
         assert_eq!(metrics.len(), 1);
 
