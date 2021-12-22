@@ -1,8 +1,8 @@
-import random
 import uuid
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from queue import Empty
+import signal
 
 import requests
 import pytest
@@ -712,3 +712,66 @@ def test_outcomes_do_not_aggregate(
     }
     # Convert to dict to ignore sort order:
     assert {x["event_id"]: x for x in outcomes} == expected_outcomes
+
+
+def test_graceful_shutdown(relay, mini_sentry):
+    # Create project config
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["dynamicSampling"] = {
+        "rules": [
+            {
+                "id": 1,
+                "sampleRate": 0.0,
+                "type": "error",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.environment",
+                    "value": "production",
+                },
+            }
+        ]
+    }
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {"shutdown_timeout": 1},
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+                "aggregator": {"flush_interval": 10,},
+            },
+        },
+    )
+
+    _send_event(relay, event_type="error")
+
+    # Give relay some time to handle event
+    time.sleep(0.1)
+
+    # Shutdown relay
+    relay.shutdown(sig=signal.SIGTERM)
+
+    # We should have outcomes almost immediately through force flush:
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
+
+    outcome = outcomes[0]
+
+    del outcome["timestamp"]
+
+    expected_outcome = {
+        "org_id": 1,
+        "project_id": 42,
+        "key_id": 123,
+        "outcome": 1,
+        "reason": "Sampled:1",
+        "category": 1,
+        "quantity": 1,
+    }
+    assert outcome == expected_outcome

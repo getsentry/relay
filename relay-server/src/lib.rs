@@ -267,10 +267,10 @@ mod utils;
 
 use relay_config::Config;
 
-use crate::actors::controller::Controller;
 use crate::actors::server::Server;
+use relay_common_actors::controller::Controller;
 
-pub use crate::actors::controller::ServerError;
+pub use crate::service::ServerError;
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///
