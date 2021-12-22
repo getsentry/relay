@@ -66,12 +66,15 @@ pub fn extract_transaction_metrics(
     }
 
     if config.extract_metrics.is_empty() {
+        relay_log::trace!("dropping all transaction metrics because of empty allow-list");
         return false;
     }
 
     let mut push_metric = move |metric: Metric| {
         if config.extract_metrics.contains(&metric.name) {
             target.push(metric);
+        } else {
+            relay_log::trace!("dropping metric {} because of allow-list", metric.name);
         }
     };
 
