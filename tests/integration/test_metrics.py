@@ -30,7 +30,7 @@ def metrics_by_name(metrics_consumer, count, timeout=None):
 
     for _ in range(count):
         metric = metrics_consumer.get_metric(timeout)
-        metrics[metric['name']] = metric
+        metrics[metric["name"]] = metric
 
     metrics_consumer.assert_empty()
     return metrics
@@ -479,7 +479,12 @@ def test_transaction_metrics(
         transactions_consumer.assert_empty()
     else:
         event, _ = transactions_consumer.get_event()
-        assert event['breakdowns'] == {'span_ops': {'ops.react.mount': {'value': 9.910106}, 'total.time': {'value': 9.910106}}}
+        assert event["breakdowns"] == {
+            "span_ops": {
+                "ops.react.mount": {"value": 9.910106},
+                "total.time": {"value": 9.910106},
+            }
+        }
 
     if not extract_metrics or extract_metrics == "corrupted":
         message = metrics_consumer.poll(timeout=None)
@@ -514,16 +519,16 @@ def test_transaction_metrics(
 
     assert metrics["sentry.transactions.breakdowns.span_ops.ops.react.mount"] == {
         **common,
-        'name': 'sentry.transactions.breakdowns.span_ops.ops.react.mount',
-        'type': 'd',
-        'unit': '',
-        'value': [9.910106, 9.910106]
+        "name": "sentry.transactions.breakdowns.span_ops.ops.react.mount",
+        "type": "d",
+        "unit": "",
+        "value": [9.910106, 9.910106],
     }
 
     assert metrics["sentry.transactions.breakdowns.span_ops.total.time"] == {
         **common,
-        'name': 'sentry.transactions.breakdowns.span_ops.total.time',
-        'type': 'd',
-        'unit': '',
-        'value': [9.910106, 9.910106]
+        "name": "sentry.transactions.breakdowns.span_ops.total.time",
+        "type": "d",
+        "unit": "",
+        "value": [9.910106, 9.910106],
     }
