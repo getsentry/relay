@@ -411,7 +411,11 @@ def test_session_metrics_processing(
     [
         (True, "transaction"),
         (True, "trace"),
-        (True, False), (False, "transaction"), (False, False), ("corrupted", "transaction")],
+        (True, False),
+        (False, "transaction"),
+        (False, False),
+        ("corrupted", "transaction"),
+    ],
     ids=[
         "extract from transaction-sampled",
         "extract from trace-sampled",

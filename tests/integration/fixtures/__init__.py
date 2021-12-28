@@ -188,8 +188,11 @@ class SentryLike(object):
         if envelope.headers is None:
             envelope.headers = {}
 
-        trace_info = {"trace_id": payload['contexts']['trace']['trace_id'], "public_key": self.get_dsn_public_key(project_id)}
-        envelope.headers['trace'] = trace_info
+        trace_info = {
+            "trace_id": payload["contexts"]["trace"]["trace_id"],
+            "public_key": self.get_dsn_public_key(project_id),
+        }
+        envelope.headers["trace"] = trace_info
 
         self.send_envelope(project_id, envelope)
 
