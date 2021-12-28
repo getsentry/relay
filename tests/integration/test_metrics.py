@@ -407,12 +407,16 @@ def test_session_metrics_processing(
 
 
 @pytest.mark.parametrize(
-    "extract_metrics,transaction_sampled",
-    [(True, True), (True, False), (False, True), (False, False), ("corrupted", True)],
+    "extract_metrics,discard_data",
+    [
+        (True, "transaction"),
+        (True, "trace"),
+        (True, False), (False, "transaction"), (False, False), ("corrupted", "transaction")],
     ids=[
-        "extract from sampled",
+        "extract from transaction-sampled",
+        "extract from trace-sampled",
         "extract from unsampled",
-        "don't extract from sampled",
+        "don't extract from transaction-sampled",
         "don't extract from unsampled",
         "corrupted config",
     ],
@@ -422,7 +426,7 @@ def test_transaction_metrics(
     relay_with_processing,
     metrics_consumer,
     extract_metrics,
-    transaction_sampled,
+    discard_data,
     transactions_consumer,
 ):
     metrics_consumer = metrics_consumer()
@@ -439,12 +443,12 @@ def test_transaction_metrics(
         "span_ops": {"type": "spanOperations", "matches": ["react.mount"]}
     }
 
-    if transaction_sampled:
+    if discard_data:
         # Make sure Relay drops the transaction
         config.setdefault("dynamicSampling", {}).setdefault("rules", []).append(
             {
                 "sampleRate": 0,
-                "type": "transaction",
+                "type": discard_data,
                 "condition": {"op": "and", "inner": []},
                 "id": 1,
             }
@@ -478,7 +482,7 @@ def test_transaction_metrics(
     }
     relay.send_transaction(42, transaction)
 
-    if transaction_sampled:
+    if discard_data:
         transactions_consumer.assert_empty()
     else:
         event, _ = transactions_consumer.get_event()

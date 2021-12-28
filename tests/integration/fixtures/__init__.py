@@ -184,6 +184,13 @@ class SentryLike(object):
         if item_headers:
             item = envelope.items[0]
             item.headers = {**item.headers, **item_headers}
+
+        if envelope.headers is None:
+            envelope.headers = {}
+
+        trace_info = {"trace_id": payload['contexts']['trace']['trace_id'], "public_key": self.get_dsn_public_key(project_id)}
+        envelope.headers['trace'] = trace_info
+
         self.send_envelope(project_id, envelope)
 
     def send_session_aggregates(self, project_id, payload):
