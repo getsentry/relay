@@ -198,6 +198,19 @@ pub fn extract_transaction_metrics(
             None => tags.clone(),
         },
     });
+
+    // User
+    if let Some(user) = event.user.value() {
+        if let Some(user_id) = user.id.as_str() {
+            push_metric(Metric {
+                name: metric_name(&["user"]),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(user_id),
+                timestamp,
+                tags: tags.clone(),
+            });
+        }
+    }
 }
 
 #[cfg(feature = "processing")]
@@ -239,6 +252,9 @@ mod tests {
             "dist": "foo ",
             "environment": "fake_environment",
             "transaction": "mytransaction",
+            "user": {
+                "id": "user123"
+            },
             "tags": {
                 "fOO": "bar",
                 "bogus": "absolutely"
@@ -279,7 +295,8 @@ mod tests {
                 "sentry.transactions.breakdowns.breakdown1.bar",
                 "sentry.transactions.breakdowns.breakdown2.baz",
                 "sentry.transactions.breakdowns.breakdown2.zap",
-                "sentry.transactions.transaction.duration"
+                "sentry.transactions.transaction.duration",
+                "sentry.transactions.user"
             ],
             "extractCustomTags": ["fOO"]
         }
@@ -290,7 +307,7 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(&config, event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 6);
+        assert_eq!(metrics.len(), 7);
 
         assert_eq!(metrics[0].name, "sentry.transactions.measurements.foo");
         assert_eq!(metrics[1].name, "sentry.transactions.measurements.lcp");
@@ -318,9 +335,13 @@ mod tests {
             panic!(); // Duration must be set
         }
 
+        let user_metric = &metrics[6];
+        assert_eq!(user_metric.name, "sentry.transactions.user");
+        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
-        for metric in metrics {
+        for metric in &metrics[0..6] {
             assert!(matches!(metric.value, MetricValue::Distribution(_)));
             assert_eq!(metric.tags["release"], "1.2.3");
             assert_eq!(metric.tags["dist"], "foo");
