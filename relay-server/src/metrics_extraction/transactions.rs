@@ -343,6 +343,9 @@ mod tests {
 
         for metric in &metrics[0..6] {
             assert!(matches!(metric.value, MetricValue::Distribution(_)));
+        }
+
+        for metric in metrics {
             assert_eq!(metric.tags["release"], "1.2.3");
             assert_eq!(metric.tags["dist"], "foo");
             assert_eq!(metric.tags["environment"], "fake_environment");
