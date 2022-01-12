@@ -203,6 +203,10 @@ impl ProcessingError {
             | Self::BodyEncodingFailed(_) => None,
         }
     }
+
+    fn should_keep_metrics(&self) -> bool {
+        matches!(self, Self::TraceSampled(_) | Self::EventSampled(_))
+    }
 }
 
 #[cfg(feature = "processing")]
@@ -1539,9 +1543,24 @@ impl EnvelopeProcessor {
             _ => return Ok(()),
         };
 
+        let breakdowns_config = state.project_state.config.breakdowns_v2.as_ref();
+
         if let Some(event) = state.event.value() {
-            // Actual logic outsourced for unit tests
-            extract_transaction_metrics(config, event, &mut state.extracted_metrics);
+            let extracted_anything;
+
+            metric!(
+                timer(RelayTimers::TransactionMetricsExtraction),
+                extracted_anything = &extracted_anything.to_string(),
+                {
+                    // Actual logic outsourced for unit tests
+                    extracted_anything = extract_transaction_metrics(
+                        config,
+                        breakdowns_config,
+                        event,
+                        &mut state.extracted_metrics,
+                    );
+                }
+            );
             Ok(())
         } else {
             Err(ProcessingError::NoEventPayload)
@@ -1673,10 +1692,7 @@ impl EnvelopeProcessor {
         }
     }
 
-    fn process_state(
-        &self,
-        mut state: ProcessEnvelopeState,
-    ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
+    fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         macro_rules! if_processing {
             ($if_true:block) => {
                 #[cfg(feature = "processing")] {
@@ -1685,51 +1701,55 @@ impl EnvelopeProcessor {
             };
         }
 
-        self.process_sessions(&mut state);
-        self.process_client_reports(&mut state);
-        self.process_user_reports(&mut state);
+        self.process_sessions(state);
+        self.process_client_reports(state);
+        self.process_user_reports(state);
 
         if state.creates_event() {
             if_processing!({
-                self.expand_unreal(&mut state)?;
+                self.expand_unreal(state)?;
             });
 
-            self.extract_event(&mut state)?;
+            self.extract_event(state)?;
 
             if_processing!({
-                self.process_unreal(&mut state)?;
-                self.create_placeholders(&mut state);
+                self.process_unreal(state)?;
+                self.create_placeholders(state);
             });
 
-            self.finalize_event(&mut state)?;
-            self.sample_event(&mut state)?;
+            self.finalize_event(state)?;
 
             if_processing!({
-                self.store_process_event(&mut state)?;
-                self.extract_transaction_metrics(&mut state)?;
-                self.filter_event(&mut state)?;
+                self.extract_transaction_metrics(state)?;
+            });
+
+            self.sample_event(state)?;
+
+            if_processing!({
+                self.store_process_event(state)?;
+                self.filter_event(state)?;
             });
         }
 
         if_processing!({
-            self.enforce_quotas(&mut state)?;
+            self.enforce_quotas(state)?;
         });
 
         if state.has_event() {
-            self.scrub_event(&mut state)?;
-            self.serialize_event(&mut state)?;
+            self.scrub_event(state)?;
+            self.serialize_event(state)?;
         }
 
-        self.scrub_attachments(&mut state);
+        self.scrub_attachments(state);
 
-        Ok(ProcessEnvelopeResponse::from(state))
+        Ok(())
     }
 
     fn process(
         &self,
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
-        let state = self.prepare_state(message)?;
+        let mut state = self.prepare_state(message)?;
 
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
@@ -1748,12 +1768,37 @@ impl EnvelopeProcessor {
             || {
                 let envelope_context = state.envelope_context;
 
-                self.process_state(state).map_err(|err| {
-                    if let Some(outcome) = err.to_outcome() {
-                        envelope_context.send_outcomes(outcome);
+                match self.process_state(&mut state) {
+                    Ok(()) => {
+                        if !state.extracted_metrics.is_empty() {
+                            let project_cache = ProjectCache::from_registry();
+                            project_cache.do_send(InsertMetrics::new(
+                                envelope_context.scoping.project_key,
+                                state.extracted_metrics,
+                            ));
+                        }
+
+                        Ok(ProcessEnvelopeResponse {
+                            envelope: Some(state.envelope).filter(|e| !e.is_empty()),
+                            rate_limits: state.rate_limits,
+                        })
                     }
-                    err
-                })
+                    Err(err) => {
+                        if let Some(outcome) = err.to_outcome() {
+                            envelope_context.send_outcomes(outcome);
+                        }
+
+                        if !state.extracted_metrics.is_empty() && err.should_keep_metrics() {
+                            let project_cache = ProjectCache::from_registry();
+                            project_cache.do_send(InsertMetrics::new(
+                                envelope_context.scoping.project_key,
+                                state.extracted_metrics,
+                            ));
+                        }
+
+                        Err(err)
+                    }
+                }
             },
         )
     }
@@ -1806,17 +1851,6 @@ struct ProcessEnvelope {
 struct ProcessEnvelopeResponse {
     envelope: Option<Envelope>,
     rate_limits: RateLimits,
-    metrics: Vec<Metric>,
-}
-
-impl From<ProcessEnvelopeState> for ProcessEnvelopeResponse {
-    fn from(state: ProcessEnvelopeState) -> Self {
-        Self {
-            envelope: Some(state.envelope).filter(|e| !e.is_empty()),
-            rate_limits: state.rate_limits,
-            metrics: state.extracted_metrics,
-        }
-    }
 }
 
 impl Message for ProcessEnvelope {
@@ -2472,12 +2506,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 // processing while the limit is active.
                 if rate_limits.is_limited() {
                     project_cache.do_send(UpdateRateLimits::new(project_key, rate_limits));
-                }
-
-                if !processed.metrics.is_empty() {
-                    // Capture extracted metrics in the project's aggregator, independent of dropped
-                    // items. This allows us to retain metrics while also sampling.
-                    project_cache.do_send(InsertMetrics::new(project_key, processed.metrics));
                 }
 
                 match processed.envelope {

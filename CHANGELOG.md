@@ -10,6 +10,7 @@
 - Update the user agent parser (uap-core Feb 2020 to Nov 2021). This allows Relay and Sentry to infer more recent browsers, operating systems, and devices in events containing a user agent header. ([#1143](https://github.com/getsentry/relay/pull/1143), [#1145](https://github.com/getsentry/relay/pull/1145))
 - Improvements to Unity OS context parsing ([#1150](https://github.com/getsentry/relay/pull/1150))
 - Flush metrics and outcome aggregators on graceful shutdown. ([#1159](https://github.com/getsentry/relay/pull/1159))
+- Extract metrics from sampled transactions. ([#1161](https://github.com/getsentry/relay/pull/1161))
 
 **Bug Fixes**:
 
