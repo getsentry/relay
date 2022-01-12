@@ -56,13 +56,11 @@ test-rust-all: setup-git
 .PHONY: test-rust-all
 
 test-python: setup-git setup-venv
-	.venv/bin/pip install -U pytest
 	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
 	.venv/bin/pytest -v py
 .PHONY: test-python
 
 test-integration: build setup-venv
-	.venv/bin/pip install -U -r requirements-test.txt
 	.venv/bin/pytest tests -n auto -v
 .PHONY: test-integration
 
@@ -86,7 +84,6 @@ style-rust:
 .PHONY: style-rust
 
 style-python: setup-venv
-	.venv/bin/pip install -U -r requirements-dev.txt
 	.venv/bin/black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: style-python
 
@@ -101,7 +98,6 @@ lint-rust: setup-git
 .PHONY: lint-rust
 
 lint-python: setup-venv
-	.venv/bin/pip install -U -r requirements-dev.txt
 	.venv/bin/flake8 py
 .PHONY: lint-python
 
@@ -116,7 +112,6 @@ format-rust:
 .PHONY: format-rust
 
 format-python: setup-venv
-	.venv/bin/pip install -U -r requirements-dev.txt
 	.venv/bin/black py tests scripts --exclude '\.eggs|sentry_relay/_lowlevel.*'
 .PHONY: format-python
 
@@ -149,7 +144,11 @@ clean-target-dir:
 
 .venv/bin/python: Makefile
 	rm -rf .venv
-	$$RELAY_PYTHON_VERSION -m venv .venv
+	@# --copies is necessary because OS X make checks the mtime of the symlink
+	@# target (/usr/local/bin/python), which is always much older than the
+	@# Makefile, and then proceeds to unconditionally rebuild the venv.
+	$$RELAY_PYTHON_VERSION -m venv --copies .venv
+	.venv/bin/pip install -U -r requirements-dev.txt
 
 .git/hooks/pre-commit:
 	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook pre-commit
