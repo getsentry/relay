@@ -232,38 +232,46 @@ impl Deref for BreakdownsConfig {
     }
 }
 
+pub fn get_breakdown_measurements<'a>(
+    event: &'a Event,
+    breakdowns_config: &'a BreakdownsConfig,
+) -> impl Iterator<Item = (&'a str, Measurements)> {
+    breakdowns_config
+        .iter()
+        .filter_map(move |(breakdown_name, breakdown_config)| {
+            // TODO: move this to deserialization in a follow-up.
+            if !Breakdowns::is_valid_breakdown_name(breakdown_name) {
+                return None;
+            }
+
+            let measurements = breakdown_config.emit_breakdowns(event)?;
+
+            if measurements.is_empty() {
+                return None;
+            }
+
+            Some((breakdown_name.as_str(), measurements))
+        })
+}
+
 pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsConfig) {
-    if breakdowns_config.is_empty() {
-        return;
-    }
+    let mut event_breakdowns = Breakdowns::default();
 
-    for (breakdown_name, breakdown_config) in breakdowns_config.iter() {
-        // TODO: move this to deserialization in a follow-up.
-        if !Breakdowns::is_valid_breakdown_name(breakdown_name) {
-            continue;
-        }
-
-        let breakdown = match breakdown_config.emit_breakdowns(event) {
-            None => continue,
-            Some(breakdown) => breakdown,
-        };
-
-        if breakdown.is_empty() {
-            continue;
-        }
-
-        let breakdowns = event
-            .breakdowns
-            .value_mut()
-            .get_or_insert_with(Breakdowns::default);
-
-        let span_ops_breakdown = breakdowns
-            .entry(breakdown_name.clone())
+    for (breakdown_name, breakdown) in get_breakdown_measurements(event, breakdowns_config) {
+        event_breakdowns
+            .entry(breakdown_name.to_owned())
             .or_insert_with(|| Annotated::new(Measurements::default()))
             .value_mut()
-            .get_or_insert_with(Measurements::default);
+            .get_or_insert_with(Measurements::default)
+            .extend(breakdown.into_inner());
+    }
 
-        span_ops_breakdown.extend(breakdown.into_inner());
+    // Do not accept SDK-defined breakdowns. This is required for idempotency in multiple layers of
+    // Relay, and also such that performance metrics extraction produces the correct data.
+    if event_breakdowns.is_empty() {
+        event.breakdowns = Annotated::empty();
+    } else {
+        event.breakdowns = Annotated::new(event_breakdowns);
     }
 }
 
@@ -278,7 +286,7 @@ mod tests {
     fn test_skip_with_empty_breakdowns_config() {
         let mut event = Event::default();
         normalize_breakdowns(&mut event, &BreakdownsConfig::default());
-        assert_eq!(event.breakdowns.value(), None);
+        assert_eq_dbg!(event.breakdowns.value(), None);
     }
 
     #[test]
@@ -301,11 +309,11 @@ mod tests {
 
         let mut event = Event {
             ty: EventType::Transaction.into(),
-            breakdowns: breakdowns.clone().into(),
+            breakdowns: breakdowns.into(),
             ..Default::default()
         };
         normalize_breakdowns(&mut event, &BreakdownsConfig::default());
-        assert_eq!(event.breakdowns.into_value().unwrap(), breakdowns);
+        assert_eq_dbg!(event.breakdowns.into_value(), None);
     }
 
     #[test]
@@ -359,22 +367,6 @@ mod tests {
         let mut event = Event {
             ty: EventType::Transaction.into(),
             spans: spans.into(),
-            breakdowns: Breakdowns({
-                let mut span_ops_breakdown = Measurements::default();
-
-                span_ops_breakdown.insert(
-                    "lcp".to_owned(),
-                    Annotated::new(Measurement {
-                        value: Annotated::new(420.69),
-                    }),
-                );
-
-                let mut breakdowns = Object::new();
-                breakdowns.insert("span_ops".to_owned(), Annotated::new(span_ops_breakdown));
-
-                breakdowns
-            })
-            .into(),
             ..Default::default()
         };
 
@@ -426,17 +418,11 @@ mod tests {
                 Annotated::new(span_ops_breakdown.clone()),
             );
 
-            span_ops_breakdown.insert(
-                "lcp".to_owned(),
-                Annotated::new(Measurement {
-                    value: Annotated::new(420.69),
-                }),
-            );
             breakdowns.insert("span_ops".to_owned(), Annotated::new(span_ops_breakdown));
 
             breakdowns
         });
 
-        assert_eq!(event.breakdowns.into_value().unwrap(), expected_breakdowns);
+        assert_eq_dbg!(event.breakdowns.into_value().unwrap(), expected_breakdowns);
     }
 }
