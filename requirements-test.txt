@@ -7,6 +7,6 @@ pytest-xdist==1.31.0
 pytest==5.3.5
 redis==3.4.1
 requests==2.23.0
-git+git://github.com/getsentry/sentry-python@e234998ae82a9cffa6fb3718801c55ba24a86bab#egg=sentry_sdk
+git+https://github.com/getsentry/sentry-python@e234998ae82a9cffa6fb3718801c55ba24a86bab#egg=sentry_sdk
 werkzeug==2.0.1
 sentry-relay==0.8.5
