@@ -198,6 +198,19 @@ pub fn extract_transaction_metrics(
         },
     });
 
+    // User
+    if let Some(user) = event.user.value() {
+        if let Some(user_id) = user.id.as_str() {
+            push_metric(Metric {
+                name: metric_name(&["user"]),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(user_id),
+                timestamp,
+                tags: tags.clone(),
+            });
+        }
+    }
+
     true
 }
 
@@ -243,6 +256,9 @@ mod tests {
             "dist": "foo ",
             "environment": "fake_environment",
             "transaction": "mytransaction",
+            "user": {
+                "id": "user123"
+            },
             "tags": {
                 "fOO": "bar",
                 "bogus": "absolutely"
@@ -260,7 +276,7 @@ mod tests {
                     "start_timestamp": 1597976393.4619668,
                     "timestamp": 1597976393.4718769,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
-                }   
+                }
             ]
         }
         "#;
@@ -295,7 +311,8 @@ mod tests {
                 "sentry.transactions.measurements.foo",
                 "sentry.transactions.measurements.lcp",
                 "sentry.transactions.breakdowns.span_ops.ops.react.mount",
-                "sentry.transactions.transaction.duration"
+                "sentry.transactions.transaction.duration",
+                "sentry.transactions.user"
             ],
             "extractCustomTags": ["fOO"]
         }
@@ -311,7 +328,7 @@ mod tests {
             &mut metrics,
         );
 
-        assert_eq!(metrics.len(), 4, "{:?}", metrics);
+        assert_eq!(metrics.len(), 5, "{:?}", metrics);
 
         assert_eq!(metrics[0].name, "sentry.transactions.measurements.foo");
         assert_eq!(metrics[1].name, "sentry.transactions.measurements.lcp");
@@ -331,10 +348,17 @@ mod tests {
             panic!(); // Duration must be set
         }
 
+        let user_metric = &metrics[4];
+        assert_eq!(user_metric.name, "sentry.transactions.user");
+        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
-        for metric in metrics {
+        for metric in &metrics[0..4] {
             assert!(matches!(metric.value, MetricValue::Distribution(_)));
+        }
+
+        for metric in metrics {
             assert_eq!(metric.tags["release"], "1.2.3");
             assert_eq!(metric.tags["dist"], "foo");
             assert_eq!(metric.tags["environment"], "fake_environment");

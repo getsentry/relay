@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+- Flush metrics and outcome aggregators on graceful shutdown. ([#1159](https://github.com/getsentry/relay/pull/1159))
+- Extract metrics from sampled transactions. ([#1161](https://github.com/getsentry/relay/pull/1161))
+
+**Internal**
+- Extract normalized dist as metric. ([#1158](https://github.com/getsentry/relay/pull/1158))
+- Extract transaction user as metric. ([#1164](https://github.com/getsentry/relay/pull/1164))
+
 ## 21.12.0
 
 **Features**:
@@ -9,9 +19,6 @@
 - Metrics extraction config, custom tags. ([#1141](https://github.com/getsentry/relay/pull/1141))
 - Update the user agent parser (uap-core Feb 2020 to Nov 2021). This allows Relay and Sentry to infer more recent browsers, operating systems, and devices in events containing a user agent header. ([#1143](https://github.com/getsentry/relay/pull/1143), [#1145](https://github.com/getsentry/relay/pull/1145))
 - Improvements to Unity OS context parsing ([#1150](https://github.com/getsentry/relay/pull/1150))
-- Flush metrics and outcome aggregators on graceful shutdown. ([#1159](https://github.com/getsentry/relay/pull/1159))
-- Extract metrics from sampled transactions. ([#1161](https://github.com/getsentry/relay/pull/1161))
-
 **Bug Fixes**:
 
 - Support Unreal Engine 5 crash reports. ([#1132](https://github.com/getsentry/relay/pull/1132))
@@ -28,7 +35,6 @@
 - Extract session metrics from aggregate sessions. ([#1140](https://github.com/getsentry/relay/pull/1140))
 - Prefix names of extracted metrics by `sentry.sessions.` or `sentry.transactions.`. ([#1147](https://github.com/getsentry/relay/pull/1147))
 - Extract transaction duration as metric. ([#1148](https://github.com/getsentry/relay/pull/1148))
-- Extract normalized dist as metric. ([#1158](https://github.com/getsentry/relay/pull/1158))
 
 ## 21.11.0
 

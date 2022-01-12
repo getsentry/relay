@@ -579,7 +579,7 @@ def test_graceful_shutdown(mini_sentry, relay):
     with pytest.raises(requests.ConnectionError):
         relay.send_metrics(project_id, metrics_payload, timestamp)
 
-    envelope = mini_sentry.captured_events.get(timeout=2)
+    envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
     metrics_item = envelope.items[0]
     assert metrics_item.type == "metric_buckets"
