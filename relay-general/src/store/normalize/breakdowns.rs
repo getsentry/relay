@@ -309,7 +309,7 @@ mod tests {
 
         let mut event = Event {
             ty: EventType::Transaction.into(),
-            breakdowns: breakdowns.clone().into(),
+            breakdowns: breakdowns.into(),
             ..Default::default()
         };
         normalize_breakdowns(&mut event, &BreakdownsConfig::default());
