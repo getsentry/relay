@@ -463,6 +463,12 @@
 <span id="463">463</span>
 <span id="464">464</span>
 <span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -734,6 +740,10 @@
     <span class="ident">TimestampDelay</span>,
     <span class="doccomment">/// The time it takes the outcome aggregator to flush aggregated outcomes.</span>
     <span class="ident">OutcomeAggregatorFlushTime</span>,
+
+    <span class="doccomment">/// Time in milliseconds spent on converting a transaction event into a metric.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">TransactionMetricsExtraction</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TimerMetric</span> <span class="kw">for</span> <span class="ident">RelayTimers</span> {
@@ -759,6 +769,8 @@
             <span class="ident">RelayTimers::UpstreamRequestsDuration</span> =&gt; <span class="string">&quot;upstream.requests.duration&quot;</span>,
             <span class="ident">RelayTimers::TimestampDelay</span> =&gt; <span class="string">&quot;requests.timestamp_delay&quot;</span>,
             <span class="ident">RelayTimers::OutcomeAggregatorFlushTime</span> =&gt; <span class="string">&quot;outcomes.aggregator.flush_time&quot;</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">RelayTimers::TransactionMetricsExtraction</span> =&gt; <span class="string">&quot;metrics.extraction.transactions&quot;</span>,
         }
     }
 }
