@@ -62,7 +62,7 @@ class Sentry(SentryLike):
         return s
 
     def add_dsn_key_to_project(
-        self, project_id, dsn_public_key=None, numeric_id=None, is_enabled=True
+        self, project_id, dsn_public_key=None, numeric_id=None
     ):
         if project_id not in self.project_configs:
             raise Exception("trying to add dsn public key to nonexisting project")
@@ -84,7 +84,6 @@ class Sentry(SentryLike):
 
         key_entry = {
             "publicKey": dsn_public_key,
-            "isEnabled": is_enabled,
             "numericId": numeric_id,
         }
         public_keys.append(key_entry)
@@ -95,7 +94,6 @@ class Sentry(SentryLike):
         if dsn_public_key is None:
             dsn_public_key = {
                 "publicKey": uuid.uuid4().hex,
-                "isEnabled": True,
                 "numericId": 123,
             }
 
