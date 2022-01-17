@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 22.1.0
 
 **Features**
 - Flush metrics and outcome aggregators on graceful shutdown. ([#1159](https://github.com/getsentry/relay/pull/1159))
