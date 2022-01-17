@@ -83,6 +83,8 @@ class Sentry(SentryLike):
         key_entry = {
             "publicKey": dsn_public_key,
             "numericId": numeric_id,
+            # For backwards compat, not required by newer relays
+            "isEnabled": True,
         }
         public_keys.append(key_entry)
 
@@ -92,6 +94,8 @@ class Sentry(SentryLike):
         if dsn_public_key is None:
             dsn_public_key = {
                 "publicKey": uuid.uuid4().hex,
+                # For backwards compat, newer relays do not need it
+                "isEnabled": True,
                 "numericId": 123,
             }
 
