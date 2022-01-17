@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics&#x2F;src&#x2F;aggregation.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>aggregation.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../relay_metrics/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics&#x2F;src&#x2F;aggregation.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>aggregation.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><script defer src="../../main.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../relay_metrics/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2054,7 +2055,7 @@
     }
 
     <span class="doccomment">/// Inserts a new value into the gauge.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">value</span>: <span class="ident">f64</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">value</span>: <span class="ident">f64</span>) {
         <span class="self">self</span>.<span class="ident">max</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">max</span>.<span class="ident">max</span>(<span class="ident">value</span>);
         <span class="self">self</span>.<span class="ident">min</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">min</span>.<span class="ident">min</span>(<span class="ident">value</span>);
         <span class="self">self</span>.<span class="ident">sum</span> <span class="op">+</span><span class="op">=</span> <span class="ident">value</span>;
@@ -2063,7 +2064,7 @@
     }
 
     <span class="doccomment">/// Merges two gauge snapshots.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">other</span>: <span class="self">Self</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">other</span>: <span class="self">Self</span>) {
         <span class="self">self</span>.<span class="ident">max</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">max</span>.<span class="ident">max</span>(<span class="ident">other</span>.<span class="ident">max</span>);
         <span class="self">self</span>.<span class="ident">min</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">min</span>.<span class="ident">min</span>(<span class="ident">other</span>.<span class="ident">min</span>);
         <span class="self">self</span>.<span class="ident">sum</span> <span class="op">+</span><span class="op">=</span> <span class="ident">other</span>.<span class="ident">sum</span>;
@@ -2167,7 +2168,7 @@
     <span class="doccomment">/// assert_eq!(dist.insert(1.0), 2);</span>
     <span class="doccomment">/// assert_eq!(dist.insert(2.0), 1);</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">value</span>: <span class="ident">f64</span>) -&gt; <span class="ident">Count</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">value</span>: <span class="ident">f64</span>) -&gt; <span class="ident">Count</span> {
         <span class="self">self</span>.<span class="ident">insert_multi</span>(<span class="ident">value</span>, <span class="number">1</span>)
     }
 
@@ -2184,7 +2185,7 @@
     <span class="doccomment">/// assert_eq!(dist.insert_multi(1.0, 2), 2);</span>
     <span class="doccomment">/// assert_eq!(dist.insert_multi(1.0, 3), 5);</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert_multi</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">value</span>: <span class="ident">f64</span>, <span class="ident">count</span>: <span class="ident">Count</span>) -&gt; <span class="ident">Count</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert_multi</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">value</span>: <span class="ident">f64</span>, <span class="ident">count</span>: <span class="ident">Count</span>) -&gt; <span class="ident">Count</span> {
         <span class="self">self</span>.<span class="ident">length</span> <span class="op">+</span><span class="op">=</span> <span class="ident">count</span>;
         <span class="kw">if</span> <span class="ident">count</span> <span class="op">==</span> <span class="number">0</span> {
             <span class="kw">return</span> <span class="number">0</span>;
@@ -2289,13 +2290,13 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">DistributionValue</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">debug_map</span>().<span class="ident">entries</span>(<span class="self">self</span>.<span class="ident">iter</span>()).<span class="ident">finish</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Extend</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DistributionValue</span> {
-    <span class="kw">fn</span> <span class="ident">extend</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">f64</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">iter</span>: <span class="ident">T</span>) {
+    <span class="kw">fn</span> <span class="ident">extend</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">f64</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">iter</span>: <span class="ident">T</span>) {
         <span class="kw">for</span> <span class="ident">value</span> <span class="kw">in</span> <span class="ident">iter</span>.<span class="ident">into_iter</span>() {
             <span class="self">self</span>.<span class="ident">insert</span>(<span class="ident">value</span>);
         }
@@ -2303,7 +2304,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Extend</span><span class="op">&lt;</span>(<span class="ident">f64</span>, <span class="ident">Count</span>)<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DistributionValue</span> {
-    <span class="kw">fn</span> <span class="ident">extend</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> (<span class="ident">f64</span>, <span class="ident">Count</span>)<span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">iter</span>: <span class="ident">T</span>) {
+    <span class="kw">fn</span> <span class="ident">extend</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> (<span class="ident">f64</span>, <span class="ident">Count</span>)<span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">iter</span>: <span class="ident">T</span>) {
         <span class="kw">for</span> (<span class="ident">value</span>, <span class="ident">count</span>) <span class="kw">in</span> <span class="ident">iter</span>.<span class="ident">into_iter</span>() {
             <span class="self">self</span>.<span class="ident">insert_multi</span>(<span class="ident">value</span>, <span class="ident">count</span>);
         }
@@ -2329,7 +2330,7 @@
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;d</span><span class="op">&gt;</span> <span class="ident">serde::de::Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;d</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DistributionVisitor</span> {
             <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">DistributionValue</span>;
 
-            <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
+            <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
                 <span class="macro">write!</span>(<span class="ident">formatter</span>, <span class="string">&quot;a list of floating point values&quot;</span>)
             }
 
@@ -2363,7 +2364,7 @@
 <span class="kw">impl</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">DistributionIter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> (<span class="ident">f64</span>, <span class="ident">Count</span>);
 
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
         <span class="kw">let</span> (<span class="ident">value</span>, <span class="ident">count</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
         <span class="prelude-val">Some</span>((<span class="ident">value</span>.<span class="number">0</span>, <span class="kw-2">*</span><span class="ident">count</span>))
     }
@@ -2376,7 +2377,7 @@
 <span class="kw">impl</span> <span class="ident">ExactSizeIterator</span> <span class="kw">for</span> <span class="ident">DistributionIter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {}
 
 <span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">DistributionIter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">debug_list</span>().<span class="ident">entries</span>(<span class="self">self</span>.<span class="ident">clone</span>()).<span class="ident">finish</span>()
     }
 }
@@ -2396,7 +2397,7 @@
 <span class="kw">impl</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">DistributionValuesIter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">f64</span>;
 
-    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining</span> <span class="op">&gt;</span> <span class="number">0</span> {
             <span class="self">self</span>.<span class="ident">remaining</span> <span class="op">-</span><span class="op">=</span> <span class="number">1</span>;
             <span class="self">self</span>.<span class="ident">total</span> <span class="op">-</span><span class="op">=</span> <span class="number">1</span>;
@@ -2420,7 +2421,7 @@
 <span class="kw">impl</span> <span class="ident">ExactSizeIterator</span> <span class="kw">for</span> <span class="ident">DistributionValuesIter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {}
 
 <span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">DistributionValuesIter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">debug_list</span>().<span class="ident">entries</span>(<span class="self">self</span>.<span class="ident">clone</span>()).<span class="ident">finish</span>()
     }
 }
@@ -2527,11 +2528,11 @@
     <span class="doccomment">/// Merges `self` into the given `bucket_value`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Aggregation is performed according to the rules documented in [`BucketValue`].</span>
-    <span class="kw">fn</span> <span class="ident">merge_into</span>(<span class="self">self</span>, <span class="ident">bucket_value</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BucketValue</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">merge_into</span>(<span class="self">self</span>, <span class="ident">bucket_value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">BucketValue</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
 }
 
 <span class="kw">impl</span> <span class="ident">MergeValue</span> <span class="kw">for</span> <span class="ident">BucketValue</span> {
-    <span class="kw">fn</span> <span class="ident">merge_into</span>(<span class="self">self</span>, <span class="ident">bucket_value</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BucketValue</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">merge_into</span>(<span class="self">self</span>, <span class="ident">bucket_value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">BucketValue</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span> {
         <span class="kw">match</span> (<span class="ident">bucket_value</span>, <span class="self">self</span>) {
             (<span class="ident">BucketValue::Counter</span>(<span class="ident">lhs</span>), <span class="ident">BucketValue::Counter</span>(<span class="ident">rhs</span>)) =&gt; <span class="kw-2">*</span><span class="ident">lhs</span> <span class="op">+</span><span class="op">=</span> <span class="ident">rhs</span>,
             (<span class="ident">BucketValue::Distribution</span>(<span class="ident">lhs</span>), <span class="ident">BucketValue::Distribution</span>(<span class="ident">rhs</span>)) =&gt; <span class="ident">lhs</span>.<span class="ident">extend</span>(<span class="kw-2">&amp;</span><span class="ident">rhs</span>),
@@ -2545,7 +2546,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">MergeValue</span> <span class="kw">for</span> <span class="ident">MetricValue</span> {
-    <span class="kw">fn</span> <span class="ident">merge_into</span>(<span class="self">self</span>, <span class="ident">bucket_value</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BucketValue</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">merge_into</span>(<span class="self">self</span>, <span class="ident">bucket_value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">BucketValue</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span> {
         <span class="kw">match</span> (<span class="ident">bucket_value</span>, <span class="self">self</span>) {
             (<span class="ident">BucketValue::Counter</span>(<span class="ident">counter</span>), <span class="ident">MetricValue::Counter</span>(<span class="ident">value</span>)) =&gt; {
                 <span class="kw-2">*</span><span class="ident">counter</span> <span class="op">+</span><span class="op">=</span> <span class="ident">value</span>;
@@ -2729,7 +2730,7 @@
         <span class="comment">// XXX: The way this hasher is used may be platform-dependent. If we want to produce the</span>
         <span class="comment">// same hash across platforms, the `deterministic_hash` crate may be useful.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hasher</span> <span class="op">=</span> <span class="ident">crc32fast::Hasher::new</span>();
-        <span class="ident">std::hash::Hash::hash</span>(<span class="self">self</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">hasher</span>);
+        <span class="ident">std::hash::Hash::hash</span>(<span class="self">self</span>, <span class="kw-2">&amp;mut</span> <span class="ident">hasher</span>);
         <span class="ident">hasher</span>.<span class="ident">finalize</span>() <span class="kw">as</span> <span class="ident">i64</span>
     }
 }
@@ -3003,7 +3004,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If no bucket exists for the given bucket key, a new bucket will be created.</span>
     <span class="kw">fn</span> <span class="ident">merge_in</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">MergeValue</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
         <span class="ident">key</span>: <span class="ident">BucketKey</span>,
         <span class="ident">value</span>: <span class="ident">T</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span> {
@@ -3016,7 +3017,7 @@
                     <span class="ident">metric_type</span> <span class="op">=</span> <span class="ident">entry</span>.<span class="ident">key</span>().<span class="ident">metric_type</span>.<span class="ident">as_str</span>(),
                     <span class="ident">metric_name</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">entry</span>.<span class="ident">key</span>().<span class="ident">metric_name</span>
                 );
-                <span class="ident">value</span>.<span class="ident">merge_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">entry</span>.<span class="ident">get_mut</span>().<span class="ident">value</span>)<span class="question-mark">?</span>;
+                <span class="ident">value</span>.<span class="ident">merge_into</span>(<span class="kw-2">&amp;mut</span> <span class="ident">entry</span>.<span class="ident">get_mut</span>().<span class="ident">value</span>)<span class="question-mark">?</span>;
             }
             <span class="ident">Entry::Vacant</span>(<span class="ident">entry</span>) =&gt; {
                 <span class="macro">relay_statsd::metric!</span>(
@@ -3042,7 +3043,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If no bucket exists for the given bucket key, a new bucket will be created.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">insert</span>(
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
         <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
         <span class="ident">metric</span>: <span class="ident">Metric</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span> {
@@ -3066,7 +3067,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If no bucket exists for the given bucket key, a new bucket will be created.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge</span>(
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
         <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
         <span class="ident">bucket</span>: <span class="ident">Bucket</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span> {
@@ -3087,7 +3088,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Buckets that do not exist yet will be created.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge_all</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
         <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
         <span class="ident">buckets</span>: <span class="ident">I</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>
@@ -3104,7 +3105,7 @@
     <span class="doccomment">/// Pop and return the buckets that are eligible for flushing out according to bucket interval.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that this function is primarily intended for tests.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pop_flush_buckets</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">force</span>: <span class="ident">bool</span>) -&gt; <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pop_flush_buckets</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">force</span>: <span class="ident">bool</span>) -&gt; <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span> {
         <span class="macro">relay_statsd::metric!</span>(<span class="ident">gauge</span>(<span class="ident">MetricGauges::Buckets</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="ident">::new</span>();
@@ -3114,7 +3115,7 @@
             <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">retain</span>(<span class="op">|</span><span class="ident">key</span>, <span class="ident">entry</span><span class="op">|</span> {
                 <span class="kw">if</span> <span class="ident">force</span> <span class="op">|</span><span class="op">|</span> <span class="ident">entry</span>.<span class="ident">elapsed</span>() {
                     <span class="comment">// Take the value and leave a placeholder behind. It&#39;ll be removed right after.</span>
-                    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">std::mem::replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">entry</span>.<span class="ident">value</span>, <span class="ident">BucketValue::Counter</span>(<span class="number">0.0</span>));
+                    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">std::mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="ident">entry</span>.<span class="ident">value</span>, <span class="ident">BucketValue::Counter</span>(<span class="number">0.0</span>));
                     <span class="kw">let</span> <span class="ident">bucket</span> <span class="op">=</span> <span class="ident">Bucket::from_parts</span>(<span class="ident">key</span>.<span class="ident">clone</span>(), <span class="ident">bucket_interval</span>, <span class="ident">value</span>);
                     <span class="ident">buckets</span>.<span class="ident">entry</span>(<span class="ident">key</span>.<span class="ident">project_key</span>).<span class="ident">or_default</span>().<span class="ident">push</span>(<span class="ident">bucket</span>);
                     <span class="bool-val">false</span>
@@ -3131,7 +3132,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the receiver returns buckets, they are merged back into the cache.</span>
     <span class="doccomment">/// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.</span>
-    <span class="kw">fn</span> <span class="ident">try_flush</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">&lt;</span><span class="self">Self</span> <span class="kw">as</span> <span class="ident">Actor</span><span class="op">&gt;</span><span class="ident">::Context</span>, <span class="ident">force</span>: <span class="ident">bool</span>) {
+    <span class="kw">fn</span> <span class="ident">try_flush</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="op">&lt;</span><span class="self">Self</span> <span class="kw">as</span> <span class="ident">Actor</span><span class="op">&gt;</span><span class="ident">::Context</span>, <span class="ident">force</span>: <span class="ident">bool</span>) {
         <span class="kw">let</span> <span class="ident">flush_buckets</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop_flush_buckets</span>(<span class="ident">force</span>);
 
         <span class="kw">if</span> <span class="ident">flush_buckets</span>.<span class="ident">is_empty</span>() {
@@ -3179,7 +3180,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="ident">std::any::type_name</span>::<span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>())
             .<span class="ident">field</span>(<span class="string">&quot;config&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>)
             .<span class="ident">field</span>(<span class="string">&quot;buckets&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">buckets</span>)
@@ -3191,7 +3192,7 @@
 <span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
     <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
+    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;aggregator started&quot;</span>);
 
         <span class="comment">// Subscribe to shutdown</span>
@@ -3203,7 +3204,7 @@
         });
     }
 
-    <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
+    <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;aggregator stopped&quot;</span>);
     }
 }
@@ -3221,7 +3222,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Shutdown</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Shutdown</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">timeout</span>.<span class="ident">is_some</span>() {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Shutting down...&quot;</span>);
             <span class="comment">// is graceful shutdown</span>
@@ -3258,7 +3259,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">InsertMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">InsertMetrics</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">InsertMetrics</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">for</span> <span class="ident">metric</span> <span class="kw">in</span> <span class="ident">msg</span>.<span class="ident">metrics</span> {
             <span class="self">self</span>.<span class="ident">insert</span>(<span class="ident">msg</span>.<span class="ident">project_key</span>, <span class="ident">metric</span>)<span class="question-mark">?</span>;
         }
@@ -3291,7 +3292,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">MergeBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">MergeBuckets</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">MergeBuckets</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="self">self</span>.<span class="ident">merge_all</span>(<span class="ident">msg</span>.<span class="ident">project_key</span>, <span class="ident">msg</span>.<span class="ident">buckets</span>)
     }
 }
@@ -3314,7 +3315,7 @@
     <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">BucketCountInquiry</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Aggregator</span> {
         <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">usize</span>;
 
-        <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="ident">BucketCountInquiry</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+        <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="ident">BucketCountInquiry</span>, <span class="kw">_</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
             <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">len</span>()
         }
     }
@@ -3349,7 +3350,7 @@
     <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">FlushBuckets</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">TestReceiver</span> {
         <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
-        <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">FlushBuckets</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+        <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">FlushBuckets</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
             <span class="kw">let</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">into_buckets</span>();
             <span class="macro">relay_log::debug!</span>(<span class="string">&quot;received buckets: {:#?}&quot;</span>, <span class="ident">buckets</span>);
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">reject_all</span> {
@@ -3588,7 +3589,7 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_bucket_value_merge_counter</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">BucketValue::Counter</span>(<span class="number">42.</span>);
-        <span class="ident">BucketValue::Counter</span>(<span class="number">43.</span>).<span class="ident">merge_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value</span>).<span class="ident">unwrap</span>();
+        <span class="ident">BucketValue::Counter</span>(<span class="number">43.</span>).<span class="ident">merge_into</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">value</span>, <span class="ident">BucketValue::Counter</span>(<span class="number">85.</span>));
     }
 
@@ -3596,7 +3597,7 @@
     <span class="kw">fn</span> <span class="ident">test_bucket_value_merge_distribution</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">BucketValue::Distribution</span>(<span class="macro">dist!</span>[<span class="number">1.</span>, <span class="number">2.</span>, <span class="number">3.</span>]);
         <span class="ident">BucketValue::Distribution</span>(<span class="macro">dist!</span>[<span class="number">2.</span>, <span class="number">4.</span>])
-            .<span class="ident">merge_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value</span>)
+            .<span class="ident">merge_into</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>)
             .<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">value</span>, <span class="ident">BucketValue::Distribution</span>(<span class="macro">dist!</span>[<span class="number">1.</span>, <span class="number">2.</span>, <span class="number">2.</span>, <span class="number">3.</span>, <span class="number">4.</span>]));
     }
@@ -3605,7 +3606,7 @@
     <span class="kw">fn</span> <span class="ident">test_bucket_value_merge_set</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">BucketValue::Set</span>(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>].<span class="ident">into_iter</span>().<span class="ident">collect</span>());
         <span class="ident">BucketValue::Set</span>(<span class="macro">vec!</span>[<span class="number">2</span>, <span class="number">3</span>].<span class="ident">into_iter</span>().<span class="ident">collect</span>())
-            .<span class="ident">merge_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value</span>)
+            .<span class="ident">merge_into</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>)
             .<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">value</span>, <span class="ident">BucketValue::Set</span>(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>].<span class="ident">into_iter</span>().<span class="ident">collect</span>()));
     }
@@ -3614,7 +3615,7 @@
     <span class="kw">fn</span> <span class="ident">test_bucket_value_merge_gauge</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">BucketValue::Gauge</span>(<span class="ident">GaugeValue::single</span>(<span class="number">42.</span>));
         <span class="ident">BucketValue::Gauge</span>(<span class="ident">GaugeValue::single</span>(<span class="number">43.</span>))
-            .<span class="ident">merge_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value</span>)
+            .<span class="ident">merge_into</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>)
             .<span class="ident">unwrap</span>();
 
         <span class="macro">assert_eq!</span>(
@@ -3632,7 +3633,7 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_bucket_value_insert_counter</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">BucketValue::Counter</span>(<span class="number">42.</span>);
-        <span class="ident">MetricValue::Counter</span>(<span class="number">43.</span>).<span class="ident">merge_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value</span>).<span class="ident">unwrap</span>();
+        <span class="ident">MetricValue::Counter</span>(<span class="number">43.</span>).<span class="ident">merge_into</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">value</span>, <span class="ident">BucketValue::Counter</span>(<span class="number">85.</span>));
     }
 
@@ -3640,7 +3641,7 @@
     <span class="kw">fn</span> <span class="ident">test_bucket_value_insert_distribution</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">BucketValue::Distribution</span>(<span class="macro">dist!</span>[<span class="number">1.</span>, <span class="number">2.</span>, <span class="number">3.</span>]);
         <span class="ident">MetricValue::Distribution</span>(<span class="number">2.0</span>)
-            .<span class="ident">merge_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value</span>)
+            .<span class="ident">merge_into</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>)
             .<span class="ident">unwrap</span>();
         <span class="comment">// TODO: This should be ordered</span>
         <span class="macro">assert_eq!</span>(<span class="ident">value</span>, <span class="ident">BucketValue::Distribution</span>(<span class="macro">dist!</span>[<span class="number">1.</span>, <span class="number">2.</span>, <span class="number">3.</span>, <span class="number">2.</span>]));
@@ -3649,16 +3650,16 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_bucket_value_insert_set</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">BucketValue::Set</span>(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>].<span class="ident">into_iter</span>().<span class="ident">collect</span>());
-        <span class="ident">MetricValue::Set</span>(<span class="number">3</span>).<span class="ident">merge_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value</span>).<span class="ident">unwrap</span>();
+        <span class="ident">MetricValue::Set</span>(<span class="number">3</span>).<span class="ident">merge_into</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">value</span>, <span class="ident">BucketValue::Set</span>(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>].<span class="ident">into_iter</span>().<span class="ident">collect</span>()));
-        <span class="ident">MetricValue::Set</span>(<span class="number">2</span>).<span class="ident">merge_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value</span>).<span class="ident">unwrap</span>();
+        <span class="ident">MetricValue::Set</span>(<span class="number">2</span>).<span class="ident">merge_into</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">value</span>, <span class="ident">BucketValue::Set</span>(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>].<span class="ident">into_iter</span>().<span class="ident">collect</span>()));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_bucket_value_insert_gauge</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">BucketValue::Gauge</span>(<span class="ident">GaugeValue::single</span>(<span class="number">42.</span>));
-        <span class="ident">MetricValue::Gauge</span>(<span class="number">43.</span>).<span class="ident">merge_into</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">value</span>).<span class="ident">unwrap</span>();
+        <span class="ident">MetricValue::Gauge</span>(<span class="number">43.</span>).<span class="ident">merge_into</span>(<span class="kw-2">&amp;mut</span> <span class="ident">value</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(
             <span class="ident">value</span>,
             <span class="ident">BucketValue::Gauge</span>(<span class="ident">GaugeValue</span> {
@@ -4018,5 +4019,4 @@
 }
 </code></pre></div>
 </section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_metrics" data-search-index-js="../../search-index.js" data-search-js="../../search.js"></div>
-    <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script>
 </body></html>

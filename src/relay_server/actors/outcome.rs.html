@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server&#x2F;src&#x2F;actors&#x2F;outcome.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>outcome.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server&#x2F;src&#x2F;actors&#x2F;outcome.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>outcome.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><script defer src="../../../main.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../relay_server/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -1301,7 +1302,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">HttpOutcomeProducer</span> {
-    <span class="kw">fn</span> <span class="ident">send_batch</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
+    <span class="kw">fn</span> <span class="ident">send_batch</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
         <span class="comment">//the future should be either canceled (if we are called with a full batch)</span>
         <span class="comment">// or already called (if we are called by a timeout)</span>
         <span class="self">self</span>.<span class="ident">pending_flush_handle</span> <span class="op">=</span> <span class="prelude-val">None</span>;
@@ -1317,7 +1318,7 @@
         }
 
         <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">SendOutcomes</span> {
-            <span class="ident">outcomes</span>: <span class="ident">mem::take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>),
+            <span class="ident">outcomes</span>: <span class="ident">mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">unsent_outcomes</span>),
         };
 
         <span class="ident">UpstreamRelay::from_registry</span>()
@@ -1330,7 +1331,7 @@
             .<span class="ident">spawn</span>(<span class="ident">context</span>);
     }
 
-    <span class="kw">fn</span> <span class="ident">send_http_message</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
+    <span class="kw">fn</span> <span class="ident">send_http_message</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Batching outcome&quot;</span>);
         <span class="self">self</span>.<span class="ident">unsent_outcomes</span>.<span class="ident">push</span>(<span class="ident">message</span>);
 
@@ -1354,7 +1355,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HttpOutcomeProducer</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="self">self</span>.<span class="ident">send_http_message</span>(<span class="ident">msg</span>, <span class="ident">ctx</span>);
         <span class="prelude-val">Ok</span>(())
     }
@@ -1374,9 +1375,9 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
+    <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>) {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Flushing client reports&quot;</span>);
-        <span class="kw">let</span> <span class="ident">unsent_reports</span> <span class="op">=</span> <span class="ident">mem::take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">unsent_reports</span>);
+        <span class="kw">let</span> <span class="ident">unsent_reports</span> <span class="op">=</span> <span class="ident">mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">unsent_reports</span>);
         <span class="kw">let</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManager::from_registry</span>();
         <span class="kw">for</span> (<span class="ident">scoping</span>, <span class="ident">client_reports</span>) <span class="kw">in</span> <span class="ident">unsent_reports</span>.<span class="ident">into_iter</span>() {
             <span class="ident">envelope_manager</span>.<span class="ident">do_send</span>(<span class="ident">SendClientReports</span> {
@@ -1390,7 +1391,7 @@
 <span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">ClientReportOutcomeProducer</span> {
     <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
+    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flush_interval</span> <span class="op">&gt;</span> <span class="ident">Duration::ZERO</span> {
             <span class="ident">ctx</span>.<span class="ident">run_interval</span>(<span class="self">self</span>.<span class="ident">flush_interval</span>, <span class="ident"><span class="self">Self</span>::flush</span>);
         }
@@ -1400,7 +1401,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ClientReportOutcomeProducer</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">TrackOutcome</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">TrackOutcome</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_report</span> <span class="op">=</span> <span class="ident">ClientReport</span> {
             <span class="ident">timestamp</span>: <span class="prelude-val">Some</span>(<span class="ident">UnixTimestamp::from_secs</span>(
                 <span class="ident">msg</span>.<span class="ident">timestamp</span>.<span class="ident">timestamp</span>().<span class="ident">try_into</span>().<span class="ident">unwrap_or</span>(<span class="number">0</span>),
@@ -1410,9 +1411,9 @@
 
         <span class="comment">// The outcome type determines what field to place the outcome in:</span>
         <span class="kw">let</span> <span class="ident">discarded_events</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">msg</span>.<span class="ident">outcome</span> {
-            <span class="ident">Outcome::Filtered</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">client_report</span>.<span class="ident">filtered_events</span>,
-            <span class="ident">Outcome::FilteredSampling</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">client_report</span>.<span class="ident">filtered_sampling_events</span>,
-            <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">client_report</span>.<span class="ident">rate_limited_events</span>,
+            <span class="ident">Outcome::Filtered</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;mut</span> <span class="ident">client_report</span>.<span class="ident">filtered_events</span>,
+            <span class="ident">Outcome::FilteredSampling</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;mut</span> <span class="ident">client_report</span>.<span class="ident">filtered_sampling_events</span>,
+            <span class="ident">Outcome::RateLimited</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;mut</span> <span class="ident">client_report</span>.<span class="ident">rate_limited_events</span>,
             <span class="kw">_</span> =&gt; {
                 <span class="comment">// Cannot convert this outcome to a client report.</span>
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
@@ -1543,7 +1544,7 @@
 <span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {
     <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
+    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
         <span class="comment">// Set the mailbox size to the size of the envelope buffer. This is a rough estimate but</span>
         <span class="comment">// should ensure that we&#39;re not dropping outcomes unintentionally.</span>
         <span class="kw">let</span> <span class="ident">mailbox_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">envelope_buffer_size</span>() <span class="kw">as</span> <span class="ident">usize</span>;
@@ -1565,7 +1566,7 @@
 
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">producer</span> {
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">kafka_producer</span>) =&gt; {
@@ -1591,7 +1592,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">TrackRawOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">producer</span> {
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">kafka_producer</span>) =&gt; {
@@ -1666,5 +1667,4 @@
 }
 </code></pre></div>
 </section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
-    <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script>
 </body></html>

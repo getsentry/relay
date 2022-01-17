@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server&#x2F;src&#x2F;envelope.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelope.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../relay_server/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server&#x2F;src&#x2F;envelope.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelope.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><script defer src="../../main.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../relay_server/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1575,7 +1576,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">ItemType</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident"><span class="self">Self</span>::Event</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;event&quot;</span>),
             <span class="ident"><span class="self">Self</span>::Transaction</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;transaction&quot;</span>),
@@ -1902,7 +1903,7 @@
     }
 
     <span class="doccomment">/// Sets the attachment type of this item.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_attachment_type</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">attachment_type</span>: <span class="ident">AttachmentType</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_attachment_type</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">attachment_type</span>: <span class="ident">AttachmentType</span>) {
         <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">attachment_type</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">attachment_type</span>);
     }
 
@@ -1915,7 +1916,7 @@
     }
 
     <span class="doccomment">/// Sets the payload and content-type of this envelope.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_payload</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">content_type</span>: <span class="ident">ContentType</span>, <span class="ident">payload</span>: <span class="ident">B</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_payload</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">content_type</span>: <span class="ident">ContentType</span>, <span class="ident">payload</span>: <span class="ident">B</span>)
     <span class="kw">where</span>
         <span class="ident">B</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Bytes</span><span class="op">&gt;</span>,
     {
@@ -1936,7 +1937,7 @@
     }
 
     <span class="doccomment">/// Sets the file name of this item.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_filename</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">filename</span>: <span class="ident">S</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_filename</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">filename</span>: <span class="ident">S</span>)
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     {
@@ -1949,17 +1950,17 @@
     }
 
     <span class="doccomment">/// Sets whether this item should be rate limited.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_rate_limited</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rate_limited</span>: <span class="ident">bool</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_rate_limited</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">rate_limited</span>: <span class="ident">bool</span>) {
         <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">rate_limited</span> <span class="op">=</span> <span class="ident">rate_limited</span>;
     }
 
     <span class="doccomment">/// Removes sample rates from the headers, if any.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_sample_rates</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_sample_rates</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">sample_rates</span>.<span class="ident">take</span>()
     }
 
     <span class="doccomment">/// Sets sample rates for this item.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_sample_rates</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">sample_rates</span>: <span class="ident">Value</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_sample_rates</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">sample_rates</span>: <span class="ident">Value</span>) {
         <span class="kw">if</span> <span class="macro">matches!</span>(<span class="ident">sample_rates</span>, <span class="ident">Value::Array</span>(<span class="kw-2">ref</span> <span class="ident">a</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">a</span>.<span class="ident">is_empty</span>()) {
             <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">sample_rates</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">sample_rates</span>);
         }
@@ -1976,7 +1977,7 @@
     }
 
     <span class="doccomment">/// Sets the metrics extracted flag.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_metrics_extracted</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">metrics_extracted</span>: <span class="ident">bool</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_metrics_extracted</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">metrics_extracted</span>: <span class="ident">bool</span>) {
         <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">metrics_extracted</span> <span class="op">=</span> <span class="ident">metrics_extracted</span>;
     }
 
@@ -1990,7 +1991,7 @@
     }
 
     <span class="doccomment">/// Sets the specified header value, returning the previous one if present.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_header</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">V</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="ident">S</span>, <span class="ident">value</span>: <span class="ident">V</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_header</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">V</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="ident">S</span>, <span class="ident">value</span>: <span class="ident">V</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
         <span class="ident">V</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
@@ -2218,8 +2219,8 @@
     }
 
     <span class="doccomment">/// Returns a mutable reference to event metadata information.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">meta_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RequestMeta</span> {
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">meta</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">meta_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident">RequestMeta</span> {
+        <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">meta</span>
     }
 
     <span class="doccomment">/// Returns the data retention in days for items in this envelope.</span>
@@ -2234,12 +2235,12 @@
     }
 
     <span class="doccomment">/// Sets the timestamp at which an envelope is sent to the upstream.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_sent_at</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">sent_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_sent_at</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">sent_at</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>) {
         <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">sent_at</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">sent_at</span>);
     }
 
     <span class="doccomment">/// Sets the data retention in days for items in this envelope.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_retention</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">retention</span>: <span class="ident">u16</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_retention</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">retention</span>: <span class="ident">u16</span>) {
         <span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">retention</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">retention</span>);
     }
 
@@ -2254,7 +2255,7 @@
     }
 
     <span class="doccomment">/// Sets the specified header value, returning the previous one if present.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_header</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">V</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="ident">S</span>, <span class="ident">value</span>: <span class="ident">V</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_header</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">V</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="ident">S</span>, <span class="ident">value</span>: <span class="ident">V</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">S</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
         <span class="ident">V</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
@@ -2272,7 +2273,7 @@
     <span class="doccomment">/// Returns a mutable iterator over items in this envelope.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that iteration order may change when using `take_item`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">items_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">ItemIterMut</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">items_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">ItemIterMut</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">items</span>.<span class="ident">iter_mut</span>()
     }
 
@@ -2287,7 +2288,7 @@
 
     <span class="doccomment">/// Returns the an option with a mutable reference to the first item that matches</span>
     <span class="doccomment">/// the predicate, or None if the predicate is not matched by any item.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_item_by_mut</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">pred</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Item</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_item_by_mut</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">pred</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;mut</span> <span class="ident">Item</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">Item</span>) -&gt; <span class="ident">bool</span>,
     {
@@ -2295,7 +2296,7 @@
     }
 
     <span class="doccomment">/// Removes and returns the first item that matches the given condition.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_item_by</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">cond</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take_item_by</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">cond</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">Item</span>) -&gt; <span class="ident">bool</span>,
     {
@@ -2304,7 +2305,7 @@
     }
 
     <span class="doccomment">/// Adds a new item to this envelope.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_item</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">item</span>: <span class="ident">Item</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_item</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">item</span>: <span class="ident">Item</span>) {
         <span class="self">self</span>.<span class="ident">items</span>.<span class="ident">push</span>(<span class="ident">item</span>)
     }
 
@@ -2315,7 +2316,7 @@
     <span class="doccomment">/// with all items that return `true`. Items that return `false` remain in this envelope.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The returned envelope assumes the same headers.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">split_by</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">split_by</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">Item</span>) -&gt; <span class="ident">bool</span>,
     {
@@ -2324,7 +2325,7 @@
             <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
 
-        <span class="kw">let</span> <span class="ident">old_items</span> <span class="op">=</span> <span class="ident">std::mem::take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">items</span>);
+        <span class="kw">let</span> <span class="ident">old_items</span> <span class="op">=</span> <span class="ident">std::mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">items</span>);
         <span class="kw">let</span> (<span class="ident">split_items</span>, <span class="ident">own_items</span>) <span class="op">=</span> <span class="ident">old_items</span>.<span class="ident">into_iter</span>().<span class="ident">partition</span>(<span class="ident">f</span>);
         <span class="self">self</span>.<span class="ident">items</span> <span class="op">=</span> <span class="ident">own_items</span>;
 
@@ -2346,9 +2347,9 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// In other words, remove all elements where `f(&amp;item)` returns `false`. This method operates</span>
     <span class="doccomment">/// in place and preserves the order of the retained items.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">retain_items</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">f</span>: <span class="ident">F</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">retain_items</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">f</span>: <span class="ident">F</span>)
     <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Item</span>) -&gt; <span class="ident">bool</span>,
+        <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;mut</span> <span class="ident">Item</span>) -&gt; <span class="ident">bool</span>,
     {
         <span class="self">self</span>.<span class="ident">items</span>.<span class="ident">retain</span>(<span class="ident">f</span>)
     }
@@ -2358,16 +2359,16 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">Write</span>,
     {
-        <span class="ident">serde_json::to_writer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">headers</span>).<span class="ident">map_err</span>(<span class="ident">EnvelopeError::HeaderIoFailed</span>)<span class="question-mark">?</span>;
-        <span class="self">self</span>.<span class="ident">write</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>, <span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
+        <span class="ident">serde_json::to_writer</span>(<span class="kw-2">&amp;mut</span> <span class="ident">writer</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">headers</span>).<span class="ident">map_err</span>(<span class="ident">EnvelopeError::HeaderIoFailed</span>)<span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">write</span>(<span class="kw-2">&amp;mut</span> <span class="ident">writer</span>, <span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
 
         <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">items</span> {
-            <span class="ident">serde_json::to_writer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>, <span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">headers</span>)
+            <span class="ident">serde_json::to_writer</span>(<span class="kw-2">&amp;mut</span> <span class="ident">writer</span>, <span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">headers</span>)
                 .<span class="ident">map_err</span>(<span class="ident">EnvelopeError::HeaderIoFailed</span>)<span class="question-mark">?</span>;
-            <span class="self">self</span>.<span class="ident">write</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>, <span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">write</span>(<span class="kw-2">&amp;mut</span> <span class="ident">writer</span>, <span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
 
-            <span class="self">self</span>.<span class="ident">write</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>, <span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>)<span class="question-mark">?</span>;
-            <span class="self">self</span>.<span class="ident">write</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">writer</span>, <span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">write</span>(<span class="kw-2">&amp;mut</span> <span class="ident">writer</span>, <span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">write</span>(<span class="kw-2">&amp;mut</span> <span class="ident">writer</span>, <span class="string">b&quot;\n&quot;</span>)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -2376,7 +2377,7 @@
     <span class="doccomment">/// Serializes this envelope into a buffer.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_vec</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">EnvelopeError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vec</span> <span class="op">=</span> <span class="ident">Vec::new</span>(); <span class="comment">// TODO: Preallocate?</span>
-        <span class="self">self</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vec</span>)<span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;mut</span> <span class="ident">vec</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">vec</span>)
     }
 
@@ -2830,7 +2831,7 @@
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">Envelope::from_request</span>(<span class="prelude-val">Some</span>(<span class="ident">event_id</span>), <span class="ident">request_meta</span>());
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
-        <span class="ident">envelope</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>).<span class="ident">unwrap</span>();
+        <span class="ident">envelope</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;mut</span> <span class="ident">buffer</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">stringified</span> <span class="op">=</span> <span class="ident">String::from_utf8_lossy</span>(<span class="kw-2">&amp;</span><span class="ident">buffer</span>);
         <span class="macro">insta::assert_snapshot!</span>(<span class="ident">stringified</span>, @<span class="string">r###&quot;{&quot;event_id&quot;:&quot;9ec79c33ec9942ab8353589fcb2e04dc&quot;,&quot;dsn&quot;:&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;,&quot;client&quot;:&quot;sentry/client&quot;,&quot;version&quot;:7,&quot;origin&quot;:&quot;http://origin/&quot;,&quot;remote_addr&quot;:&quot;192.168.0.1&quot;,&quot;user_agent&quot;:&quot;sentry/agent&quot;}
@@ -2855,7 +2856,7 @@
         <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item</span>);
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
-        <span class="ident">envelope</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>).<span class="ident">unwrap</span>();
+        <span class="ident">envelope</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;mut</span> <span class="ident">buffer</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">stringified</span> <span class="op">=</span> <span class="ident">String::from_utf8_lossy</span>(<span class="kw-2">&amp;</span><span class="ident">buffer</span>);
         <span class="macro">insta::assert_snapshot!</span>(<span class="ident">stringified</span>, @<span class="string">r###&quot;
@@ -2914,5 +2915,4 @@
 }
 </code></pre></div>
 </section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_server" data-search-index-js="../../search-index.js" data-search-js="../../search.js"></div>
-    <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script>
 </body></html>

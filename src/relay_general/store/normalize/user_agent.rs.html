@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general&#x2F;src&#x2F;store&#x2F;normalize&#x2F;user_agent.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>user_agent.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../../storage.js"></script><script src="../../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../../relay_general/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-general&#x2F;src&#x2F;store&#x2F;normalize&#x2F;user_agent.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>user_agent.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled ><script id="default-settings" ></script><script src="../../../../storage.js"></script><script src="../../../../crates.js"></script><script defer src="../../../../main.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../../relay_general/index.html'><div class='logo-container rust-logo'><img src='https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../../../../wheel.svg"></a></div></form></nav><section id="main" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -343,7 +344,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Annotated</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::user_agent</span>::{<span class="ident">get_user_agent</span>, <span class="ident">parse_device</span>, <span class="ident">parse_os</span>, <span class="ident">parse_user_agent</span>};
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_user_agent</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Event</span>) {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">normalize_user_agent</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>) {
     <span class="kw">let</span> <span class="ident">user_agent</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">get_user_agent</span>(<span class="ident">event</span>) {
         <span class="prelude-val">Some</span>(<span class="ident">ua</span>) =&gt; <span class="ident">ua</span>,
         <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
@@ -476,14 +477,14 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_skip_no_user_agent</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event::default</span>();
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>);
+        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
         <span class="macro">assert_eq!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_skip_unrecognizable_user_agent</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="string">&quot;a dont no&quot;</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>);
+        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
         <span class="macro">assert_eq!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
     }
 
@@ -492,7 +493,7 @@
         <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="string">&quot;Mozilla/5.0 (-; -; -) - Chrome/18.0.1025.133 Mobile Safari/535.19&quot;</span>;
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">ua</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>);
+        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
         <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
         {
           &quot;browser&quot;: {
@@ -509,7 +510,7 @@
         <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="string">&quot;Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) - -&quot;</span>;
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">ua</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>);
+        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
         <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
         {
           &quot;client_os&quot;: {
@@ -525,7 +526,7 @@
     <span class="kw">fn</span> <span class="ident">test_os_context_short_version</span>() {
         <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="string">&quot;Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) - (-)&quot;</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">ua</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>);
+        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
         <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
         {
           &quot;browser&quot;: {
@@ -551,7 +552,7 @@
     <span class="kw">fn</span> <span class="ident">test_os_context_full_version</span>() {
         <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="string">&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) - (-)&quot;</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">ua</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>);
+        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
         <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
         {
           &quot;client_os&quot;: {
@@ -574,7 +575,7 @@
         <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="string">&quot;- (-; -; Galaxy Nexus Build/IMM76B) - (-) &quot;</span>;
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">ua</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>);
+        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
         <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
         {
           &quot;device&quot;: {
@@ -590,7 +591,7 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_all_contexts</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">testutils::get_event_with_user_agent</span>(<span class="ident">GOOD_UA</span>);
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>);
+        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
         <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
         {
           &quot;browser&quot;: {
@@ -636,7 +637,7 @@
 
         <span class="ident">event</span>.<span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">contexts</span>);
 
-        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">event</span>);
+        <span class="ident">normalize_user_agent</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
         <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>.<span class="ident">contexts</span>, @<span class="string">r###&quot;
         {
           &quot;browser&quot;: {
@@ -666,5 +667,4 @@
 }
 </code></pre></div>
 </section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-search-index-js="../../../../search-index.js" data-search-js="../../../../search.js"></div>
-    <script src="../../../../main.js"></script><script src="../../../../source-script.js"></script><script src="../../../../source-files.js"></script>
 </body></html>
