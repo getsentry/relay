@@ -61,9 +61,7 @@ class Sentry(SentryLike):
             s += "> %s: %s\n" % (route, error)
         return s
 
-    def add_dsn_key_to_project(
-        self, project_id, dsn_public_key=None, numeric_id=None
-    ):
+    def add_dsn_key_to_project(self, project_id, dsn_public_key=None, numeric_id=None):
         if project_id not in self.project_configs:
             raise Exception("trying to add dsn public key to nonexisting project")
 
