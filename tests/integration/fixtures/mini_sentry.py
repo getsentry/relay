@@ -61,9 +61,7 @@ class Sentry(SentryLike):
             s += "> %s: %s\n" % (route, error)
         return s
 
-    def add_dsn_key_to_project(
-        self, project_id, dsn_public_key=None, numeric_id=None, is_enabled=True
-    ):
+    def add_dsn_key_to_project(self, project_id, dsn_public_key=None, numeric_id=None):
         if project_id not in self.project_configs:
             raise Exception("trying to add dsn public key to nonexisting project")
 
@@ -84,8 +82,9 @@ class Sentry(SentryLike):
 
         key_entry = {
             "publicKey": dsn_public_key,
-            "isEnabled": is_enabled,
             "numericId": numeric_id,
+            # For backwards compat, not required by newer relays
+            "isEnabled": True,
         }
         public_keys.append(key_entry)
 
@@ -95,6 +94,7 @@ class Sentry(SentryLike):
         if dsn_public_key is None:
             dsn_public_key = {
                 "publicKey": uuid.uuid4().hex,
+                # For backwards compat, newer relays do not need it
                 "isEnabled": True,
                 "numericId": 123,
             }
