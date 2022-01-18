@@ -23,6 +23,7 @@ use serde_json::Value as SerdeValue;
 use relay_auth::RelayVersion;
 use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding, RelayMode};
+use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -64,7 +65,6 @@ use {
     crate::service::ServerErrorKind,
     crate::utils::{EnvelopeLimiter, ErrorBoundary},
     failure::ResultExt,
-    relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic::unreal::{Unreal4Error, Unreal4ErrorKind},
