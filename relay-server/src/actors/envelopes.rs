@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp::max;
 use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -33,12 +34,12 @@ use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
-use relay_quotas::{DataCategory, RateLimits, Scoping};
+use relay_quotas::{DataCategory, RateLimits, ReasonCode, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
 use relay_statsd::metric;
 
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeType, TrackOutcome};
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{
@@ -409,6 +410,45 @@ impl ProcessEnvelopeState {
     #[cfg(feature = "processing")]
     fn remove_event(&mut self) {
         self.event = Annotated::empty();
+    }
+}
+
+/// Fields of client reports that map to specific [`Outcome`]s without content.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum ClientReportField {
+    /// The event has been filtered by an inbound data filter.
+    Filtered,
+
+    /// The event has been filtered by a sampling rule.
+    FilteredSampling,
+
+    /// The event has been rate limited.
+    RateLimited,
+
+    /// The event has already been discarded on the client side.
+    ClientDiscard,
+}
+
+/// Parse an outcome from an outcome ID and a reason string.
+///
+/// Currently only used to reconstruct outcomes encoded in client reports.
+fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
+    match field {
+        ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
+            Some(rule_id) => rule_id
+                .parse()
+                .map(|id| Outcome::FilteredSampling(RuleId(id)))
+                .map_err(|_| ()),
+            None => Err(()),
+        },
+        ClientReportField::ClientDiscard => Ok(Outcome::ClientDiscard(reason.into())),
+        ClientReportField::Filtered => Ok(Outcome::Filtered(
+            FilterStatKey::try_from(reason).map_err(|_| ())?,
+        )),
+        ClientReportField::RateLimited => Ok(Outcome::RateLimited(match reason {
+            "" => None,
+            other => Some(ReasonCode::new(other)),
+        })),
     }
 }
 
@@ -803,21 +843,20 @@ impl EnvelopeProcessor {
                     filtered_sampling_events,
                 }) => {
                     // Glue all discarded events together and give them the appropriate outcome type
-                    let input_events =
-                        discarded_events
-                            .into_iter()
-                            .map(|discarded_event| (OutcomeType::ClientDiscard, discarded_event))
-                            .chain(
-                                filtered_events.into_iter().map(|discarded_event| {
-                                    (OutcomeType::Filtered, discarded_event)
-                                }),
-                            )
-                            .chain(filtered_sampling_events.into_iter().map(|discarded_event| {
-                                (OutcomeType::FilteredSampling, discarded_event)
-                            }))
-                            .chain(rate_limited_events.into_iter().map(|discarded_event| {
-                                (OutcomeType::RateLimited, discarded_event)
-                            }));
+                    let input_events = discarded_events
+                        .into_iter()
+                        .map(|discarded_event| (ClientReportField::ClientDiscard, discarded_event))
+                        .chain(
+                            filtered_events.into_iter().map(|discarded_event| {
+                                (ClientReportField::Filtered, discarded_event)
+                            }),
+                        )
+                        .chain(filtered_sampling_events.into_iter().map(|discarded_event| {
+                            (ClientReportField::FilteredSampling, discarded_event)
+                        }))
+                        .chain(rate_limited_events.into_iter().map(|discarded_event| {
+                            (ClientReportField::RateLimited, discarded_event)
+                        }));
 
                     for (outcome_type, discarded_event) in input_events {
                         if discarded_event.reason.len() > 200 {
@@ -873,7 +912,7 @@ impl EnvelopeProcessor {
 
         let producer = OutcomeAggregator::from_registry();
         for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
-            let outcome = match Outcome::from_outcome_type(outcome_type, &reason) {
+            let outcome = match outcome_from_parts(outcome_type, &reason) {
                 Ok(outcome) => outcome,
                 Err(_) => {
                     relay_log::trace!(
@@ -3153,5 +3192,57 @@ mod tests {
             ..Default::default()
         });
         assert!(!has_unprintable_fields(&event));
+    }
+
+    #[test]
+    fn test_from_outcome_type_sampled() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "adsf"),
+            Err(_)
+        ));
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
+            Err(_)
+        ));
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:foo"),
+            Err(_)
+        ));
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(RuleId(123)))
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_filtered() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "error-message"),
+            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
+        ));
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "adsf"),
+            Err(_)
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_client_discard() {
+        assert_eq!(
+            outcome_from_parts(ClientReportField::ClientDiscard, "foo_reason").unwrap(),
+            Outcome::ClientDiscard("foo_reason".into())
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_rate_limited() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::RateLimited, ""),
+            Ok(Outcome::RateLimited(None))
+        ));
+        assert_eq!(
+            outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
+            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
+        );
     }
 }

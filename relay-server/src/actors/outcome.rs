@@ -6,7 +6,7 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -126,21 +126,6 @@ impl Message for TrackOutcome {
     type Result = Result<(), OutcomeError>;
 }
 
-/// A simpler version of the [`Outcome`] enum without content.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum OutcomeType {
-    Filtered,
-
-    /// The event has been filtered by a Sampling Rule
-    FilteredSampling,
-
-    /// The event has been rate limited.
-    RateLimited,
-
-    /// The event has already been discarded on the client side.
-    ClientDiscard,
-}
-
 /// Defines the possible outcomes from processing an event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
@@ -172,29 +157,6 @@ pub enum Outcome {
 }
 
 impl Outcome {
-    /// Parse an outcome from an outcome ID and a reason string.
-    /// Currently only used to reconstruct outcomes encoded in client reports.
-    pub fn from_outcome_type(outcome_type: OutcomeType, reason: &str) -> Result<Self, ()> {
-        match outcome_type {
-            OutcomeType::FilteredSampling => {
-                if let Some(rule_id) = reason.strip_prefix("Sampled:") {
-                    let rule_id = RuleId(rule_id.parse().map_err(|_| ())?);
-                    Ok(Self::FilteredSampling(rule_id))
-                } else {
-                    Err(())
-                }
-            }
-            OutcomeType::ClientDiscard => Ok(Self::ClientDiscard(reason.into())),
-            OutcomeType::Filtered => Ok(Self::Filtered(
-                FilterStatKey::try_from(reason).map_err(|_| ())?,
-            )),
-            OutcomeType::RateLimited => Ok(Self::RateLimited(match reason {
-                "" => None,
-                other => Some(ReasonCode::new(other)),
-            })),
-        }
-    }
-
     /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
     fn to_outcome_id(&self) -> u8 {
         match self {
@@ -844,61 +806,5 @@ impl Handler<TrackRawOutcome> for OutcomeProducer {
             ProducerInner::AsClientReports(_) => Ok(()),
             ProducerInner::Disabled => Ok(()),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_from_outcome_type_sampled() {
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "adsf"),
-            Err(_)
-        ));
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:"),
-            Err(_)
-        ));
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:foo"),
-            Err(_)
-        ));
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:123"),
-            Ok(Outcome::FilteredSampling(RuleId(123)))
-        ));
-    }
-
-    #[test]
-    fn test_from_outcome_type_filtered() {
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::Filtered, "error-message"),
-            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
-        ));
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::Filtered, "adsf"),
-            Err(_)
-        ));
-    }
-
-    #[test]
-    fn test_from_outcome_type_client_discard() {
-        assert_eq!(
-            Outcome::from_outcome_type(OutcomeType::ClientDiscard, "foo_reason").unwrap(),
-            Outcome::ClientDiscard("foo_reason".into())
-        );
-    }
-
-    #[test]
-    fn test_from_outcome_type_rate_limited() {
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::RateLimited, ""),
-            Ok(Outcome::RateLimited(None))
-        ));
-        assert_eq!(
-            Outcome::from_outcome_type(OutcomeType::RateLimited, "foo_reason").unwrap(),
-            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
-        );
     }
 }
