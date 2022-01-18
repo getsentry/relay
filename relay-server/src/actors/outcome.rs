@@ -144,13 +144,12 @@ pub enum OutcomeType {
 /// Defines the possible outcomes from processing an event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
-    /// The event has been accepted and handled completely.
-    ///
-    /// This is never emitted by Relay as the event may be discarded by the processing pipeline
-    /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
-    #[allow(dead_code)]
-    Accepted,
-
+    // /// The event has been accepted and handled completely.
+    // ///
+    // /// This is never emitted by Relay as the event may be discarded by the processing pipeline
+    // /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
+    // #[allow(dead_code)]
+    // Accepted,
     /// The event has been filtered due to a configured filter.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     Filtered(FilterStatKey),
@@ -199,7 +198,6 @@ impl Outcome {
     /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
     fn to_outcome_id(&self) -> u8 {
         match self {
-            Outcome::Accepted => 0,
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => 1,
             Outcome::RateLimited(_) => 2,
             Outcome::Invalid(_) => 3,
@@ -211,7 +209,6 @@ impl Outcome {
     /// Returns the `reason` code field of this outcome.
     fn to_reason(&self) -> Option<Cow<str>> {
         match self {
-            Outcome::Accepted => None,
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
             Outcome::FilteredSampling(rule_id) => Some(Cow::Owned(format!("Sampled:{}", rule_id))),
@@ -622,6 +619,15 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     }
 }
 
+/// A wrapper around producers for the two Kafka topics.
+///
+/// Internally, this type creates at least one Kafka producer for the cluster of the `outcomes`
+/// topic assignment. If the `outcomes-billing` topic specifies a different cluster, it creates a
+/// second producer.
+///
+/// Use `KafkaOutcomesProducer::billing` for outcomes that are critical to billing (see
+/// `is_billing`), otherwise use `KafkaOutcomesProducer::default`. This will return the correct
+/// producer instance internally.
 #[cfg(feature = "processing")]
 struct KafkaOutcomesProducer {
     default: ThreadedProducer,
@@ -630,6 +636,10 @@ struct KafkaOutcomesProducer {
 
 #[cfg(feature = "processing")]
 impl KafkaOutcomesProducer {
+    /// Creates and connects the Kafka producers.
+    ///
+    /// If the given Kafka configuration parameters are invalid, or an error happens during
+    /// connecting during the broker, an error is returned.
     pub fn create(config: &Config) -> Result<Self, ServerError> {
         let (default_name, default_config) = config
             .kafka_config(KafkaTopic::Outcomes)
@@ -662,10 +672,15 @@ impl KafkaOutcomesProducer {
         Ok(threaded_producer)
     }
 
+    /// Returns the producer for default outcomes.
     pub fn default(&self) -> &ThreadedProducer {
         &self.default
     }
 
+    /// Returns the producer for billing outcomes.
+    ///
+    /// Note that this may return the same producer instance as [`default`](Self::default) depending
+    /// on the configuration.
     pub fn billing(&self) -> &ThreadedProducer {
         self.billing.as_ref().unwrap_or(&self.default)
     }
