@@ -74,18 +74,32 @@ pub struct SendOutcomesResponse {
     // nothing yet, future features will go here
 }
 
+/// The numerical identifier of the outcome category (Accepted, Filtered, ...)
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq)]
+pub struct OutcomeId(u8);
+
+impl OutcomeId {
+    // This is not an enum because we still want to forward unknown outcome IDs transparently
+    const ACCEPTED: OutcomeId = OutcomeId(0);
+    const FILTERED: OutcomeId = OutcomeId(1);
+    const RATE_LIMITED: OutcomeId = OutcomeId(2);
+    const INVALID: OutcomeId = OutcomeId(3);
+    const ABUSE: OutcomeId = OutcomeId(4);
+    const CLIENT_DISCARD: OutcomeId = OutcomeId(5);
+}
+
 trait TrackOutcomeLike: Message {
     fn reason(&self) -> Option<Cow<str>>;
-    fn outcome_id(&self) -> u8;
+    fn outcome_id(&self) -> OutcomeId;
 
     fn tag_name(&self) -> &'static str {
         match self.outcome_id() {
-            0 => "accepted",
-            1 => "filtered",
-            2 => "rate_limited",
-            3 => "invalid",
-            4 => "abuse",
-            5 => "client_discard",
+            OutcomeId::ACCEPTED => "accepted",
+            OutcomeId::FILTERED => "filtered",
+            OutcomeId::RATE_LIMITED => "rate_limited",
+            OutcomeId::INVALID => "invalid",
+            OutcomeId::ABUSE => "abuse",
+            OutcomeId::CLIENT_DISCARD => "client_discard",
             _ => "<unknown>",
         }
     }
@@ -117,7 +131,7 @@ impl TrackOutcomeLike for TrackOutcome {
         self.outcome.to_reason()
     }
 
-    fn outcome_id(&self) -> u8 {
+    fn outcome_id(&self) -> OutcomeId {
         self.outcome.to_outcome_id()
     }
 }
@@ -158,13 +172,13 @@ pub enum Outcome {
 
 impl Outcome {
     /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
-    fn to_outcome_id(&self) -> u8 {
+    fn to_outcome_id(&self) -> OutcomeId {
         match self {
-            Outcome::Filtered(_) | Outcome::FilteredSampling(_) => 1,
-            Outcome::RateLimited(_) => 2,
-            Outcome::Invalid(_) => 3,
-            Outcome::Abuse => 4,
-            Outcome::ClientDiscard(_) => 5,
+            Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
+            Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
+            Outcome::Invalid(_) => OutcomeId::INVALID,
+            Outcome::Abuse => OutcomeId::ABUSE,
+            Outcome::ClientDiscard(_) => OutcomeId::CLIENT_DISCARD,
         }
     }
 
@@ -340,7 +354,7 @@ pub struct TrackRawOutcome {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     key_id: Option<u64>,
     /// The outcome.
-    outcome: u8,
+    outcome: OutcomeId,
     /// Reason for the outcome.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     reason: Option<String>,
@@ -395,7 +409,7 @@ impl TrackRawOutcome {
 
     #[cfg(feature = "processing")]
     fn is_billing(&self) -> bool {
-        matches!(self.outcome, 0 | 2)
+        matches!(self.outcome, OutcomeId::ACCEPTED | OutcomeId::RATE_LIMITED)
     }
 }
 
@@ -404,7 +418,7 @@ impl TrackOutcomeLike for TrackRawOutcome {
         self.reason.as_ref().map(|s| s.into())
     }
 
-    fn outcome_id(&self) -> u8 {
+    fn outcome_id(&self) -> OutcomeId {
         self.outcome
     }
 }
