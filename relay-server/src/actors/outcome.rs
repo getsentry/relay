@@ -4,6 +4,14 @@
 //! must be emitted in the entire ingestion pipeline. Since Relay is only one part in this pipeline,
 //! outcomes may not be emitted if the event is accepted.
 
+use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::convert::{TryFrom, TryInto};
+use std::mem;
+use std::net::IpAddr;
+use std::sync::Arc;
+use std::time::Duration;
+
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -15,18 +23,11 @@ use rdkafka::producer::BaseRecord;
 #[cfg(feature = "processing")]
 use rdkafka::ClientConfig as KafkaClientConfig;
 use serde::{Deserialize, Serialize};
-use std::borrow::{Borrow, Cow};
-use std::collections::BTreeMap;
-use std::convert::{TryFrom, TryInto};
-use std::mem;
-use std::net::IpAddr;
-use std::sync::Arc;
-use std::time::Duration;
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
+use relay_config::{Config, EmitOutcomes};
 #[cfg(feature = "processing")]
-use relay_config::KafkaTopic;
-use relay_config::{Config, EmitOutcomes, KafkaConfigParam};
+use relay_config::{KafkaConfigParam, KafkaTopic};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_log::LogError;
@@ -147,6 +148,7 @@ pub enum Outcome {
     ///
     /// This is never emitted by Relay as the event may be discarded by the processing pipeline
     /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
+    #[allow(dead_code)]
     Accepted,
 
     /// The event has been filtered due to a configured filter.
@@ -432,6 +434,7 @@ impl TrackRawOutcome {
         }
     }
 
+    #[cfg(feature = "processing")]
     fn is_billing(&self) -> bool {
         matches!(self.outcome, 0 | 2)
     }
@@ -619,11 +622,13 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     }
 }
 
+#[cfg(feature = "processing")]
 struct KafkaOutcomesProducer {
     default: ThreadedProducer,
     billing: Option<ThreadedProducer>,
 }
 
+#[cfg(feature = "processing")]
 impl KafkaOutcomesProducer {
     pub fn create(config: &Config) -> Result<Self, ServerError> {
         let (default_name, default_config) = config
