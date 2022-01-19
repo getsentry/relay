@@ -3156,10 +3156,102 @@
 <span id="3155">3155</span>
 <span id="3156">3156</span>
 <span id="3157">3157</span>
+<span id="3158">3158</span>
+<span id="3159">3159</span>
+<span id="3160">3160</span>
+<span id="3161">3161</span>
+<span id="3162">3162</span>
+<span id="3163">3163</span>
+<span id="3164">3164</span>
+<span id="3165">3165</span>
+<span id="3166">3166</span>
+<span id="3167">3167</span>
+<span id="3168">3168</span>
+<span id="3169">3169</span>
+<span id="3170">3170</span>
+<span id="3171">3171</span>
+<span id="3172">3172</span>
+<span id="3173">3173</span>
+<span id="3174">3174</span>
+<span id="3175">3175</span>
+<span id="3176">3176</span>
+<span id="3177">3177</span>
+<span id="3178">3178</span>
+<span id="3179">3179</span>
+<span id="3180">3180</span>
+<span id="3181">3181</span>
+<span id="3182">3182</span>
+<span id="3183">3183</span>
+<span id="3184">3184</span>
+<span id="3185">3185</span>
+<span id="3186">3186</span>
+<span id="3187">3187</span>
+<span id="3188">3188</span>
+<span id="3189">3189</span>
+<span id="3190">3190</span>
+<span id="3191">3191</span>
+<span id="3192">3192</span>
+<span id="3193">3193</span>
+<span id="3194">3194</span>
+<span id="3195">3195</span>
+<span id="3196">3196</span>
+<span id="3197">3197</span>
+<span id="3198">3198</span>
+<span id="3199">3199</span>
+<span id="3200">3200</span>
+<span id="3201">3201</span>
+<span id="3202">3202</span>
+<span id="3203">3203</span>
+<span id="3204">3204</span>
+<span id="3205">3205</span>
+<span id="3206">3206</span>
+<span id="3207">3207</span>
+<span id="3208">3208</span>
+<span id="3209">3209</span>
+<span id="3210">3210</span>
+<span id="3211">3211</span>
+<span id="3212">3212</span>
+<span id="3213">3213</span>
+<span id="3214">3214</span>
+<span id="3215">3215</span>
+<span id="3216">3216</span>
+<span id="3217">3217</span>
+<span id="3218">3218</span>
+<span id="3219">3219</span>
+<span id="3220">3220</span>
+<span id="3221">3221</span>
+<span id="3222">3222</span>
+<span id="3223">3223</span>
+<span id="3224">3224</span>
+<span id="3225">3225</span>
+<span id="3226">3226</span>
+<span id="3227">3227</span>
+<span id="3228">3228</span>
+<span id="3229">3229</span>
+<span id="3230">3230</span>
+<span id="3231">3231</span>
+<span id="3232">3232</span>
+<span id="3233">3233</span>
+<span id="3234">3234</span>
+<span id="3235">3235</span>
+<span id="3236">3236</span>
+<span id="3237">3237</span>
+<span id="3238">3238</span>
+<span id="3239">3239</span>
+<span id="3240">3240</span>
+<span id="3241">3241</span>
+<span id="3242">3242</span>
+<span id="3243">3243</span>
+<span id="3244">3244</span>
+<span id="3245">3245</span>
+<span id="3246">3246</span>
+<span id="3247">3247</span>
+<span id="3248">3248</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
+<span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
 <span class="kw">use</span> <span class="ident">std::io::Write</span>;
 <span class="kw">use</span> <span class="ident">std::rc::Rc</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -3180,6 +3272,7 @@
 <span class="kw">use</span> <span class="ident">relay_auth::RelayVersion</span>;
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>, <span class="ident">RelayMode</span>};
+<span class="kw">use</span> <span class="ident">relay_filter::FilterStatKey</span>;
 <span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">PiiProcessor</span>};
 <span class="kw">use</span> <span class="ident">relay_general::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
@@ -3191,12 +3284,12 @@
 <span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">Metric</span>};
-<span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimits</span>, <span class="ident">Scoping</span>};
+<span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimits</span>, <span class="ident">ReasonCode</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">RuleId</span>, <span class="ident">SamplingResult</span>};
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">OutcomeType</span>, <span class="ident">TrackOutcome</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">TrackOutcome</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project</span>::{<span class="ident">Feature</span>, <span class="ident">ProjectState</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache</span>::{
@@ -3221,7 +3314,6 @@
     <span class="ident"><span class="kw">crate</span>::service::ServerErrorKind</span>,
     <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">EnvelopeLimiter</span>, <span class="ident">ErrorBoundary</span>},
     <span class="ident">failure::ResultExt</span>,
-    <span class="ident">relay_filter::FilterStatKey</span>,
     <span class="ident">relay_general::store</span>::{<span class="ident">GeoIpLookup</span>, <span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>},
     <span class="ident">relay_quotas</span>::{<span class="ident">RateLimitingError</span>, <span class="ident">RedisRateLimiter</span>},
     <span class="ident">symbolic::unreal</span>::{<span class="ident">Unreal4Error</span>, <span class="ident">Unreal4ErrorKind</span>},
@@ -3567,6 +3659,45 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">remove_event</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
         <span class="self">self</span>.<span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::empty</span>();
+    }
+}
+
+<span class="doccomment">/// Fields of client reports that map to specific [`Outcome`]s without content.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Ord</span>)]</span>
+<span class="kw">enum</span> <span class="ident">ClientReportField</span> {
+    <span class="doccomment">/// The event has been filtered by an inbound data filter.</span>
+    <span class="ident">Filtered</span>,
+
+    <span class="doccomment">/// The event has been filtered by a sampling rule.</span>
+    <span class="ident">FilteredSampling</span>,
+
+    <span class="doccomment">/// The event has been rate limited.</span>
+    <span class="ident">RateLimited</span>,
+
+    <span class="doccomment">/// The event has already been discarded on the client side.</span>
+    <span class="ident">ClientDiscard</span>,
+}
+
+<span class="doccomment">/// Parse an outcome from an outcome ID and a reason string.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Currently only used to reconstruct outcomes encoded in client reports.</span>
+<span class="kw">fn</span> <span class="ident">outcome_from_parts</span>(<span class="ident">field</span>: <span class="ident">ClientReportField</span>, <span class="ident">reason</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Outcome</span>, ()<span class="op">&gt;</span> {
+    <span class="kw">match</span> <span class="ident">field</span> {
+        <span class="ident">ClientReportField::FilteredSampling</span> =&gt; <span class="kw">match</span> <span class="ident">reason</span>.<span class="ident">strip_prefix</span>(<span class="string">&quot;Sampled:&quot;</span>) {
+            <span class="prelude-val">Some</span>(<span class="ident">rule_id</span>) =&gt; <span class="ident">rule_id</span>
+                .<span class="ident">parse</span>()
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">id</span><span class="op">|</span> <span class="ident">Outcome::FilteredSampling</span>(<span class="ident">RuleId</span>(<span class="ident">id</span>)))
+                .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ()),
+            <span class="prelude-val">None</span> =&gt; <span class="prelude-val">Err</span>(()),
+        },
+        <span class="ident">ClientReportField::ClientDiscard</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">Outcome::ClientDiscard</span>(<span class="ident">reason</span>.<span class="ident">into</span>())),
+        <span class="ident">ClientReportField::Filtered</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">Outcome::Filtered</span>(
+            <span class="ident">FilterStatKey::try_from</span>(<span class="ident">reason</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())<span class="question-mark">?</span>,
+        )),
+        <span class="ident">ClientReportField::RateLimited</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">Outcome::RateLimited</span>(<span class="kw">match</span> <span class="ident">reason</span> {
+            <span class="string">&quot;&quot;</span> =&gt; <span class="prelude-val">None</span>,
+            <span class="ident">other</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="ident">other</span>)),
+        })),
     }
 }
 
@@ -3961,21 +4092,20 @@
                     <span class="ident">filtered_sampling_events</span>,
                 }) =&gt; {
                     <span class="comment">// Glue all discarded events together and give them the appropriate outcome type</span>
-                    <span class="kw">let</span> <span class="ident">input_events</span> <span class="op">=</span>
-                        <span class="ident">discarded_events</span>
-                            .<span class="ident">into_iter</span>()
-                            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">discarded_event</span><span class="op">|</span> (<span class="ident">OutcomeType::ClientDiscard</span>, <span class="ident">discarded_event</span>))
-                            .<span class="ident">chain</span>(
-                                <span class="ident">filtered_events</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">discarded_event</span><span class="op">|</span> {
-                                    (<span class="ident">OutcomeType::Filtered</span>, <span class="ident">discarded_event</span>)
-                                }),
-                            )
-                            .<span class="ident">chain</span>(<span class="ident">filtered_sampling_events</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">discarded_event</span><span class="op">|</span> {
-                                (<span class="ident">OutcomeType::FilteredSampling</span>, <span class="ident">discarded_event</span>)
-                            }))
-                            .<span class="ident">chain</span>(<span class="ident">rate_limited_events</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">discarded_event</span><span class="op">|</span> {
-                                (<span class="ident">OutcomeType::RateLimited</span>, <span class="ident">discarded_event</span>)
-                            }));
+                    <span class="kw">let</span> <span class="ident">input_events</span> <span class="op">=</span> <span class="ident">discarded_events</span>
+                        .<span class="ident">into_iter</span>()
+                        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">discarded_event</span><span class="op">|</span> (<span class="ident">ClientReportField::ClientDiscard</span>, <span class="ident">discarded_event</span>))
+                        .<span class="ident">chain</span>(
+                            <span class="ident">filtered_events</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">discarded_event</span><span class="op">|</span> {
+                                (<span class="ident">ClientReportField::Filtered</span>, <span class="ident">discarded_event</span>)
+                            }),
+                        )
+                        .<span class="ident">chain</span>(<span class="ident">filtered_sampling_events</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">discarded_event</span><span class="op">|</span> {
+                            (<span class="ident">ClientReportField::FilteredSampling</span>, <span class="ident">discarded_event</span>)
+                        }))
+                        .<span class="ident">chain</span>(<span class="ident">rate_limited_events</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">discarded_event</span><span class="op">|</span> {
+                            (<span class="ident">ClientReportField::RateLimited</span>, <span class="ident">discarded_event</span>)
+                        }));
 
                     <span class="kw">for</span> (<span class="ident">outcome_type</span>, <span class="ident">discarded_event</span>) <span class="kw">in</span> <span class="ident">input_events</span> {
                         <span class="kw">if</span> <span class="ident">discarded_event</span>.<span class="ident">reason</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">200</span> {
@@ -4031,7 +4161,7 @@
 
         <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">OutcomeAggregator::from_registry</span>();
         <span class="kw">for</span> ((<span class="ident">outcome_type</span>, <span class="ident">reason</span>, <span class="ident">category</span>), <span class="ident">quantity</span>) <span class="kw">in</span> <span class="ident">output_events</span>.<span class="ident">into_iter</span>() {
-            <span class="kw">let</span> <span class="ident">outcome</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">Outcome::from_outcome_type</span>(<span class="ident">outcome_type</span>, <span class="kw-2">&amp;</span><span class="ident">reason</span>) {
+            <span class="kw">let</span> <span class="ident">outcome</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">outcome_from_parts</span>(<span class="ident">outcome_type</span>, <span class="kw-2">&amp;</span><span class="ident">reason</span>) {
                 <span class="prelude-val">Ok</span>(<span class="ident">outcome</span>) =&gt; <span class="ident">outcome</span>,
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
                     <span class="macro">relay_log::trace!</span>(
@@ -6311,6 +6441,58 @@
             ..<span class="ident">Default::default</span>()
         });
         <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">has_unprintable_fields</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>));
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_from_outcome_type_sampled</span>() {
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">outcome_from_parts</span>(<span class="ident">ClientReportField::FilteredSampling</span>, <span class="string">&quot;adsf&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>)
+        ));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">outcome_from_parts</span>(<span class="ident">ClientReportField::FilteredSampling</span>, <span class="string">&quot;Sampled:&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>)
+        ));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">outcome_from_parts</span>(<span class="ident">ClientReportField::FilteredSampling</span>, <span class="string">&quot;Sampled:foo&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>)
+        ));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">outcome_from_parts</span>(<span class="ident">ClientReportField::FilteredSampling</span>, <span class="string">&quot;Sampled:123&quot;</span>),
+            <span class="prelude-val">Ok</span>(<span class="ident">Outcome::FilteredSampling</span>(<span class="ident">RuleId</span>(<span class="number">123</span>)))
+        ));
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_from_outcome_type_filtered</span>() {
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">outcome_from_parts</span>(<span class="ident">ClientReportField::Filtered</span>, <span class="string">&quot;error-message&quot;</span>),
+            <span class="prelude-val">Ok</span>(<span class="ident">Outcome::Filtered</span>(<span class="ident">FilterStatKey::ErrorMessage</span>))
+        ));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">outcome_from_parts</span>(<span class="ident">ClientReportField::Filtered</span>, <span class="string">&quot;adsf&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>)
+        ));
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_from_outcome_type_client_discard</span>() {
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">outcome_from_parts</span>(<span class="ident">ClientReportField::ClientDiscard</span>, <span class="string">&quot;foo_reason&quot;</span>).<span class="ident">unwrap</span>(),
+            <span class="ident">Outcome::ClientDiscard</span>(<span class="string">&quot;foo_reason&quot;</span>.<span class="ident">into</span>())
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_from_outcome_type_rate_limited</span>() {
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">outcome_from_parts</span>(<span class="ident">ClientReportField::RateLimited</span>, <span class="string">&quot;&quot;</span>),
+            <span class="prelude-val">Ok</span>(<span class="ident">Outcome::RateLimited</span>(<span class="prelude-val">None</span>))
+        ));
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">outcome_from_parts</span>(<span class="ident">ClientReportField::RateLimited</span>, <span class="string">&quot;foo_reason&quot;</span>).<span class="ident">unwrap</span>(),
+            <span class="ident">Outcome::RateLimited</span>(<span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;foo_reason&quot;</span>)))
+        );
     }
 }
 </code></pre></div>

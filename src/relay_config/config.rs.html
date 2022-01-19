@@ -1959,6 +1959,12 @@
 <span id="1958">1958</span>
 <span id="1959">1959</span>
 <span id="1960">1960</span>
+<span id="1961">1961</span>
+<span id="1962">1962</span>
+<span id="1963">1963</span>
+<span id="1964">1964</span>
+<span id="1965">1965</span>
+<span id="1966">1966</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2711,6 +2717,8 @@
     <span class="ident">Transactions</span>,
     <span class="doccomment">/// Shared outcomes topic for Relay and Sentry.</span>
     <span class="ident">Outcomes</span>,
+    <span class="doccomment">/// Override for billing critical outcomes.</span>
+    <span class="ident">OutcomesBilling</span>,
     <span class="doccomment">/// Session health updates.</span>
     <span class="ident">Sessions</span>,
     <span class="doccomment">/// Aggregate Metrics.</span>
@@ -2727,8 +2735,10 @@
     <span class="kw">pub</span> <span class="ident">attachments</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Transaction events topic name.</span>
     <span class="kw">pub</span> <span class="ident">transactions</span>: <span class="ident">TopicAssignment</span>,
-    <span class="doccomment">/// Event outcomes topic name.</span>
+    <span class="doccomment">/// Outcomes topic name.</span>
     <span class="kw">pub</span> <span class="ident">outcomes</span>: <span class="ident">TopicAssignment</span>,
+    <span class="doccomment">/// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.</span>
+    <span class="kw">pub</span> <span class="ident">outcomes_billing</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TopicAssignment</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Session health topic name.</span>
     <span class="kw">pub</span> <span class="ident">sessions</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Metrics topic name.</span>
@@ -2743,6 +2753,7 @@
             <span class="ident">KafkaTopic::Events</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">events</span>,
             <span class="ident">KafkaTopic::Transactions</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">transactions</span>,
             <span class="ident">KafkaTopic::Outcomes</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcomes</span>,
+            <span class="ident">KafkaTopic::OutcomesBilling</span> =&gt; <span class="self">self</span>.<span class="ident">outcomes_billing</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcomes</span>),
             <span class="ident">KafkaTopic::Sessions</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sessions</span>,
             <span class="ident">KafkaTopic::Metrics</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>,
         }
@@ -2756,6 +2767,7 @@
             <span class="ident">attachments</span>: <span class="string">&quot;ingest-attachments&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">transactions</span>: <span class="string">&quot;ingest-transactions&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">outcomes</span>: <span class="string">&quot;outcomes&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+            <span class="ident">outcomes_billing</span>: <span class="prelude-val">None</span>,
             <span class="ident">sessions</span>: <span class="string">&quot;ingest-sessions&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">metrics</span>: <span class="string">&quot;ingest-metrics&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
         }
