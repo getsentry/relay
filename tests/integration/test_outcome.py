@@ -114,6 +114,37 @@ def test_outcomes_custom_topic(
     assert start <= event_emission <= end
 
 
+def test_outcomes_two_topics(
+    get_topic_name, processing_config, relay, mini_sentry, outcomes_consumer
+):
+    """
+    Tests routing outcomes to the billing and the default topic based on the outcome ID.
+    """
+    mini_sentry.add_basic_project_config(42)
+
+    # Change from default, which would inherit the outcomes topic
+    options = processing_config(None)
+    options["processing"]["topics"]["outcomes_billing"] = get_topic_name("billing")
+
+    relay = relay(mini_sentry, options=options)
+    billing_consumer = outcomes_consumer(topic="billing")
+    outcomes_consumer = outcomes_consumer()
+
+    relay.send_event(42, {"message": "this is valid"})
+    relay.send_event(99, {"message": "wrong project"})
+
+    accepted = billing_consumer.get_outcome()
+    assert accepted["project_id"] == 42
+    assert accepted["outcome"] == 0
+
+    invalid = outcomes_consumer.get_outcome()
+    assert invalid["project_id"] == 99
+    assert invalid["outcome"] == 3
+
+    billing_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
+
+
 def _send_event(relay, project_id=42, event_type="error", event_id=None):
     """
     Send an event to the given project.
