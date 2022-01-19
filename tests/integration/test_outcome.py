@@ -120,7 +120,10 @@ def test_outcomes_two_topics(
     """
     Tests routing outcomes to the billing and the default topic based on the outcome ID.
     """
-    mini_sentry.add_basic_project_config(42)
+    project_config = mini_sentry.add_basic_project_config(42)
+    project_config["config"]["quotas"] = [
+        {"categories": ["error"], "limit": 0, "reasonCode": "static_disabled_quota",}
+    ]
 
     # Change from default, which would inherit the outcomes topic
     options = processing_config(None)
@@ -130,12 +133,12 @@ def test_outcomes_two_topics(
     billing_consumer = outcomes_consumer(topic="billing")
     outcomes_consumer = outcomes_consumer()
 
-    relay.send_event(42, {"message": "this is valid"})
+    relay.send_event(42, {"message": "this is rate limited"})
     relay.send_event(99, {"message": "wrong project"})
 
-    accepted = billing_consumer.get_outcome()
-    assert accepted["project_id"] == 42
-    assert accepted["outcome"] == 0
+    rate_limited = billing_consumer.get_outcome()
+    assert rate_limited["project_id"] == 42
+    assert rate_limited["outcome"] == 2
 
     invalid = outcomes_consumer.get_outcome()
     assert invalid["project_id"] == 99
