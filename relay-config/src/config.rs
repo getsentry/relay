@@ -750,6 +750,8 @@ pub enum KafkaTopic {
     Transactions,
     /// Shared outcomes topic for Relay and Sentry.
     Outcomes,
+    /// Override for billing critical outcomes.
+    OutcomesBilling,
     /// Session health updates.
     Sessions,
     /// Aggregate Metrics.
@@ -766,8 +768,10 @@ pub struct TopicAssignments {
     pub attachments: TopicAssignment,
     /// Transaction events topic name.
     pub transactions: TopicAssignment,
-    /// Event outcomes topic name.
+    /// Outcomes topic name.
     pub outcomes: TopicAssignment,
+    /// Outcomes topic name for billing critical outcomes. Defaults to the assignment of `outcomes`.
+    pub outcomes_billing: Option<TopicAssignment>,
     /// Session health topic name.
     pub sessions: TopicAssignment,
     /// Metrics topic name.
@@ -782,6 +786,7 @@ impl TopicAssignments {
             KafkaTopic::Events => &self.events,
             KafkaTopic::Transactions => &self.transactions,
             KafkaTopic::Outcomes => &self.outcomes,
+            KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
             KafkaTopic::Sessions => &self.sessions,
             KafkaTopic::Metrics => &self.metrics,
         }
@@ -795,6 +800,7 @@ impl Default for TopicAssignments {
             attachments: "ingest-attachments".to_owned().into(),
             transactions: "ingest-transactions".to_owned().into(),
             outcomes: "outcomes".to_owned().into(),
+            outcomes_billing: None,
             sessions: "ingest-sessions".to_owned().into(),
             metrics: "ingest-metrics".to_owned().into(),
         }

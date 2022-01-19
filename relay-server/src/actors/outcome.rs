@@ -4,6 +4,14 @@
 //! must be emitted in the entire ingestion pipeline. Since Relay is only one part in this pipeline,
 //! outcomes may not be emitted if the event is accepted.
 
+use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::convert::TryInto;
+use std::mem;
+use std::net::IpAddr;
+use std::sync::Arc;
+use std::time::Duration;
+
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -15,18 +23,11 @@ use rdkafka::producer::BaseRecord;
 #[cfg(feature = "processing")]
 use rdkafka::ClientConfig as KafkaClientConfig;
 use serde::{Deserialize, Serialize};
-use std::borrow::{Borrow, Cow};
-use std::collections::BTreeMap;
-use std::convert::{TryFrom, TryInto};
-use std::mem;
-use std::net::IpAddr;
-use std::sync::Arc;
-use std::time::Duration;
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
-#[cfg(feature = "processing")]
-use relay_config::KafkaTopic;
 use relay_config::{Config, EmitOutcomes};
+#[cfg(feature = "processing")]
+use relay_config::{KafkaConfigParam, KafkaTopic};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_log::LogError;
@@ -73,17 +74,32 @@ pub struct SendOutcomesResponse {
     // nothing yet, future features will go here
 }
 
+/// The numerical identifier of the outcome category (Accepted, Filtered, ...)
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq)]
+pub struct OutcomeId(u8);
+
+impl OutcomeId {
+    // This is not an enum because we still want to forward unknown outcome IDs transparently
+    const ACCEPTED: OutcomeId = OutcomeId(0);
+    const FILTERED: OutcomeId = OutcomeId(1);
+    const RATE_LIMITED: OutcomeId = OutcomeId(2);
+    const INVALID: OutcomeId = OutcomeId(3);
+    const ABUSE: OutcomeId = OutcomeId(4);
+    const CLIENT_DISCARD: OutcomeId = OutcomeId(5);
+}
+
 trait TrackOutcomeLike: Message {
     fn reason(&self) -> Option<Cow<str>>;
-    fn outcome_id(&self) -> u8;
+    fn outcome_id(&self) -> OutcomeId;
 
     fn tag_name(&self) -> &'static str {
         match self.outcome_id() {
-            1 => "filtered",
-            2 => "rate_limited",
-            3 => "invalid",
-            4 => "abuse",
-            5 => "client_discard",
+            OutcomeId::ACCEPTED => "accepted",
+            OutcomeId::FILTERED => "filtered",
+            OutcomeId::RATE_LIMITED => "rate_limited",
+            OutcomeId::INVALID => "invalid",
+            OutcomeId::ABUSE => "abuse",
+            OutcomeId::CLIENT_DISCARD => "client_discard",
             _ => "<unknown>",
         }
     }
@@ -115,7 +131,7 @@ impl TrackOutcomeLike for TrackOutcome {
         self.outcome.to_reason()
     }
 
-    fn outcome_id(&self) -> u8 {
+    fn outcome_id(&self) -> OutcomeId {
         self.outcome.to_outcome_id()
     }
 }
@@ -124,28 +140,15 @@ impl Message for TrackOutcome {
     type Result = Result<(), OutcomeError>;
 }
 
-/// A simpler version of the [`Outcome`] enum without content.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum OutcomeType {
-    Filtered,
-
-    /// The event has been filtered by a Sampling Rule
-    FilteredSampling,
-
-    /// The event has been rate limited.
-    RateLimited,
-
-    /// The event has already been discarded on the client side.
-    ClientDiscard,
-}
-
 /// Defines the possible outcomes from processing an event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
-    /// The outcome state "Accepted" is never emitted by Relay as the event may be discarded
-    /// by the processing pipeline after Relay.
-    /// Only the `save_event` task in Sentry finally accepts an event.
-
+    // /// The event has been accepted and handled completely.
+    // ///
+    // /// This is never emitted by Relay as the event may be discarded by the processing pipeline
+    // /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
+    // #[allow(dead_code)]
+    // Accepted,
     /// The event has been filtered due to a configured filter.
     #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     Filtered(FilterStatKey),
@@ -159,25 +162,27 @@ pub enum Outcome {
     /// The event has been discarded because of invalid data.
     Invalid(DiscardReason),
 
-    /// The event has already been discarded on the client side.
-    ClientDiscard(String),
-
-    /// Reserved but unused in Sentry.
+    /// Reserved but unused in Relay.
     #[allow(dead_code)]
     Abuse,
+
+    /// The event has already been discarded on the client side.
+    ClientDiscard(String),
 }
 
 impl Outcome {
-    fn to_outcome_id(&self) -> u8 {
+    /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
+    fn to_outcome_id(&self) -> OutcomeId {
         match self {
-            Outcome::Filtered(_) | Outcome::FilteredSampling(_) => 1,
-            Outcome::RateLimited(_) => 2,
-            Outcome::Invalid(_) => 3,
-            Outcome::Abuse => 4,
-            Outcome::ClientDiscard(_) => 5,
+            Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
+            Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
+            Outcome::Invalid(_) => OutcomeId::INVALID,
+            Outcome::Abuse => OutcomeId::ABUSE,
+            Outcome::ClientDiscard(_) => OutcomeId::CLIENT_DISCARD,
         }
     }
 
+    /// Returns the `reason` code field of this outcome.
     fn to_reason(&self) -> Option<Cow<str>> {
         match self {
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
@@ -189,29 +194,6 @@ impl Outcome {
                 .map(|code| Cow::Owned(code.as_str().into())),
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
-        }
-    }
-
-    /// Parse an outcome from an outcome ID and a reason string.
-    /// Currently only used to reconstruct outcomes encoded in client reports.
-    pub fn from_outcome_type(outcome_type: OutcomeType, reason: &str) -> Result<Self, ()> {
-        match outcome_type {
-            OutcomeType::FilteredSampling => {
-                if let Some(rule_id) = reason.strip_prefix("Sampled:") {
-                    let rule_id = RuleId(rule_id.parse().map_err(|_| ())?);
-                    Ok(Self::FilteredSampling(rule_id))
-                } else {
-                    Err(())
-                }
-            }
-            OutcomeType::ClientDiscard => Ok(Self::ClientDiscard(reason.into())),
-            OutcomeType::Filtered => Ok(Self::Filtered(
-                FilterStatKey::try_from(reason).map_err(|_| ())?,
-            )),
-            OutcomeType::RateLimited => Ok(Self::RateLimited(match reason {
-                "" => None,
-                other => Some(ReasonCode::new(other)),
-            })),
         }
     }
 }
@@ -372,7 +354,7 @@ pub struct TrackRawOutcome {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     key_id: Option<u64>,
     /// The outcome.
-    outcome: u8,
+    outcome: OutcomeId,
     /// Reason for the outcome.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     reason: Option<String>,
@@ -424,6 +406,11 @@ impl TrackRawOutcome {
             quantity: Some(msg.quantity),
         }
     }
+
+    #[cfg(feature = "processing")]
+    fn is_billing(&self) -> bool {
+        matches!(self.outcome, OutcomeId::ACCEPTED | OutcomeId::RATE_LIMITED)
+    }
 }
 
 impl TrackOutcomeLike for TrackRawOutcome {
@@ -431,7 +418,7 @@ impl TrackOutcomeLike for TrackRawOutcome {
         self.reason.as_ref().map(|s| s.into())
     }
 
-    fn outcome_id(&self) -> u8 {
+    fn outcome_id(&self) -> OutcomeId {
         self.outcome
     }
 }
@@ -608,11 +595,78 @@ impl Handler<TrackOutcome> for ClientReportOutcomeProducer {
     }
 }
 
+/// A wrapper around producers for the two Kafka topics.
+///
+/// Internally, this type creates at least one Kafka producer for the cluster of the `outcomes`
+/// topic assignment. If the `outcomes-billing` topic specifies a different cluster, it creates a
+/// second producer.
+///
+/// Use `KafkaOutcomesProducer::billing` for outcomes that are critical to billing (see
+/// `is_billing`), otherwise use `KafkaOutcomesProducer::default`. This will return the correct
+/// producer instance internally.
+#[cfg(feature = "processing")]
+struct KafkaOutcomesProducer {
+    default: ThreadedProducer,
+    billing: Option<ThreadedProducer>,
+}
+
+#[cfg(feature = "processing")]
+impl KafkaOutcomesProducer {
+    /// Creates and connects the Kafka producers.
+    ///
+    /// If the given Kafka configuration parameters are invalid, or an error happens during
+    /// connecting during the broker, an error is returned.
+    pub fn create(config: &Config) -> Result<Self, ServerError> {
+        let (default_name, default_config) = config
+            .kafka_config(KafkaTopic::Outcomes)
+            .context(ServerErrorKind::KafkaError)?;
+
+        let (billing_name, billing_config) = config
+            .kafka_config(KafkaTopic::Outcomes)
+            .context(ServerErrorKind::KafkaError)?;
+
+        let default = Self::create_producer(default_config)?;
+        let billing = if billing_name != default_name {
+            Some(Self::create_producer(billing_config)?)
+        } else {
+            None
+        };
+
+        Ok(Self { default, billing })
+    }
+
+    fn create_producer(params: &[KafkaConfigParam]) -> Result<ThreadedProducer, ServerError> {
+        let mut client_config = KafkaClientConfig::new();
+        for param in params {
+            client_config.set(param.name.as_str(), param.value.as_str());
+        }
+
+        let threaded_producer = client_config
+            .create_with_context(CaptureErrorContext)
+            .context(ServerErrorKind::KafkaError)?;
+
+        Ok(threaded_producer)
+    }
+
+    /// Returns the producer for default outcomes.
+    pub fn default(&self) -> &ThreadedProducer {
+        &self.default
+    }
+
+    /// Returns the producer for billing outcomes.
+    ///
+    /// Note that this may return the same producer instance as [`default`](Self::default) depending
+    /// on the configuration.
+    pub fn billing(&self) -> &ThreadedProducer {
+        self.billing.as_ref().unwrap_or(&self.default)
+    }
+}
+
 enum ProducerInner {
     AsClientReports(Addr<ClientReportOutcomeProducer>),
     AsHttpOutcomes(Addr<HttpOutcomeProducer>),
     #[cfg(feature = "processing")]
-    AsKafkaOutcomes(ThreadedProducer),
+    AsKafkaOutcomes(KafkaOutcomesProducer),
     Disabled,
 }
 
@@ -630,19 +684,7 @@ impl OutcomeProducer {
                 if config.processing_enabled() {
                     #[cfg(feature = "processing")]
                     {
-                        let mut client_config = KafkaClientConfig::new();
-                        for config_p in config
-                            .kafka_config(KafkaTopic::Outcomes)
-                            .context(ServerErrorKind::KafkaError)?
-                            .1
-                        {
-                            client_config.set(config_p.name.as_str(), config_p.value.as_str());
-                        }
-                        let future_producer = client_config
-                            .create_with_context(CaptureErrorContext)
-                            .context(ServerErrorKind::KafkaError)?;
-
-                        ProducerInner::AsKafkaOutcomes(future_producer)
+                        ProducerInner::AsKafkaOutcomes(KafkaOutcomesProducer::create(&config)?)
                     }
 
                     #[cfg(not(feature = "processing"))]
@@ -658,9 +700,7 @@ impl OutcomeProducer {
                 // We emit outcomes as client reports, and we do not
                 // accept any raw outcomes
                 relay_log::info!("Configured to emit outcomes as client reports");
-                ProducerInner::AsClientReports(
-                    ClientReportOutcomeProducer::create(config.borrow()).start(),
-                )
+                ProducerInner::AsClientReports(ClientReportOutcomeProducer::create(&config).start())
             }
             EmitOutcomes::None => {
                 relay_log::info!("Configured to drop all outcomes");
@@ -674,7 +714,7 @@ impl OutcomeProducer {
     #[cfg(feature = "processing")]
     fn send_kafka_message(
         &self,
-        producer: &ThreadedProducer,
+        producer: &KafkaOutcomesProducer,
         message: TrackRawOutcome,
     ) -> Result<(), OutcomeError> {
         relay_log::trace!("Tracking kafka outcome: {:?}", message);
@@ -687,7 +727,14 @@ impl OutcomeProducer {
         // kafka consumer groups.
         let key = message.event_id.unwrap_or_else(EventId::new).0;
 
-        let record = BaseRecord::to(self.config.kafka_topic_name(KafkaTopic::Outcomes))
+        // Dispatch to the correct topic and cluster based on the kind of outcome.
+        let (topic, producer) = if message.is_billing() {
+            (KafkaTopic::OutcomesBilling, producer.billing())
+        } else {
+            (KafkaTopic::Outcomes, producer.default())
+        };
+
+        let record = BaseRecord::to(self.config.kafka_topic_name(topic))
             .payload(&payload)
             .key(key.as_bytes().as_ref());
 
@@ -773,61 +820,5 @@ impl Handler<TrackRawOutcome> for OutcomeProducer {
             ProducerInner::AsClientReports(_) => Ok(()),
             ProducerInner::Disabled => Ok(()),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_from_outcome_type_sampled() {
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "adsf"),
-            Err(_)
-        ));
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:"),
-            Err(_)
-        ));
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:foo"),
-            Err(_)
-        ));
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::FilteredSampling, "Sampled:123"),
-            Ok(Outcome::FilteredSampling(RuleId(123)))
-        ));
-    }
-
-    #[test]
-    fn test_from_outcome_type_filtered() {
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::Filtered, "error-message"),
-            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
-        ));
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::Filtered, "adsf"),
-            Err(_)
-        ));
-    }
-
-    #[test]
-    fn test_from_outcome_type_client_discard() {
-        assert_eq!(
-            Outcome::from_outcome_type(OutcomeType::ClientDiscard, "foo_reason").unwrap(),
-            Outcome::ClientDiscard("foo_reason".into())
-        );
-    }
-
-    #[test]
-    fn test_from_outcome_type_rate_limited() {
-        assert!(matches!(
-            Outcome::from_outcome_type(OutcomeType::RateLimited, ""),
-            Ok(Outcome::RateLimited(None))
-        ));
-        assert_eq!(
-            Outcome::from_outcome_type(OutcomeType::RateLimited, "foo_reason").unwrap(),
-            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
-        );
     }
 }

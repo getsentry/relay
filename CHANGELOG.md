@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**
+
+- Add an option to dispatch billing outcomes to a dedicated topic. ([#1168](https://github.com/getsentry/relay/pull/1168))
+
 ## 22.1.0
 
 **Features**
