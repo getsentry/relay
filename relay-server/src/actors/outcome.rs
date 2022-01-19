@@ -729,9 +729,9 @@ impl OutcomeProducer {
 
         // Dispatch to the correct topic and cluster based on the kind of outcome.
         let (topic, producer) = if message.is_billing() {
-            (KafkaTopic::Outcomes, producer.default())
-        } else {
             (KafkaTopic::OutcomesBilling, producer.billing())
+        } else {
+            (KafkaTopic::Outcomes, producer.default())
         };
 
         let record = BaseRecord::to(self.config.kafka_topic_name(topic))
