@@ -102,6 +102,10 @@ pub enum ItemType {
     MetricBuckets,
     /// Client internal report (eg: outcomes).
     ClientReport,
+    /// Profiling session
+    ProfilingSession,
+    /// Profiling data
+    ProfilingTrace,
 }
 
 impl ItemType {
@@ -133,6 +137,8 @@ impl fmt::Display for ItemType {
             Self::Metrics => write!(f, "metrics"),
             Self::MetricBuckets => write!(f, "metric buckets"),
             Self::ClientReport => write!(f, "client report"),
+            Self::ProfilingSession => write!(f, "profiling session"),
+            Self::ProfilingTrace => write!(f, "profiling trace"),
         }
     }
 }
@@ -551,7 +557,9 @@ impl Item {
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::UnrealReport => true,
+            | ItemType::UnrealReport
+            | ItemType::ProfilingSession
+            | ItemType::ProfilingTrace => true,
 
             // Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
@@ -598,6 +606,8 @@ impl Item {
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
+            ItemType::ProfilingSession => false,
+            ItemType::ProfilingTrace => false,
         }
     }
 }
