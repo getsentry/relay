@@ -557,9 +557,7 @@ impl Item {
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::UnrealReport
-            | ItemType::ProfilingSession
-            | ItemType::ProfilingTrace => true,
+            | ItemType::UnrealReport => true,
 
             // Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
@@ -584,7 +582,9 @@ impl Item {
             | ItemType::Sessions
             | ItemType::Metrics
             | ItemType::MetricBuckets
-            | ItemType::ClientReport => false,
+            | ItemType::ClientReport
+            | ItemType::ProfilingSession
+            | ItemType::ProfilingTrace => false,
         }
     }
 
