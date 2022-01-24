@@ -423,20 +423,13 @@ impl StoreForwarder {
         Ok(())
     }
 
-    fn produce_profiling_session_message(&self, item: &Item) -> Result<(), StoreError> {
+    fn produce_profiling_session_message(
+        &self,
+        organization_id: u64,
+        item: &Item,
+    ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
-            organization_id: item
-                .get_header("organization_id")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string(),
-            installation_id: item
-                .get_header("installation_id")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string(),
+            organization_id: organization_id,
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling session item to kafka");
@@ -447,20 +440,13 @@ impl StoreForwarder {
         Ok(())
     }
 
-    fn produce_profiling_trace_message(&self, item: &Item) -> Result<(), StoreError> {
+    fn produce_profiling_trace_message(
+        &self,
+        organization_id: u64,
+        item: &Item,
+    ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
-            organization_id: item
-                .get_header("organization_id")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string(),
-            installation_id: item
-                .get_header("installation_id")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string(),
+            organization_id: organization_id,
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling trace item to kafka");
@@ -638,8 +624,7 @@ struct MetricKafkaMessage {
 
 #[derive(Clone, Debug, Serialize)]
 struct ProfilingKafkaMessage {
-    organization_id: String,
-    installation_id: String,
+    organization_id: u64,
     payload: Bytes,
 }
 
@@ -778,8 +763,12 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 ItemType::MetricBuckets => {
                     self.produce_metrics(scoping.organization_id, scoping.project_id, item)?
                 }
-                ItemType::ProfilingSession => self.produce_profiling_session_message(item)?,
-                ItemType::ProfilingTrace => self.produce_profiling_trace_message(item)?,
+                ItemType::ProfilingSession => {
+                    self.produce_profiling_session_message(scoping.organization_id, item)?
+                }
+                ItemType::ProfilingTrace => {
+                    self.produce_profiling_trace_message(scoping.organization_id, item)?
+                }
                 _ => {}
             }
         }
