@@ -429,7 +429,7 @@ impl StoreForwarder {
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
-            organization_id: organization_id,
+            organization_id,
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling session item to kafka");
@@ -446,7 +446,7 @@ impl StoreForwarder {
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
-            organization_id: organization_id,
+            organization_id,
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling trace item to kafka");
