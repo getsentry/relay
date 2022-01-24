@@ -426,10 +426,12 @@ impl StoreForwarder {
     fn produce_profiling_session_message(
         &self,
         organization_id: u64,
+        project_id: ProjectId,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
             organization_id,
+            project_id,
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling session item to kafka");
@@ -443,10 +445,12 @@ impl StoreForwarder {
     fn produce_profiling_trace_message(
         &self,
         organization_id: u64,
+        project_id: ProjectId,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
             organization_id,
+            project_id,
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling trace item to kafka");
@@ -625,6 +629,7 @@ struct MetricKafkaMessage {
 #[derive(Clone, Debug, Serialize)]
 struct ProfilingKafkaMessage {
     organization_id: u64,
+    project_id: ProjectId,
     payload: Bytes,
 }
 
@@ -763,12 +768,16 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 ItemType::MetricBuckets => {
                     self.produce_metrics(scoping.organization_id, scoping.project_id, item)?
                 }
-                ItemType::ProfilingSession => {
-                    self.produce_profiling_session_message(scoping.organization_id, item)?
-                }
-                ItemType::ProfilingTrace => {
-                    self.produce_profiling_trace_message(scoping.organization_id, item)?
-                }
+                ItemType::ProfilingSession => self.produce_profiling_session_message(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    item,
+                )?,
+                ItemType::ProfilingTrace => self.produce_profiling_trace_message(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    item,
+                )?,
                 _ => {}
             }
         }
