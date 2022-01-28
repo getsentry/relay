@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp::max;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::convert::TryFrom;
 use std::io::Write;
 use std::rc::Rc;
@@ -2150,7 +2150,7 @@ impl UpstreamRequest for SendEnvelope {
 pub struct EnvelopeManager {
     config: Arc<Config>,
     active_envelopes: u32,
-    captures: BTreeMap<EventId, CapturedEnvelope>,
+    captures: VecDeque<CapturedEnvelope>,
     processor: Addr<EnvelopeProcessor>,
     #[cfg(feature = "processing")]
     store_forwarder: Option<Addr<StoreForwarder>>,
@@ -2172,7 +2172,7 @@ impl EnvelopeManager {
         Ok(EnvelopeManager {
             config,
             active_envelopes: 0,
-            captures: BTreeMap::new(),
+            captures: Default::default(),
             processor,
             #[cfg(feature = "processing")]
             store_forwarder,
@@ -2206,14 +2206,8 @@ impl EnvelopeManager {
 
         // if we are in capture mode, we stash away the event instead of forwarding it.
         if self.config.relay_mode() == RelayMode::Capture {
-            // XXX: this is wrong because captured_events does not take envelopes without
-            // event_id into account.
-            if let Some(event_id) = envelope.event_id() {
-                relay_log::debug!("capturing envelope");
-                self.captures.insert(event_id, Ok(envelope));
-            } else {
-                relay_log::debug!("dropping non event envelope");
-            }
+            relay_log::debug!("capturing envelope");
+            self.captures.push_back(Ok(envelope));
 
             return Box::new(future::ok(()));
         }
@@ -2452,7 +2446,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
         let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
 
-        let event_id = envelope.event_id();
         let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_envelope(&envelope)));
 
         let future = ProjectCache::from_registry()
@@ -2609,14 +2602,8 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
                 // if we are in capture mode, we stash away the event instead of forwarding it.
                 if capture {
-                    // XXX: does not work with envelopes without event_id
-                    if let Some(event_id) = event_id {
-                        relay_log::debug!("capturing failed event {}", event_id);
-                        let msg = LogError(&error).to_string();
-                        slf.captures.insert(event_id, Err(msg));
-                    } else {
-                        relay_log::debug!("dropping failed envelope without event");
-                    }
+                    let msg = LogError(&error).to_string();
+                    slf.captures.push_back(Err(msg));
                 }
                 let outcome = error.to_outcome();
                 if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
@@ -2753,41 +2740,17 @@ impl Handler<SendClientReports> for EnvelopeManager {
     }
 }
 
-/// Resolves a [`CapturedEnvelope`] by the given `event_id`.
-pub struct GetCapturedEnvelope {
-    pub event_id: Option<EventId>,
-}
+pub struct GetEnvelope {}
 
-impl Message for GetCapturedEnvelope {
+impl Message for GetEnvelope {
     type Result = Option<CapturedEnvelope>;
 }
 
-impl Handler<GetCapturedEnvelope> for EnvelopeManager {
+impl Handler<GetEnvelope> for EnvelopeManager {
     type Result = Option<CapturedEnvelope>;
 
-    fn handle(
-        &mut self,
-        message: GetCapturedEnvelope,
-        _context: &mut Self::Context,
-    ) -> Self::Result {
-        match &message.event_id {
-            Some(event_id) => self.captures.get(event_id).cloned(),
-            None => {
-                // self.captures.pop_last() ?
-                match self
-                    .captures
-                    .iter()
-                    .next_back()
-                    .map(|(key, env)| (*key, env.clone()))
-                {
-                    Some((key, envelope)) => {
-                        self.captures.remove(&key);
-                        Some(envelope)
-                    }
-                    None => None,
-                }
-            }
-        }
+    fn handle(&mut self, _message: GetEnvelope, _context: &mut Self::Context) -> Self::Result {
+        self.captures.pop_front()
     }
 }
 

@@ -1,33 +1,14 @@
 //! Returns captured events.
 
-use actix_web::actix::*;
-use actix_web::{http::Method, HttpResponse, Path};
+use actix_web::http::header::ACCEPT;
+use actix_web::{actix::*, HttpMessage, HttpRequest};
+use actix_web::{http::Method, HttpResponse};
 use futures::future::Future;
 use serde::Serialize;
 
-use crate::actors::envelopes::{EnvelopeManager, GetCapturedEnvelope};
+use crate::actors::envelopes::{EnvelopeManager, GetEnvelope};
 use crate::envelope::{self, ContentType, Envelope, EnvelopeHeaders, ItemHeaders};
-use crate::service::ServiceApp;
-
-use relay_general::protocol::EventId;
-
-fn get_captured_event(event_id: Path<EventId>) -> ResponseFuture<HttpResponse, MailboxError> {
-    let future = EnvelopeManager::from_registry()
-        .send(GetCapturedEnvelope {
-            event_id: Some(*event_id),
-        })
-        .map(|captured_event| match captured_event {
-            Some(Ok(envelope)) => HttpResponse::Ok()
-                .content_type(envelope::CONTENT_TYPE)
-                .body(envelope.to_vec().unwrap()),
-            Some(Err(error)) => HttpResponse::BadRequest()
-                .content_type("text/plain")
-                .body(error),
-            None => HttpResponse::NotFound().finish(),
-        });
-
-    Box::new(future)
-}
+use crate::service::{ServiceApp, ServiceState};
 
 #[derive(Debug, Serialize)]
 struct JsonEnvelope {
@@ -42,47 +23,64 @@ struct JsonItem {
     payload: Option<serde_json::Value>,
 }
 
-fn envelope_as_json(envelope: Result<Envelope, String>) -> Result<JsonEnvelope, String> {
-    envelope.map(|envelope| {
-        let items = envelope
-            .items()
-            .map(|item| {
-                let payload = if let Some(ContentType::Json) = item.content_type() {
-                    Some(serde_json::from_slice(item.payload().as_ref()).unwrap())
-                } else {
-                    None
-                };
+fn envelope_as_json(envelope: Envelope) -> JsonEnvelope {
+    let items = envelope
+        .items()
+        .map(|item| {
+            let payload = if let Some(ContentType::Json) = item.content_type() {
+                Some(serde_json::from_slice(item.payload().as_ref()).unwrap())
+            } else {
+                None
+            };
 
-                JsonItem {
-                    headers: item.headers().clone(),
-                    payload,
-                }
-            })
-            .collect::<Vec<_>>();
+            JsonItem {
+                headers: item.headers().clone(),
+                payload,
+            }
+        })
+        .collect::<Vec<_>>();
 
-        JsonEnvelope {
-            headers: envelope.headers().clone(),
-            items,
-        }
-    })
+    JsonEnvelope {
+        headers: envelope.headers().clone(),
+        items,
+    }
 }
 
-fn get_last_event(_: ()) -> ResponseFuture<HttpResponse, MailboxError> {
-    let future = EnvelopeManager::from_registry()
-        .send(GetCapturedEnvelope { event_id: None })
-        .map(|result| match result {
-            Some(result) => {
-                let envelope = envelope_as_json(result);
+fn get_envelope(request: &HttpRequest<ServiceState>) -> ResponseFuture<HttpResponse, MailboxError> {
+    let is_json = request
+        .headers()
+        .get(ACCEPT)
+        .map(|h| {
+            h.to_str()
+                .unwrap_or("")
+                .contains(ContentType::Json.as_str())
+        })
+        .unwrap_or_default();
 
-                match serde_json::to_string(&envelope) {
-                    Ok(json) => HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body(json),
-                    Err(e) => HttpResponse::BadGateway()
-                        .content_type("text/plain")
-                        .body(e.to_string()),
+    let future = EnvelopeManager::from_registry()
+        .send(GetEnvelope {})
+        .map(move |captured_event| match captured_event {
+            Some(Ok(envelope)) => {
+                if is_json {
+                    let envelope = envelope_as_json(envelope);
+
+                    match serde_json::to_string(&envelope) {
+                        Ok(json) => HttpResponse::Ok()
+                            .content_type(ContentType::Json.as_str())
+                            .body(json),
+                        Err(e) => HttpResponse::BadGateway()
+                            .content_type("text/plain")
+                            .body(e.to_string()),
+                    }
+                } else {
+                    HttpResponse::Ok()
+                        .content_type(envelope::CONTENT_TYPE)
+                        .body(envelope.to_vec().unwrap())
                 }
             }
+            Some(Err(error)) => HttpResponse::BadRequest()
+                .content_type("text/plain")
+                .body(error),
             None => HttpResponse::NotFound().finish(),
         });
 
@@ -90,12 +88,8 @@ fn get_last_event(_: ()) -> ResponseFuture<HttpResponse, MailboxError> {
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
-    app.resource("/api/relay/events/{event_id}/", |r| {
-        r.name("internal-events");
-        r.method(Method::GET).with(get_captured_event);
-    })
-    .resource("/api/relay/last-event/", |r| {
-        r.name("internal-events-last");
-        r.method(Method::GET).with(get_last_event);
+    app.resource("/api/relay/get-envelope/", |r| {
+        r.name("internal-envelope");
+        r.method(Method::GET).h(get_envelope)
     })
 }
