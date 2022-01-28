@@ -8,9 +8,9 @@ use futures::prelude::*;
 use relay_config::{Config, RelayMode};
 use relay_statsd::metric;
 
-use crate::actors::controller::{Controller, Shutdown};
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::RelayGauges;
+use relay_common_actors::controller::{Controller, Shutdown};
 
 pub struct Healthcheck {
     is_shutting_down: bool,

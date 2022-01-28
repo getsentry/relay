@@ -1,18 +1,10 @@
-use std::{collections::BTreeMap, fmt};
+use std::collections::BTreeMap;
 
 use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{SessionAttributes, SessionErrored, SessionLike, SessionStatus};
 use relay_metrics::{DurationPrecision, Metric, MetricUnit, MetricValue};
 
-fn with_tag(
-    tags: &BTreeMap<String, String>,
-    name: &str,
-    value: impl fmt::Display,
-) -> BTreeMap<String, String> {
-    let mut tags = tags.clone();
-    tags.insert(name.to_owned(), value.to_string());
-    tags
-}
+use super::utils::with_tag;
 
 /// Convert contained nil UUIDs to None
 fn nil_to_none(distinct_id: Option<&String>) -> Option<&String> {

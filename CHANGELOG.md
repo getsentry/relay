@@ -2,18 +2,35 @@
 
 ## Unreleased
 
+**Internal**
+
+- Add an option to dispatch billing outcomes to a dedicated topic. ([#1168](https://github.com/getsentry/relay/pull/1168))
+
+## 22.1.0
+
+**Features**
+- Flush metrics and outcome aggregators on graceful shutdown. ([#1159](https://github.com/getsentry/relay/pull/1159))
+- Extract metrics from sampled transactions. ([#1161](https://github.com/getsentry/relay/pull/1161))
+
+**Internal**
+- Extract normalized dist as metric. ([#1158](https://github.com/getsentry/relay/pull/1158))
+- Extract transaction user as metric. ([#1164](https://github.com/getsentry/relay/pull/1164))
+
+## 21.12.0
+
 **Features**:
 
 - Extract measurement ratings, port from frontend. ([#1130](https://github.com/getsentry/relay/pull/1130))
 - External Relays perform dynamic sampling and emit outcomes as client reports. This feature is now enabled *by default*. ([#1119](https://github.com/getsentry/relay/pull/1119))
 - Metrics extraction config, custom tags. ([#1141](https://github.com/getsentry/relay/pull/1141))
 - Update the user agent parser (uap-core Feb 2020 to Nov 2021). This allows Relay and Sentry to infer more recent browsers, operating systems, and devices in events containing a user agent header. ([#1143](https://github.com/getsentry/relay/pull/1143), [#1145](https://github.com/getsentry/relay/pull/1145))
-
+- Improvements to Unity OS context parsing ([#1150](https://github.com/getsentry/relay/pull/1150))
 **Bug Fixes**:
 
 - Support Unreal Engine 5 crash reports. ([#1132](https://github.com/getsentry/relay/pull/1132))
 - Perform same validation for aggregate sessions as for individual sessions. ([#1140](https://github.com/getsentry/relay/pull/1140))
 - Add missing .NET 4.8 release value. ([#1142](https://github.com/getsentry/relay/pull/1142))
+- Properly document which timestamps are accepted. ([#1152](https://github.com/getsentry/relay/pull/1152))
 
 **Internal**:
 
@@ -23,6 +40,7 @@
 - Aggregate outcomes for dynamic sampling, invalid project ID, and rate limits. ([#1134](https://github.com/getsentry/relay/pull/1134))
 - Extract session metrics from aggregate sessions. ([#1140](https://github.com/getsentry/relay/pull/1140))
 - Prefix names of extracted metrics by `sentry.sessions.` or `sentry.transactions.`. ([#1147](https://github.com/getsentry/relay/pull/1147))
+- Extract transaction duration as metric. ([#1148](https://github.com/getsentry/relay/pull/1148))
 
 ## 21.11.0
 

@@ -3151,7 +3151,7 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 
 [[package]]
 name = "relay"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "clap",
  "console 0.10.3",
@@ -3169,7 +3169,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -3203,7 +3203,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "backoff",
  "chrono",
@@ -3222,8 +3222,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-common-actors"
+version = "22.1.0"
+dependencies = [
+ "actix",
+ "failure",
+ "futures 0.1.29",
+ "relay-log",
+]
+
+[[package]]
 name = "relay-config"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "failure",
  "human-size",
@@ -3241,7 +3251,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3249,7 +3259,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "failure",
  "relay-ffi-macros",
@@ -3257,7 +3267,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "quote 1.0.7",
  "syn 1.0.58",
@@ -3265,7 +3275,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "globset",
  "insta",
@@ -3281,7 +3291,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3323,7 +3333,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -3333,7 +3343,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "chrono",
  "console 0.10.3",
@@ -3350,7 +3360,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "actix",
  "crc32fast",
@@ -3362,6 +3372,7 @@ dependencies = [
  "insta",
  "lazy_static",
  "relay-common",
+ "relay-common-actors",
  "relay-log",
  "relay-statsd",
  "relay-test",
@@ -3371,7 +3382,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "failure",
  "insta",
@@ -3386,7 +3397,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "failure",
  "r2d2",
@@ -3396,7 +3407,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "insta",
  "rand 0.6.5",
@@ -3412,7 +3423,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -3440,6 +3451,7 @@ dependencies = [
  "regex",
  "relay-auth",
  "relay-common",
+ "relay-common-actors",
  "relay-config",
  "relay-filter",
  "relay-general",
@@ -3466,7 +3478,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "cadence",
  "lazy_static",
@@ -3477,7 +3489,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "21.11.0"
+version = "22.1.0"
 dependencies = [
  "actix",
  "actix-web",

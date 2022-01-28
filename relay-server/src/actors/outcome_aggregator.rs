@@ -5,6 +5,7 @@ use std::{collections::HashMap, net::IpAddr};
 
 use actix::{Actor, AsyncContext, Context, Handler, Recipient, Supervised, SystemService};
 use relay_common::{DataCategory, UnixTimestamp};
+use relay_common_actors::controller::{Controller, Shutdown};
 use relay_config::{Config, EmitOutcomes};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -124,6 +125,7 @@ impl Actor for OutcomeAggregator {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         relay_log::info!("outcome aggregator started");
+        Controller::subscribe(ctx.address());
         if self.mode != AggregationMode::DropEverything && self.flush_interval > 0 {
             ctx.run_interval(Duration::from_secs(self.flush_interval), Self::flush);
         }
@@ -137,6 +139,18 @@ impl Actor for OutcomeAggregator {
 impl Supervised for OutcomeAggregator {}
 
 impl SystemService for OutcomeAggregator {}
+
+impl Handler<Shutdown> for OutcomeAggregator {
+    type Result = Result<(), ()>;
+
+    fn handle(&mut self, message: Shutdown, context: &mut Self::Context) -> Self::Result {
+        if message.timeout.is_some() {
+            // Flush everything on graceful shutdown
+            self.flush(context);
+        }
+        Ok(())
+    }
+}
 
 impl Default for OutcomeAggregator {
     fn default() -> Self {

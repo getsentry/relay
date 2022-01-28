@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use {
     relay_common::UnixTimestamp,
     relay_general::protocol::{AsPair, Event, EventType},
+    relay_general::store::{get_breakdown_measurements, normalize_dist, BreakdownsConfig},
     relay_metrics::{Metric, MetricUnit, MetricValue},
     std::collections::BTreeMap,
     std::fmt::Write,
@@ -34,22 +35,53 @@ fn metric_name(parts: &[&str]) -> String {
 }
 
 #[cfg(feature = "processing")]
+fn extract_transaction_status(transaction: &Event) -> Option<String> {
+    use relay_general::{
+        protocol::{Context, ContextInner},
+        types::Annotated,
+    };
+
+    let contexts = transaction.contexts.value()?;
+    let trace_context = match contexts.get("trace").map(Annotated::value) {
+        Some(Some(ContextInner(Context::Trace(trace_context)))) => trace_context,
+        _ => return None,
+    };
+    let span_status = trace_context.status.value()?;
+    Some(span_status.to_string())
+}
+
+#[cfg(feature = "processing")]
+fn extract_dist(transaction: &Event) -> Option<String> {
+    let mut dist = transaction.dist.0.clone();
+    normalize_dist(&mut dist);
+    dist
+}
+
+#[cfg(feature = "processing")]
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
+    breakdowns_config: Option<&BreakdownsConfig>,
     event: &Event,
     target: &mut Vec<Metric>,
-) {
+) -> bool {
+    use relay_metrics::DurationPrecision;
+
+    use crate::metrics_extraction::utils::with_tag;
+
     if event.ty.value() != Some(&EventType::Transaction) {
-        return;
+        return false;
     }
 
     if config.extract_metrics.is_empty() {
-        return;
+        relay_log::trace!("dropping all transaction metrics because of empty allow-list");
+        return false;
     }
 
     let mut push_metric = move |metric: Metric| {
         if config.extract_metrics.contains(&metric.name) {
             target.push(metric);
+        } else {
+            relay_log::trace!("dropping metric {} because of allow-list", metric.name);
         }
     };
 
@@ -63,12 +95,15 @@ pub fn extract_transaction_metrics(
         .and_then(|ts| UnixTimestamp::from_datetime(ts.into_inner()))
     {
         Some(ts) => ts,
-        None => return,
+        None => return false,
     };
 
     let mut tags = BTreeMap::new();
     if let Some(release) = event.release.as_str() {
         tags.insert("release".to_owned(), release.to_owned());
+    }
+    if let Some(dist) = extract_dist(event) {
+        tags.insert("dist".to_owned(), dist);
     }
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
@@ -93,6 +128,7 @@ pub fn extract_transaction_metrics(
         }
     }
 
+    // Measurements
     if let Some(measurements) = event.measurements.value() {
         for (measurement_name, annotated) in measurements.iter() {
             let measurement = match annotated.value().and_then(|m| m.value.value()) {
@@ -116,21 +152,17 @@ pub fn extract_transaction_metrics(
         }
     }
 
-    if let Some(breakdowns) = event.breakdowns.value() {
-        for (breakdown, annotated) in breakdowns.iter() {
-            let measurements = match annotated.value() {
-                Some(measurements) => measurements,
-                None => continue,
-            };
-
-            for (name, annotated) in measurements.iter() {
+    // Breakdowns
+    if let Some(breakdowns_config) = breakdowns_config {
+        for (breakdown_name, measurements) in get_breakdown_measurements(event, breakdowns_config) {
+            for (measurement_name, annotated) in measurements.iter() {
                 let measurement = match annotated.value().and_then(|m| m.value.value()) {
                     Some(measurement) => *measurement,
                     None => continue,
                 };
 
                 push_metric(Metric {
-                    name: metric_name(&["breakdowns", breakdown, name]),
+                    name: metric_name(&["breakdowns", breakdown_name, measurement_name]),
                     unit: MetricUnit::None,
                     value: MetricValue::Distribution(measurement),
                     timestamp,
@@ -139,6 +171,47 @@ pub fn extract_transaction_metrics(
             }
         }
     }
+
+    // Duration
+    let start = event.start_timestamp.value();
+    let end = event.timestamp.value();
+    let duration_millis = match (start, end) {
+        (Some(start), Some(end)) => {
+            let start = start.timestamp_millis();
+            let end = end.timestamp_millis();
+            end.saturating_sub(start)
+        }
+        _ => 0,
+    };
+
+    // We always push the duration even if it's 0, because we use count(transaction.duration)
+    // to get the total number of transactions.
+    // This may need to be changed if it turns out that this skews the duration metric.
+    push_metric(Metric {
+        name: metric_name(&["transaction.duration"]),
+        unit: MetricUnit::Duration(DurationPrecision::MilliSecond),
+        value: MetricValue::Distribution(duration_millis as f64),
+        timestamp,
+        tags: match extract_transaction_status(event) {
+            Some(status) => with_tag(&tags, "transaction.status", status),
+            None => tags.clone(),
+        },
+    });
+
+    // User
+    if let Some(user) = event.user.value() {
+        if let Some(user_id) = user.id.as_str() {
+            push_metric(Metric {
+                name: metric_name(&["user"]),
+                unit: MetricUnit::None,
+                value: MetricValue::set_from_str(user_id),
+                timestamp,
+                tags: tags.clone(),
+            });
+        }
+    }
+
+    true
 }
 
 #[cfg(feature = "processing")]
@@ -167,7 +240,10 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 #[cfg(feature = "processing")]
 mod tests {
     use super::*;
+
+    use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
+    use relay_metrics::DurationPrecision;
 
     #[test]
     fn test_extract_transaction_metrics() {
@@ -175,9 +251,14 @@ mod tests {
         {
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
             "release": "1.2.3",
+            "dist": "foo ",
             "environment": "fake_environment",
             "transaction": "mytransaction",
+            "user": {
+                "id": "user123"
+            },
             "tags": {
                 "fOO": "bar",
                 "bogus": "absolutely"
@@ -186,24 +267,38 @@ mod tests {
                 "foo": {"value": 420.69},
                 "lcp": {"value": 3000.0}
             },
-            "breakdowns": {
-                "breakdown1": {
-                    "bar": {"value": 123.4}
-                },
-                "breakdown2": {
-                    "baz": {"value": 123.4},
-                    "zap": {"value": 666},
-                    "zippityzoppity": {"value": 666}
+            "spans": [
+                {
+                    "description": "<OrganizationContext>",
+                    "op": "react.mount",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976393.4619668,
+                    "timestamp": 1597976393.4718769,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 }
-            }
+            ]
         }
         "#;
+
+        let breakdowns_config: BreakdownsConfig = serde_json::from_str(
+            r#"
+            {
+                "span_ops": {
+                    "type": "spanOperations",
+                    "matches": ["react.mount"]
+                }
+            }
+        "#,
+        )
+        .unwrap();
 
         let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![];
         extract_transaction_metrics(
             &TransactionMetricsConfig::default(),
+            Some(&breakdowns_config),
             event.value().unwrap(),
             &mut metrics,
         );
@@ -215,9 +310,9 @@ mod tests {
             "extractMetrics": [
                 "sentry.transactions.measurements.foo",
                 "sentry.transactions.measurements.lcp",
-                "sentry.transactions.breakdowns.breakdown1.bar",
-                "sentry.transactions.breakdowns.breakdown2.baz",
-                "sentry.transactions.breakdowns.breakdown2.zap"
+                "sentry.transactions.breakdowns.span_ops.ops.react.mount",
+                "sentry.transactions.transaction.duration",
+                "sentry.transactions.user"
             ],
             "extractCustomTags": ["fOO"]
         }
@@ -226,34 +321,107 @@ mod tests {
         .unwrap();
 
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(
+            &config,
+            Some(&breakdowns_config),
+            event.value().unwrap(),
+            &mut metrics,
+        );
 
-        assert_eq!(metrics.len(), 5);
+        assert_eq!(metrics.len(), 5, "{:?}", metrics);
 
         assert_eq!(metrics[0].name, "sentry.transactions.measurements.foo");
         assert_eq!(metrics[1].name, "sentry.transactions.measurements.lcp");
         assert_eq!(
             metrics[2].name,
-            "sentry.transactions.breakdowns.breakdown1.bar"
+            "sentry.transactions.breakdowns.span_ops.ops.react.mount"
         );
+
+        let duration_metric = &metrics[3];
         assert_eq!(
-            metrics[3].name,
-            "sentry.transactions.breakdowns.breakdown2.baz"
+            duration_metric.name,
+            "sentry.transactions.transaction.duration"
         );
-        assert_eq!(
-            metrics[4].name,
-            "sentry.transactions.breakdowns.breakdown2.zap"
-        );
+        if let MetricValue::Distribution(value) = duration_metric.value {
+            assert_eq!(value, 59000.0);
+        } else {
+            panic!(); // Duration must be set
+        }
+
+        let user_metric = &metrics[4];
+        assert_eq!(user_metric.name, "sentry.transactions.user");
+        assert!(matches!(user_metric.value, MetricValue::Set(_)));
 
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
 
-        for metric in metrics {
+        for metric in &metrics[0..4] {
             assert!(matches!(metric.value, MetricValue::Distribution(_)));
+        }
+
+        for metric in metrics {
             assert_eq!(metric.tags["release"], "1.2.3");
+            assert_eq!(metric.tags["dist"], "foo");
             assert_eq!(metric.tags["environment"], "fake_environment");
             assert_eq!(metric.tags["transaction"], "mytransaction");
             assert_eq!(metric.tags["fOO"], "bar");
             assert!(!metric.tags.contains_key("bogus"));
         }
+    }
+
+    #[test]
+    fn test_transaction_duration() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "release": "1.2.3",
+            "environment": "fake_environment",
+            "transaction": "mytransaction",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "sentry.transactions.transaction.duration"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 1);
+
+        let duration_metric = &metrics[0];
+        assert_eq!(
+            duration_metric.name,
+            "sentry.transactions.transaction.duration"
+        );
+        assert_eq!(
+            duration_metric.unit,
+            MetricUnit::Duration(DurationPrecision::MilliSecond)
+        );
+        if let MetricValue::Distribution(value) = duration_metric.value {
+            assert_eq!(value, 59000.0); // millis
+        } else {
+            panic!(); // Duration must be set
+        }
+
+        assert_eq!(duration_metric.tags.len(), 4);
+        assert_eq!(duration_metric.tags["release"], "1.2.3");
+        assert_eq!(duration_metric.tags["transaction.status"], "ok");
+        assert_eq!(duration_metric.tags["environment"], "fake_environment");
+        assert_eq!(duration_metric.tags["transaction"], "mytransaction");
     }
 }

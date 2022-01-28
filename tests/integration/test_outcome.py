@@ -1,8 +1,8 @@
-import random
 import uuid
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from queue import Empty
+import signal
 
 import requests
 import pytest
@@ -112,6 +112,40 @@ def test_outcomes_custom_topic(
     event_emission = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
     end = datetime.utcnow()
     assert start <= event_emission <= end
+
+
+def test_outcomes_two_topics(
+    get_topic_name, processing_config, relay, mini_sentry, outcomes_consumer
+):
+    """
+    Tests routing outcomes to the billing and the default topic based on the outcome ID.
+    """
+    project_config = mini_sentry.add_basic_project_config(42)
+    project_config["config"]["quotas"] = [
+        {"categories": ["error"], "limit": 0, "reasonCode": "static_disabled_quota",}
+    ]
+
+    # Change from default, which would inherit the outcomes topic
+    options = processing_config(None)
+    options["processing"]["topics"]["outcomes_billing"] = get_topic_name("billing")
+
+    relay = relay(mini_sentry, options=options)
+    billing_consumer = outcomes_consumer(topic="billing")
+    outcomes_consumer = outcomes_consumer()
+
+    relay.send_event(42, {"message": "this is rate limited"})
+    relay.send_event(99, {"message": "wrong project"})
+
+    rate_limited = billing_consumer.get_outcome()
+    assert rate_limited["project_id"] == 42
+    assert rate_limited["outcome"] == 2
+
+    invalid = outcomes_consumer.get_outcome()
+    assert invalid["project_id"] == 99
+    assert invalid["outcome"] == 3
+
+    billing_consumer.assert_empty()
+    outcomes_consumer.assert_empty()
 
 
 def _send_event(relay, project_id=42, event_type="error", event_id=None):
@@ -712,3 +746,66 @@ def test_outcomes_do_not_aggregate(
     }
     # Convert to dict to ignore sort order:
     assert {x["event_id"]: x for x in outcomes} == expected_outcomes
+
+
+def test_graceful_shutdown(relay, mini_sentry):
+    # Create project config
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["dynamicSampling"] = {
+        "rules": [
+            {
+                "id": 1,
+                "sampleRate": 0.0,
+                "type": "error",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.environment",
+                    "value": "production",
+                },
+            }
+        ]
+    }
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {"shutdown_timeout": 1},
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+                "aggregator": {"flush_interval": 10,},
+            },
+        },
+    )
+
+    _send_event(relay, event_type="error")
+
+    # Give relay some time to handle event
+    time.sleep(0.1)
+
+    # Shutdown relay
+    relay.shutdown(sig=signal.SIGTERM)
+
+    # We should have outcomes almost immediately through force flush:
+    outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
+    assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
+
+    outcomes = outcomes_batch.get("outcomes")
+    assert len(outcomes) == 1
+
+    outcome = outcomes[0]
+
+    del outcome["timestamp"]
+
+    expected_outcome = {
+        "org_id": 1,
+        "project_id": 42,
+        "key_id": 123,
+        "outcome": 1,
+        "reason": "Sampled:1",
+        "category": 1,
+        "quantity": 1,
+    }
+    assert outcome == expected_outcome

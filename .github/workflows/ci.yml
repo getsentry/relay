@@ -16,6 +16,8 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+
     steps:
       - name: Install libcurl-dev
         run: sudo apt-get install -y libcurl4-openssl-dev
@@ -61,6 +63,7 @@ jobs:
           args: --workspace --all-features --tests -- -D clippy::all
 
   test:
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -94,6 +97,7 @@ jobs:
           args: --workspace
 
   test_all:
+    timeout-minutes: 25
     name: Test All Features (ubuntu-latest)
     runs-on: ubuntu-latest
 
@@ -136,6 +140,7 @@ jobs:
           args: --workspace --all-features
 
   test_py:
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -180,11 +185,10 @@ jobs:
   test_integration:
     name: Integration Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     # Skip redundant checks for library releases
-    # if: "!startsWith(github.ref, 'refs/heads/release-library/')"
-
-    if: "false"
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     services:
       redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
@@ -192,13 +196,16 @@ jobs:
         ports:
           - 6379:6379
 
+      # Kafka + Zookeeper version synced with
+      # https://github.com/getsentry/sentry/blob/363509c242aff197409207ce4990fb061f3534a3/.github/actions/setup-sentry/action.yml#L174
+
       zookeeper:
-        image: confluentinc/cp-zookeeper
+        image: confluentinc/cp-zookeeper:4.1.0
         env:
           ZOOKEEPER_CLIENT_PORT: 2181
 
       kafka:
-        image: confluentinc/cp-kafka
+        image: confluentinc/cp-kafka:5.1.2
         env:
           KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
           KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
@@ -236,7 +243,7 @@ jobs:
           python-version: 3.7
 
       - name: Install dependencies
-        run: pip install -U -r requirements-test.txt
+        run: pip install -U -r requirements-dev.txt
 
       - name: Run tests
         run: pytest tests -n auto -v

@@ -67,7 +67,7 @@ impl Producers {
             KafkaTopic::Attachments => Some(&self.attachments),
             KafkaTopic::Events => Some(&self.events),
             KafkaTopic::Transactions => Some(&self.transactions),
-            KafkaTopic::Outcomes => {
+            KafkaTopic::Outcomes | KafkaTopic::OutcomesBilling => {
                 // should be unreachable
                 relay_log::error!("attempted to send data to outcomes topic from store forwarder. there is another actor for that.");
                 None

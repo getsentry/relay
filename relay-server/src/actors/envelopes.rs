@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp::max;
 use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -22,6 +23,7 @@ use serde_json::Value as SerdeValue;
 use relay_auth::RelayVersion;
 use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding, RelayMode};
+use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -33,12 +35,12 @@ use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
-use relay_quotas::{DataCategory, RateLimits, Scoping};
+use relay_quotas::{DataCategory, RateLimits, ReasonCode, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
 use relay_statsd::metric;
 
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeType, TrackOutcome};
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{
@@ -63,7 +65,6 @@ use {
     crate::service::ServerErrorKind,
     crate::utils::{EnvelopeLimiter, ErrorBoundary},
     failure::ResultExt,
-    relay_filter::FilterStatKey,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic::unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -202,6 +203,10 @@ impl ProcessingError {
             | Self::EnvelopeBuildFailed(_)
             | Self::BodyEncodingFailed(_) => None,
         }
+    }
+
+    fn should_keep_metrics(&self) -> bool {
+        matches!(self, Self::TraceSampled(_) | Self::EventSampled(_))
     }
 }
 
@@ -405,6 +410,45 @@ impl ProcessEnvelopeState {
     #[cfg(feature = "processing")]
     fn remove_event(&mut self) {
         self.event = Annotated::empty();
+    }
+}
+
+/// Fields of client reports that map to specific [`Outcome`]s without content.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum ClientReportField {
+    /// The event has been filtered by an inbound data filter.
+    Filtered,
+
+    /// The event has been filtered by a sampling rule.
+    FilteredSampling,
+
+    /// The event has been rate limited.
+    RateLimited,
+
+    /// The event has already been discarded on the client side.
+    ClientDiscard,
+}
+
+/// Parse an outcome from an outcome ID and a reason string.
+///
+/// Currently only used to reconstruct outcomes encoded in client reports.
+fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
+    match field {
+        ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
+            Some(rule_id) => rule_id
+                .parse()
+                .map(|id| Outcome::FilteredSampling(RuleId(id)))
+                .map_err(|_| ()),
+            None => Err(()),
+        },
+        ClientReportField::ClientDiscard => Ok(Outcome::ClientDiscard(reason.into())),
+        ClientReportField::Filtered => Ok(Outcome::Filtered(
+            FilterStatKey::try_from(reason).map_err(|_| ())?,
+        )),
+        ClientReportField::RateLimited => Ok(Outcome::RateLimited(match reason {
+            "" => None,
+            other => Some(ReasonCode::new(other)),
+        })),
     }
 }
 
@@ -799,21 +843,20 @@ impl EnvelopeProcessor {
                     filtered_sampling_events,
                 }) => {
                     // Glue all discarded events together and give them the appropriate outcome type
-                    let input_events =
-                        discarded_events
-                            .into_iter()
-                            .map(|discarded_event| (OutcomeType::ClientDiscard, discarded_event))
-                            .chain(
-                                filtered_events.into_iter().map(|discarded_event| {
-                                    (OutcomeType::Filtered, discarded_event)
-                                }),
-                            )
-                            .chain(filtered_sampling_events.into_iter().map(|discarded_event| {
-                                (OutcomeType::FilteredSampling, discarded_event)
-                            }))
-                            .chain(rate_limited_events.into_iter().map(|discarded_event| {
-                                (OutcomeType::RateLimited, discarded_event)
-                            }));
+                    let input_events = discarded_events
+                        .into_iter()
+                        .map(|discarded_event| (ClientReportField::ClientDiscard, discarded_event))
+                        .chain(
+                            filtered_events.into_iter().map(|discarded_event| {
+                                (ClientReportField::Filtered, discarded_event)
+                            }),
+                        )
+                        .chain(filtered_sampling_events.into_iter().map(|discarded_event| {
+                            (ClientReportField::FilteredSampling, discarded_event)
+                        }))
+                        .chain(rate_limited_events.into_iter().map(|discarded_event| {
+                            (ClientReportField::RateLimited, discarded_event)
+                        }));
 
                     for (outcome_type, discarded_event) in input_events {
                         if discarded_event.reason.len() > 200 {
@@ -869,7 +912,7 @@ impl EnvelopeProcessor {
 
         let producer = OutcomeAggregator::from_registry();
         for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
-            let outcome = match Outcome::from_outcome_type(outcome_type, &reason) {
+            let outcome = match outcome_from_parts(outcome_type, &reason) {
                 Ok(outcome) => outcome,
                 Err(_) => {
                     relay_log::trace!(
@@ -1539,9 +1582,24 @@ impl EnvelopeProcessor {
             _ => return Ok(()),
         };
 
+        let breakdowns_config = state.project_state.config.breakdowns_v2.as_ref();
+
         if let Some(event) = state.event.value() {
-            // Actual logic outsourced for unit tests
-            extract_transaction_metrics(config, event, &mut state.extracted_metrics);
+            let extracted_anything;
+
+            metric!(
+                timer(RelayTimers::TransactionMetricsExtraction),
+                extracted_anything = &extracted_anything.to_string(),
+                {
+                    // Actual logic outsourced for unit tests
+                    extracted_anything = extract_transaction_metrics(
+                        config,
+                        breakdowns_config,
+                        event,
+                        &mut state.extracted_metrics,
+                    );
+                }
+            );
             Ok(())
         } else {
             Err(ProcessingError::NoEventPayload)
@@ -1673,10 +1731,7 @@ impl EnvelopeProcessor {
         }
     }
 
-    fn process_state(
-        &self,
-        mut state: ProcessEnvelopeState,
-    ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
+    fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         macro_rules! if_processing {
             ($if_true:block) => {
                 #[cfg(feature = "processing")] {
@@ -1685,51 +1740,55 @@ impl EnvelopeProcessor {
             };
         }
 
-        self.process_sessions(&mut state);
-        self.process_client_reports(&mut state);
-        self.process_user_reports(&mut state);
+        self.process_sessions(state);
+        self.process_client_reports(state);
+        self.process_user_reports(state);
 
         if state.creates_event() {
             if_processing!({
-                self.expand_unreal(&mut state)?;
+                self.expand_unreal(state)?;
             });
 
-            self.extract_event(&mut state)?;
+            self.extract_event(state)?;
 
             if_processing!({
-                self.process_unreal(&mut state)?;
-                self.create_placeholders(&mut state);
+                self.process_unreal(state)?;
+                self.create_placeholders(state);
             });
 
-            self.finalize_event(&mut state)?;
-            self.sample_event(&mut state)?;
+            self.finalize_event(state)?;
 
             if_processing!({
-                self.store_process_event(&mut state)?;
-                self.extract_transaction_metrics(&mut state)?;
-                self.filter_event(&mut state)?;
+                self.extract_transaction_metrics(state)?;
+            });
+
+            self.sample_event(state)?;
+
+            if_processing!({
+                self.store_process_event(state)?;
+                self.filter_event(state)?;
             });
         }
 
         if_processing!({
-            self.enforce_quotas(&mut state)?;
+            self.enforce_quotas(state)?;
         });
 
         if state.has_event() {
-            self.scrub_event(&mut state)?;
-            self.serialize_event(&mut state)?;
+            self.scrub_event(state)?;
+            self.serialize_event(state)?;
         }
 
-        self.scrub_attachments(&mut state);
+        self.scrub_attachments(state);
 
-        Ok(ProcessEnvelopeResponse::from(state))
+        Ok(())
     }
 
     fn process(
         &self,
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
-        let state = self.prepare_state(message)?;
+        let mut state = self.prepare_state(message)?;
 
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
@@ -1748,12 +1807,37 @@ impl EnvelopeProcessor {
             || {
                 let envelope_context = state.envelope_context;
 
-                self.process_state(state).map_err(|err| {
-                    if let Some(outcome) = err.to_outcome() {
-                        envelope_context.send_outcomes(outcome);
+                match self.process_state(&mut state) {
+                    Ok(()) => {
+                        if !state.extracted_metrics.is_empty() {
+                            let project_cache = ProjectCache::from_registry();
+                            project_cache.do_send(InsertMetrics::new(
+                                envelope_context.scoping.project_key,
+                                state.extracted_metrics,
+                            ));
+                        }
+
+                        Ok(ProcessEnvelopeResponse {
+                            envelope: Some(state.envelope).filter(|e| !e.is_empty()),
+                            rate_limits: state.rate_limits,
+                        })
                     }
-                    err
-                })
+                    Err(err) => {
+                        if let Some(outcome) = err.to_outcome() {
+                            envelope_context.send_outcomes(outcome);
+                        }
+
+                        if !state.extracted_metrics.is_empty() && err.should_keep_metrics() {
+                            let project_cache = ProjectCache::from_registry();
+                            project_cache.do_send(InsertMetrics::new(
+                                envelope_context.scoping.project_key,
+                                state.extracted_metrics,
+                            ));
+                        }
+
+                        Err(err)
+                    }
+                }
             },
         )
     }
@@ -1806,17 +1890,6 @@ struct ProcessEnvelope {
 struct ProcessEnvelopeResponse {
     envelope: Option<Envelope>,
     rate_limits: RateLimits,
-    metrics: Vec<Metric>,
-}
-
-impl From<ProcessEnvelopeState> for ProcessEnvelopeResponse {
-    fn from(state: ProcessEnvelopeState) -> Self {
-        Self {
-            envelope: Some(state.envelope).filter(|e| !e.is_empty()),
-            rate_limits: state.rate_limits,
-            metrics: state.extracted_metrics,
-        }
-    }
 }
 
 impl Message for ProcessEnvelope {
@@ -2472,12 +2545,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 // processing while the limit is active.
                 if rate_limits.is_limited() {
                     project_cache.do_send(UpdateRateLimits::new(project_key, rate_limits));
-                }
-
-                if !processed.metrics.is_empty() {
-                    // Capture extracted metrics in the project's aggregator, independent of dropped
-                    // items. This allows us to retain metrics while also sampling.
-                    project_cache.do_send(InsertMetrics::new(project_key, processed.metrics));
                 }
 
                 match processed.envelope {
@@ -3142,5 +3209,57 @@ mod tests {
             ..Default::default()
         });
         assert!(!has_unprintable_fields(&event));
+    }
+
+    #[test]
+    fn test_from_outcome_type_sampled() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "adsf"),
+            Err(_)
+        ));
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
+            Err(_)
+        ));
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:foo"),
+            Err(_)
+        ));
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(RuleId(123)))
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_filtered() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "error-message"),
+            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
+        ));
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "adsf"),
+            Err(_)
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_client_discard() {
+        assert_eq!(
+            outcome_from_parts(ClientReportField::ClientDiscard, "foo_reason").unwrap(),
+            Outcome::ClientDiscard("foo_reason".into())
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_rate_limited() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::RateLimited, ""),
+            Ok(Outcome::RateLimited(None))
+        ));
+        assert_eq!(
+            outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
+            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
+        );
     }
 }

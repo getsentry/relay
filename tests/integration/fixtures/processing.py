@@ -171,7 +171,7 @@ class ConsumerBase(object):
         # Then, send a custom message to ensure we're not just timing out
         message = json.dumps({"__test__": uuid.uuid4().hex}).encode("utf8")
         self.test_producer.produce(self.topic_name, message)
-        self.test_producer.flush()
+        self.test_producer.flush(timeout=5)
 
         rv = self.poll(timeout=timeout)
         assert rv.error() is None
@@ -180,8 +180,8 @@ class ConsumerBase(object):
 
 @pytest.fixture
 def outcomes_consumer(kafka_consumer):
-    return lambda timeout=None: OutcomesConsumer(
-        timeout=timeout, *kafka_consumer("outcomes")
+    return lambda timeout=None, topic=None: OutcomesConsumer(
+        timeout=timeout, *kafka_consumer(topic or "outcomes")
     )
 
 

@@ -1,7 +1,7 @@
 [package]
-name = "relay-ffi-macros"
+name = "relay-common-actors"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Macros for error handling in FFI bindings"
+description = "Actors used by multiple services in Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 version = "22.1.0"
@@ -9,9 +9,8 @@ edition = "2018"
 license-file = "../LICENSE"
 publish = false
 
-[lib]
-proc-macro = true
-
 [dependencies]
-syn = { version = "1.0.39", features = ["fold", "full"] }
-quote = "1.0.6"
+actix = "0.7.9"
+failure = "0.1.8"
+futures = "0.1.28"
+relay-log = { path = "../relay-log" }

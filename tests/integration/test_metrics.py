@@ -1,7 +1,10 @@
 from datetime import datetime, timedelta, timezone
 import json
+import signal
+from time import sleep
 
 import pytest
+import requests
 
 from .test_envelope import generate_transaction_item
 
@@ -26,10 +29,11 @@ def _session_payload(timestamp: datetime, started: datetime):
 
 
 def metrics_by_name(metrics_consumer, count, timeout=None):
-    metrics = {
-        metric["name"]: metric
-        for metric in [metrics_consumer.get_metric(timeout) for _ in range(count)]
-    }
+    metrics = {}
+
+    for _ in range(count):
+        metric = metrics_consumer.get_metric(timeout)
+        metrics[metric["name"]] = metric
 
     metrics_consumer.assert_empty()
     return metrics
@@ -403,40 +407,67 @@ def test_session_metrics_processing(
 
 
 @pytest.mark.parametrize(
-    "extract_metrics",
-    [True, False, "corrupted"],
-    ids=["extract", "don't extract", "corrupted config"],
-)
-@pytest.mark.parametrize(
-    "metrics_extracted", [True, False], ids=["extracted", "not extracted"]
+    "extract_metrics,discard_data",
+    [
+        (True, "transaction"),
+        pytest.param(True, "trace", marks=pytest.mark.skip(reason="currently broken")),
+        (True, False),
+        (False, "transaction"),
+        (False, False),
+        ("corrupted", "transaction"),
+    ],
+    ids=[
+        "extract from transaction-sampled",
+        "extract from trace-sampled",
+        "extract from unsampled",
+        "don't extract from transaction-sampled",
+        "don't extract from unsampled",
+        "corrupted config",
+    ],
 )
 def test_transaction_metrics(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
-    metrics_extracted,
     extract_metrics,
+    discard_data,
+    transactions_consumer,
 ):
     metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
 
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
     timestamp = datetime.now(tz=timezone.utc)
 
-    mini_sentry.project_configs[project_id]["config"]["features"] = (
-        ["organizations:metrics-extraction"] if extract_metrics else []
-    )
+    config["features"] = ["organizations:metrics-extraction"] if extract_metrics else []
+    config["breakdownsV2"] = {
+        "span_ops": {"type": "spanOperations", "matches": ["react.mount"]}
+    }
+
+    if discard_data:
+        # Make sure Relay drops the transaction
+        config.setdefault("dynamicSampling", {}).setdefault("rules", []).append(
+            {
+                "sampleRate": 0,
+                "type": discard_data,
+                "condition": {"op": "and", "inner": []},
+                "id": 1,
+            }
+        )
 
     if extract_metrics == "corrupted":
-        mini_sentry.project_configs[project_id]["config"]["transactionMetrics"] = 42
+        config["transactionMetrics"] = 42
 
     elif extract_metrics:
-        mini_sentry.project_configs[project_id]["config"]["transactionMetrics"] = {
+        config["transactionMetrics"] = {
             "extractMetrics": [
                 "sentry.transactions.measurements.foo",
                 "sentry.transactions.measurements.bar",
-                "sentry.transactions.breakdowns.breakdown1.baz",
+                "sentry.transactions.breakdowns.span_ops.total.time",
+                "sentry.transactions.breakdowns.span_ops.ops.react.mount",
             ]
         }
 
@@ -446,20 +477,25 @@ def test_transaction_metrics(
         "foo": {"value": 1.2},
         "bar": {"value": 1.3},
     }
-    transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 1.4},}}
 
-    #: The `metrics_extracted` header is ignored for transactions for now.
-    #: This means that transaction metrics are extracted regardless of the header.
-    item_headers = {"metrics_extracted": metrics_extracted}
-
-    relay.send_transaction(42, transaction, item_headers=item_headers)
+    relay.send_transaction(42, transaction)
 
     # Send another transaction:
     transaction["measurements"] = {
         "foo": {"value": 2.2},
     }
-    transaction["breakdowns"] = {"breakdown1": {"baz": {"value": 2.4},}}
-    relay.send_transaction(42, transaction, item_headers=item_headers)
+    relay.send_transaction(42, transaction)
+
+    if discard_data:
+        transactions_consumer.assert_empty()
+    else:
+        event, _ = transactions_consumer.get_event()
+        assert event["breakdowns"] == {
+            "span_ops": {
+                "ops.react.mount": {"value": 9.910106},
+                "total.time": {"value": 9.910106},
+            }
+        }
 
     if not extract_metrics or extract_metrics == "corrupted":
         message = metrics_consumer.poll(timeout=None)
@@ -467,7 +503,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 3)
+    metrics = metrics_by_name(metrics_consumer, 4)
 
     common = {
         "timestamp": int(timestamp.timestamp()),
@@ -492,10 +528,76 @@ def test_transaction_metrics(
         "value": [1.3],
     }
 
-    assert metrics["sentry.transactions.breakdowns.breakdown1.baz"] == {
+    assert metrics["sentry.transactions.breakdowns.span_ops.ops.react.mount"] == {
         **common,
-        "name": "sentry.transactions.breakdowns.breakdown1.baz",
+        "name": "sentry.transactions.breakdowns.span_ops.ops.react.mount",
         "type": "d",
         "unit": "",
-        "value": [1.4, 2.4],
+        "value": [9.910106, 9.910106],
     }
+
+    assert metrics["sentry.transactions.breakdowns.span_ops.total.time"] == {
+        **common,
+        "name": "sentry.transactions.breakdowns.span_ops.total.time",
+        "type": "d",
+        "unit": "",
+        "value": [9.910106, 9.910106],
+    }
+
+
+def test_graceful_shutdown(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "limits": {"shutdown_timeout": 2},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 10,
+                "debounce_delay": 0,
+            },
+        },
+    )
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+
+    # Backdated metric will be flushed immediately due to debounce delay
+    past_timestamp = timestamp - 1000
+    metrics_payload = f"foo:42|c"
+    relay.send_metrics(project_id, metrics_payload, past_timestamp)
+
+    # Future timestamp will not be flushed regularly, only through force flush
+    metrics_payload = f"bar:17|c"
+    future_timestamp = timestamp + 60
+    relay.send_metrics(project_id, metrics_payload, future_timestamp)
+    relay.shutdown(sig=signal.SIGTERM)
+
+    # Try to send another metric (will be rejected)
+    metrics_payload = f"zap:666|c"
+    with pytest.raises(requests.ConnectionError):
+        relay.send_metrics(project_id, metrics_payload, timestamp)
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+    metrics_item = envelope.items[0]
+    assert metrics_item.type == "metric_buckets"
+    received_metrics = json.loads(metrics_item.get_bytes().decode())
+    received_metrics = sorted(received_metrics, key=lambda x: x["name"])
+    assert received_metrics == [
+        {
+            "timestamp": future_timestamp,
+            "width": 1,
+            "name": "bar",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": past_timestamp,
+            "width": 1,
+            "name": "foo",
+            "value": 42.0,
+            "type": "c",
+        },
+    ]
