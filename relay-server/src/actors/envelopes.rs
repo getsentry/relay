@@ -936,6 +936,17 @@ impl EnvelopeProcessor {
         }
     }
 
+    /// Remove profiling items if the feature flag is not enabled
+    fn process_profiling_items(&self, state: &mut ProcessEnvelopeState) {
+        let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+        state.envelope.retain_items(|item| {
+            match item.ty() {
+                ItemType::ProfilingSession | ItemType::ProfilingTrace => profiling_enabled,
+                _ => true, // Keep all other item types
+            }
+        });
+    }
+
     /// Creates and initializes the processing state.
     ///
     /// This applies defaults to the envelope and initializes empty rate limits.
@@ -1745,6 +1756,7 @@ impl EnvelopeProcessor {
         self.process_sessions(state);
         self.process_client_reports(state);
         self.process_user_reports(state);
+        self.process_profiling_items(state);
 
         if state.creates_event() {
             if_processing!({

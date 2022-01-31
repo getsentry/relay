@@ -52,6 +52,9 @@ pub enum Feature {
     #[serde(rename = "organizations:metrics-extraction")]
     MetricsExtraction,
 
+    #[serde(rename = "organizations:profiling")]
+    Profiling,
+
     /// forward compatibility
     #[serde(other)]
     Unknown,
