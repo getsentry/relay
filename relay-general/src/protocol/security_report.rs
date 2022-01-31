@@ -227,7 +227,9 @@ impl CspRaw {
 
         self.violated_directive
             .split_once(' ')
-            .and_then(|(v, _)| v.parse().ok())
+            .map_or(&*self.violated_directive, |x| x.0)
+            .parse()
+            .ok()
             .ok_or(InvalidSecurityError)
     }
 
@@ -363,7 +365,7 @@ impl CspRaw {
             None => "",
         };
 
-        match original_uri.split_once(':').unwrap_or_default().0 {
+        match original_uri.split_once(':').map_or(original_uri, |x| x.0) {
             "http" | "https" => Cow::Borrowed(value),
             scheme => Cow::Owned(unsplit_uri(scheme, value)),
         }
@@ -1896,5 +1898,16 @@ mod tests {
 
         let report_type = SecurityReportType::from_json(hpkp_report_text.as_bytes()).unwrap();
         assert_eq!(report_type, Some(SecurityReportType::Hpkp));
+    }
+
+    #[test]
+    fn test_effective_directive_from_violated_directive_single() {
+        // Example from Firefox:
+        let csp_raw: CspRaw =
+            serde_json::from_str(r#"{"violated-directive":"default-src"}"#).unwrap();
+        assert!(matches!(
+            csp_raw.effective_directive(),
+            Ok(CspDirective::DefaultSrc)
+        ));
     }
 }
