@@ -227,7 +227,9 @@ impl CspRaw {
 
         self.violated_directive
             .split_once(' ')
-            .and_then(|(v, _)| v.parse().ok())
+            .map_or(&*self.violated_directive, |x| x.0)
+            .parse()
+            .ok()
             .ok_or(InvalidSecurityError)
     }
 
@@ -363,9 +365,9 @@ impl CspRaw {
             None => "",
         };
 
-        match original_uri.split_once(':').unwrap_or_default().0 {
-            "http" | "https" => Cow::Borrowed(value),
-            scheme => Cow::Owned(unsplit_uri(scheme, value)),
+        match original_uri.split_once(':').map(|x| x.0) {
+            None | Some("http" | "https") => Cow::Borrowed(value),
+            Some(scheme) => Cow::Owned(unsplit_uri(scheme, value)),
         }
     }
 
@@ -1412,6 +1414,21 @@ mod tests {
     }
 
     #[test]
+    fn test_csp_culprit_uri_without_scheme() {
+        // Not sure if this is a real-world example, but let's cover it anyway
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "example.com",
+                "violated-directive": "style-src example2.com"
+            }
+        }"#;
+
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
+        insta::assert_debug_snapshot!(event.culprit, @r###""style-src example2.com""###);
+    }
+
+    #[test]
     fn test_csp_tags_stripe() {
         // This is a regression test for potential PII in stripe URLs. PII stripping used to skip
         // report interfaces, which is why there is special handling.
@@ -1896,5 +1913,16 @@ mod tests {
 
         let report_type = SecurityReportType::from_json(hpkp_report_text.as_bytes()).unwrap();
         assert_eq!(report_type, Some(SecurityReportType::Hpkp));
+    }
+
+    #[test]
+    fn test_effective_directive_from_violated_directive_single() {
+        // Example from Firefox:
+        let csp_raw: CspRaw =
+            serde_json::from_str(r#"{"violated-directive":"default-src"}"#).unwrap();
+        assert!(matches!(
+            csp_raw.effective_directive(),
+            Ok(CspDirective::DefaultSrc)
+        ));
     }
 }

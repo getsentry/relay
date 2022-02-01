@@ -6,6 +6,10 @@
 
 - Add an option to dispatch billing outcomes to a dedicated topic. ([#1168](https://github.com/getsentry/relay/pull/1168))
 
+**Bug Fixes**
+
+- Fix regression in CSP report parsing. ([#1174](https://github.com/getsentry/relay/pull/1174))
+
 ## 22.1.0
 
 **Features**
