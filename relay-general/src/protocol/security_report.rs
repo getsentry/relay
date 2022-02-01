@@ -365,9 +365,9 @@ impl CspRaw {
             None => "",
         };
 
-        match original_uri.split_once(':').map_or(original_uri, |x| x.0) {
-            "http" | "https" => Cow::Borrowed(value),
-            scheme => Cow::Owned(unsplit_uri(scheme, value)),
+        match original_uri.split_once(':').map(|x| x.0) {
+            None | Some("http" | "https") => Cow::Borrowed(value),
+            Some(scheme) => Cow::Owned(unsplit_uri(scheme, value)),
         }
     }
 
@@ -1411,6 +1411,21 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         insta::assert_debug_snapshot!(event.culprit, @r###""style-src http://example2.com 'self'""###);
+    }
+
+    #[test]
+    fn test_csp_culprit_uri_without_scheme() {
+        // Not sure if this is a real-world example, but let's cover it anyway
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "example.com",
+                "violated-directive": "style-src example2.com"
+            }
+        }"#;
+
+        let mut event = Event::default();
+        Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
+        insta::assert_debug_snapshot!(event.culprit, @r###""style-src example2.com""###);
     }
 
     #[test]
