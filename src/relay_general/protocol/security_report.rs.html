@@ -1899,6 +1899,34 @@
 <span id="1898">1898</span>
 <span id="1899">1899</span>
 <span id="1900">1900</span>
+<span id="1901">1901</span>
+<span id="1902">1902</span>
+<span id="1903">1903</span>
+<span id="1904">1904</span>
+<span id="1905">1905</span>
+<span id="1906">1906</span>
+<span id="1907">1907</span>
+<span id="1908">1908</span>
+<span id="1909">1909</span>
+<span id="1910">1910</span>
+<span id="1911">1911</span>
+<span id="1912">1912</span>
+<span id="1913">1913</span>
+<span id="1914">1914</span>
+<span id="1915">1915</span>
+<span id="1916">1916</span>
+<span id="1917">1917</span>
+<span id="1918">1918</span>
+<span id="1919">1919</span>
+<span id="1920">1920</span>
+<span id="1921">1921</span>
+<span id="1922">1922</span>
+<span id="1923">1923</span>
+<span id="1924">1924</span>
+<span id="1925">1925</span>
+<span id="1926">1926</span>
+<span id="1927">1927</span>
+<span id="1928">1928</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Contains definitions for the security report interfaces.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The security interfaces are CSP, HPKP, ExpectCT and ExpectStaple.</span>
@@ -2128,7 +2156,9 @@
 
         <span class="self">self</span>.<span class="ident">violated_directive</span>
             .<span class="ident">split_once</span>(<span class="string">&#39; &#39;</span>)
-            .<span class="ident">and_then</span>(<span class="op">|</span>(<span class="ident">v</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">v</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
+            .<span class="ident">map_or</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">violated_directive</span>, <span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="number">0</span>)
+            .<span class="ident">parse</span>()
+            .<span class="ident">ok</span>()
             .<span class="ident">ok_or</span>(<span class="ident">InvalidSecurityError</span>)
     }
 
@@ -2264,9 +2294,9 @@
             <span class="prelude-val">None</span> =&gt; <span class="string">&quot;&quot;</span>,
         };
 
-        <span class="kw">match</span> <span class="ident">original_uri</span>.<span class="ident">split_once</span>(<span class="string">&#39;:&#39;</span>).<span class="ident">unwrap_or_default</span>().<span class="number">0</span> {
-            <span class="string">&quot;http&quot;</span> <span class="op">|</span> <span class="string">&quot;https&quot;</span> =&gt; <span class="ident">Cow::Borrowed</span>(<span class="ident">value</span>),
-            <span class="ident">scheme</span> =&gt; <span class="ident">Cow::Owned</span>(<span class="ident">unsplit_uri</span>(<span class="ident">scheme</span>, <span class="ident">value</span>)),
+        <span class="kw">match</span> <span class="ident">original_uri</span>.<span class="ident">split_once</span>(<span class="string">&#39;:&#39;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="number">0</span>) {
+            <span class="prelude-val">None</span> <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span> <span class="op">|</span> <span class="string">&quot;https&quot;</span>) =&gt; <span class="ident">Cow::Borrowed</span>(<span class="ident">value</span>),
+            <span class="prelude-val">Some</span>(<span class="ident">scheme</span>) =&gt; <span class="ident">Cow::Owned</span>(<span class="ident">unsplit_uri</span>(<span class="ident">scheme</span>, <span class="ident">value</span>)),
         }
     }
 
@@ -3313,6 +3343,21 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_csp_culprit_uri_without_scheme</span>() {
+        <span class="comment">// Not sure if this is a real-world example, but let&#39;s cover it anyway</span>
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+            &quot;csp-report&quot;: {
+                &quot;document-uri&quot;: &quot;example.com&quot;,
+                &quot;violated-directive&quot;: &quot;style-src example2.com&quot;
+            }
+        }&quot;#</span>;
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event::default</span>();
+        <span class="ident">Csp::apply_to_event</span>(<span class="ident">json</span>.<span class="ident">as_bytes</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">event</span>).<span class="ident">unwrap</span>();
+        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">event</span>.<span class="ident">culprit</span>, @<span class="string">r###&quot;&quot;style-src example2.com&quot;&quot;###</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_csp_tags_stripe</span>() {
         <span class="comment">// This is a regression test for potential PII in stripe URLs. PII stripping used to skip</span>
         <span class="comment">// report interfaces, which is why there is special handling.</span>
@@ -3797,6 +3842,17 @@
 
         <span class="kw">let</span> <span class="ident">report_type</span> <span class="op">=</span> <span class="ident">SecurityReportType::from_json</span>(<span class="ident">hpkp_report_text</span>.<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">report_type</span>, <span class="prelude-val">Some</span>(<span class="ident">SecurityReportType::Hpkp</span>));
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_effective_directive_from_violated_directive_single</span>() {
+        <span class="comment">// Example from Firefox:</span>
+        <span class="kw">let</span> <span class="ident">csp_raw</span>: <span class="ident">CspRaw</span> <span class="op">=</span>
+            <span class="ident">serde_json::from_str</span>(<span class="string">r#&quot;{&quot;violated-directive&quot;:&quot;default-src&quot;}&quot;#</span>).<span class="ident">unwrap</span>();
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">csp_raw</span>.<span class="ident">effective_directive</span>(),
+            <span class="prelude-val">Ok</span>(<span class="ident">CspDirective::DefaultSrc</span>)
+        ));
     }
 }
 </code></pre></div>
