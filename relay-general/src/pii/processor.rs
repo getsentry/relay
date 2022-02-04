@@ -287,9 +287,9 @@ fn apply_regex_to_chunks<'a>(
     let mut pos = 0;
     let mut rv = Vec::with_capacity(replacement_chunks.len());
 
-    for m in captures_iter {
-        match replace_behavior {
-            ReplaceBehavior::Groups(ref groups) => {
+    match replace_behavior {
+        ReplaceBehavior::Groups(ref groups) => {
+            for m in captures_iter {
                 for (idx, g) in m.iter().enumerate() {
                     if let Some(g) = g {
                         if groups.contains(&(idx as u8)) {
@@ -304,12 +304,11 @@ fn apply_regex_to_chunks<'a>(
                     }
                 }
             }
-            ReplaceBehavior::Value => {
-                process_text("", &mut rv, &mut replacement_chunks);
-                insert_replacement_chunks(rule, &search_string, &mut rv);
-                pos = search_string.len();
-                break;
-            }
+        }
+        ReplaceBehavior::Value => {
+            process_text("", &mut rv, &mut replacement_chunks);
+            insert_replacement_chunks(rule, &search_string, &mut rv);
+            pos = search_string.len();
         }
     }
 
