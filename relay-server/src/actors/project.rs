@@ -262,9 +262,9 @@ impl ProjectState {
     /// If the project state has not been loaded, this check is skipped because the project
     /// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint
     /// which comes without a project ID. The id is later overwritten in `check_envelope`.
-    pub fn is_valid_project_id(&self, stated_id: Option<ProjectId>) -> bool {
-        match (self.project_id, stated_id) {
-            (Some(actual_id), Some(stated_id)) => actual_id == stated_id,
+    pub fn is_valid_project_id(&self, stated_id: Option<ProjectId>, config: &Config) -> bool {
+        match (self.project_id, stated_id, config.override_project_ids()) {
+            (Some(actual_id), Some(stated_id), false) => actual_id == stated_id,
             _ => true,
         }
     }
@@ -387,7 +387,7 @@ impl ProjectState {
     pub fn check_request(&self, meta: &RequestMeta, config: &Config) -> Result<(), DiscardReason> {
         // Verify that the stated project id in the DSN matches the public key used to retrieve this
         // project state.
-        if !self.is_valid_project_id(meta.project_id()) {
+        if !self.is_valid_project_id(meta.project_id(), config) {
             return Err(DiscardReason::ProjectId);
         }
 

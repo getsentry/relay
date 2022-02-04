@@ -2,21 +2,27 @@
 
 ## Unreleased
 
-**Internal**
+**Features**:
+
+- Add the `relay.override_project_ids` configuration flag to support migrating projects from self-hosted to Sentry SaaS. ([#1175](https://github.com/getsentry/relay/pull/1175))
+
+**Internal**:
 
 - Add an option to dispatch billing outcomes to a dedicated topic. ([#1168](https://github.com/getsentry/relay/pull/1168))
 
-**Bug Fixes**
+**Bug Fixes**:
 
 - Fix regression in CSP report parsing. ([#1174](https://github.com/getsentry/relay/pull/1174))
 
 ## 22.1.0
 
-**Features**
+**Features**:
+
 - Flush metrics and outcome aggregators on graceful shutdown. ([#1159](https://github.com/getsentry/relay/pull/1159))
 - Extract metrics from sampled transactions. ([#1161](https://github.com/getsentry/relay/pull/1161))
 
-**Internal**
+**Internal**:
+
 - Extract normalized dist as metric. ([#1158](https://github.com/getsentry/relay/pull/1158))
 - Extract transaction user as metric. ([#1164](https://github.com/getsentry/relay/pull/1164))
 
