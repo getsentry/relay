@@ -958,3 +958,48 @@ def test_store_invalid_gzip(mini_sentry, relay_chain):
 
     response = relay.post(url, headers=headers)
     assert response.status_code == 400
+
+
+def test_store_project_move(mini_sentry, relay):
+    """
+    Tests that relay redirects events for moved projects based on the project key if
+    `override_project_ids` is enabled. The expected behavior is:
+
+     1. Resolve project config based on the public key alone
+     2. Skip validation of the project ID
+     3. Update the project ID
+    """
+
+    relay = relay(mini_sentry, {"relay": {"override_project_ids": True}})
+    mini_sentry.add_basic_project_config(42)
+
+    headers = {
+        # send_event uses the project_id to create the auth header. We need to compute the correct
+        # one so we can change to an invalid ID.
+        "X-Sentry-Auth": relay.get_auth_header(42),
+    }
+
+    relay.send_event(99, headers=headers)
+    envelope = mini_sentry.captured_events.get(timeout=1)
+
+    # NB: mini_sentry errors on all other URLs than /api/42/store/. All that's left is checking the
+    # DSN that is transmitted as part of the Envelope headers.
+    assert envelope.headers["dsn"].endswith("/42")
+
+
+def test_invalid_project_id(mini_sentry, relay):
+    """
+    Tests that Relay drops events for project ID mismatches. See `test_store_project_move` for an
+    override of this behavior.
+    """
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(42)
+
+    headers = {
+        # send_event uses the project_id to create the auth header. We need to compute the correct
+        # one so we can change to an invalid ID.
+        "X-Sentry-Auth": relay.get_auth_header(42),
+    }
+
+    relay.send_event(99, headers=headers)
+    pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))

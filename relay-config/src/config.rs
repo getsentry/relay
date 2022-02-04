@@ -363,6 +363,11 @@ impl FromStr for RelayMode {
     }
 }
 
+/// Returns `true` if this value is equal to `Default::default()`.
+fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    *t == T::default()
+}
+
 /// Checks if we are running in docker.
 fn is_docker() -> bool {
     if fs::metadata("/.dockerenv").is_ok() {
@@ -401,12 +406,6 @@ pub enum ReadinessCondition {
     Always,
 }
 
-impl ReadinessCondition {
-    fn is_default(&self) -> bool {
-        *self == Self::default()
-    }
-}
-
 impl Default for ReadinessCondition {
     fn default() -> Self {
         Self::Authenticated
@@ -431,6 +430,12 @@ pub struct Relay {
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
     pub tls_identity_password: Option<String>,
+    /// Always override project IDs from the URL and DSN with the identifier used at the upstream.
+    ///
+    /// Enable this setting for Relays used to redirect traffic to a migrated Sentry instance.
+    /// Validation of project identifiers can be safely skipped in these cases.
+    #[serde(skip_serializing_if = "is_default")]
+    pub override_project_ids: bool,
 }
 
 impl Default for Relay {
@@ -443,6 +448,7 @@ impl Default for Relay {
             tls_port: None,
             tls_identity_path: None,
             tls_identity_password: None,
+            override_project_ids: false,
         }
     }
 }
@@ -1188,7 +1194,7 @@ mod config_relay_info {
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct AuthConfig {
     /// Controls responses from the readiness health check endpoint based on authentication.
-    #[serde(default, skip_serializing_if = "ReadinessCondition::is_default")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub ready: ReadinessCondition,
 
     /// Statically authenticated downstream relays.
@@ -1529,6 +1535,13 @@ impl Config {
     /// Returns the password for the identity bundle
     pub fn tls_identity_password(&self) -> Option<&str> {
         self.values.relay.tls_identity_password.as_deref()
+    }
+
+    /// Returns `true` when project IDs should be overriden rather than validated.
+    ///
+    /// Defaults to `false`, which requires project ID validation.
+    pub fn override_project_ids(&self) -> bool {
+        self.values.relay.override_project_ids
     }
 
     /// Returns `true` if Relay requires authentication for readiness.
