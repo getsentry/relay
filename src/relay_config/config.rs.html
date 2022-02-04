@@ -1965,6 +1965,19 @@
 <span id="1964">1964</span>
 <span id="1965">1965</span>
 <span id="1966">1966</span>
+<span id="1967">1967</span>
+<span id="1968">1968</span>
+<span id="1969">1969</span>
+<span id="1970">1970</span>
+<span id="1971">1971</span>
+<span id="1972">1972</span>
+<span id="1973">1973</span>
+<span id="1974">1974</span>
+<span id="1975">1975</span>
+<span id="1976">1976</span>
+<span id="1977">1977</span>
+<span id="1978">1978</span>
+<span id="1979">1979</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2330,6 +2343,11 @@
     }
 }
 
+<span class="doccomment">/// Returns `true` if this value is equal to `Default::default()`.</span>
+<span class="kw">fn</span> <span class="ident">is_default</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Default</span> <span class="op">+</span> <span class="ident">PartialEq</span><span class="op">&gt;</span>(<span class="ident">t</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="ident">bool</span> {
+    <span class="kw-2">*</span><span class="ident">t</span> <span class="op">==</span> <span class="ident">T::default</span>()
+}
+
 <span class="doccomment">/// Checks if we are running in docker.</span>
 <span class="kw">fn</span> <span class="ident">is_docker</span>() -&gt; <span class="ident">bool</span> {
     <span class="kw">if</span> <span class="ident">fs::metadata</span>(<span class="string">&quot;/.dockerenv&quot;</span>).<span class="ident">is_ok</span>() {
@@ -2368,12 +2386,6 @@
     <span class="ident">Always</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">ReadinessCondition</span> {
-    <span class="kw">fn</span> <span class="ident">is_default</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw-2">*</span><span class="self">self</span> <span class="op">==</span> <span class="ident"><span class="self">Self</span>::default</span>()
-    }
-}
-
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ReadinessCondition</span> {
     <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="ident"><span class="self">Self</span>::Authenticated</span>
@@ -2398,6 +2410,12 @@
     <span class="kw">pub</span> <span class="ident">tls_identity_path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Password for the PKCS12 archive.</span>
     <span class="kw">pub</span> <span class="ident">tls_identity_password</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Always override project IDs from the URL and DSN with the identifier used at the upstream.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Enable this setting for Relays used to redirect traffic to a migrated Sentry instance.</span>
+    <span class="doccomment">/// Validation of project identifiers can be safely skipped in these cases.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;is_default&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">override_project_ids</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Relay</span> {
@@ -2410,6 +2428,7 @@
             <span class="ident">tls_port</span>: <span class="prelude-val">None</span>,
             <span class="ident">tls_identity_path</span>: <span class="prelude-val">None</span>,
             <span class="ident">tls_identity_password</span>: <span class="prelude-val">None</span>,
+            <span class="ident">override_project_ids</span>: <span class="bool-val">false</span>,
         }
     }
 }
@@ -3155,7 +3174,7 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AuthConfig</span> {
     <span class="doccomment">/// Controls responses from the readiness health check endpoint based on authentication.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;ReadinessCondition::is_default&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;is_default&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">ready</span>: <span class="ident">ReadinessCondition</span>,
 
     <span class="doccomment">/// Statically authenticated downstream relays.</span>
@@ -3496,6 +3515,13 @@
     <span class="doccomment">/// Returns the password for the identity bundle</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">tls_identity_password</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">tls_identity_password</span>.<span class="ident">as_deref</span>()
+    }
+
+    <span class="doccomment">/// Returns `true` when project IDs should be overriden rather than validated.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Defaults to `false`, which requires project ID validation.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">override_project_ids</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">relay</span>.<span class="ident">override_project_ids</span>
     }
 
     <span class="doccomment">/// Returns `true` if Relay requires authentication for readiness.</span>

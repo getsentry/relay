@@ -972,9 +972,9 @@
     <span class="doccomment">/// If the project state has not been loaded, this check is skipped because the project</span>
     <span class="doccomment">/// identifier is not yet known. Likewise, this check is skipped for the legacy store endpoint</span>
     <span class="doccomment">/// which comes without a project ID. The id is later overwritten in `check_envelope`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_valid_project_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">stated_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">project_id</span>, <span class="ident">stated_id</span>) {
-            (<span class="prelude-val">Some</span>(<span class="ident">actual_id</span>), <span class="prelude-val">Some</span>(<span class="ident">stated_id</span>)) =&gt; <span class="ident">actual_id</span> <span class="op">==</span> <span class="ident">stated_id</span>,
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_valid_project_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">stated_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ProjectId</span><span class="op">&gt;</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="ident">bool</span> {
+        <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">project_id</span>, <span class="ident">stated_id</span>, <span class="ident">config</span>.<span class="ident">override_project_ids</span>()) {
+            (<span class="prelude-val">Some</span>(<span class="ident">actual_id</span>), <span class="prelude-val">Some</span>(<span class="ident">stated_id</span>), <span class="bool-val">false</span>) =&gt; <span class="ident">actual_id</span> <span class="op">==</span> <span class="ident">stated_id</span>,
             <span class="kw">_</span> =&gt; <span class="bool-val">true</span>,
         }
     }
@@ -1097,7 +1097,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
         <span class="comment">// Verify that the stated project id in the DSN matches the public key used to retrieve this</span>
         <span class="comment">// project state.</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_valid_project_id</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>()) {
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_valid_project_id</span>(<span class="ident">meta</span>.<span class="ident">project_id</span>(), <span class="ident">config</span>) {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">DiscardReason::ProjectId</span>);
         }
 
