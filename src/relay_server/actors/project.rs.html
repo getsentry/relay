@@ -708,6 +708,9 @@
 <span id="707">707</span>
 <span id="708">708</span>
 <span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -761,6 +764,9 @@
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Feature</span> {
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;organizations:metrics-extraction&quot;</span>)]</span>
     <span class="ident">MetricsExtraction</span>,
+
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;organizations:profiling&quot;</span>)]</span>
+    <span class="ident">Profiling</span>,
 
     <span class="doccomment">/// forward compatibility</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
