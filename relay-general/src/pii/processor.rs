@@ -240,11 +240,20 @@ fn apply_regex_to_chunks<'a>(
     // on the chunks, but the `regex` crate does not support that.
 
     let mut search_string = String::new();
+    let mut text_present = false;
     for chunk in &chunks {
         match chunk {
-            Chunk::Text { text } => search_string.push_str(&text.replace("\x00", "")),
+            Chunk::Text { text } => {
+                search_string.push_str(&text.replace("\x00", ""));
+                text_present = true;
+            }
             Chunk::Redaction { .. } => search_string.push('\x00'),
         }
+    }
+
+    // Early exit if there isn't any text to be redacted
+    if !text_present {
+        return chunks;
     }
 
     // Early exit if this regex does not match and return the original chunks.
