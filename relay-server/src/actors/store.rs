@@ -58,6 +58,8 @@ struct Producers {
     transactions: Producer,
     sessions: Producer,
     metrics: Producer,
+    profiling_sessions: Producer,
+    profiling_traces: Producer,
 }
 
 impl Producers {
@@ -74,6 +76,8 @@ impl Producers {
             }
             KafkaTopic::Sessions => Some(&self.sessions),
             KafkaTopic::Metrics => Some(&self.metrics),
+            KafkaTopic::ProfilingSessions => Some(&self.profiling_sessions),
+            KafkaTopic::ProfilingTraces => Some(&self.profiling_traces),
         }
     }
 }
@@ -130,6 +134,16 @@ impl StoreForwarder {
             transactions: make_producer(&*config, &mut reused_producers, KafkaTopic::Transactions)?,
             sessions: make_producer(&*config, &mut reused_producers, KafkaTopic::Sessions)?,
             metrics: make_producer(&*config, &mut reused_producers, KafkaTopic::Metrics)?,
+            profiling_sessions: make_producer(
+                &*config,
+                &mut reused_producers,
+                KafkaTopic::ProfilingSessions,
+            )?,
+            profiling_traces: make_producer(
+                &*config,
+                &mut reused_producers,
+                KafkaTopic::ProfilingTraces,
+            )?,
         };
 
         Ok(Self { config, producers })
@@ -408,6 +422,44 @@ impl StoreForwarder {
         );
         Ok(())
     }
+
+    fn produce_profiling_session_message(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = ProfilingKafkaMessage {
+            organization_id,
+            project_id,
+            payload: item.payload(),
+        };
+        relay_log::trace!("Sending profiling session item to kafka");
+        self.produce(
+            KafkaTopic::ProfilingSessions,
+            KafkaMessage::ProfilingSession(message),
+        )?;
+        Ok(())
+    }
+
+    fn produce_profiling_trace_message(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = ProfilingKafkaMessage {
+            organization_id,
+            project_id,
+            payload: item.payload(),
+        };
+        relay_log::trace!("Sending profiling trace item to kafka");
+        self.produce(
+            KafkaTopic::ProfilingTraces,
+            KafkaMessage::ProfilingTrace(message),
+        )?;
+        Ok(())
+    }
 }
 
 /// StoreMessageForwarder is an async actor since the only thing it does is put the messages
@@ -574,6 +626,13 @@ struct MetricKafkaMessage {
     tags: BTreeMap<String, String>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+struct ProfilingKafkaMessage {
+    organization_id: u64,
+    project_id: ProjectId,
+    payload: Bytes,
+}
+
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -585,6 +644,8 @@ enum KafkaMessage {
     UserReport(UserReportKafkaMessage),
     Session(SessionKafkaMessage),
     Metric(MetricKafkaMessage),
+    ProfilingSession(ProfilingKafkaMessage),
+    ProfilingTrace(ProfilingKafkaMessage),
 }
 
 impl KafkaMessage {
@@ -597,6 +658,8 @@ impl KafkaMessage {
             Self::UserReport(message) => message.event_id.0,
             Self::Session(message) => message.session_id,
             Self::Metric(_message) => Uuid::nil(), // TODO(ja): Determine a partitioning key
+            Self::ProfilingTrace(_message) => Uuid::nil(), // TODO(pierre): parse session_id as uuid
+            Self::ProfilingSession(_message) => Uuid::nil(), // TODO(pierre): parse session_id as uuid
         };
 
         if uuid.is_nil() {
@@ -705,6 +768,16 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 ItemType::MetricBuckets => {
                     self.produce_metrics(scoping.organization_id, scoping.project_id, item)?
                 }
+                ItemType::ProfilingSession => self.produce_profiling_session_message(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    item,
+                )?,
+                ItemType::ProfilingTrace => self.produce_profiling_trace_message(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    item,
+                )?,
                 _ => {}
             }
         }

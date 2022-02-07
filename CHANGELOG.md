@@ -9,6 +9,7 @@
 **Internal**:
 
 - Add an option to dispatch billing outcomes to a dedicated topic. ([#1168](https://github.com/getsentry/relay/pull/1168))
+- Add new `ItemType` to handle profiling data. ([#1170](https://github.com/getsentry/relay/pull/1170))
 
 **Bug Fixes**:
 

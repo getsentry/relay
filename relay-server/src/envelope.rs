@@ -102,6 +102,10 @@ pub enum ItemType {
     MetricBuckets,
     /// Client internal report (eg: outcomes).
     ClientReport,
+    /// Profiling session
+    ProfilingSession,
+    /// Profiling data
+    ProfilingTrace,
 }
 
 impl ItemType {
@@ -133,6 +137,8 @@ impl fmt::Display for ItemType {
             Self::Metrics => write!(f, "metrics"),
             Self::MetricBuckets => write!(f, "metric buckets"),
             Self::ClientReport => write!(f, "client report"),
+            Self::ProfilingSession => write!(f, "profiling session"),
+            Self::ProfilingTrace => write!(f, "profiling trace"),
         }
     }
 }
@@ -576,7 +582,9 @@ impl Item {
             | ItemType::Sessions
             | ItemType::Metrics
             | ItemType::MetricBuckets
-            | ItemType::ClientReport => false,
+            | ItemType::ClientReport
+            | ItemType::ProfilingSession
+            | ItemType::ProfilingTrace => false,
         }
     }
 
@@ -598,6 +606,8 @@ impl Item {
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
+            ItemType::ProfilingSession => false,
+            ItemType::ProfilingTrace => false,
         }
     }
 }

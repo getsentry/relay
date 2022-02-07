@@ -26,7 +26,9 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::FormData => event_size += item.len(),
+            | ItemType::FormData
+            | ItemType::ProfilingSession
+            | ItemType::ProfilingTrace => event_size += item.len(),
             ItemType::Attachment | ItemType::UnrealReport => {
                 if item.len() > config.max_attachment_size() {
                     return false;
