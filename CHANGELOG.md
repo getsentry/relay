@@ -14,6 +14,7 @@
 **Bug Fixes**:
 
 - Fix regression in CSP report parsing. ([#1174](https://github.com/getsentry/relay/pull/1174))
+- Don't redact already redacted text. ([#1177](https://github.com/getsentry/relay/pull/1177))
 
 ## 22.1.0
 
