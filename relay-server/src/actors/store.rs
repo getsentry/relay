@@ -60,6 +60,7 @@ struct Producers {
     metrics: Producer,
     profiling_sessions: Producer,
     profiling_traces: Producer,
+    stacktraces: Producer,
 }
 
 impl Producers {
@@ -78,6 +79,7 @@ impl Producers {
             KafkaTopic::Metrics => Some(&self.metrics),
             KafkaTopic::ProfilingSessions => Some(&self.profiling_sessions),
             KafkaTopic::ProfilingTraces => Some(&self.profiling_traces),
+            KafkaTopic::Stacktraces => Some(&self.stacktraces),
         }
     }
 }
@@ -144,6 +146,7 @@ impl StoreForwarder {
                 &mut reused_producers,
                 KafkaTopic::ProfilingTraces,
             )?,
+            stacktraces: make_producer(&*config, &mut reused_producers, KafkaTopic::Stacktraces)?,
         };
 
         Ok(Self { config, producers })
@@ -464,6 +467,26 @@ impl StoreForwarder {
         )?;
         Ok(())
     }
+
+    fn produce_stacktrace(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = ProfilingKafkaMessage {
+            organization_id,
+            project_id,
+            payload: item.payload(),
+        };
+        relay_log::trace!("Sending stacktrace to kafka");
+        self.produce(KafkaTopic::Stacktraces, KafkaMessage::Stacktrace(message))?;
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "stacktrace"
+        );
+        Ok(())
+    }
 }
 
 /// StoreMessageForwarder is an async actor since the only thing it does is put the messages
@@ -650,6 +673,7 @@ enum KafkaMessage {
     Metric(MetricKafkaMessage),
     ProfilingSession(ProfilingKafkaMessage),
     ProfilingTrace(ProfilingKafkaMessage),
+    Stacktrace(ProfilingKafkaMessage),
 }
 
 impl KafkaMessage {
@@ -675,8 +699,9 @@ impl KafkaMessage {
             Self::UserReport(message) => message.event_id.0,
             Self::Session(message) => message.session_id,
             Self::Metric(_message) => Uuid::nil(), // TODO(ja): Determine a partitioning key
-            Self::ProfilingTrace(_message) => Uuid::nil(), // TODO(pierre): parse session_id as uuid
-            Self::ProfilingSession(_message) => Uuid::nil(), // TODO(pierre): parse session_id as uuid
+            Self::ProfilingTrace(_message) => Uuid::nil(),
+            Self::ProfilingSession(_message) => Uuid::nil(),
+            Self::Stacktrace(_message) => Uuid::nil(),
         };
 
         if uuid.is_nil() {
@@ -795,6 +820,9 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                     scoping.project_id,
                     item,
                 )?,
+                ItemType::Stacktrace => {
+                    self.produce_stacktrace(scoping.organization_id, scoping.project_id, item)?
+                }
                 _ => {}
             }
         }

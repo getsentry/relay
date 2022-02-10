@@ -766,6 +766,8 @@ pub enum KafkaTopic {
     ProfilingSessions,
     /// Profiling traces
     ProfilingTraces,
+    /// Stacktraces
+    Stacktraces,
 }
 
 /// Configuration for topics.
@@ -790,6 +792,8 @@ pub struct TopicAssignments {
     pub profiling_sessions: TopicAssignment,
     /// Profiling traces topic name
     pub profiling_traces: TopicAssignment,
+    /// Stacktrace topic name
+    pub stacktraces: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -805,6 +809,7 @@ impl TopicAssignments {
             KafkaTopic::Metrics => &self.metrics,
             KafkaTopic::ProfilingSessions => &self.profiling_sessions,
             KafkaTopic::ProfilingTraces => &self.profiling_traces,
+            KafkaTopic::Stacktraces => &self.stacktraces,
         }
     }
 }
@@ -821,6 +826,7 @@ impl Default for TopicAssignments {
             metrics: "ingest-metrics".to_owned().into(),
             profiling_sessions: "profiling-sessions".to_owned().into(),
             profiling_traces: "profiling-traces".to_owned().into(),
+            stacktraces: "stacktraces".to_owned().into(),
         }
     }
 }

@@ -941,7 +941,9 @@ impl EnvelopeProcessor {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         state.envelope.retain_items(|item| {
             match item.ty() {
-                ItemType::ProfilingSession | ItemType::ProfilingTrace => profiling_enabled,
+                ItemType::ProfilingSession | ItemType::ProfilingTrace | ItemType::Stacktrace => {
+                    profiling_enabled
+                }
                 _ => true, // Keep all other item types
             }
         });
@@ -1252,6 +1254,7 @@ impl EnvelopeProcessor {
             ItemType::ClientReport => false,
             ItemType::ProfilingSession => false,
             ItemType::ProfilingTrace => false,
+            ItemType::Stacktrace => false,
         }
     }
 

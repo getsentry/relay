@@ -106,6 +106,8 @@ pub enum ItemType {
     ProfilingSession,
     /// Profiling data
     ProfilingTrace,
+    /// Stacktrace event payload encoded in JSON
+    Stacktrace,
 }
 
 impl ItemType {
@@ -139,6 +141,7 @@ impl fmt::Display for ItemType {
             Self::ClientReport => write!(f, "client report"),
             Self::ProfilingSession => write!(f, "profiling session"),
             Self::ProfilingTrace => write!(f, "profiling trace"),
+            Self::Stacktrace => write!(f, "stacktrace"),
         }
     }
 }
@@ -584,7 +587,8 @@ impl Item {
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::ProfilingSession
-            | ItemType::ProfilingTrace => false,
+            | ItemType::ProfilingTrace
+            | ItemType::Stacktrace => false,
         }
     }
 
@@ -608,6 +612,7 @@ impl Item {
             ItemType::ClientReport => false,
             ItemType::ProfilingSession => false,
             ItemType::ProfilingTrace => false,
+            ItemType::Stacktrace => false,
         }
     }
 }
