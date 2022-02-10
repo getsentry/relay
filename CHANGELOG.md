@@ -24,7 +24,8 @@
 **Internal**:
 
 - Add an option to dispatch billing outcomes to a dedicated topic. ([#1168](https://github.com/getsentry/relay/pull/1168))
-- Add new `ItemType` to handle profiling data. ([#1170](https://github.com/getsentry/relay/pull/1170))
+- Add new `ItemType` to handle profiling data from Specto SDKs. ([#1170](https://github.com/getsentry/relay/pull/1170))
+- Add a `Stacktrace` `ItemType` to represent the stack traces sent from Sentry SDKs. ([#1179](https://github.com/getsentry/relay/pull/1179))
 
 **Bug Fixes**:
 
