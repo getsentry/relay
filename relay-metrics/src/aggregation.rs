@@ -1157,6 +1157,9 @@ impl Aggregator {
                                 "returned {} buckets from receiver, dropping",
                                 buckets.len()
                             );
+                            relay_statsd::metric!(
+                                counter(MetricCounters::BucketsDropped) += buckets.len() as i64
+                            );
                         }
                     }
                     fut::ok(())
