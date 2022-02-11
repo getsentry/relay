@@ -304,16 +304,16 @@ fn apply_regex_to_chunks<'a>(
                     }
                 }
             }
+            process_text(&search_string[pos..], &mut rv, &mut replacement_chunks);
+            debug_assert!(replacement_chunks.is_empty());
         }
         ReplaceBehavior::Value => {
-            process_text("", &mut rv, &mut replacement_chunks);
+            // We only want to replace a string value, and the replacement chunk for that is
+            // inserted by insert_replacement_chunks. Adding chunks from replacement_chunks
+            // results in the incorrect behavior of a total of more chunks than the input.
             insert_replacement_chunks(rule, &search_string, &mut rv);
-            pos = search_string.len();
         }
     }
-
-    process_text(&search_string[pos..], &mut rv, &mut replacement_chunks);
-    debug_assert!(replacement_chunks.is_empty());
 
     rv
 }
