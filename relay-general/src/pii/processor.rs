@@ -355,7 +355,7 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 
 #[cfg(test)]
 use {
-    crate::pii::PiiConfig,
+    crate::pii::{PiiConfig, ReplaceRedaction},
     crate::processor::process_value,
     crate::protocol::{
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
@@ -943,4 +943,28 @@ fn test_ip_address_hashing_does_not_overwrite_id() {
     );
 
     assert_eq!(user.id.value().unwrap().as_str(), "123");
+}
+
+#[test]
+fn test_replace_replaced_text() {
+    let chunks = vec![Chunk::Redaction {
+        text: "[ip]".into(),
+        rule_id: "@ip".into(),
+        ty: RemarkType::Substituted,
+    }];
+    let rule = RuleRef {
+        id: "@ip:replace".into(),
+        origin: "@ip".into(),
+        ty: RuleType::Ip,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[ip]".into(),
+        }),
+    };
+    let res = apply_regex_to_chunks(
+        chunks.clone(),
+        &rule,
+        &Regex::new(r#".*"#).unwrap(),
+        ReplaceBehavior::Value,
+    );
+    assert_eq!(chunks, res);
 }
