@@ -14,6 +14,7 @@
 **Bug Fixes**:
 
 - Fix regression in CSP report parsing. ([#1174](https://github.com/getsentry/relay/pull/1174))
+- Ignore replacement_chunks when they aren't used. ([#1180](https://github.com/getsentry/relay/pull/1180))
 
 ## 22.1.0
 
