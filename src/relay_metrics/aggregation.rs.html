@@ -2008,6 +2008,9 @@
 <span id="2007">2007</span>
 <span id="2008">2008</span>
 <span id="2009">2009</span>
+<span id="2010">2010</span>
+<span id="2011">2011</span>
+<span id="2012">2012</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -3166,6 +3169,9 @@
                             <span class="macro">relay_log::trace!</span>(
                                 <span class="string">&quot;returned {} buckets from receiver, dropping&quot;</span>,
                                 <span class="ident">buckets</span>.<span class="ident">len</span>()
+                            );
+                            <span class="macro">relay_statsd::metric!</span>(
+                                <span class="ident">counter</span>(<span class="ident">MetricCounters::BucketsDropped</span>) <span class="op">+</span><span class="op">=</span> <span class="ident">buckets</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">i64</span>
                             );
                         }
                     }

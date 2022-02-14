@@ -102,6 +102,12 @@
 <span id="101">101</span>
 <span id="102">102</span>
 <span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricSets</span> {
@@ -140,6 +146,11 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Tagged by metric type and name.</span>
     <span class="ident">MergeMiss</span>,
+
+    <span class="doccomment">/// Incremented every time a bucket is dropped.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This should only happen when a project state is invalid during graceful shutdown.</span>
+    <span class="ident">BucketsDropped</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">CounterMetric</span> <span class="kw">for</span> <span class="ident">MetricCounters</span> {
@@ -148,6 +159,7 @@
             <span class="ident"><span class="self">Self</span>::InsertMetric</span> =&gt; <span class="string">&quot;metrics.insert&quot;</span>,
             <span class="ident"><span class="self">Self</span>::MergeHit</span> =&gt; <span class="string">&quot;metrics.buckets.merge.hit&quot;</span>,
             <span class="ident"><span class="self">Self</span>::MergeMiss</span> =&gt; <span class="string">&quot;metrics.buckets.merge.miss&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::BucketsDropped</span> =&gt; <span class="string">&quot;metrics.buckets.dropped&quot;</span>,
         }
     }
 }
