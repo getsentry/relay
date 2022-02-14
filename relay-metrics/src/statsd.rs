@@ -36,6 +36,11 @@ pub enum MetricCounters {
     ///
     /// Tagged by metric type and name.
     MergeMiss,
+
+    /// Incremented every time a bucket is dropped.
+    ///
+    /// This should only happen when a project state is invalid during graceful shutdown.
+    BucketsDropped,
 }
 
 impl CounterMetric for MetricCounters {
@@ -44,6 +49,7 @@ impl CounterMetric for MetricCounters {
             Self::InsertMetric => "metrics.insert",
             Self::MergeHit => "metrics.buckets.merge.hit",
             Self::MergeMiss => "metrics.buckets.merge.miss",
+            Self::BucketsDropped => "metrics.buckets.dropped",
         }
     }
 }
