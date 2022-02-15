@@ -304,16 +304,16 @@ fn apply_regex_to_chunks<'a>(
                     }
                 }
             }
+            process_text(&search_string[pos..], &mut rv, &mut replacement_chunks);
+            debug_assert!(replacement_chunks.is_empty());
         }
         ReplaceBehavior::Value => {
-            process_text("", &mut rv, &mut replacement_chunks);
+            // We only want to replace a string value, and the replacement chunk for that is
+            // inserted by insert_replacement_chunks. Adding chunks from replacement_chunks
+            // results in the incorrect behavior of a total of more chunks than the input.
             insert_replacement_chunks(rule, &search_string, &mut rv);
-            pos = search_string.len();
         }
     }
-
-    process_text(&search_string[pos..], &mut rv, &mut replacement_chunks);
-    debug_assert!(replacement_chunks.is_empty());
 
     rv
 }
@@ -355,7 +355,7 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 
 #[cfg(test)]
 use {
-    crate::pii::PiiConfig,
+    crate::pii::{PiiConfig, ReplaceRedaction},
     crate::processor::process_value,
     crate::protocol::{
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
@@ -943,4 +943,28 @@ fn test_ip_address_hashing_does_not_overwrite_id() {
     );
 
     assert_eq!(user.id.value().unwrap().as_str(), "123");
+}
+
+#[test]
+fn test_replace_replaced_text() {
+    let chunks = vec![Chunk::Redaction {
+        text: "[ip]".into(),
+        rule_id: "@ip".into(),
+        ty: RemarkType::Substituted,
+    }];
+    let rule = RuleRef {
+        id: "@ip:replace".into(),
+        origin: "@ip".into(),
+        ty: RuleType::Ip,
+        redaction: Redaction::Replace(ReplaceRedaction {
+            text: "[ip]".into(),
+        }),
+    };
+    let res = apply_regex_to_chunks(
+        chunks.clone(),
+        &rule,
+        &Regex::new(r#".*"#).unwrap(),
+        ReplaceBehavior::Value,
+    );
+    assert_eq!(chunks, res);
 }
