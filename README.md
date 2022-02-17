@@ -252,3 +252,20 @@ There are two separate projects to publish:
 - **Relay Python library** along with the C-ABI are released from the `py/`
   subfolder. Change into that directory and run `craft prepare` and `craft publish`. We use [Semantic Versioning](https://semver.org/) and release during
   the development cycle.
+
+### Instructions for changelogs
+
+For changes exposed to the _Python package_, add an entry to `py/CHANGELOG.md`. This includes, but is not limited to, event normalization, PII scrubbing, and the protocol.
+For changes to the _Relay server_, please add an entry to `CHANGELOG.md` under the following heading:
+
+1. `Features`: for new user-visible functionality.
+2. `Bug Fixes`: for user-visible bug fixes.
+3. `Internal`: for features and bug fixes in internal operation, especially processing mode.
+
+To the changelog entry, please add a link to this PR (consider a more descriptive message):
+
+```md
+- ${getCleanTitle()}. (${PR_LINK})
+```
+
+If none of the above apply, you can opt out by adding `#skip-changelog` to the PR description.
