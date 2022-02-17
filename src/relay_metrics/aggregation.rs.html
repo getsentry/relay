@@ -3166,7 +3166,7 @@
                             <span class="ident">slf</span>.<span class="ident">merge_all</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>).<span class="ident">ok</span>();
                         } <span class="kw">else</span> {
                             <span class="comment">// NOTE: This means we drop buckets if the project state is expired.</span>
-                            <span class="macro">relay_log::trace!</span>(
+                            <span class="macro">relay_log::error!</span>(
                                 <span class="string">&quot;returned {} buckets from receiver, dropping&quot;</span>,
                                 <span class="ident">buckets</span>.<span class="ident">len</span>()
                             );

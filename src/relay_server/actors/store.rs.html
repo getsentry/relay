@@ -819,6 +819,23 @@
 <span id="818">818</span>
 <span id="819">819</span>
 <span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The actor uses kafka topics to forward data to Sentry</span>
 
@@ -845,7 +862,7 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">ServerError</span>, <span class="ident">ServerErrorKind</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">CaptureErrorContext</span>, <span class="ident">ThreadedProducer</span>};
 
 <span class="macro">lazy_static::lazy_static!</span> {
@@ -972,6 +989,10 @@
 
     <span class="kw">fn</span> <span class="ident">produce</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>, <span class="ident">message</span>: <span class="ident">KafkaMessage</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">serialized</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">serialize</span>()<span class="question-mark">?</span>;
+        <span class="macro">metric!</span>(
+            <span class="ident">histogram</span>(<span class="ident">RelayHistograms::KafkaMessageSize</span>) <span class="op">=</span> <span class="ident">serialized</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>,
+            <span class="ident">variant</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">variant</span>()
+        );
         <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">key</span>();
 
         <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord::to</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">kafka_topic_name</span>(<span class="ident">topic</span>))
@@ -1470,6 +1491,19 @@
 }
 
 <span class="kw">impl</span> <span class="ident">KafkaMessage</span> {
+    <span class="kw">fn</span> <span class="ident">variant</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident">KafkaMessage::Event</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;event&quot;</span>,
+            <span class="ident">KafkaMessage::Attachment</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;attachment&quot;</span>,
+            <span class="ident">KafkaMessage::AttachmentChunk</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;attachment_chunk&quot;</span>,
+            <span class="ident">KafkaMessage::UserReport</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;user_report&quot;</span>,
+            <span class="ident">KafkaMessage::Session</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;session&quot;</span>,
+            <span class="ident">KafkaMessage::Metric</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;metric&quot;</span>,
+            <span class="ident">KafkaMessage::ProfilingSession</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;profiling_session&quot;</span>,
+            <span class="ident">KafkaMessage::ProfilingTrace</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;profiling_trace&quot;</span>,
+        }
+    }
+
     <span class="doccomment">/// Returns the partitioning key for this kafka message determining.</span>
     <span class="kw">fn</span> <span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [<span class="ident">u8</span>; <span class="number">16</span>] {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span> {

@@ -3261,6 +3261,9 @@
 <span id="3260">3260</span>
 <span id="3261">3261</span>
 <span id="3262">3262</span>
+<span id="3263">3263</span>
+<span id="3264">3264</span>
+<span id="3265">3265</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -5369,7 +5372,10 @@
             .<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Auth&quot;</span>, <span class="ident">meta</span>.<span class="ident">auth_header</span>())
             .<span class="ident">header</span>(<span class="string">&quot;X-Forwarded-For&quot;</span>, <span class="ident">meta</span>.<span class="ident">forwarded_for</span>())
             .<span class="ident">header</span>(<span class="string">&quot;Content-Type&quot;</span>, <span class="ident">envelope::CONTENT_TYPE</span>);
-        <span class="ident">builder</span>.<span class="ident">body</span>(<span class="self">self</span>.<span class="ident">envelope_body</span>.<span class="ident">clone</span>())
+
+        <span class="kw">let</span> <span class="ident">envelope_body</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">envelope_body</span>.<span class="ident">clone</span>();
+        <span class="macro">metric!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms::UpstreamEnvelopeBodySize</span>) <span class="op">=</span> <span class="ident">envelope_body</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
+        <span class="ident">builder</span>.<span class="ident">body</span>(<span class="ident">envelope_body</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">respond</span>(

@@ -1276,6 +1276,7 @@
 <span id="1275">1275</span>
 <span id="1276">1276</span>
 <span id="1277">1277</span>
+<span id="1278">1278</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
 <span class="doccomment">//!</span>
@@ -2460,6 +2461,7 @@
             <span class="self">self</span>.<span class="ident">signature</span>.<span class="ident">as_str</span>().<span class="ident">as_bytes</span>(),
         );
         <span class="ident">builder</span>.<span class="ident">header</span>(<span class="ident">header::CONTENT_TYPE</span>, <span class="string">b&quot;application/json&quot;</span>);
+        <span class="macro">metric!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms::UpstreamQueryBodySize</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">body</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
         <span class="ident">builder</span>.<span class="ident">body</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">body</span>)
     }
 
