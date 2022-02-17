@@ -2106,7 +2106,10 @@ impl UpstreamRequest for SendEnvelope {
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE);
-        builder.body(self.envelope_body.clone())
+
+        let envelope_body = self.envelope_body.clone();
+        metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
+        builder.body(envelope_body)
     }
 
     fn respond(

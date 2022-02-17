@@ -129,6 +129,17 @@ pub enum RelayHistograms {
     ///   - `route`: The endpoint that was called on the upstream.
     ///   - `status-code`: The status code of the request when available, otherwise "-".
     UpstreamRetries,
+
+    /// Size of emitted kafka message in bytes, tagged by message type.
+    #[cfg(feature = "processing")]
+    KafkaMessageSize,
+
+    /// Size of envelopes sent over HTTP in bytes.
+    UpstreamQueryBodySize,
+
+    /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
+    /// Relay over HTTP in bytes.
+    UpstreamEnvelopeBodySize,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -144,6 +155,10 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
             RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
             RelayHistograms::UpstreamRetries => "upstream.retries",
+            #[cfg(feature = "processing")]
+            RelayHistograms::KafkaMessageSize => "kafka.message_size",
+            RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
+            RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
         }
     }
 }

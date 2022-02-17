@@ -1182,6 +1182,7 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
             self.signature.as_str().as_bytes(),
         );
         builder.header(header::CONTENT_TYPE, b"application/json");
+        metric!(histogram(RelayHistograms::UpstreamQueryBodySize) = self.body.len() as u64);
         builder.body(&self.body)
     }
 
