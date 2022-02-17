@@ -131,6 +131,7 @@ pub enum RelayHistograms {
     UpstreamRetries,
 
     /// Size of emitted kafka message in bytes, tagged by message type.
+    #[cfg(feature = "processing")]
     KafkaMessageSize,
 
     /// Size of envelopes sent over HTTP in bytes.
@@ -154,6 +155,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
             RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
             RelayHistograms::UpstreamRetries => "upstream.retries",
+            #[cfg(feature = "processing")]
             RelayHistograms::KafkaMessageSize => "kafka.message_size",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
