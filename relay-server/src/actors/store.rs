@@ -24,7 +24,7 @@ use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{CaptureErrorContext, ThreadedProducer};
 
 lazy_static::lazy_static! {
@@ -151,6 +151,10 @@ impl StoreForwarder {
 
     fn produce(&self, topic: KafkaTopic, message: KafkaMessage) -> Result<(), StoreError> {
         let serialized = message.serialize()?;
+        metric!(
+            histogram(RelayHistograms::KafkaMessageSize) = serialized.len() as u64,
+            variant = message.variant()
+        );
         let key = message.key();
 
         let record = BaseRecord::to(self.config.kafka_topic_name(topic))
@@ -649,6 +653,19 @@ enum KafkaMessage {
 }
 
 impl KafkaMessage {
+    fn variant(&self) -> &'static str {
+        match self {
+            KafkaMessage::Event(_) => "event",
+            KafkaMessage::Attachment(_) => "attachment",
+            KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
+            KafkaMessage::UserReport(_) => "user_report",
+            KafkaMessage::Session(_) => "session",
+            KafkaMessage::Metric(_) => "metric",
+            KafkaMessage::ProfilingSession(_) => "profiling_session",
+            KafkaMessage::ProfilingTrace(_) => "profiling_trace",
+        }
+    }
+
     /// Returns the partitioning key for this kafka message determining.
     fn key(&self) -> [u8; 16] {
         let mut uuid = match self {
