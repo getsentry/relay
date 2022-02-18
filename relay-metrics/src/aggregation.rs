@@ -7,6 +7,7 @@ use actix::prelude::*;
 
 use failure::Fail;
 use float_ord::FloatOrd;
+use hash32::{FnvHasher, Hasher};
 use relay_common_actors::controller::{Controller, Shutdown};
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +15,9 @@ use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{Metric, MetricType, MetricUnit, MetricValue};
+
+/// Interval for the flush cycle of the [`Aggregator`].
+const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 
 /// A snapshot of values within a [`Bucket`].
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
@@ -811,15 +815,22 @@ impl AggregatorConfig {
     ///
     /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
     /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
-    fn get_flush_time(&self, bucket_timestamp: UnixTimestamp) -> Instant {
+    fn get_flush_time(&self, bucket_timestamp: UnixTimestamp, project_key: ProjectKey) -> Instant {
         let now = Instant::now();
 
         if let MonotonicResult::Instant(instant) = bucket_timestamp.to_instant() {
             let bucket_end = instant + self.bucket_interval();
             let initial_flush = bucket_end + self.initial_delay();
+            // If the initial flush is still pending, use that.
             if initial_flush > now {
-                // If the initial flush is still pending, use that.
-                return initial_flush;
+                // Shift deterministically within one bucket interval based on the project key. This
+                // distributes buckets over time while also flushing all buckets of the same project
+                // key together.
+                let mut hasher = FnvHasher::default();
+                hasher.write(project_key.as_str().as_bytes());
+                let shift_millis = u64::from(hasher.finish()) % (self.bucket_interval * 1000);
+
+                return initial_flush + Duration::from_millis(shift_millis);
             }
         }
 
@@ -999,6 +1010,7 @@ impl Aggregator {
         value: T,
     ) -> Result<(), AggregateMetricsError> {
         let timestamp = key.timestamp;
+        let project_key = key.project_key;
 
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
@@ -1021,7 +1033,7 @@ impl Aggregator {
                     metric_name = &entry.key().metric_name
                 );
 
-                let flush_at = self.config.get_flush_time(timestamp);
+                let flush_at = self.config.get_flush_time(timestamp, project_key);
                 entry.insert(QueuedBucket::new(flush_at, value.into()));
             }
         }
@@ -1192,7 +1204,7 @@ impl Actor for Aggregator {
         Controller::subscribe(ctx.address());
 
         // TODO: Consider a better approach than busy polling
-        ctx.run_interval(Duration::from_millis(500), |slf, context| {
+        ctx.run_interval(FLUSH_INTERVAL, |slf, context| {
             slf.try_flush(context, false);
         });
     }
