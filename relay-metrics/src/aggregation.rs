@@ -744,6 +744,8 @@ pub struct AggregatorConfig {
     /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
     /// for buckets that are being reported in real time. This should be higher than the
     /// `debounce_delay`.
+    ///
+    /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
     pub initial_delay: u64,
 
     /// The delay in seconds to wait before flushing a backdated buckets.
@@ -751,6 +753,9 @@ pub struct AggregatorConfig {
     /// Defaults to `10` seconds. Metrics can be sent with a past timestamp. Relay wait this time
     /// before sending such a backdated bucket to the upsteam. This should be lower than
     /// `initial_delay`.
+    ///
+    /// Other than `initial_delay`, the debounce delay starts with the exact moment the first metric
+    /// is added to a backdated bucket.
     pub debounce_delay: u64,
 
     /// The age in seconds of the oldest allowed bucket timestamp.
@@ -960,6 +965,9 @@ impl Message for FlushBuckets {
 /// Buckets are flushed to a receiver after their time window and a grace period have passed.
 /// Metrics with a recent timestamp are given a longer grace period than backdated metrics, which
 /// are flushed after a shorter debounce delay. See [`AggregatorConfig`] for configuration options.
+///
+/// Internally, the aggregator maintains a continuous flush cycle every 100ms. It guarantees that
+/// all elapsed buckets belonging to the same [`ProjectKey`] are flushed together.
 ///
 /// Receivers must implement a handler for the [`FlushBuckets`] message:
 ///
