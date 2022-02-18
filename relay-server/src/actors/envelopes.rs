@@ -2725,7 +2725,7 @@ impl Handler<SendMetrics> for EnvelopeManager {
             .then(move |x| {
                 sizes.iter().for_each(|(rel_size, num_metrics)| {
                     relay_statsd::metric!(
-                        histogram(MetricHistograms::MetricsPerBucket) = *num_metrics
+                        histogram(MetricHistograms::DataPointsPerBucket) = *num_metrics
                     );
                     relay_statsd::metric!(
                         histogram(MetricHistograms::BucketRelativeSize) = *rel_size as u64

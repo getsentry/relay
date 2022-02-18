@@ -85,13 +85,13 @@ pub enum MetricHistograms {
     /// equivalent to the number of projects being flushed.
     BucketsFlushedPerProject,
 
-    /// The number of metrics in a bucket, at the time of flushing.
-    MetricsPerBucket,
+    /// The number of data points in a bucket, at the time of flushing.
+    DataPointsPerBucket,
 
-    /// The number of metric elements in the bucket. The difference between MetricsPerBucket and
-    /// BucketRelativeSize is that the first counts how many metrics have contributed to the bucket
-    /// and therefore gives you a measure of the buckets efficiency, every time a counter is added
-    /// to the bucket there is a contribution and MetricsPerBucket increases.
+    /// The number of metric elements in the bucket. The difference between DataPointsPerBucket and
+    /// BucketRelativeSize is that the first counts how many data points have contributed to the bucket
+    /// and therefore gives you a measure of the buckets efficiency. Every time a counter is added
+    /// to the bucket there is a contribution and DataPointsPerBucket increases.
     /// BucketRelativeSize measures how many distinct values are in a bucket (adding to a counter
     /// does not increase the size of the bucket) and therefore BucketRelativeSize gives you a
     /// measurement of the bucket size and complexity.
@@ -103,7 +103,7 @@ impl HistogramMetric for MetricHistograms {
         match *self {
             Self::BucketsFlushed => "metrics.buckets.flushed",
             Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
-            Self::MetricsPerBucket => "metrics.buckets.metrics_per_bucket",
+            Self::DataPointsPerBucket => "metrics.buckets.data_points_per_bucket",
             Self::BucketRelativeSize => "metrics.buckets.relative_bucket_size",
         }
     }
