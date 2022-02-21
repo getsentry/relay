@@ -143,12 +143,6 @@ impl DistributionValue {
         self.length
     }
 
-    /// Returns the size of the map used to store the distribution
-    /// This is only relevant for internal metrics
-    pub fn internal_size(&self) -> usize {
-        self.values.len()
-    }
-
     /// Returns `true` if the map contains no elements.
     pub fn is_empty(&self) -> bool {
         self.length == 0
@@ -506,31 +500,6 @@ impl BucketValue {
             Self::Distribution(_) => MetricType::Distribution,
             Self::Set(_) => MetricType::Set,
             Self::Gauge(_) => MetricType::Gauge,
-        }
-    }
-
-    /// Returns an estimation of the number of metrics that went into the bucket.
-    pub fn num_metrics(&self) -> f64 {
-        match self {
-            Self::Distribution(val) => val.len() as f64,
-            Self::Counter(val) => *val,
-            Self::Gauge(g) => g.count as f64,
-            // for set we would like to know haw many times an item was added to it
-            // unfortunately we can't know this unless we add an additional counter
-            // to the datastructure so the best think we can do is return the size
-            // and be aware that it is not exactly what we want
-            Self::Set(s) => s.len() as f64,
-        }
-    }
-
-    /// Returns the number of values needed to encode the bucket (a measure of bucket
-    /// complexity).
-    pub fn relative_size(&self) -> usize {
-        match self {
-            Self::Counter(_) => 1,
-            Self::Set(s) => s.len(),
-            Self::Gauge(_) => 5,
-            Self::Distribution(m) => m.internal_size(),
         }
     }
 }
