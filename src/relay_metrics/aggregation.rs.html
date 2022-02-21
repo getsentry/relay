@@ -2042,6 +2042,27 @@
 <span id="2041">2041</span>
 <span id="2042">2042</span>
 <span id="2043">2043</span>
+<span id="2044">2044</span>
+<span id="2045">2045</span>
+<span id="2046">2046</span>
+<span id="2047">2047</span>
+<span id="2048">2048</span>
+<span id="2049">2049</span>
+<span id="2050">2050</span>
+<span id="2051">2051</span>
+<span id="2052">2052</span>
+<span id="2053">2053</span>
+<span id="2054">2054</span>
+<span id="2055">2055</span>
+<span id="2056">2056</span>
+<span id="2057">2057</span>
+<span id="2058">2058</span>
+<span id="2059">2059</span>
+<span id="2060">2060</span>
+<span id="2061">2061</span>
+<span id="2062">2062</span>
+<span id="2063">2063</span>
+<span id="2064">2064</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2051,6 +2072,7 @@
 
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="kw">use</span> <span class="ident">float_ord::FloatOrd</span>;
+<span class="kw">use</span> <span class="ident">hash32</span>::{<span class="ident">FnvHasher</span>, <span class="ident">Hasher</span>};
 <span class="kw">use</span> <span class="ident">relay_common_actors::controller</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
@@ -2058,6 +2080,9 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">MetricCounters</span>, <span class="ident">MetricGauges</span>, <span class="ident">MetricHistograms</span>, <span class="ident">MetricSets</span>, <span class="ident">MetricTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">Metric</span>, <span class="ident">MetricType</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};
+
+<span class="doccomment">/// Interval for the flush cycle of the [`Aggregator`].</span>
+<span class="kw">const</span> <span class="ident">FLUSH_INTERVAL</span>: <span class="ident">Duration</span> <span class="op">=</span> <span class="ident">Duration::from_millis</span>(<span class="number">100</span>);
 
 <span class="doccomment">/// A snapshot of values within a [`Bucket`].</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
@@ -2815,6 +2840,8 @@
     <span class="doccomment">/// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits</span>
     <span class="doccomment">/// for buckets that are being reported in real time. This should be higher than the</span>
     <span class="doccomment">/// `debounce_delay`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.</span>
     <span class="kw">pub</span> <span class="ident">initial_delay</span>: <span class="ident">u64</span>,
 
     <span class="doccomment">/// The delay in seconds to wait before flushing a backdated buckets.</span>
@@ -2822,6 +2849,9 @@
     <span class="doccomment">/// Defaults to `10` seconds. Metrics can be sent with a past timestamp. Relay wait this time</span>
     <span class="doccomment">/// before sending such a backdated bucket to the upsteam. This should be lower than</span>
     <span class="doccomment">/// `initial_delay`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Unlike `initial_delay`, the debounce delay starts with the exact moment the first metric</span>
+    <span class="doccomment">/// is added to a backdated bucket.</span>
     <span class="kw">pub</span> <span class="ident">debounce_delay</span>: <span class="ident">u64</span>,
 
     <span class="doccomment">/// The age in seconds of the oldest allowed bucket timestamp.</span>
@@ -2886,15 +2916,22 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that</span>
     <span class="doccomment">/// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.</span>
-    <span class="kw">fn</span> <span class="ident">get_flush_time</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">bucket_timestamp</span>: <span class="ident">UnixTimestamp</span>) -&gt; <span class="ident">Instant</span> {
+    <span class="kw">fn</span> <span class="ident">get_flush_time</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">bucket_timestamp</span>: <span class="ident">UnixTimestamp</span>, <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>) -&gt; <span class="ident">Instant</span> {
         <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">MonotonicResult::Instant</span>(<span class="ident">instant</span>) <span class="op">=</span> <span class="ident">bucket_timestamp</span>.<span class="ident">to_instant</span>() {
             <span class="kw">let</span> <span class="ident">bucket_end</span> <span class="op">=</span> <span class="ident">instant</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">bucket_interval</span>();
             <span class="kw">let</span> <span class="ident">initial_flush</span> <span class="op">=</span> <span class="ident">bucket_end</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">initial_delay</span>();
+            <span class="comment">// If the initial flush is still pending, use that.</span>
             <span class="kw">if</span> <span class="ident">initial_flush</span> <span class="op">&gt;</span> <span class="ident">now</span> {
-                <span class="comment">// If the initial flush is still pending, use that.</span>
-                <span class="kw">return</span> <span class="ident">initial_flush</span>;
+                <span class="comment">// Shift deterministically within one bucket interval based on the project key. This</span>
+                <span class="comment">// distributes buckets over time while also flushing all buckets of the same project</span>
+                <span class="comment">// key together.</span>
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hasher</span> <span class="op">=</span> <span class="ident">FnvHasher::default</span>();
+                <span class="ident">hasher</span>.<span class="ident">write</span>(<span class="ident">project_key</span>.<span class="ident">as_str</span>().<span class="ident">as_bytes</span>());
+                <span class="kw">let</span> <span class="ident">shift_millis</span> <span class="op">=</span> <span class="ident">u64::from</span>(<span class="ident">hasher</span>.<span class="ident">finish</span>()) <span class="op">%</span> (<span class="self">self</span>.<span class="ident">bucket_interval</span> <span class="op">*</span> <span class="number">1000</span>);
+
+                <span class="kw">return</span> <span class="ident">initial_flush</span> <span class="op">+</span> <span class="ident">Duration::from_millis</span>(<span class="ident">shift_millis</span>);
             }
         }
 
@@ -3025,6 +3062,9 @@
 <span class="doccomment">/// Metrics with a recent timestamp are given a longer grace period than backdated metrics, which</span>
 <span class="doccomment">/// are flushed after a shorter debounce delay. See [`AggregatorConfig`] for configuration options.</span>
 <span class="doccomment">///</span>
+<span class="doccomment">/// Internally, the aggregator maintains a continuous flush cycle every 100ms. It guarantees that</span>
+<span class="doccomment">/// all elapsed buckets belonging to the same [`ProjectKey`] are flushed together.</span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// Receivers must implement a handler for the [`FlushBuckets`] message:</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```</span>
@@ -3074,6 +3114,7 @@
         <span class="ident">value</span>: <span class="ident">T</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">AggregateMetricsError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">key</span>.<span class="ident">timestamp</span>;
+        <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">key</span>.<span class="ident">project_key</span>;
 
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">buckets</span>.<span class="ident">entry</span>(<span class="ident">key</span>) {
             <span class="ident">Entry::Occupied</span>(<span class="kw-2">mut</span> <span class="ident">entry</span>) =&gt; {
@@ -3096,7 +3137,7 @@
                     <span class="ident">metric_name</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">entry</span>.<span class="ident">key</span>().<span class="ident">metric_name</span>
                 );
 
-                <span class="kw">let</span> <span class="ident">flush_at</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">get_flush_time</span>(<span class="ident">timestamp</span>);
+                <span class="kw">let</span> <span class="ident">flush_at</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">get_flush_time</span>(<span class="ident">timestamp</span>, <span class="ident">project_key</span>);
                 <span class="ident">entry</span>.<span class="ident">insert</span>(<span class="ident">QueuedBucket::new</span>(<span class="ident">flush_at</span>, <span class="ident">value</span>.<span class="ident">into</span>()));
             }
         }
@@ -3267,7 +3308,7 @@
         <span class="ident">Controller::subscribe</span>(<span class="ident">ctx</span>.<span class="ident">address</span>());
 
         <span class="comment">// TODO: Consider a better approach than busy polling</span>
-        <span class="ident">ctx</span>.<span class="ident">run_interval</span>(<span class="ident">Duration::from_millis</span>(<span class="number">500</span>), <span class="op">|</span><span class="ident">slf</span>, <span class="ident">context</span><span class="op">|</span> {
+        <span class="ident">ctx</span>.<span class="ident">run_interval</span>(<span class="ident">FLUSH_INTERVAL</span>, <span class="op">|</span><span class="ident">slf</span>, <span class="ident">context</span><span class="op">|</span> {
             <span class="ident">slf</span>.<span class="ident">try_flush</span>(<span class="ident">context</span>, <span class="bool-val">false</span>);
         });
     }
@@ -3947,8 +3988,9 @@
                     <span class="prelude-val">Ok</span>(())
                 })
                 .<span class="ident">and_then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
-                    <span class="comment">// Wait until flush delay has passed</span>
-                    <span class="ident">relay_test::delay</span>(<span class="ident">Duration::from_millis</span>(<span class="number">1500</span>)).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+                    <span class="comment">// Wait until flush delay has passed. It is up to 2s: 1s for the current bucket</span>
+                    <span class="comment">// and 1s for the flush shift. Adding 100ms buffer.</span>
+                    <span class="ident">relay_test::delay</span>(<span class="ident">Duration::from_millis</span>(<span class="number">2100</span>)).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
                 })
                 .<span class="ident">and_then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
                     <span class="comment">// After the flush delay has passed, the receiver should have the bucket:</span>
