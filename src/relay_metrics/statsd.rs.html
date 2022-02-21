@@ -108,24 +108,8 @@
 <span id="107">107</span>
 <span id="108">108</span>
 <span id="109">109</span>
-<span id="110">110</span>
-<span id="111">111</span>
-<span id="112">112</span>
-<span id="113">113</span>
-<span id="114">114</span>
-<span id="115">115</span>
-<span id="116">116</span>
-<span id="117">117</span>
-<span id="118">118</span>
-<span id="119">119</span>
-<span id="120">120</span>
-<span id="121">121</span>
-<span id="122">122</span>
-<span id="123">123</span>
-<span id="124">124</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
-<span class="doccomment">/// Set metrics for Relay Metrics.</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricSets</span> {
     <span class="doccomment">/// Count the number of unique buckets created.</span>
     <span class="doccomment">///</span>
@@ -209,18 +193,6 @@
     <span class="doccomment">/// is logged for each project that is being flushed. The count of the histogram values is</span>
     <span class="doccomment">/// equivalent to the number of projects being flushed.</span>
     <span class="ident">BucketsFlushedPerProject</span>,
-
-    <span class="doccomment">/// The number of data points in a bucket, at the time of flushing.</span>
-    <span class="ident">DataPointsPerBucket</span>,
-
-    <span class="doccomment">/// The number of metric elements in the bucket. The difference between DataPointsPerBucket and</span>
-    <span class="doccomment">/// BucketRelativeSize is that the first counts how many data points have contributed to the bucket</span>
-    <span class="doccomment">/// and therefore gives you a measure of the buckets efficiency. Every time a counter is added</span>
-    <span class="doccomment">/// to the bucket there is a contribution and DataPointsPerBucket increases.</span>
-    <span class="doccomment">/// BucketRelativeSize measures how many distinct values are in a bucket (adding to a counter</span>
-    <span class="doccomment">/// does not increase the size of the bucket) and therefore BucketRelativeSize gives you a</span>
-    <span class="doccomment">/// measurement of the bucket size and complexity.</span>
-    <span class="ident">BucketRelativeSize</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">MetricHistograms</span> {
@@ -228,8 +200,6 @@
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident"><span class="self">Self</span>::BucketsFlushed</span> =&gt; <span class="string">&quot;metrics.buckets.flushed&quot;</span>,
             <span class="ident"><span class="self">Self</span>::BucketsFlushedPerProject</span> =&gt; <span class="string">&quot;metrics.buckets.flushed_per_project&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::DataPointsPerBucket</span> =&gt; <span class="string">&quot;metrics.buckets.data_points_per_bucket&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::BucketRelativeSize</span> =&gt; <span class="string">&quot;metrics.buckets.relative_bucket_size&quot;</span>,
         }
     }
 }
