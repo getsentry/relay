@@ -34,7 +34,7 @@ use relay_general::protocol::{
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
-use relay_metrics::{Bucket, Metric, MetricHistograms};
+use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, ReasonCode, Scoping};
 use relay_redis::RedisPool;
 use relay_sampling::{RuleId, SamplingResult};
@@ -2715,24 +2715,8 @@ impl Handler<SendMetrics> for EnvelopeManager {
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
 
-        let mut sizes: Vec<(usize, f64)> = Vec::new();
-        buckets.iter().for_each(|bucket| {
-            sizes.push((bucket.value.relative_size(), bucket.value.num_metrics()));
-        });
-
         let future = self
             .send_envelope(project_key, envelope, scoping, Instant::now())
-            .then(move |x| {
-                sizes.iter().for_each(|(rel_size, num_metrics)| {
-                    relay_statsd::metric!(
-                        histogram(MetricHistograms::DataPointsPerBucket) = *num_metrics
-                    );
-                    relay_statsd::metric!(
-                        histogram(MetricHistograms::BucketRelativeSize) = *rel_size as u64
-                    );
-                });
-                x
-            })
             .map_err(|_| buckets);
 
         Box::new(future)
