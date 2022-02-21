@@ -3264,6 +3264,22 @@
 <span id="3263">3263</span>
 <span id="3264">3264</span>
 <span id="3265">3265</span>
+<span id="3266">3266</span>
+<span id="3267">3267</span>
+<span id="3268">3268</span>
+<span id="3269">3269</span>
+<span id="3270">3270</span>
+<span id="3271">3271</span>
+<span id="3272">3272</span>
+<span id="3273">3273</span>
+<span id="3274">3274</span>
+<span id="3275">3275</span>
+<span id="3276">3276</span>
+<span id="3277">3277</span>
+<span id="3278">3278</span>
+<span id="3279">3279</span>
+<span id="3280">3280</span>
+<span id="3281">3281</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3300,7 +3316,7 @@
 <span class="kw">use</span> <span class="ident">relay_general::store::ClockDriftProcessor</span>;
 <span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
-<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">Metric</span>};
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">Metric</span>, <span class="ident">MetricHistograms</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimits</span>, <span class="ident">ReasonCode</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">RuleId</span>, <span class="ident">SamplingResult</span>};
@@ -5981,8 +5997,24 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">Envelope::from_request</span>(<span class="prelude-val">None</span>, <span class="ident">RequestMeta::outbound</span>(<span class="ident">dsn</span>));
         <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item</span>);
 
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sizes</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">f64</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+        <span class="ident">buckets</span>.<span class="ident">iter</span>().<span class="ident">for_each</span>(<span class="op">|</span><span class="ident">bucket</span><span class="op">|</span> {
+            <span class="ident">sizes</span>.<span class="ident">push</span>((<span class="ident">bucket</span>.<span class="ident">value</span>.<span class="ident">relative_size</span>(), <span class="ident">bucket</span>.<span class="ident">value</span>.<span class="ident">num_metrics</span>()));
+        });
+
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>
             .<span class="ident">send_envelope</span>(<span class="ident">project_key</span>, <span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="ident">Instant::now</span>())
+            .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">x</span><span class="op">|</span> {
+                <span class="ident">sizes</span>.<span class="ident">iter</span>().<span class="ident">for_each</span>(<span class="op">|</span>(<span class="ident">rel_size</span>, <span class="ident">num_metrics</span>)<span class="op">|</span> {
+                    <span class="macro">relay_statsd::metric!</span>(
+                        <span class="ident">histogram</span>(<span class="ident">MetricHistograms::DataPointsPerBucket</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">num_metrics</span>
+                    );
+                    <span class="macro">relay_statsd::metric!</span>(
+                        <span class="ident">histogram</span>(<span class="ident">MetricHistograms::BucketRelativeSize</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">rel_size</span> <span class="kw">as</span> <span class="ident">u64</span>
+                    );
+                });
+                <span class="ident">x</span>
+            })
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">buckets</span>);
 
         <span class="ident">Box::new</span>(<span class="ident">future</span>)

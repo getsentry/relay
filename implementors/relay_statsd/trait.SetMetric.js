@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["relay_metrics"] = [{"text":"impl <a class=\"trait\" href=\"relay_statsd/trait.SetMetric.html\" title=\"trait relay_statsd::SetMetric\">SetMetric</a> for <a class=\"enum\" href=\"relay_metrics/enum.MetricSets.html\" title=\"enum relay_metrics::MetricSets\">MetricSets</a>","synthetic":false,"types":["relay_metrics::statsd::MetricSets"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
