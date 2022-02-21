@@ -754,7 +754,7 @@ pub struct AggregatorConfig {
     /// before sending such a backdated bucket to the upsteam. This should be lower than
     /// `initial_delay`.
     ///
-    /// Other than `initial_delay`, the debounce delay starts with the exact moment the first metric
+    /// Unlike `initial_delay`, the debounce delay starts with the exact moment the first metric
     /// is added to a backdated bucket.
     pub debounce_delay: u64,
 
