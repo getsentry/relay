@@ -41,7 +41,7 @@ itertools = "0.8.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 lazy_static = "1.4.0"
 listenfd = "0.3.3"
-minidump = { git = "https://github.com/luser/rust-minidump", rev = "dedd6715af3a22f5fff9c065e7c4b22c44fef320", optional = true }
+minidump = { version = "0.9.6", optional = true }
 native-tls = { version = "0.2.4", optional = true }
 parking_lot = "0.10.0"
 rdkafka = { version = "0.24", optional = true }
