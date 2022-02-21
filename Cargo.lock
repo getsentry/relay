@@ -4850,8 +4850,9 @@ checksum = "373c8a200f9e67a0c95e62a4f52fbf80c23b4381c05a17845531982fa99e6b33"
 
 [[package]]
 name = "uaparser"
-version = "0.4.0"
-source = "git+https://github.com/getsentry/uap-rs?branch=test/bench-opt#cd0afd6b6032451289b7faff1709605b01ef4d9b"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7ce30305c85c8234dbea6fab090a21d53000a368df718d1aa11422a4a540971"
 dependencies = [
  "derive_more",
  "lazy_static",
