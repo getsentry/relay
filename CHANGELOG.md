@@ -14,6 +14,7 @@
 
 - Spread out metric aggregation over the aggregation window to avoid concentrated waves of metrics requests to the upstream every 10 seconds. Relay now applies jitter to `initial_delay` to spread out requests more evenly over time. ([#1185](https://github.com/getsentry/relay/pull/1185))
 - Add new statsd metrics for bucketing efficiency ([#1199](https://github.com/getsentry/relay/pull/1199), [#1192](https://github.com/getsentry/relay/pull/1192), [#1200](https://github.com/getsentry/relay/pull/1200))
+- Add a `Profile` `ItemType` to represent the profiling data sent from Sentry SDKs. ([#1179](https://github.com/getsentry/relay/pull/1179))
 
 ## 22.2.0
 
@@ -25,7 +26,6 @@
 
 - Add an option to dispatch billing outcomes to a dedicated topic. ([#1168](https://github.com/getsentry/relay/pull/1168))
 - Add new `ItemType` to handle profiling data from Specto SDKs. ([#1170](https://github.com/getsentry/relay/pull/1170))
-- Add a `Stacktrace` `ItemType` to represent the stack traces sent from Sentry SDKs. ([#1179](https://github.com/getsentry/relay/pull/1179))
 
 **Bug Fixes**:
 

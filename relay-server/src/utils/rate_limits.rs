@@ -105,7 +105,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::UserReport => None,
         ItemType::ProfilingSession => None,
         ItemType::ProfilingTrace => None,
-        ItemType::Stacktrace => None,
+        ItemType::Profile => None,
         // the following items are "internal" item types.  From the perspective of the SDK
         // the use the "internal" data category however this data category is in fact never
         // supposed to be emitted by relay as internal items must not be rate limited.  As

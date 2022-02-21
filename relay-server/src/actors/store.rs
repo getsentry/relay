@@ -60,7 +60,7 @@ struct Producers {
     metrics: Producer,
     profiling_sessions: Producer,
     profiling_traces: Producer,
-    stacktraces: Producer,
+    profiles: Producer,
 }
 
 impl Producers {
@@ -79,7 +79,7 @@ impl Producers {
             KafkaTopic::Metrics => Some(&self.metrics),
             KafkaTopic::ProfilingSessions => Some(&self.profiling_sessions),
             KafkaTopic::ProfilingTraces => Some(&self.profiling_traces),
-            KafkaTopic::Stacktraces => Some(&self.stacktraces),
+            KafkaTopic::Profiles => Some(&self.profiles),
         }
     }
 }
@@ -146,7 +146,7 @@ impl StoreForwarder {
                 &mut reused_producers,
                 KafkaTopic::ProfilingTraces,
             )?,
-            stacktraces: make_producer(&*config, &mut reused_producers, KafkaTopic::Stacktraces)?,
+            profiles: make_producer(&*config, &mut reused_producers, KafkaTopic::Profiles)?,
         };
 
         Ok(Self { config, producers })
@@ -468,7 +468,7 @@ impl StoreForwarder {
         Ok(())
     }
 
-    fn produce_stacktrace(
+    fn produce_profile(
         &self,
         organization_id: u64,
         project_id: ProjectId,
@@ -479,11 +479,11 @@ impl StoreForwarder {
             project_id,
             payload: item.payload(),
         };
-        relay_log::trace!("Sending stacktrace to kafka");
-        self.produce(KafkaTopic::Stacktraces, KafkaMessage::Stacktrace(message))?;
+        relay_log::trace!("Sending profile to Kafka");
+        self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "stacktrace"
+            event_type = "profile"
         );
         Ok(())
     }
@@ -673,7 +673,7 @@ enum KafkaMessage {
     Metric(MetricKafkaMessage),
     ProfilingSession(ProfilingKafkaMessage),
     ProfilingTrace(ProfilingKafkaMessage),
-    Stacktrace(ProfilingKafkaMessage),
+    Profile(ProfilingKafkaMessage),
 }
 
 impl KafkaMessage {
@@ -687,6 +687,7 @@ impl KafkaMessage {
             KafkaMessage::Metric(_) => "metric",
             KafkaMessage::ProfilingSession(_) => "profiling_session",
             KafkaMessage::ProfilingTrace(_) => "profiling_trace",
+            KafkaMessage::Profile(_) => "profile",
         }
     }
 
@@ -701,7 +702,7 @@ impl KafkaMessage {
             Self::Metric(_message) => Uuid::nil(), // TODO(ja): Determine a partitioning key
             Self::ProfilingTrace(_message) => Uuid::nil(),
             Self::ProfilingSession(_message) => Uuid::nil(),
-            Self::Stacktrace(_message) => Uuid::nil(),
+            Self::Profile(_message) => Uuid::nil(),
         };
 
         if uuid.is_nil() {
@@ -820,8 +821,8 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                     scoping.project_id,
                     item,
                 )?,
-                ItemType::Stacktrace => {
-                    self.produce_stacktrace(scoping.organization_id, scoping.project_id, item)?
+                ItemType::Profile => {
+                    self.produce_profile(scoping.organization_id, scoping.project_id, item)?
                 }
                 _ => {}
             }
