@@ -144,7 +144,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
 
     upstream.send_metrics(project_id, f"foo:3|c", timestamp)
 
-    metric = metrics_consumer.get_metric(timeout=4)
+    metric = metrics_consumer.get_metric(timeout=6)
     metric.pop("timestamp")
     assert metric == {
         "org_id": 1,
