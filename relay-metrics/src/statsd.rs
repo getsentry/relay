@@ -74,6 +74,7 @@ impl TimerMetric for MetricTimers {
 }
 
 /// Histogram metrics for Relay Metrics.
+#[allow(clippy::enum_variant_names)]
 pub enum MetricHistograms {
     /// The total number of metric buckets flushed in a cycle across all projects.
     BucketsFlushed,
