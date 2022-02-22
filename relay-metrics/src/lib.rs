@@ -112,4 +112,3 @@ mod statsd;
 
 pub use aggregation::*;
 pub use protocol::*;
-pub use statsd::*;

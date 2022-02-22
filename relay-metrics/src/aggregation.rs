@@ -139,9 +139,10 @@ impl DistributionValue {
         self.length
     }
 
-    /// Returns the size of the map used to store the distribution
-    /// This is only relevant for internal metrics
-    pub fn internal_size(&self) -> usize {
+    /// Returns the size of the map used to store the distribution.
+    ///
+    /// This is only relevant for internal metrics.
+    fn internal_size(&self) -> usize {
         self.values.len()
     }
 
@@ -502,20 +503,6 @@ impl BucketValue {
             Self::Distribution(_) => MetricType::Distribution,
             Self::Set(_) => MetricType::Set,
             Self::Gauge(_) => MetricType::Gauge,
-        }
-    }
-
-    /// Returns an estimation of the number of metrics that went into the bucket.
-    pub fn num_metrics(&self) -> f64 {
-        match self {
-            Self::Distribution(val) => val.len() as f64,
-            Self::Counter(val) => *val,
-            Self::Gauge(g) => g.count as f64,
-            // for set we would like to know haw many times an item was added to it
-            // unfortunately we can't know this unless we add an additional counter
-            // to the datastructure so the best think we can do is return the size
-            // and be aware that it is not exactly what we want
-            Self::Set(s) => s.len() as f64,
         }
     }
 
@@ -1171,6 +1158,11 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
+            let mut sizes: Vec<usize> = Vec::new();
+            project_buckets
+                .iter()
+                .for_each(|bucket| sizes.push(bucket.value.relative_size()));
+
             self.receiver
                 .send(FlushBuckets::new(project_key, project_buckets))
                 .into_actor(self)
@@ -1192,6 +1184,12 @@ impl Aggregator {
                                 counter(MetricCounters::BucketsDropped) += buckets.len() as i64
                             );
                         }
+                    } else {
+                        sizes.iter().for_each(|rel_size| {
+                            relay_statsd::metric!(
+                                histogram(MetricHistograms::BucketRelativeSize) = *rel_size as u64
+                            );
+                        });
                     }
                     fut::ok(())
                 })
