@@ -85,7 +85,6 @@ pub enum MetricHistograms {
     /// equivalent to the number of projects being flushed.
     BucketsFlushedPerProject,
 
-    /// TODO emit this when flushing NOT when sending the envelope
     /// The number of metric elements in the bucket.
     ///
     /// BucketRelativeSize measures how many distinct values are in a bucket and therefore
