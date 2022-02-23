@@ -17,6 +17,8 @@ mod kafka;
 #[cfg(feature = "processing")]
 mod native;
 #[cfg(feature = "processing")]
+mod profile;
+#[cfg(feature = "processing")]
 mod unreal;
 
 pub use self::actix::*;
@@ -37,5 +39,7 @@ pub use self::with_outcome::*;
 pub use self::kafka::*;
 #[cfg(feature = "processing")]
 pub use self::native::*;
+#[cfg(feature = "processing")]
+pub use self::profile::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;

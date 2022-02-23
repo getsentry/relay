@@ -156,6 +156,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "android_trace_log"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3d7d87a38cc329e4aa7d2aac8b79bbd4d98c8a6f5a1039c35ea3c11edd8f901"
+dependencies = [
+ "chrono",
+ "log",
+ "nom 6.1.2",
+ "serde",
+]
+
+[[package]]
 name = "ansi_term"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3422,6 +3434,7 @@ version = "22.2.0"
 dependencies = [
  "actix",
  "actix-web",
+ "android_trace_log",
  "base64 0.10.1",
  "brotli2",
  "bytes 0.4.12",

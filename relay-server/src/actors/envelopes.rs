@@ -63,7 +63,7 @@ use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     crate::metrics_extraction::transactions::extract_transaction_metrics,
     crate::service::ServerErrorKind,
-    crate::utils::{EnvelopeLimiter, ErrorBoundary},
+    crate::utils::{EnvelopeLimiter, ErrorBoundary, ProfileError},
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -159,6 +159,10 @@ enum ProcessingError {
 
     #[fail(display = "event dropped by sampling rule {}", _0)]
     EventSampled(RuleId),
+
+    #[cfg(feature = "processing")]
+    #[fail(display = "invalid profile")]
+    InvalidProfile(#[cause] ProfileError),
 }
 
 impl ProcessingError {
@@ -177,6 +181,9 @@ impl ProcessingError {
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
+
+            #[cfg(feature = "processing")]
+            Self::InvalidProfile(_) => Some(Outcome::Invalid(DiscardReason::ProcessProfile)),
 
             // Internal errors
             Self::SerializeFailed(_)
@@ -217,6 +224,13 @@ impl From<Unreal4Error> for ProcessingError {
             Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
             _ => ProcessingError::InvalidUnrealReport(err),
         }
+    }
+}
+
+#[cfg(feature = "processing")]
+impl From<ProfileError> for ProcessingError {
+    fn from(err: ProfileError) -> Self {
+        ProcessingError::InvalidProfile(err)
     }
 }
 
@@ -1024,6 +1038,23 @@ impl EnvelopeProcessor {
         Ok(())
     }
 
+    /// Expands profile items inside an envelope
+    #[cfg(feature = "processing")]
+    fn expand_profile(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let envelope = &mut state.envelope;
+        let meta = envelope.meta();
+
+        if meta.client() != Some(utils::ANDROID_SDK_NAME) {
+            return Ok(());
+        }
+
+        if let Some(item) = &mut envelope.take_item_by(|item| item.ty() == ItemType::Profile) {
+            utils::expand_profile_envelope(item)?;
+        }
+
+        Ok(())
+    }
+
     fn event_from_json_payload(
         &self,
         item: Item,
@@ -1764,6 +1795,7 @@ impl EnvelopeProcessor {
         if state.creates_event() {
             if_processing!({
                 self.expand_unreal(state)?;
+                self.expand_profile(state)?;
             });
 
             self.extract_event(state)?;
