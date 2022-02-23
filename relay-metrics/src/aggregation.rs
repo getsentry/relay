@@ -143,6 +143,13 @@ impl DistributionValue {
         self.length
     }
 
+    /// Returns the size of the map used to store the distribution.
+    ///
+    /// This is only relevant for internal metrics.
+    fn internal_size(&self) -> usize {
+        self.values.len()
+    }
+
     /// Returns `true` if the map contains no elements.
     pub fn is_empty(&self) -> bool {
         self.length == 0
@@ -500,6 +507,17 @@ impl BucketValue {
             Self::Distribution(_) => MetricType::Distribution,
             Self::Set(_) => MetricType::Set,
             Self::Gauge(_) => MetricType::Gauge,
+        }
+    }
+
+    /// Returns the number of values needed to encode the bucket (a measure of bucket
+    /// complexity).
+    pub fn relative_size(&self) -> usize {
+        match self {
+            Self::Counter(_) => 1,
+            Self::Set(s) => s.len(),
+            Self::Gauge(_) => 5,
+            Self::Distribution(m) => m.internal_size(),
         }
     }
 }
@@ -1160,6 +1178,11 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
+            let mut sizes: Vec<usize> = Vec::new();
+            project_buckets
+                .iter()
+                .for_each(|bucket| sizes.push(bucket.value.relative_size()));
+
             self.receiver
                 .send(FlushBuckets::new(project_key, project_buckets))
                 .into_actor(self)
@@ -1181,6 +1204,12 @@ impl Aggregator {
                                 counter(MetricCounters::BucketsDropped) += buckets.len() as i64
                             );
                         }
+                    } else {
+                        sizes.iter().for_each(|rel_size| {
+                            relay_statsd::metric!(
+                                histogram(MetricHistograms::BucketRelativeSize) = *rel_size as u64
+                            );
+                        });
                     }
                     fut::ok(())
                 })

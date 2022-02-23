@@ -1,5 +1,6 @@
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
+/// Set metrics for Relay Metrics.
 pub enum MetricSets {
     /// Count the number of unique buckets created.
     ///
@@ -73,6 +74,7 @@ impl TimerMetric for MetricTimers {
 }
 
 /// Histogram metrics for Relay Metrics.
+#[allow(clippy::enum_variant_names)]
 pub enum MetricHistograms {
     /// The total number of metric buckets flushed in a cycle across all projects.
     BucketsFlushed,
@@ -83,6 +85,12 @@ pub enum MetricHistograms {
     /// is logged for each project that is being flushed. The count of the histogram values is
     /// equivalent to the number of projects being flushed.
     BucketsFlushedPerProject,
+
+    /// The number of metric elements in the bucket.
+    ///
+    /// BucketRelativeSize measures how many distinct values are in a bucket and therefore
+    /// BucketRelativeSize gives you a measurement of the bucket size and complexity.
+    BucketRelativeSize,
 }
 
 impl HistogramMetric for MetricHistograms {
@@ -90,6 +98,7 @@ impl HistogramMetric for MetricHistograms {
         match *self {
             Self::BucketsFlushed => "metrics.buckets.flushed",
             Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
+            Self::BucketRelativeSize => "metrics.buckets.relative_bucket_size",
         }
     }
 }
