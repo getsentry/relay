@@ -5,6 +5,7 @@
 **Internal**:
 
 - Spread out metric aggregation over the aggregation window to avoid concentrated waves of metrics requests to the upstream every 10 seconds. Relay now applies jitter to `initial_delay` to spread out requests more evenly over time. ([#1185](https://github.com/getsentry/relay/pull/1185))
+- Use a randomized Kafka partitioning key for sessions instead of the session ID. ([#1194](https://github.com/getsentry/relay/pull/1194))
 
 ## 22.2.0
 
