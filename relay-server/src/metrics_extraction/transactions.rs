@@ -543,11 +543,9 @@ mod tests {
         {
             "type": "transaction",
             "transaction": "foo",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "user": {
-                "id": "user123"
-            }
+            "start_timestamp": ""2021-04-26T08:00:00+0100",
+            "timestamp": ""2021-04-26T08:00:01+0100",
+            "user": {}
         }
         "#;
 
@@ -576,7 +574,55 @@ mod tests {
 
         for metric in metrics {
             assert_eq!(metric.tags.len(), 2);
-            assert_eq!(metric.tags["satisfaction"], "frustrated");
+            assert_eq!(metric.tags["satisfaction"], "tolerated");
+        }
+    }
+
+    #[test]
+    fn test_user_satisfaction_override() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:02+0100",
+            "measurements": {
+                "lcp": {"value": 41}
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "sentry.transactions.transaction.duration"
+            ],
+            "satisfactionThresholds": {
+                "projectThreshold": {
+                    "metric": "duration",
+                    "threshold": 300
+                },
+                "transactionThresholds": {
+                    "foo": {
+                        "metric": "lcp",
+                        "threshold": 42
+                    }
+                }
+            }
+        }
+        "#,
+        )
+        .unwrap();
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
+        assert_eq!(metrics.len(), 1);
+
+        for metric in metrics {
+            assert_eq!(metric.tags.len(), 2);
+            assert_eq!(metric.tags["satisfaction"], "satisfied");
         }
     }
 }
