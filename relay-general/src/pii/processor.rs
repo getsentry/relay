@@ -242,7 +242,7 @@ fn apply_regex_to_chunks<'a>(
     let mut search_string = String::new();
     for chunk in &chunks {
         match chunk {
-            Chunk::Text { text } => search_string.push_str(&text.replace("\x00", "")),
+            Chunk::Text { text } => search_string.push_str(&text.replace('\x00', "")),
             Chunk::Redaction { .. } => search_string.push('\x00'),
         }
     }
