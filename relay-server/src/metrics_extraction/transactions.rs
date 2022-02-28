@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, fmt};
 
 #[cfg(feature = "processing")]
 use {
@@ -11,12 +11,37 @@ use {
     std::fmt::Write,
 };
 
-/// Configuration in relation to extracting metrics from transaction events.
+/// The metric on which the user satisfaction threshold is applied.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum SatisfactionMetric {
+    Duration,
+    Lcp,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SatisfactionThreshold {
+    metric: SatisfactionMetric,
+    threshold: f64,
+}
+
+/// Configuration for applying the user satisfaction threshold.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SatisfactionConfig {
+    /// The project-wide threshold to apply.
+    project_threshold: SatisfactionThreshold,
+    /// Transaction-specific overrides of the project-wide threshold.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
+}
+
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TransactionMetricsConfig {
     extract_metrics: BTreeSet<String>,
     extract_custom_tags: BTreeSet<String>,
+    satisfaction_thresholds: Option<SatisfactionConfig>,
 }
 
 #[cfg(feature = "processing")]
@@ -55,6 +80,90 @@ fn extract_dist(transaction: &Event) -> Option<String> {
     let mut dist = transaction.dist.0.clone();
     normalize_dist(&mut dist);
     dist
+}
+
+/// Satisfaction value used for Apdex and User Misery
+/// https://docs.sentry.io/product/performance/metrics/#apdex
+enum UserSatisfaction {
+    Satisfied,
+    Tolerated,
+    Frustrated,
+}
+
+impl fmt::Display for UserSatisfaction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            UserSatisfaction::Satisfied => write!(f, "satisfied"),
+            UserSatisfaction::Tolerated => write!(f, "tolerated"),
+            UserSatisfaction::Frustrated => write!(f, "frustrated"),
+        }
+    }
+}
+
+impl UserSatisfaction {
+    /// The frustration threshold is always four times the threshold
+    /// (see https://docs.sentry.io/product/performance/metrics/#apdex)
+    const FRUSTRATION_FACTOR: f64 = 4.0;
+
+    fn from_value(value: f64, threshold: f64) -> Self {
+        if value < threshold {
+            Self::Satisfied
+        } else if value < Self::FRUSTRATION_FACTOR * threshold {
+            Self::Tolerated
+        } else {
+            Self::Frustrated
+        }
+    }
+}
+
+#[cfg(feature = "processing")]
+fn get_duration_millis(transaction: &Event) -> Option<f64> {
+    let start = transaction.start_timestamp.value();
+    let end = transaction.timestamp.value();
+    match (start, end) {
+        (Some(start), Some(end)) => {
+            let start = start.timestamp_millis();
+            let end = end.timestamp_millis();
+            Some(end.saturating_sub(start) as f64)
+        }
+        _ => None,
+    }
+}
+
+#[cfg(feature = "processing")]
+fn get_measurement(transaction: &Event, name: &str) -> Option<f64> {
+    if let Some(measurements) = transaction.measurements.value() {
+        for (measurement_name, annotated) in measurements.iter() {
+            if measurement_name == name {
+                if let Some(value) = annotated.value().and_then(|m| m.value.value()) {
+                    return Some(*value);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Extract the 'satisfaction' value given
+#[cfg(feature = "processing")]
+fn extract_user_satisfaction(
+    config: &Option<SatisfactionConfig>,
+    transaction: &Event,
+) -> Option<UserSatisfaction> {
+    if let Some(config) = config {
+        let threshold = transaction
+            .transaction
+            .value()
+            .and_then(|name| config.transaction_thresholds.get(name))
+            .unwrap_or(&config.project_threshold);
+        if let Some(value) = match threshold.metric {
+            SatisfactionMetric::Duration => get_duration_millis(transaction),
+            SatisfactionMetric::Lcp => get_measurement(transaction, "lcp"),
+        } {
+            return Some(UserSatisfaction::from_value(value, threshold.threshold));
+        }
+    }
+    None
 }
 
 #[cfg(feature = "processing")]
@@ -172,17 +281,14 @@ pub fn extract_transaction_metrics(
         }
     }
 
-    // Duration
-    let start = event.start_timestamp.value();
-    let end = event.timestamp.value();
-    let duration_millis = match (start, end) {
-        (Some(start), Some(end)) => {
-            let start = start.timestamp_millis();
-            let end = end.timestamp_millis();
-            end.saturating_sub(start)
-        }
-        _ => 0,
+    let user_satisfaction = extract_user_satisfaction(&config.satisfaction_thresholds, event);
+    let tags_with_satisfaction = match user_satisfaction {
+        Some(satisfaction) => with_tag(&tags, "satisfaction", satisfaction),
+        None => tags.clone(),
     };
+
+    // Duration
+    let duration_millis = get_duration_millis(&event).unwrap_or(0.0);
 
     // We always push the duration even if it's 0, because we use count(transaction.duration)
     // to get the total number of transactions.
@@ -194,19 +300,25 @@ pub fn extract_transaction_metrics(
         timestamp,
         tags: match extract_transaction_status(event) {
             Some(status) => with_tag(&tags, "transaction.status", status),
-            None => tags.clone(),
+            None => tags_with_satisfaction.clone(),
         },
     });
 
     // User
     if let Some(user) = event.user.value() {
         if let Some(user_id) = user.id.as_str() {
+            // TODO: If we have a transaction duration of 0 or no transaction at all, does the user count as satisfied?
             push_metric(Metric {
                 name: metric_name(&["user"]),
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_str(user_id),
                 timestamp,
-                tags: tags.clone(),
+                // A single user might end up in multiple satisfaction buckets when they have
+                // some satisfying transactions and some frustrating transactions.
+                // This is OK as long as we do not add these numbers *after* aggregation:
+                //     <WRONG>total_users = uniqIf(user, satisfied) + uniqIf(user, tolerated) + uniqIf(user, frustrated)</WRONG>
+                //     <RIGHT>total_users = uniq(user)</RIGHT>
+                tags: tags_with_satisfaction,
             });
         }
     }
@@ -423,5 +535,48 @@ mod tests {
         assert_eq!(duration_metric.tags["transaction.status"], "ok");
         assert_eq!(duration_metric.tags["environment"], "fake_environment");
         assert_eq!(duration_metric.tags["transaction"], "mytransaction");
+    }
+
+    #[test]
+    fn test_user_satisfaction() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "user": {
+                "id": "user123"
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "sentry.transactions.transaction.duration",
+                "sentry.transactions.user"
+            ],
+            "satisfactionThresholds": {
+                "projectThreshold": {
+                    "metric": "duration",
+                    "threshold": 300
+                }
+            }
+        }
+        "#,
+        )
+        .unwrap();
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
+        assert_eq!(metrics.len(), 2);
+
+        for metric in metrics {
+            assert_eq!(metric.tags.len(), 2);
+            assert_eq!(metric.tags["satisfaction"], "frustrated");
+        }
     }
 }
