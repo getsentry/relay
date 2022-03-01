@@ -34,7 +34,7 @@ impl FromValue for TagEntry {
         type TagTuple = (Annotated<LenientString>, Annotated<LenientString>);
         TagTuple::from_value(value).map_value(|(key, value)| {
             TagEntry(
-                key.map_value(|x| x.into_inner().replace(" ", "-").trim().to_string()),
+                key.map_value(|x| x.into_inner().replace(' ', "-").trim().to_string()),
                 value.map_value(|x| x.into_inner().trim().to_string()),
             )
         })
