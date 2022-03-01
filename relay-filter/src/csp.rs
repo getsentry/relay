@@ -292,7 +292,7 @@ mod tests {
                 .iter()
                 .map(|url| SchemeDomainPort::from(*url))
                 .collect();
-            let actual = matches_any_origin(Some(&(*url).to_string()), &origins[..]);
+            let actual = matches_any_origin(Some(*url), &origins[..]);
             assert_eq!(*expected, actual, "Could not match {}.", url);
         }
     }
