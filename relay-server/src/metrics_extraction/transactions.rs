@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, fmt};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(feature = "processing")]
 use {
@@ -7,7 +7,7 @@ use {
     relay_general::protocol::{AsPair, Event, EventType},
     relay_general::store::{get_breakdown_measurements, normalize_dist, BreakdownsConfig},
     relay_metrics::{Metric, MetricUnit, MetricValue},
-    std::collections::BTreeMap,
+    std::fmt,
     std::fmt::Write,
 };
 
@@ -19,6 +19,7 @@ enum SatisfactionMetric {
     Lcp,
 }
 
+/// Configuration for a single threshold.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SatisfactionThreshold {
     metric: SatisfactionMetric,
@@ -36,6 +37,7 @@ struct SatisfactionConfig {
     transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
 }
 
+/// Configuration for extracting metrics from transaction payloads.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TransactionMetricsConfig {
@@ -84,12 +86,14 @@ fn extract_dist(transaction: &Event) -> Option<String> {
 
 /// Satisfaction value used for Apdex and User Misery
 /// https://docs.sentry.io/product/performance/metrics/#apdex
+#[cfg(feature = "processing")]
 enum UserSatisfaction {
     Satisfied,
     Tolerated,
     Frustrated,
 }
 
+#[cfg(feature = "processing")]
 impl fmt::Display for UserSatisfaction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -100,6 +104,7 @@ impl fmt::Display for UserSatisfaction {
     }
 }
 
+#[cfg(feature = "processing")]
 impl UserSatisfaction {
     /// The frustration threshold is always four times the threshold
     /// (see https://docs.sentry.io/product/performance/metrics/#apdex)
@@ -116,6 +121,7 @@ impl UserSatisfaction {
     }
 }
 
+/// Get duration from timestamp and start_timestamp.
 #[cfg(feature = "processing")]
 fn get_duration_millis(transaction: &Event) -> Option<f64> {
     let start = transaction.start_timestamp.value();
@@ -130,6 +136,7 @@ fn get_duration_millis(transaction: &Event) -> Option<f64> {
     }
 }
 
+/// Get the value for a measurement, e.g. lcp -> event.measurements.lcp
 #[cfg(feature = "processing")]
 fn get_measurement(transaction: &Event, name: &str) -> Option<f64> {
     if let Some(measurements) = transaction.measurements.value() {
@@ -144,7 +151,8 @@ fn get_measurement(transaction: &Event, name: &str) -> Option<f64> {
     None
 }
 
-/// Extract the 'satisfaction' value given
+/// Extract the the satisfaction value depending on the actual measurement/duration value
+/// and the configured threshold.
 #[cfg(feature = "processing")]
 fn extract_user_satisfaction(
     config: &Option<SatisfactionConfig>,
