@@ -296,7 +296,7 @@ pub fn extract_transaction_metrics(
     };
 
     // Duration
-    let duration_millis = get_duration_millis(&event).unwrap_or(0.0);
+    let duration_millis = get_duration_millis(event).unwrap_or(0.0);
 
     // We always push the duration even if it's 0, because we use count(transaction.duration)
     // to get the total number of transactions.
@@ -552,8 +552,10 @@ mod tests {
             "type": "transaction",
             "transaction": "foo",
             "start_timestamp": ""2021-04-26T08:00:00+0100",
-            "timestamp": ""2021-04-26T08:00:01+0100",
-            "user": {}
+            "timestamp": "2021-04-26T08:00:01+0100",
+            "user": {
+                "id": "user123"
+            }
         }
         "#;
 
