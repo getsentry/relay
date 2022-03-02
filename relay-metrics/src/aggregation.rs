@@ -1078,7 +1078,6 @@ impl Aggregator {
         relay_statsd::metric!(
             counter(MetricCounters::InsertMetric) += 1,
             metric_type = metric.value.ty().as_str(),
-            metric_name = &metric.name
         );
         let key = BucketKey {
             project_key,
@@ -1178,10 +1177,10 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            let mut sizes: Vec<usize> = Vec::new();
-            project_buckets
+            let size_statsd_metrics: Vec<_> = project_buckets
                 .iter()
-                .for_each(|bucket| sizes.push(bucket.value.relative_size()));
+                .map(|bucket| (bucket.value.ty(), bucket.value.relative_size()))
+                .collect();
 
             self.receiver
                 .send(FlushBuckets::new(project_key, project_buckets))
@@ -1205,11 +1204,13 @@ impl Aggregator {
                             );
                         }
                     } else {
-                        sizes.iter().for_each(|rel_size| {
+                        for (bucket_type, bucket_relative_size) in size_statsd_metrics {
                             relay_statsd::metric!(
-                                histogram(MetricHistograms::BucketRelativeSize) = *rel_size as u64
+                                histogram(MetricHistograms::BucketRelativeSize) =
+                                    bucket_relative_size as u64,
+                                metric_type = bucket_type.as_str(),
                             );
-                        });
+                        }
                     }
                     fut::ok(())
                 })
