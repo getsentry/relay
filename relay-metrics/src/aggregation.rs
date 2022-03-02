@@ -1177,7 +1177,7 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            let mut size_statsd_metrics: Vec<_> = project_buckets
+            let size_statsd_metrics: Vec<_> = project_buckets
                 .iter()
                 .map(|bucket| (bucket.value.ty(), bucket.value.relative_size()))
                 .collect();
