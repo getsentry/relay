@@ -1207,7 +1207,7 @@ impl Aggregator {
                         for (bucket_type, bucket_relative_size) in size_statsd_metrics {
                             relay_statsd::metric!(
                                 histogram(MetricHistograms::BucketRelativeSize) =
-                                    *bucket_relative_size as u64,
+                                    bucket_relative_size as u64,
                                 metric_type = bucket_type.as_str(),
                             );
                         }
