@@ -22,15 +22,15 @@ pub fn validate_timestamps(
         }
         (_, None) => {
             // This invariant should be already guaranteed for regular error events.
-            return Err(ProcessingAction::InvalidTransaction(
+            Err(ProcessingAction::InvalidTransaction(
                 "timestamp hard-required for transaction events",
-            ));
+            ))
         }
         (None, _) => {
             // XXX: Maybe copy timestamp over?
-            return Err(ProcessingAction::InvalidTransaction(
+            Err(ProcessingAction::InvalidTransaction(
                 "start_timestamp hard-required for transaction events",
-            ));
+            ))
         }
     }
 }
