@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Tag transaction metrics by user satisfaction. ([#1197](https://github.com/getsentry/relay/pull/1197))
+
 **Internal**:
 
 - Spread out metric aggregation over the aggregation window to avoid concentrated waves of metrics requests to the upstream every 10 seconds. Relay now applies jitter to `initial_delay` to spread out requests more evenly over time. ([#1185](https://github.com/getsentry/relay/pull/1185))
