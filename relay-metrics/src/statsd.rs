@@ -35,7 +35,7 @@ pub enum MetricCounters {
 
     /// Incremented every time a bucket is created.
     ///
-    /// Tagged by metric type and name.
+    /// Tagged by metric type, name, and a `backdated` flag.
     MergeMiss,
 
     /// Incremented every time a bucket is dropped.
