@@ -4,8 +4,10 @@ use std::collections::{BTreeMap, BTreeSet};
 #[cfg(feature = "processing")]
 use {
     relay_common::UnixTimestamp,
-    relay_general::protocol::{AsPair, Event, EventType},
-    relay_general::store::{get_breakdown_measurements, normalize_dist, BreakdownsConfig},
+    relay_general::protocol::{AsPair, Event, EventType, Timestamp},
+    relay_general::store::{
+        get_breakdown_measurements, normalize_dist, validate_timestamps, BreakdownsConfig,
+    },
     relay_metrics::{Metric, MetricUnit, MetricValue},
     std::fmt,
     std::fmt::Write,
@@ -124,24 +126,12 @@ impl UserSatisfaction {
 }
 
 /// Get duration from timestamp and `start_timestamp`.
-/// Every transaction has a duration, which defaults to zero. See
-///     https://github.com/getsentry/snuba/blob/b744ae896435af64dd3cf5ef36198285139310d4/snuba/migrations/snuba_migrations/transactions/0001_transactions.py#L35
-///     https://github.com/getsentry/snuba/blob/b744ae896435af64dd3cf5ef36198285139310d4/snuba/datasets/transactions_processor.py#L59
-/// This means that a transaction without `start_timestamp` or `timestamp` defaults to a duration
-/// of zero, and therefore counts towards the satisfied count used in the Apdex:
-/// https://github.com/getsentry/snuba/blob/b744ae896435af64dd3cf5ef36198285139310d4/snuba/query/processors/performance_expressions.py#L18
 #[cfg(feature = "processing")]
-fn get_duration_millis(transaction: &Event) -> Option<f64> {
-    let start = transaction.start_timestamp.value();
-    let end = transaction.timestamp.value();
-    match (start, end) {
-        (Some(start), Some(end)) => {
-            let start = start.timestamp_millis();
-            let end = end.timestamp_millis();
-            Some(end.saturating_sub(start) as f64)
-        }
-        _ => None,
-    }
+fn get_duration_millis(start: &Timestamp, end: &Timestamp) -> f64 {
+    let start = start.timestamp_millis();
+    let end = end.timestamp_millis();
+
+    end.saturating_sub(start) as f64
 }
 
 /// Get the value for a measurement, e.g. lcp -> event.measurements.lcp
@@ -165,6 +155,8 @@ fn get_measurement(transaction: &Event, name: &str) -> Option<f64> {
 fn extract_user_satisfaction(
     config: &Option<SatisfactionConfig>,
     transaction: &Event,
+    start_timestamp: &Timestamp,
+    end_timestamp: &Timestamp,
 ) -> Option<UserSatisfaction> {
     if let Some(config) = config {
         let threshold = transaction
@@ -173,7 +165,9 @@ fn extract_user_satisfaction(
             .and_then(|name| config.transaction_thresholds.get(name))
             .unwrap_or(&config.project_threshold);
         if let Some(value) = match threshold.metric {
-            SatisfactionMetric::Duration => get_duration_millis(transaction),
+            SatisfactionMetric::Duration => {
+                Some(get_duration_millis(start_timestamp, end_timestamp))
+            }
             SatisfactionMetric::Lcp => get_measurement(transaction, "lcp"),
             SatisfactionMetric::Unknown => None,
         } {
@@ -215,11 +209,14 @@ pub fn extract_transaction_metrics(
     #[allow(unused_variables)]
     let target = ();
 
-    let timestamp = match event
-        .timestamp
-        .value()
-        .and_then(|ts| UnixTimestamp::from_datetime(ts.into_inner()))
-    {
+    let (start_timestamp, end_timestamp) = match validate_timestamps(event) {
+        Ok(pair) => pair,
+        Err(_) => {
+            return false; // invalid transaction
+        }
+    };
+
+    let unix_timestamp = match UnixTimestamp::from_datetime(end_timestamp.into_inner()) {
         Some(ts) => ts,
         None => return false,
     };
@@ -272,7 +269,7 @@ pub fn extract_transaction_metrics(
                 name,
                 unit: MetricUnit::None,
                 value: MetricValue::Distribution(measurement),
-                timestamp,
+                timestamp: unix_timestamp,
                 tags,
             });
         }
@@ -291,30 +288,32 @@ pub fn extract_transaction_metrics(
                     name: metric_name(&["breakdowns", breakdown_name, measurement_name]),
                     unit: MetricUnit::None,
                     value: MetricValue::Distribution(measurement),
-                    timestamp,
+                    timestamp: unix_timestamp,
                     tags: tags.clone(),
                 });
             }
         }
     }
 
-    let user_satisfaction = extract_user_satisfaction(&config.satisfaction_thresholds, event);
+    let user_satisfaction = extract_user_satisfaction(
+        &config.satisfaction_thresholds,
+        event,
+        start_timestamp,
+        end_timestamp,
+    );
     let tags_with_satisfaction = match user_satisfaction {
         Some(satisfaction) => with_tag(&tags, "satisfaction", satisfaction),
         None => tags.clone(),
     };
 
     // Duration
-    let duration_millis = get_duration_millis(event).unwrap_or(0.0);
+    let duration_millis = get_duration_millis(start_timestamp, end_timestamp);
 
-    // We always push the duration even if it's 0, because we use count(transaction.duration)
-    // to get the total number of transactions.
-    // This may need to be changed if it turns out that this skews the duration metric.
     push_metric(Metric {
         name: metric_name(&["transaction.duration"]),
         unit: MetricUnit::Duration(DurationPrecision::MilliSecond),
         value: MetricValue::Distribution(duration_millis),
-        timestamp,
+        timestamp: unix_timestamp,
         tags: match extract_transaction_status(event) {
             Some(status) => with_tag(&tags, "transaction.status", status),
             None => tags_with_satisfaction.clone(),
@@ -328,7 +327,7 @@ pub fn extract_transaction_metrics(
                 name: metric_name(&["user"]),
                 unit: MetricUnit::None,
                 value: MetricValue::set_from_str(user_id),
-                timestamp,
+                timestamp: unix_timestamp,
                 // A single user might end up in multiple satisfaction buckets when they have
                 // some satisfying transactions and some frustrating transactions.
                 // This is OK as long as we do not add these numbers *after* aggregation:
