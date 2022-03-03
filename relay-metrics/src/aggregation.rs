@@ -834,32 +834,41 @@ impl AggregatorConfig {
         Ok(output_timestamp)
     }
 
+    /// Returns the instant at which a bucket is initially flushed.
+    ///
+    /// This instant is in the past if the bucket timestamp is backdated.
+    fn get_initial_flush(&self, bucket_timestamp: UnixTimestamp) -> Option<Instant> {
+        if let MonotonicResult::Instant(instant) = bucket_timestamp.to_instant() {
+            let bucket_end = instant + self.bucket_interval();
+            let initial_flush = bucket_end + self.initial_delay();
+            // If the initial flush is still pending, use that.
+            if initial_flush > Instant::now() {
+                return Some(initial_flush);
+            }
+        }
+
+        None
+    }
+
     /// Returns the instant at which a bucket should be flushed.
     ///
     /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
     /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
     fn get_flush_time(&self, bucket_timestamp: UnixTimestamp, project_key: ProjectKey) -> Instant {
-        let now = Instant::now();
+        if let Some(initial_flush) = self.get_initial_flush(bucket_timestamp) {
+            // Shift deterministically within one bucket interval based on the project key. This
+            // distributes buckets over time while also flushing all buckets of the same project
+            // key together.
+            let mut hasher = FnvHasher::default();
+            hasher.write(project_key.as_str().as_bytes());
+            let shift_millis = u64::from(hasher.finish()) % (self.bucket_interval * 1000);
 
-        if let MonotonicResult::Instant(instant) = bucket_timestamp.to_instant() {
-            let bucket_end = instant + self.bucket_interval();
-            let initial_flush = bucket_end + self.initial_delay();
-            // If the initial flush is still pending, use that.
-            if initial_flush > now {
-                // Shift deterministically within one bucket interval based on the project key. This
-                // distributes buckets over time while also flushing all buckets of the same project
-                // key together.
-                let mut hasher = FnvHasher::default();
-                hasher.write(project_key.as_str().as_bytes());
-                let shift_millis = u64::from(hasher.finish()) % (self.bucket_interval * 1000);
-
-                return initial_flush + Duration::from_millis(shift_millis);
-            }
+            return initial_flush + Duration::from_millis(shift_millis);
         }
 
         // If the initial flush time has passed or cannot be represented, debounce future flushes
         // with the `debounce_delay` starting now.
-        now + self.debounce_delay()
+        Instant::now() + self.debounce_delay()
     }
 }
 
@@ -1043,20 +1052,24 @@ impl Aggregator {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeHit) += 1,
                     metric_type = entry.key().metric_type.as_str(),
-                    metric_name = &entry.key().metric_name
+                    metric_name = &entry.key().metric_name,
                 );
                 value.merge_into(&mut entry.get_mut().value)?;
             }
             Entry::Vacant(entry) => {
+                let backdated = self.config.get_initial_flush(timestamp).is_none();
+
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeMiss) += 1,
                     metric_type = entry.key().metric_type.as_str(),
-                    metric_name = &entry.key().metric_name
+                    metric_name = &entry.key().metric_name,
+                    backdated = if backdated { "true" } else { "false" },
                 );
                 relay_statsd::metric!(
                     set(MetricSets::UniqueBucketsCreated) = entry.key().as_integer_lossy(),
                     metric_type = entry.key().metric_type.as_str(),
-                    metric_name = &entry.key().metric_name
+                    metric_name = &entry.key().metric_name,
+                    backdated = if backdated { "true" } else { "false" },
                 );
 
                 let flush_at = self.config.get_flush_time(timestamp, project_key);
