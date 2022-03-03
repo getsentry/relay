@@ -17,6 +17,8 @@ use {
 enum SatisfactionMetric {
     Duration,
     Lcp,
+    #[serde(other)]
+    Unknown,
 }
 
 /// Configuration for a single threshold.
@@ -111,9 +113,9 @@ impl UserSatisfaction {
     const FRUSTRATION_FACTOR: f64 = 4.0;
 
     fn from_value(value: f64, threshold: f64) -> Self {
-        if value < threshold {
+        if value <= threshold {
             Self::Satisfied
-        } else if value < Self::FRUSTRATION_FACTOR * threshold {
+        } else if value <= Self::FRUSTRATION_FACTOR * threshold {
             Self::Tolerated
         } else {
             Self::Frustrated
@@ -121,7 +123,13 @@ impl UserSatisfaction {
     }
 }
 
-/// Get duration from timestamp and start_timestamp.
+/// Get duration from timestamp and `start_timestamp`.
+/// Every transaction has a duration, which defaults to zero. See
+///     https://github.com/getsentry/snuba/blob/b744ae896435af64dd3cf5ef36198285139310d4/snuba/migrations/snuba_migrations/transactions/0001_transactions.py#L35
+///     https://github.com/getsentry/snuba/blob/b744ae896435af64dd3cf5ef36198285139310d4/snuba/datasets/transactions_processor.py#L59
+/// This means that a transaction without `start_timestamp` or `timestamp` defaults to a duration
+/// of zero, and therefore counts towards the satisfied count used in the Apdex:
+/// https://github.com/getsentry/snuba/blob/b744ae896435af64dd3cf5ef36198285139310d4/snuba/query/processors/performance_expressions.py#L18
 #[cfg(feature = "processing")]
 fn get_duration_millis(transaction: &Event) -> Option<f64> {
     let start = transaction.start_timestamp.value();
@@ -167,6 +175,7 @@ fn extract_user_satisfaction(
         if let Some(value) = match threshold.metric {
             SatisfactionMetric::Duration => get_duration_millis(transaction),
             SatisfactionMetric::Lcp => get_measurement(transaction, "lcp"),
+            SatisfactionMetric::Unknown => None,
         } {
             return Some(UserSatisfaction::from_value(value, threshold.threshold));
         }
@@ -304,7 +313,7 @@ pub fn extract_transaction_metrics(
     push_metric(Metric {
         name: metric_name(&["transaction.duration"]),
         unit: MetricUnit::Duration(DurationPrecision::MilliSecond),
-        value: MetricValue::Distribution(duration_millis as f64),
+        value: MetricValue::Distribution(duration_millis),
         timestamp,
         tags: match extract_transaction_status(event) {
             Some(status) => with_tag(&tags, "transaction.status", status),
@@ -315,7 +324,6 @@ pub fn extract_transaction_metrics(
     // User
     if let Some(user) = event.user.value() {
         if let Some(user_id) = user.id.as_str() {
-            // TODO: If we have a transaction duration of 0 or no transaction at all, does the user count as satisfied?
             push_metric(Metric {
                 name: metric_name(&["user"]),
                 unit: MetricUnit::None,
@@ -572,7 +580,8 @@ mod tests {
                 "projectThreshold": {
                     "metric": "duration",
                     "threshold": 300
-                }
+                },
+                "extra_key": "should_be_ignored"
             }
         }
         "#,
@@ -633,6 +642,48 @@ mod tests {
         for metric in metrics {
             assert_eq!(metric.tags.len(), 2);
             assert_eq!(metric.tags["satisfaction"], "satisfied");
+        }
+    }
+
+    #[test]
+    fn test_user_satisfaction_catch_new_metric() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:02+0100",
+            "measurements": {
+                "lcp": {"value": 41}
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "sentry.transactions.transaction.duration"
+            ],
+            "satisfactionThresholds": {
+                "projectThreshold": {
+                    "metric": "unknown_metric",
+                    "threshold": 300
+                }
+            }
+        }
+        "#,
+        )
+        .unwrap();
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
+        assert_eq!(metrics.len(), 1);
+
+        for metric in metrics {
+            assert_eq!(metric.tags.len(), 1);
+            assert!(!metric.tags.contains_key("satisfaction"));
         }
     }
 }
