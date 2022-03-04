@@ -2063,6 +2063,16 @@
 <span id="2061">2061</span>
 <span id="2062">2062</span>
 <span id="2063">2063</span>
+<span id="2064">2064</span>
+<span id="2065">2065</span>
+<span id="2066">2066</span>
+<span id="2067">2067</span>
+<span id="2068">2068</span>
+<span id="2069">2069</span>
+<span id="2070">2070</span>
+<span id="2071">2071</span>
+<span id="2072">2072</span>
+<span id="2073">2073</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2905,6 +2915,7 @@
     <span class="doccomment">/// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.</span>
     <span class="kw">fn</span> <span class="ident">get_flush_time</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">bucket_timestamp</span>: <span class="ident">UnixTimestamp</span>, <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>) -&gt; <span class="ident">Instant</span> {
         <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">flush</span> <span class="op">=</span> <span class="prelude-val">None</span>;
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">MonotonicResult::Instant</span>(<span class="ident">instant</span>) <span class="op">=</span> <span class="ident">bucket_timestamp</span>.<span class="ident">to_instant</span>() {
             <span class="kw">let</span> <span class="ident">bucket_end</span> <span class="op">=</span> <span class="ident">instant</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">bucket_interval</span>();
@@ -2918,13 +2929,22 @@
                 <span class="ident">hasher</span>.<span class="ident">write</span>(<span class="ident">project_key</span>.<span class="ident">as_str</span>().<span class="ident">as_bytes</span>());
                 <span class="kw">let</span> <span class="ident">shift_millis</span> <span class="op">=</span> <span class="ident">u64::from</span>(<span class="ident">hasher</span>.<span class="ident">finish</span>()) <span class="op">%</span> (<span class="self">self</span>.<span class="ident">bucket_interval</span> <span class="op">*</span> <span class="number">1000</span>);
 
-                <span class="kw">return</span> <span class="ident">initial_flush</span> <span class="op">+</span> <span class="ident">Duration::from_millis</span>(<span class="ident">shift_millis</span>);
+                <span class="ident">flush</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">initial_flush</span> <span class="op">+</span> <span class="ident">Duration::from_millis</span>(<span class="ident">shift_millis</span>));
             }
         }
 
+        <span class="kw">let</span> <span class="ident">delay</span> <span class="op">=</span> <span class="ident">UnixTimestamp::now</span>().<span class="ident">as_secs</span>() <span class="kw">as</span> <span class="ident">i64</span> <span class="op">-</span> <span class="ident">bucket_timestamp</span>.<span class="ident">as_secs</span>() <span class="kw">as</span> <span class="ident">i64</span>;
+        <span class="macro">relay_statsd::metric!</span>(
+            <span class="ident">histogram</span>(<span class="ident">MetricHistograms::BucketsDelay</span>) <span class="op">=</span> <span class="ident">delay</span> <span class="kw">as</span> <span class="ident">f64</span>,
+            <span class="ident">backedated</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">flush</span>.<span class="ident">is_none</span>() { <span class="string">&quot;true&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;false&quot;</span> },
+        );
+
         <span class="comment">// If the initial flush time has passed or cannot be represented, debounce future flushes</span>
         <span class="comment">// with the `debounce_delay` starting now.</span>
-        <span class="ident">now</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">debounce_delay</span>()
+        <span class="kw">match</span> <span class="ident">flush</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">initial_flush</span>) =&gt; <span class="ident">initial_flush</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="ident">now</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">debounce_delay</span>(),
+        }
     }
 }
 
