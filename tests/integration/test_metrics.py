@@ -572,6 +572,8 @@ def test_graceful_shutdown(mini_sentry, relay):
     metrics_payload = f"bar:17|c"
     future_timestamp = timestamp + 60
     relay.send_metrics(project_id, metrics_payload, future_timestamp)
+
+    sleep(1)  # Give Relay some time to fetch project config
     relay.shutdown(sig=signal.SIGTERM)
 
     # Try to send another metric (will be rejected)
@@ -579,11 +581,14 @@ def test_graceful_shutdown(mini_sentry, relay):
     with pytest.raises(requests.ConnectionError):
         relay.send_metrics(project_id, metrics_payload, timestamp)
 
-    envelope = mini_sentry.captured_events.get(timeout=3)
-    assert len(envelope.items) == 1
-    metrics_item = envelope.items[0]
-    assert metrics_item.type == "metric_buckets"
-    received_metrics = json.loads(metrics_item.get_bytes().decode())
+    received_metrics = []
+    for _ in range(2):
+        envelope = mini_sentry.captured_events.get(timeout=1)
+        assert len(envelope.items) == 1
+        metrics_item = envelope.items[0]
+        assert metrics_item.type == "metric_buckets"
+        received_metrics.extend(json.loads(metrics_item.get_bytes().decode()))
+
     received_metrics = sorted(received_metrics, key=lambda x: x["name"])
     assert received_metrics == [
         {
