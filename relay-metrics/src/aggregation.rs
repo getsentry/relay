@@ -840,6 +840,7 @@ impl AggregatorConfig {
     /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
     fn get_flush_time(&self, bucket_timestamp: UnixTimestamp, project_key: ProjectKey) -> Instant {
         let now = Instant::now();
+        let mut flush = None;
 
         if let MonotonicResult::Instant(instant) = bucket_timestamp.to_instant() {
             let bucket_end = instant + self.bucket_interval();
@@ -853,13 +854,22 @@ impl AggregatorConfig {
                 hasher.write(project_key.as_str().as_bytes());
                 let shift_millis = u64::from(hasher.finish()) % (self.bucket_interval * 1000);
 
-                return initial_flush + Duration::from_millis(shift_millis);
+                flush = Some(initial_flush + Duration::from_millis(shift_millis));
             }
         }
 
+        let delay = UnixTimestamp::now().as_secs() as i64 - bucket_timestamp.as_secs() as i64;
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BucketsDelay) = delay as f64,
+            backedated = if flush.is_none() { "true" } else { "false" },
+        );
+
         // If the initial flush time has passed or cannot be represented, debounce future flushes
         // with the `debounce_delay` starting now.
-        now + self.debounce_delay()
+        match flush {
+            Some(initial_flush) => initial_flush,
+            None => now + self.debounce_delay(),
+        }
     }
 }
 
