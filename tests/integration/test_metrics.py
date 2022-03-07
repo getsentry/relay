@@ -552,7 +552,7 @@ def test_graceful_shutdown(mini_sentry, relay):
             "limits": {"shutdown_timeout": 2},
             "aggregator": {
                 "bucket_interval": 1,
-                "initial_delay": 10,
+                "initial_delay": 100,
                 "debounce_delay": 0,
             },
         },
@@ -568,7 +568,8 @@ def test_graceful_shutdown(mini_sentry, relay):
     metrics_payload = f"foo:42|c"
     relay.send_metrics(project_id, metrics_payload, past_timestamp)
 
-    # Future timestamp will not be flushed regularly, only through force flush
+    # Future timestamp would normally be flushed after 100 seconds, but during graceful shutdown
+    # it is flushed as well.
     metrics_payload = f"bar:17|c"
     future_timestamp = timestamp + 60
     relay.send_metrics(project_id, metrics_payload, future_timestamp)
