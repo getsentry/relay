@@ -1750,8 +1750,8 @@ mod tests {
 
         let buckets: Vec<_> = aggregator
             .buckets
-            .into_iter()
-            .map(|(k, e)| (k, e.value)) // skip flush times, they are different every time
+            .iter()
+            .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
             .collect();
 
         insta::assert_debug_snapshot!(buckets, @r###"
@@ -1798,8 +1798,8 @@ mod tests {
 
         let mut buckets: Vec<_> = aggregator
             .buckets
-            .into_iter()
-            .map(|(k, e)| (k, e.value)) // skip flush times, they are different every time
+            .iter()
+            .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
             .collect();
 
         buckets.sort_by(|a, b| a.0.timestamp.cmp(&b.0.timestamp));
