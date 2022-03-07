@@ -8,7 +8,7 @@
 
 **Bug Fixes**:
 
-- Fetch project states during aggregator shutdown. ([#1205](https://github.com/getsentry/relay/pull/1205))
+- Prevent dropping metrics during Relay shutdown if the project is outdated or not cached at time of the shutdown. ([#1205](https://github.com/getsentry/relay/pull/1205))
 
 **Internal**:
 
