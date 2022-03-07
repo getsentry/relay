@@ -1281,6 +1281,18 @@ impl Handler<Shutdown> for Aggregator {
     }
 }
 
+impl Drop for Aggregator {
+    fn drop(&mut self) {
+        let remaining_buckets = self.buckets.len();
+        if remaining_buckets > 0 {
+            relay_log::error!("Metrics aggregator dropping {} buckets", remaining_buckets);
+            relay_statsd::metric!(
+                counter(MetricCounters::BucketsDropped) += remaining_buckets as i64
+            );
+        }
+    }
+}
+
 /// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetrics {
