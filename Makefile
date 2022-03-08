@@ -152,10 +152,9 @@ clean-target-dir:
 	.venv/bin/pip install -U pip wheel
 
 	@# Work around https://github.com/confluentinc/confluent-kafka-python/issues/1190
-	if [ "$$(uname -sm)" = "Darwin arm64" ]; then \
+	@if [ "$$(uname -sm)" = "Darwin arm64" ]; then \
 		echo "Using 'librdkafka' from homebrew to build confluent-kafka"; \
 		export C_INCLUDE_PATH="$$(brew --prefix librdkafka)/include"; \
-		export LIBRARY_PATH="$$(brew --prefix librdkafka)/lib"; \
 	fi; \
 	.venv/bin/pip install -U -r requirements-dev.txt
 
