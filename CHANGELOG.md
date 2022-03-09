@@ -8,6 +8,7 @@
 
 **Bug Fixes**:
 
+- CVE-2022-24713: Prevent denial of service through untrusted regular expressions used for PII scrubbing. ([#1207](https://github.com/getsentry/relay/pull/1207))
 - Prevent dropping metrics during Relay shutdown if the project is outdated or not cached at time of the shutdown. ([#1205](https://github.com/getsentry/relay/pull/1205))
 
 **Internal**:
