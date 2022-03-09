@@ -961,7 +961,7 @@ impl EnvelopeProcessor {
                     if !profiling_enabled {
                         return false;
                     }
-                    matches!(self.parse_profile(item), Ok(_))
+                    self.parse_profile(item).is_ok()
                 }
                 _ => true, // Keep all other item types
             }
@@ -1787,10 +1787,7 @@ impl EnvelopeProcessor {
         self.process_sessions(state);
         self.process_client_reports(state);
         self.process_user_reports(state);
-
-        if_processing!({
-            self.process_profiling_items(state);
-        });
+        self.process_profiling_items(state);
 
         if state.creates_event() {
             if_processing!({
