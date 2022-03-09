@@ -2,10 +2,19 @@
 
 ## Unreleased
 
+**Features**:
+
+- Tag transaction metrics by user satisfaction. ([#1197](https://github.com/getsentry/relay/pull/1197))
+
+**Bug Fixes**:
+
+- Prevent dropping metrics during Relay shutdown if the project is outdated or not cached at time of the shutdown. ([#1205](https://github.com/getsentry/relay/pull/1205))
+
 **Internal**:
 
 - Spread out metric aggregation over the aggregation window to avoid concentrated waves of metrics requests to the upstream every 10 seconds. Relay now applies jitter to `initial_delay` to spread out requests more evenly over time. ([#1185](https://github.com/getsentry/relay/pull/1185))
 - Use a randomized Kafka partitioning key for sessions instead of the session ID. ([#1194](https://github.com/getsentry/relay/pull/1194))
+- Add new statsd metrics for bucketing efficiency. ([#1199](https://github.com/getsentry/relay/pull/1199), [#1192](https://github.com/getsentry/relay/pull/1192), [#1200](https://github.com/getsentry/relay/pull/1200))
 
 ## 22.2.0
 

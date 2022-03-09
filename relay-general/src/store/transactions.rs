@@ -1,9 +1,39 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Context, ContextInner, Event, EventType, Span};
+use crate::protocol::{Context, ContextInner, Event, EventType, Span, Timestamp};
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult};
-
 /// Rejects transactions based on required fields.
 pub struct TransactionsProcessor;
+
+/// Returns start and end timestamps if they are both set and start <= end.
+pub fn validate_timestamps(
+    transaction_event: &Event,
+) -> Result<(&Timestamp, &Timestamp), ProcessingAction> {
+    match (
+        transaction_event.start_timestamp.value(),
+        transaction_event.timestamp.value(),
+    ) {
+        (Some(start), Some(end)) => {
+            if *end < *start {
+                return Err(ProcessingAction::InvalidTransaction(
+                    "end timestamp is smaller than start timestamp",
+                ));
+            }
+            Ok((start, end))
+        }
+        (_, None) => {
+            // This invariant should be already guaranteed for regular error events.
+            Err(ProcessingAction::InvalidTransaction(
+                "timestamp hard-required for transaction events",
+            ))
+        }
+        (None, _) => {
+            // XXX: Maybe copy timestamp over?
+            Err(ProcessingAction::InvalidTransaction(
+                "start_timestamp hard-required for transaction events",
+            ))
+        }
+    }
+}
 
 impl Processor for TransactionsProcessor {
     fn process_event(
@@ -27,27 +57,7 @@ impl Processor for TransactionsProcessor {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
-        match (event.start_timestamp.value(), event.timestamp.value_mut()) {
-            (Some(start), Some(end)) => {
-                if *end < *start {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "end timestamp is smaller than start timestamp",
-                    ));
-                }
-            }
-            (_, None) => {
-                // This invariant should be already guaranteed for regular error events.
-                return Err(ProcessingAction::InvalidTransaction(
-                    "timestamp hard-required for transaction events",
-                ));
-            }
-            (None, _) => {
-                // XXX: Maybe copy timestamp over?
-                return Err(ProcessingAction::InvalidTransaction(
-                    "start_timestamp hard-required for transaction events",
-                ));
-            }
-        }
+        validate_timestamps(event)?;
 
         let err_trace_context_required = Err(ProcessingAction::InvalidTransaction(
             "trace context hard-required for transaction events",

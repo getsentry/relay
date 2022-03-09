@@ -318,7 +318,7 @@ impl<'a> NormalizeProcessor<'a> {
 
             if !headers.contains("User-Agent") {
                 headers.insert(
-                    HeaderName::new("User-Agent".to_owned()),
+                    HeaderName::new("User-Agent"),
                     Annotated::new(HeaderValue::new(client.clone())),
                 );
             }

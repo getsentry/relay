@@ -39,6 +39,9 @@ workspace with multiple features, so when running building or running tests
 always make sure to pass the `--all` and `--all-features` flags.
 The `processing` feature additionally requires a C compiler and CMake.
 
+To install the development environment, librdkafka must be installed and on the
+path. On macOS, we require to install it with `brew install librdkafka`, as the installation script uses `brew --prefix` to determine the correct location.
+
 We use VSCode for development. This repository contains settings files
 configuring code style, linters, and useful features. When opening the project
 for the first time, make sure to _install the Recommended Extensions_, as they
@@ -55,9 +58,10 @@ development:
   also performed in CI.
 - `make clean`: Removes all build artifacts, the virtualenv and cached files.
 
-For a lot of tests you will need Redis and Kafka running in their respective
-default configuration. `sentry devservices` from
-[sentry](https://github.com/getsentry/sentry) does this for you.
+Integration tests require Redis and Kafka running in their default
+configuration. The most convenient way to get all required services is via
+[`sentry devservices`](https://develop.sentry.dev/services/devservices/), which
+requires an up-to-date Sentry development environment.
 
 ### Building and Running
 

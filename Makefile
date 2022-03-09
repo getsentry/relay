@@ -144,10 +144,18 @@ clean-target-dir:
 
 .venv/bin/python: Makefile
 	rm -rf .venv
+
 	@# --copies is necessary because OS X make checks the mtime of the symlink
 	@# target (/usr/local/bin/python), which is always much older than the
 	@# Makefile, and then proceeds to unconditionally rebuild the venv.
 	$$RELAY_PYTHON_VERSION -m venv --copies .venv
+	.venv/bin/pip install -U pip wheel
+
+	@# Work around https://github.com/confluentinc/confluent-kafka-python/issues/1190
+	@if [ "$$(uname -sm)" = "Darwin arm64" ]; then \
+		echo "Using 'librdkafka' from homebrew to build confluent-kafka"; \
+		export C_INCLUDE_PATH="$$(brew --prefix librdkafka)/include"; \
+	fi; \
 	.venv/bin/pip install -U -r requirements-dev.txt
 
 .git/hooks/pre-commit:

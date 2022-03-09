@@ -91,6 +91,18 @@ pub enum MetricHistograms {
     /// BucketRelativeSize measures how many distinct values are in a bucket and therefore
     /// BucketRelativeSize gives you a measurement of the bucket size and complexity.
     BucketRelativeSize,
+
+    /// The reporting delay at which a bucket arrives in Relay.
+    ///
+    /// A positive delay indicates the bucket arrives after its stated timestamp. Large delays
+    /// indicate backdating, particularly all delays larger than `bucket_interval + initial_delay`.
+    /// Negative delays indicate that the bucket is dated into the future, likely due to clock drift
+    /// on the client.
+    ///
+    /// This metric is tagged with:
+    ///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`
+    ///    time period (`false`) or after the initial delay has expired (`true`).
+    BucketsDelay,
 }
 
 impl HistogramMetric for MetricHistograms {
@@ -99,6 +111,7 @@ impl HistogramMetric for MetricHistograms {
             Self::BucketsFlushed => "metrics.buckets.flushed",
             Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
             Self::BucketRelativeSize => "metrics.buckets.relative_bucket_size",
+            Self::BucketsDelay => "metrics.buckets.delay",
         }
     }
 }

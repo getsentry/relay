@@ -49,7 +49,7 @@ def test_metrics(mini_sentry, relay):
     metrics_payload = f"foo:42|c\nbar:17|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
-    envelope = mini_sentry.captured_events.get(timeout=2)
+    envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
 
     metrics_item = envelope.items[0]

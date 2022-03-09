@@ -57,7 +57,7 @@ impl fmt::Display for SelectorPathItem {
             SelectorPathItem::Index(index) => write!(f, "{}", index),
             SelectorPathItem::Key(ref key) => {
                 if key_needs_quoting(key) {
-                    write!(f, "'{}'", key.replace("'", "''"))
+                    write!(f, "'{}'", key.replace('\'', "''"))
                 } else {
                     write!(f, "{}", key)
                 }
