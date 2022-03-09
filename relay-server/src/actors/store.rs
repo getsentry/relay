@@ -434,11 +434,15 @@ impl StoreForwarder {
         &self,
         organization_id: u64,
         project_id: ProjectId,
+        start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
             organization_id,
             project_id,
+            received: UnixTimestamp::from_instant(start_time)
+                .as_datetime()
+                .to_rfc3339(),
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling session item to kafka");
@@ -453,11 +457,15 @@ impl StoreForwarder {
         &self,
         organization_id: u64,
         project_id: ProjectId,
+        start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
             organization_id,
             project_id,
+            received: UnixTimestamp::from_instant(start_time)
+                .as_datetime()
+                .to_rfc3339(),
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling trace item to kafka");
@@ -472,11 +480,15 @@ impl StoreForwarder {
         &self,
         organization_id: u64,
         project_id: ProjectId,
+        start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
             organization_id,
             project_id,
+            received: UnixTimestamp::from_instant(start_time)
+                .as_datetime()
+                .to_rfc3339(),
             payload: item.payload(),
         };
         relay_log::trace!("Sending profile to Kafka");
@@ -657,6 +669,7 @@ struct MetricKafkaMessage {
 struct ProfilingKafkaMessage {
     organization_id: u64,
     project_id: ProjectId,
+    received: String,
     payload: Bytes,
 }
 
@@ -814,16 +827,21 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 ItemType::ProfilingSession => self.produce_profiling_session_message(
                     scoping.organization_id,
                     scoping.project_id,
+                    start_time,
                     item,
                 )?,
                 ItemType::ProfilingTrace => self.produce_profiling_trace_message(
                     scoping.organization_id,
                     scoping.project_id,
+                    start_time,
                     item,
                 )?,
-                ItemType::Profile => {
-                    self.produce_profile(scoping.organization_id, scoping.project_id, item)?
-                }
+                ItemType::Profile => self.produce_profile(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    start_time,
+                    item,
+                )?,
                 _ => {}
             }
         }
