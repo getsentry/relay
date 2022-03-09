@@ -26,10 +26,7 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::FormData
-            | ItemType::ProfilingSession
-            | ItemType::ProfilingTrace
-            | ItemType::Profile => event_size += item.len(),
+            | ItemType::FormData => event_size += item.len(),
             ItemType::Attachment | ItemType::UnrealReport => {
                 if item.len() > config.max_attachment_size() {
                     return false;
@@ -43,6 +40,11 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
             ItemType::Metrics => (),
             ItemType::MetricBuckets => (),
             ItemType::ClientReport => client_reports_size += item.len(),
+            ItemType::ProfilingSession | ItemType::ProfilingTrace | ItemType::Profile => {
+                if item.len() > config.max_profile_size() {
+                    return false;
+                }
+            }
         }
     }
 
