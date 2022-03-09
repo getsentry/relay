@@ -5,9 +5,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::envelope::{ContentType, Item};
 
-pub const ANDROID_SDK_NAME: &str = "sentry.java.android";
+#[derive(Debug, Deserialize)]
+pub struct MinimalProfile {
+    #[serde(default)]
+    pub platform: String,
+}
 
-#[derive(Serialize, Deserialize)]
+pub fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError> {
+    serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct AndroidProfile {
     android_api_level: u16,
     build_id: String,
@@ -16,9 +24,8 @@ struct AndroidProfile {
     device_model: String,
     device_os_name: String,
     device_os_version: String,
+    duration_ns: String,
     environment: String,
-    error_code: String,
-    error_description: String,
     platform: String,
     stacktrace: String,
     stacktrace_id: String,
@@ -28,6 +35,7 @@ struct AndroidProfile {
     version_code: String,
     version_name: String,
 
+    #[serde(default)]
     android_trace: Option<AndroidTraceLog>,
 }
 
@@ -57,16 +65,11 @@ pub enum ProfileError {
     CannotSerializePayload,
 }
 
-pub fn expand_profile_envelope(item: &mut Item) -> Result<(), ProfileError> {
-    let mut profile: AndroidProfile = match serde_json::from_slice(&item.payload()) {
-        Ok(profile) => profile,
-        Err(err) => return Err(ProfileError::InvalidJson(err)),
-    };
+pub fn parse_android_profile(item: &mut Item) -> Result<(), ProfileError> {
+    let mut profile: AndroidProfile =
+        serde_json::from_slice(&item.payload()).map_err(ProfileError::InvalidJson)?;
 
-    match profile.parse_stack_trace() {
-        Ok(_) => (),
-        Err(err) => return Err(err),
-    };
+    profile.parse_stack_trace()?;
 
     match serde_json::to_vec(&profile) {
         Ok(payload) => item.set_payload(ContentType::Json, &payload[..]),

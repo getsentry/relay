@@ -63,7 +63,7 @@ use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     crate::metrics_extraction::transactions::extract_transaction_metrics,
     crate::service::ServerErrorKind,
-    crate::utils::{EnvelopeLimiter, ErrorBoundary, ProfileError},
+    crate::utils::{EnvelopeLimiter, ErrorBoundary, MinimalProfile, ProfileError},
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -951,12 +951,17 @@ impl EnvelopeProcessor {
     }
 
     /// Remove profiling items if the feature flag is not enabled
+    #[cfg(feature = "processing")]
     fn process_profiling_items(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         state.envelope.retain_items(|item| {
             match item.ty() {
-                ItemType::ProfilingSession | ItemType::ProfilingTrace | ItemType::Profile => {
-                    profiling_enabled
+                ItemType::ProfilingSession | ItemType::ProfilingTrace => profiling_enabled,
+                ItemType::Profile => {
+                    if !profiling_enabled {
+                        return false;
+                    }
+                    matches!(self.parse_profile(item), Ok(_))
                 }
                 _ => true, // Keep all other item types
             }
@@ -1038,21 +1043,13 @@ impl EnvelopeProcessor {
         Ok(())
     }
 
-    /// Expands profile items inside an envelope
     #[cfg(feature = "processing")]
-    fn expand_profile(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let envelope = &mut state.envelope;
-        let meta = envelope.meta();
-
-        if meta.client() != Some(utils::ANDROID_SDK_NAME) {
+    fn parse_profile(&self, item: &mut Item) -> Result<(), ProfileError> {
+        let minimal_profile: MinimalProfile = utils::minimal_profile_from_json(&item.payload())?;
+        if minimal_profile.platform != "android" {
             return Ok(());
         }
-
-        if let Some(item) = &mut envelope.take_item_by(|item| item.ty() == ItemType::Profile) {
-            utils::expand_profile_envelope(item)?;
-        }
-
-        Ok(())
+        utils::parse_android_profile(item)
     }
 
     fn event_from_json_payload(
@@ -1790,12 +1787,14 @@ impl EnvelopeProcessor {
         self.process_sessions(state);
         self.process_client_reports(state);
         self.process_user_reports(state);
-        self.process_profiling_items(state);
+
+        if_processing!({
+            self.process_profiling_items(state);
+        });
 
         if state.creates_event() {
             if_processing!({
                 self.expand_unreal(state)?;
-                self.expand_profile(state)?;
             });
 
             self.extract_event(state)?;
