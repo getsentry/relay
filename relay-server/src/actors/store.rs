@@ -440,9 +440,7 @@ impl StoreForwarder {
         let message = ProfilingKafkaMessage {
             organization_id,
             project_id,
-            received: UnixTimestamp::from_instant(start_time)
-                .as_datetime()
-                .to_rfc3339(),
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling session item to kafka");
@@ -463,9 +461,7 @@ impl StoreForwarder {
         let message = ProfilingKafkaMessage {
             organization_id,
             project_id,
-            received: UnixTimestamp::from_instant(start_time)
-                .as_datetime()
-                .to_rfc3339(),
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling trace item to kafka");
@@ -486,9 +482,7 @@ impl StoreForwarder {
         let message = ProfilingKafkaMessage {
             organization_id,
             project_id,
-            received: UnixTimestamp::from_instant(start_time)
-                .as_datetime()
-                .to_rfc3339(),
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
         relay_log::trace!("Sending profile to Kafka");
@@ -669,7 +663,7 @@ struct MetricKafkaMessage {
 struct ProfilingKafkaMessage {
     organization_id: u64,
     project_id: ProjectId,
-    received: String,
+    received: u64,
     payload: Bytes,
 }
 
