@@ -55,7 +55,8 @@ use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, SendWithOutcome,
+    self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, MinimalProfile,
+    ProfileError, SendWithOutcome,
 };
 
 #[cfg(feature = "processing")]
@@ -63,7 +64,7 @@ use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     crate::metrics_extraction::transactions::extract_transaction_metrics,
     crate::service::ServerErrorKind,
-    crate::utils::{EnvelopeLimiter, ErrorBoundary, MinimalProfile, ProfileError},
+    crate::utils::{EnvelopeLimiter, ErrorBoundary},
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -951,7 +952,6 @@ impl EnvelopeProcessor {
     }
 
     /// Remove profiling items if the feature flag is not enabled
-    #[cfg(feature = "processing")]
     fn process_profiling_items(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         state.envelope.retain_items(|item| {
@@ -1043,7 +1043,6 @@ impl EnvelopeProcessor {
         Ok(())
     }
 
-    #[cfg(feature = "processing")]
     fn parse_profile(&self, item: &mut Item) -> Result<(), ProfileError> {
         let minimal_profile: MinimalProfile = utils::minimal_profile_from_json(&item.payload())?;
         if minimal_profile.platform != "android" {

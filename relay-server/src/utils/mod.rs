@@ -4,6 +4,7 @@ mod dynamic_sampling;
 mod error_boundary;
 mod multipart;
 mod param_parser;
+mod profile;
 mod rate_limits;
 mod request;
 mod shutdown;
@@ -17,8 +18,6 @@ mod kafka;
 #[cfg(feature = "processing")]
 mod native;
 #[cfg(feature = "processing")]
-mod profile;
-#[cfg(feature = "processing")]
 mod unreal;
 
 pub use self::actix::*;
@@ -27,6 +26,7 @@ pub use self::dynamic_sampling::*;
 pub use self::error_boundary::*;
 pub use self::multipart::*;
 pub use self::param_parser::*;
+pub use self::profile::*;
 pub use self::rate_limits::*;
 pub use self::request::*;
 pub use self::shutdown::*;
@@ -39,7 +39,5 @@ pub use self::with_outcome::*;
 pub use self::kafka::*;
 #[cfg(feature = "processing")]
 pub use self::native::*;
-#[cfg(feature = "processing")]
-pub use self::profile::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;
