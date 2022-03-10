@@ -961,7 +961,10 @@ impl EnvelopeProcessor {
                     if !profiling_enabled {
                         return false;
                     }
-                    self.parse_profile(item).is_ok()
+                    if self.config.processing_enabled() {
+                        return self.parse_profile(item).is_ok();
+                    }
+                    true
                 }
                 _ => true, // Keep all other item types
             }
