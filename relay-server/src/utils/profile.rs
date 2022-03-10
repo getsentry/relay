@@ -26,7 +26,7 @@ struct AndroidProfile {
     device_model: String,
     device_os_name: String,
     device_os_version: String,
-    device_physical_memory_bytes: u32,
+    device_physical_memory_bytes: String,
     duration_ns: String,
     environment: String,
     platform: String,
