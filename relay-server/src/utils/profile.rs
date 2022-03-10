@@ -30,27 +30,32 @@ struct AndroidProfile {
     duration_ns: String,
     environment: String,
     platform: String,
-    stacktrace: String,
-    stacktrace_id: String,
+
+    #[serde(skip_serializing, alias = "stacktrace")]
+    sampled_profile: String,
+
+    #[serde(alias = "stacktrace_id")]
+    profile_id: String,
+
     trace_id: String,
     transaction_id: String,
     transaction_name: String,
     version_code: String,
     version_name: String,
 
-    #[serde(default)]
-    android_trace: Option<AndroidTraceLog>,
+    #[serde(skip_deserializing, default)]
+    profile: Option<AndroidTraceLog>,
 }
 
 impl AndroidProfile {
-    fn parse_stack_trace(&mut self) -> Result<(), ProfileError> {
-        let stacktrace_bytes = match base64::decode(&self.stacktrace) {
-            Ok(stacktrace) => stacktrace,
+    fn parse(&mut self) -> Result<(), ProfileError> {
+        let profile_bytes = match base64::decode(&self.sampled_profile) {
+            Ok(profile) => profile,
             Err(_) => return Err(ProfileError::InvalidBase64Value),
         };
-        self.android_trace = match android_trace_log::parse(&stacktrace_bytes) {
-            Ok(trace) => Some(trace),
-            Err(_) => return Err(ProfileError::InvalidStackTrace),
+        self.profile = match android_trace_log::parse(&profile_bytes) {
+            Ok(profile) => Some(profile),
+            Err(_) => return Err(ProfileError::InvalidSampledProfile),
         };
         Ok(())
     }
@@ -62,8 +67,8 @@ pub enum ProfileError {
     InvalidJson(#[cause] serde_json::Error),
     #[fail(display = "invalid base64 value")]
     InvalidBase64Value,
-    #[fail(display = "invalid stack trace in profile")]
-    InvalidStackTrace,
+    #[fail(display = "invalid sampled profile")]
+    InvalidSampledProfile,
     #[fail(display = "cannot serialize payload")]
     CannotSerializePayload,
 }
@@ -72,7 +77,7 @@ pub fn parse_android_profile(item: &mut Item) -> Result<(), ProfileError> {
     let mut profile: AndroidProfile =
         serde_json::from_slice(&item.payload()).map_err(ProfileError::InvalidJson)?;
 
-    profile.parse_stack_trace()?;
+    profile.parse()?;
 
     match serde_json::to_vec(&profile) {
         Ok(payload) => item.set_payload(ContentType::Json, &payload[..]),
