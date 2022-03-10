@@ -1512,8 +1512,8 @@
             <span class="ident"><span class="self">Self</span>::Attachment</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
             <span class="ident"><span class="self">Self</span>::AttachmentChunk</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
             <span class="ident"><span class="self">Self</span>::UserReport</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
-            <span class="ident"><span class="self">Self</span>::Session</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">session_id</span>,
-            <span class="ident"><span class="self">Self</span>::Metric</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(), <span class="comment">// TODO(ja): Determine a partitioning key</span>
+            <span class="ident"><span class="self">Self</span>::Session</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(), <span class="comment">// Explicit random partitioning for sessions</span>
+            <span class="ident"><span class="self">Self</span>::Metric</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(),  <span class="comment">// TODO(ja): Determine a partitioning key</span>
             <span class="ident"><span class="self">Self</span>::ProfilingTrace</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(), <span class="comment">// TODO(pierre): parse session_id as uuid</span>
             <span class="ident"><span class="self">Self</span>::ProfilingSession</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(), <span class="comment">// TODO(pierre): parse session_id as uuid</span>
         };
