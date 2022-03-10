@@ -705,8 +705,8 @@ impl KafkaMessage {
             Self::Attachment(message) => message.event_id.0,
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
-            Self::Session(message) => message.session_id,
-            Self::Metric(_message) => Uuid::nil(), // TODO(ja): Determine a partitioning key
+            Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
+            Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
             Self::ProfilingTrace(_message) => Uuid::nil(),
             Self::ProfilingSession(_message) => Uuid::nil(),
             Self::Profile(_message) => Uuid::nil(),

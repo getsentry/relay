@@ -8,12 +8,14 @@
 
 **Bug Fixes**:
 
+- CVE-2022-24713: Prevent denial of service through untrusted regular expressions used for PII scrubbing. ([#1207](https://github.com/getsentry/relay/pull/1207))
 - Prevent dropping metrics during Relay shutdown if the project is outdated or not cached at time of the shutdown. ([#1205](https://github.com/getsentry/relay/pull/1205))
 
 **Internal**:
 
 - Spread out metric aggregation over the aggregation window to avoid concentrated waves of metrics requests to the upstream every 10 seconds. Relay now applies jitter to `initial_delay` to spread out requests more evenly over time. ([#1185](https://github.com/getsentry/relay/pull/1185))
-- Add new statsd metrics for bucketing efficiency ([#1199](https://github.com/getsentry/relay/pull/1199), [#1192](https://github.com/getsentry/relay/pull/1192), [#1200](https://github.com/getsentry/relay/pull/1200))
+- Use a randomized Kafka partitioning key for sessions instead of the session ID. ([#1194](https://github.com/getsentry/relay/pull/1194))
+- Add new statsd metrics for bucketing efficiency. ([#1199](https://github.com/getsentry/relay/pull/1199), [#1192](https://github.com/getsentry/relay/pull/1192), [#1200](https://github.com/getsentry/relay/pull/1200))
 - Add a `Profile` `ItemType` to represent the profiling data sent from Sentry SDKs. ([#1179](https://github.com/getsentry/relay/pull/1179))
 
 ## 22.2.0
@@ -53,6 +55,7 @@
 - Metrics extraction config, custom tags. ([#1141](https://github.com/getsentry/relay/pull/1141))
 - Update the user agent parser (uap-core Feb 2020 to Nov 2021). This allows Relay and Sentry to infer more recent browsers, operating systems, and devices in events containing a user agent header. ([#1143](https://github.com/getsentry/relay/pull/1143), [#1145](https://github.com/getsentry/relay/pull/1145))
 - Improvements to Unity OS context parsing ([#1150](https://github.com/getsentry/relay/pull/1150))
+
 **Bug Fixes**:
 
 - Support Unreal Engine 5 crash reports. ([#1132](https://github.com/getsentry/relay/pull/1132))
