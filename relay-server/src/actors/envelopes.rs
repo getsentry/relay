@@ -55,7 +55,8 @@ use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, SendWithOutcome,
+    self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, MinimalProfile,
+    ProfileError, SendWithOutcome,
 };
 
 #[cfg(feature = "processing")]
@@ -159,6 +160,10 @@ enum ProcessingError {
 
     #[fail(display = "event dropped by sampling rule {}", _0)]
     EventSampled(RuleId),
+
+    #[cfg(feature = "processing")]
+    #[fail(display = "invalid profile")]
+    InvalidProfile(#[cause] ProfileError),
 }
 
 impl ProcessingError {
@@ -177,6 +182,9 @@ impl ProcessingError {
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
+
+            #[cfg(feature = "processing")]
+            Self::InvalidProfile(_) => Some(Outcome::Invalid(DiscardReason::ProcessProfile)),
 
             // Internal errors
             Self::SerializeFailed(_)
@@ -217,6 +225,13 @@ impl From<Unreal4Error> for ProcessingError {
             Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
             _ => ProcessingError::InvalidUnrealReport(err),
         }
+    }
+}
+
+#[cfg(feature = "processing")]
+impl From<ProfileError> for ProcessingError {
+    fn from(err: ProfileError) -> Self {
+        ProcessingError::InvalidProfile(err)
     }
 }
 
@@ -942,6 +957,15 @@ impl EnvelopeProcessor {
         state.envelope.retain_items(|item| {
             match item.ty() {
                 ItemType::ProfilingSession | ItemType::ProfilingTrace => profiling_enabled,
+                ItemType::Profile => {
+                    if !profiling_enabled {
+                        return false;
+                    }
+                    if self.config.processing_enabled() {
+                        return self.parse_profile(item).is_ok();
+                    }
+                    true
+                }
                 _ => true, // Keep all other item types
             }
         });
@@ -1020,6 +1044,14 @@ impl EnvelopeProcessor {
         }
 
         Ok(())
+    }
+
+    fn parse_profile(&self, item: &mut Item) -> Result<(), ProfileError> {
+        let minimal_profile: MinimalProfile = utils::minimal_profile_from_json(&item.payload())?;
+        if minimal_profile.platform != "android" {
+            return Ok(());
+        }
+        utils::parse_android_profile(item)
     }
 
     fn event_from_json_payload(
@@ -1252,6 +1284,7 @@ impl EnvelopeProcessor {
             ItemType::ClientReport => false,
             ItemType::ProfilingSession => false,
             ItemType::ProfilingTrace => false,
+            ItemType::Profile => false,
         }
     }
 

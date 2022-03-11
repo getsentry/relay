@@ -523,6 +523,8 @@ struct Limits {
     max_api_file_upload_size: ByteSize,
     /// The maximum payload size for chunks
     max_api_chunk_upload_size: ByteSize,
+    /// The maximum payload size for a profile
+    max_profile_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to
@@ -562,6 +564,7 @@ impl Default for Limits {
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
+            max_profile_size: ByteSize::mebibytes(1),
             max_thread_count: num_cpus::get(),
             query_timeout: 30,
             max_connection_rate: 256,
@@ -766,6 +769,8 @@ pub enum KafkaTopic {
     ProfilingSessions,
     /// Profiling traces
     ProfilingTraces,
+    /// Profiles
+    Profiles,
 }
 
 /// Configuration for topics.
@@ -790,6 +795,8 @@ pub struct TopicAssignments {
     pub profiling_sessions: TopicAssignment,
     /// Profiling traces topic name
     pub profiling_traces: TopicAssignment,
+    /// Stacktrace topic name
+    pub profiles: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -805,6 +812,7 @@ impl TopicAssignments {
             KafkaTopic::Metrics => &self.metrics,
             KafkaTopic::ProfilingSessions => &self.profiling_sessions,
             KafkaTopic::ProfilingTraces => &self.profiling_traces,
+            KafkaTopic::Profiles => &self.profiles,
         }
     }
 }
@@ -821,6 +829,7 @@ impl Default for TopicAssignments {
             metrics: "ingest-metrics".to_owned().into(),
             profiling_sessions: "profiling-sessions".to_owned().into(),
             profiling_traces: "profiling-traces".to_owned().into(),
+            profiles: "profiles".to_owned().into(),
         }
     }
 }
@@ -1803,6 +1812,11 @@ impl Config {
     /// Returns the maximum payload size for chunks
     pub fn max_api_chunk_upload_size(&self) -> usize {
         self.values.limits.max_api_chunk_upload_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size for a profile
+    pub fn max_profile_size(&self) -> usize {
+        self.values.limits.max_profile_size.as_bytes()
     }
 
     /// Returns the maximum number of active requests

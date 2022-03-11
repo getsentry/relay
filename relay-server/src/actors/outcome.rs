@@ -301,6 +301,9 @@ pub enum DiscardReason {
     /// [Relay] The envelope, which contained only a transaction, was discarded by the
     /// dynamic sampling rules.
     TransactionSampled,
+
+    /// [Relay] We failed to parse the profile so we discard the profile.
+    ProcessProfile,
 }
 
 impl DiscardReason {
@@ -321,6 +324,7 @@ impl DiscardReason {
             DiscardReason::SecurityReport => "security_report",
             DiscardReason::Cors => "cors",
             DiscardReason::ProcessUnreal => "process_unreal",
+            DiscardReason::ProcessProfile => "process_profile",
 
             // Relay specific reasons (not present in Sentry)
             DiscardReason::Payload => "payload",

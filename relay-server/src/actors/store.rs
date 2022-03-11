@@ -60,6 +60,7 @@ struct Producers {
     metrics: Producer,
     profiling_sessions: Producer,
     profiling_traces: Producer,
+    profiles: Producer,
 }
 
 impl Producers {
@@ -78,6 +79,7 @@ impl Producers {
             KafkaTopic::Metrics => Some(&self.metrics),
             KafkaTopic::ProfilingSessions => Some(&self.profiling_sessions),
             KafkaTopic::ProfilingTraces => Some(&self.profiling_traces),
+            KafkaTopic::Profiles => Some(&self.profiles),
         }
     }
 }
@@ -144,6 +146,7 @@ impl StoreForwarder {
                 &mut reused_producers,
                 KafkaTopic::ProfilingTraces,
             )?,
+            profiles: make_producer(&*config, &mut reused_producers, KafkaTopic::Profiles)?,
         };
 
         Ok(Self { config, producers })
@@ -431,11 +434,13 @@ impl StoreForwarder {
         &self,
         organization_id: u64,
         project_id: ProjectId,
+        start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
             organization_id,
             project_id,
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling session item to kafka");
@@ -450,11 +455,13 @@ impl StoreForwarder {
         &self,
         organization_id: u64,
         project_id: ProjectId,
+        start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfilingKafkaMessage {
             organization_id,
             project_id,
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
         relay_log::trace!("Sending profiling trace item to kafka");
@@ -462,6 +469,28 @@ impl StoreForwarder {
             KafkaTopic::ProfilingTraces,
             KafkaMessage::ProfilingTrace(message),
         )?;
+        Ok(())
+    }
+
+    fn produce_profile(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        start_time: Instant,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = ProfilingKafkaMessage {
+            organization_id,
+            project_id,
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
+            payload: item.payload(),
+        };
+        relay_log::trace!("Sending profile to Kafka");
+        self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "profile"
+        );
         Ok(())
     }
 }
@@ -634,6 +663,7 @@ struct MetricKafkaMessage {
 struct ProfilingKafkaMessage {
     organization_id: u64,
     project_id: ProjectId,
+    received: u64,
     payload: Bytes,
 }
 
@@ -650,6 +680,7 @@ enum KafkaMessage {
     Metric(MetricKafkaMessage),
     ProfilingSession(ProfilingKafkaMessage),
     ProfilingTrace(ProfilingKafkaMessage),
+    Profile(ProfilingKafkaMessage),
 }
 
 impl KafkaMessage {
@@ -663,6 +694,7 @@ impl KafkaMessage {
             KafkaMessage::Metric(_) => "metric",
             KafkaMessage::ProfilingSession(_) => "profiling_session",
             KafkaMessage::ProfilingTrace(_) => "profiling_trace",
+            KafkaMessage::Profile(_) => "profile",
         }
     }
 
@@ -675,8 +707,9 @@ impl KafkaMessage {
             Self::UserReport(message) => message.event_id.0,
             Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
             Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
-            Self::ProfilingTrace(_message) => Uuid::nil(), // TODO(pierre): parse session_id as uuid
-            Self::ProfilingSession(_message) => Uuid::nil(), // TODO(pierre): parse session_id as uuid
+            Self::ProfilingTrace(_message) => Uuid::nil(),
+            Self::ProfilingSession(_message) => Uuid::nil(),
+            Self::Profile(_message) => Uuid::nil(),
         };
 
         if uuid.is_nil() {
@@ -788,11 +821,19 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 ItemType::ProfilingSession => self.produce_profiling_session_message(
                     scoping.organization_id,
                     scoping.project_id,
+                    start_time,
                     item,
                 )?,
                 ItemType::ProfilingTrace => self.produce_profiling_trace_message(
                     scoping.organization_id,
                     scoping.project_id,
+                    start_time,
+                    item,
+                )?,
+                ItemType::Profile => self.produce_profile(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    start_time,
                     item,
                 )?,
                 _ => {}
