@@ -824,6 +824,10 @@
 <span id="822">822</span>
 <span id="823">823</span>
 <span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Outcomes describe the final &quot;fate&quot; of an event. As such, for every event exactly one outcome</span>
@@ -1127,6 +1131,9 @@
     <span class="doccomment">/// [Relay] The envelope, which contained only a transaction, was discarded by the</span>
     <span class="doccomment">/// dynamic sampling rules.</span>
     <span class="ident">TransactionSampled</span>,
+
+    <span class="doccomment">/// [Relay] We failed to parse the profile so we discard the profile.</span>
+    <span class="ident">ProcessProfile</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">DiscardReason</span> {
@@ -1147,6 +1154,7 @@
             <span class="ident">DiscardReason::SecurityReport</span> =&gt; <span class="string">&quot;security_report&quot;</span>,
             <span class="ident">DiscardReason::Cors</span> =&gt; <span class="string">&quot;cors&quot;</span>,
             <span class="ident">DiscardReason::ProcessUnreal</span> =&gt; <span class="string">&quot;process_unreal&quot;</span>,
+            <span class="ident">DiscardReason::ProcessProfile</span> =&gt; <span class="string">&quot;process_profile&quot;</span>,
 
             <span class="comment">// Relay specific reasons (not present in Sentry)</span>
             <span class="ident">DiscardReason::Payload</span> =&gt; <span class="string">&quot;payload&quot;</span>,

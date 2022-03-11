@@ -1991,6 +1991,20 @@
 <span id="1989">1989</span>
 <span id="1990">1990</span>
 <span id="1991">1991</span>
+<span id="1992">1992</span>
+<span id="1993">1993</span>
+<span id="1994">1994</span>
+<span id="1995">1995</span>
+<span id="1996">1996</span>
+<span id="1997">1997</span>
+<span id="1998">1998</span>
+<span id="1999">1999</span>
+<span id="2000">2000</span>
+<span id="2001">2001</span>
+<span id="2002">2002</span>
+<span id="2003">2003</span>
+<span id="2004">2004</span>
+<span id="2005">2005</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2516,6 +2530,8 @@
     <span class="ident">max_api_file_upload_size</span>: <span class="ident">ByteSize</span>,
     <span class="doccomment">/// The maximum payload size for chunks</span>
     <span class="ident">max_api_chunk_upload_size</span>: <span class="ident">ByteSize</span>,
+    <span class="doccomment">/// The maximum payload size for a profile</span>
+    <span class="ident">max_profile_size</span>: <span class="ident">ByteSize</span>,
     <span class="doccomment">/// The maximum number of threads to spawn for CPU and web work, each.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The total number of threads spawned will roughly be `2 * max_thread_count + 1`. Defaults to</span>
@@ -2555,6 +2571,7 @@
             <span class="ident">max_api_payload_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">20</span>),
             <span class="ident">max_api_file_upload_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">40</span>),
             <span class="ident">max_api_chunk_upload_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">100</span>),
+            <span class="ident">max_profile_size</span>: <span class="ident">ByteSize::mebibytes</span>(<span class="number">1</span>),
             <span class="ident">max_thread_count</span>: <span class="ident">num_cpus::get</span>(),
             <span class="ident">query_timeout</span>: <span class="number">30</span>,
             <span class="ident">max_connection_rate</span>: <span class="number">256</span>,
@@ -2759,6 +2776,8 @@
     <span class="ident">ProfilingSessions</span>,
     <span class="doccomment">/// Profiling traces</span>
     <span class="ident">ProfilingTraces</span>,
+    <span class="doccomment">/// Profiles</span>
+    <span class="ident">Profiles</span>,
 }
 
 <span class="doccomment">/// Configuration for topics.</span>
@@ -2783,6 +2802,8 @@
     <span class="kw">pub</span> <span class="ident">profiling_sessions</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Profiling traces topic name</span>
     <span class="kw">pub</span> <span class="ident">profiling_traces</span>: <span class="ident">TopicAssignment</span>,
+    <span class="doccomment">/// Stacktrace topic name</span>
+    <span class="kw">pub</span> <span class="ident">profiles</span>: <span class="ident">TopicAssignment</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TopicAssignments</span> {
@@ -2798,6 +2819,7 @@
             <span class="ident">KafkaTopic::Metrics</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>,
             <span class="ident">KafkaTopic::ProfilingSessions</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiling_sessions</span>,
             <span class="ident">KafkaTopic::ProfilingTraces</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiling_traces</span>,
+            <span class="ident">KafkaTopic::Profiles</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiles</span>,
         }
     }
 }
@@ -2814,6 +2836,7 @@
             <span class="ident">metrics</span>: <span class="string">&quot;ingest-metrics&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">profiling_sessions</span>: <span class="string">&quot;profiling-sessions&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">profiling_traces</span>: <span class="string">&quot;profiling-traces&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+            <span class="ident">profiles</span>: <span class="string">&quot;profiles&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
         }
     }
 }
@@ -3796,6 +3819,11 @@
     <span class="doccomment">/// Returns the maximum payload size for chunks</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_api_chunk_upload_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_api_chunk_upload_size</span>.<span class="ident">as_bytes</span>()
+    }
+
+    <span class="doccomment">/// Returns the maximum payload size for a profile</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_profile_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>.<span class="ident">max_profile_size</span>.<span class="ident">as_bytes</span>()
     }
 
     <span class="doccomment">/// Returns the maximum number of active requests</span>

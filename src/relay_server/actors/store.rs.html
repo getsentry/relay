@@ -837,6 +837,47 @@
 <span id="835">835</span>
 <span id="836">836</span>
 <span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The actor uses kafka topics to forward data to Sentry</span>
 
@@ -899,6 +940,7 @@
     <span class="ident">metrics</span>: <span class="ident">Producer</span>,
     <span class="ident">profiling_sessions</span>: <span class="ident">Producer</span>,
     <span class="ident">profiling_traces</span>: <span class="ident">Producer</span>,
+    <span class="ident">profiles</span>: <span class="ident">Producer</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Producers</span> {
@@ -917,6 +959,7 @@
             <span class="ident">KafkaTopic::Metrics</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>),
             <span class="ident">KafkaTopic::ProfilingSessions</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiling_sessions</span>),
             <span class="ident">KafkaTopic::ProfilingTraces</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiling_traces</span>),
+            <span class="ident">KafkaTopic::Profiles</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiles</span>),
         }
     }
 }
@@ -983,6 +1026,7 @@
                 <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>,
                 <span class="ident">KafkaTopic::ProfilingTraces</span>,
             )<span class="question-mark">?</span>,
+            <span class="ident">profiles</span>: <span class="ident">make_producer</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">config</span>, <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>, <span class="ident">KafkaTopic::Profiles</span>)<span class="question-mark">?</span>,
         };
 
         <span class="prelude-val">Ok</span>(<span class="self">Self</span> { <span class="ident">config</span>, <span class="ident">producers</span> })
@@ -1270,11 +1314,13 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">organization_id</span>: <span class="ident">u64</span>,
         <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
+        <span class="ident">start_time</span>: <span class="ident">Instant</span>,
         <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">ProfilingKafkaMessage</span> {
             <span class="ident">organization_id</span>,
             <span class="ident">project_id</span>,
+            <span class="ident">received</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
             <span class="ident">payload</span>: <span class="ident">item</span>.<span class="ident">payload</span>(),
         };
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending profiling session item to kafka&quot;</span>);
@@ -1289,11 +1335,13 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">organization_id</span>: <span class="ident">u64</span>,
         <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
+        <span class="ident">start_time</span>: <span class="ident">Instant</span>,
         <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">ProfilingKafkaMessage</span> {
             <span class="ident">organization_id</span>,
             <span class="ident">project_id</span>,
+            <span class="ident">received</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
             <span class="ident">payload</span>: <span class="ident">item</span>.<span class="ident">payload</span>(),
         };
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending profiling trace item to kafka&quot;</span>);
@@ -1301,6 +1349,28 @@
             <span class="ident">KafkaTopic::ProfilingTraces</span>,
             <span class="ident">KafkaMessage::ProfilingTrace</span>(<span class="ident">message</span>),
         )<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn</span> <span class="ident">produce_profile</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
+        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
+        <span class="ident">start_time</span>: <span class="ident">Instant</span>,
+        <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">ProfilingKafkaMessage</span> {
+            <span class="ident">organization_id</span>,
+            <span class="ident">project_id</span>,
+            <span class="ident">received</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
+            <span class="ident">payload</span>: <span class="ident">item</span>.<span class="ident">payload</span>(),
+        };
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending profile to Kafka&quot;</span>);
+        <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::Profiles</span>, <span class="ident">KafkaMessage::Profile</span>(<span class="ident">message</span>))<span class="question-mark">?</span>;
+        <span class="macro">metric!</span>(
+            <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+            <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;profile&quot;</span>
+        );
         <span class="prelude-val">Ok</span>(())
     }
 }
@@ -1473,6 +1543,7 @@
 <span class="kw">struct</span> <span class="ident">ProfilingKafkaMessage</span> {
     <span class="ident">organization_id</span>: <span class="ident">u64</span>,
     <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
+    <span class="ident">received</span>: <span class="ident">u64</span>,
     <span class="ident">payload</span>: <span class="ident">Bytes</span>,
 }
 
@@ -1489,6 +1560,7 @@
     <span class="ident">Metric</span>(<span class="ident">MetricKafkaMessage</span>),
     <span class="ident">ProfilingSession</span>(<span class="ident">ProfilingKafkaMessage</span>),
     <span class="ident">ProfilingTrace</span>(<span class="ident">ProfilingKafkaMessage</span>),
+    <span class="ident">Profile</span>(<span class="ident">ProfilingKafkaMessage</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">KafkaMessage</span> {
@@ -1502,6 +1574,7 @@
             <span class="ident">KafkaMessage::Metric</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;metric&quot;</span>,
             <span class="ident">KafkaMessage::ProfilingSession</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;profiling_session&quot;</span>,
             <span class="ident">KafkaMessage::ProfilingTrace</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;profiling_trace&quot;</span>,
+            <span class="ident">KafkaMessage::Profile</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;profile&quot;</span>,
         }
     }
 
@@ -1514,8 +1587,9 @@
             <span class="ident"><span class="self">Self</span>::UserReport</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="number">0</span>,
             <span class="ident"><span class="self">Self</span>::Session</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(), <span class="comment">// Explicit random partitioning for sessions</span>
             <span class="ident"><span class="self">Self</span>::Metric</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(),  <span class="comment">// TODO(ja): Determine a partitioning key</span>
-            <span class="ident"><span class="self">Self</span>::ProfilingTrace</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(), <span class="comment">// TODO(pierre): parse session_id as uuid</span>
-            <span class="ident"><span class="self">Self</span>::ProfilingSession</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(), <span class="comment">// TODO(pierre): parse session_id as uuid</span>
+            <span class="ident"><span class="self">Self</span>::ProfilingTrace</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(),
+            <span class="ident"><span class="self">Self</span>::ProfilingSession</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(),
+            <span class="ident"><span class="self">Self</span>::Profile</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(),
         };
 
         <span class="kw">if</span> <span class="ident">uuid</span>.<span class="ident">is_nil</span>() {
@@ -1627,11 +1701,19 @@
                 <span class="ident">ItemType::ProfilingSession</span> =&gt; <span class="self">self</span>.<span class="ident">produce_profiling_session_message</span>(
                     <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
                     <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                    <span class="ident">start_time</span>,
                     <span class="ident">item</span>,
                 )<span class="question-mark">?</span>,
                 <span class="ident">ItemType::ProfilingTrace</span> =&gt; <span class="self">self</span>.<span class="ident">produce_profiling_trace_message</span>(
                     <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
                     <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                    <span class="ident">start_time</span>,
+                    <span class="ident">item</span>,
+                )<span class="question-mark">?</span>,
+                <span class="ident">ItemType::Profile</span> =&gt; <span class="self">self</span>.<span class="ident">produce_profile</span>(
+                    <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
+                    <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                    <span class="ident">start_time</span>,
                     <span class="ident">item</span>,
                 )<span class="question-mark">?</span>,
                 <span class="kw">_</span> =&gt; {}
