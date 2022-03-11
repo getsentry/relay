@@ -30,19 +30,15 @@ struct AndroidProfile {
     duration_ns: String,
     environment: String,
     platform: String,
-
-    #[serde(skip_serializing, alias = "stacktrace")]
-    sampled_profile: String,
-
-    #[serde(alias = "stacktrace_id")]
     profile_id: String,
-
     trace_id: String,
     transaction_id: String,
     transaction_name: String,
     version_code: String,
     version_name: String,
 
+    #[serde(skip_serializing)]
+    sampled_profile: String,
     #[serde(skip_deserializing, default)]
     profile: Option<AndroidTraceLog>,
 }
