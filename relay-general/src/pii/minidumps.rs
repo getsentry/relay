@@ -11,10 +11,10 @@ use minidump::format::{
     CvSignature, MINIDUMP_LOCATION_DESCRIPTOR, MINIDUMP_STREAM_TYPE as StreamType,
 };
 use minidump::{
-    Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpModuleList, MinidumpThreadList,
+    Endian, Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpModuleList,
+    MinidumpThreadList,
 };
 use num_traits::FromPrimitive;
-use scroll::Endian;
 use utf16string::{Utf16Error, WStr};
 
 use crate::pii::{PiiAttachmentsProcessor, ScrubEncodings};
@@ -222,9 +222,8 @@ impl<'a> MinidumpData<'a> {
 
 /// Read a u32 from the start of a byte-slice.
 ///
-/// This uses the [Endian] indicator as used by scroll.  It is exceedingly close in
-/// functionality to `bytes.pread_with(0, endian)` from scroll directly, only differing in
-/// the error type.
+/// This function is exceedingly close in functionality to `bytes.pread_with(0, endian)` from scroll
+/// directly, only differing in the error type.
 fn u32_from_bytes(bytes: &[u8], endian: Endian) -> Result<u32, ScrubMinidumpError> {
     let mut buf = [0u8; 4];
     buf.copy_from_slice(bytes.get(..4).ok_or(ScrubMinidumpError::InvalidAddress)?);
