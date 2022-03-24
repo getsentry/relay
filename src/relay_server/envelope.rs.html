@@ -1462,16 +1462,6 @@
 <span id="1460">1460</span>
 <span id="1461">1461</span>
 <span id="1462">1462</span>
-<span id="1463">1463</span>
-<span id="1464">1464</span>
-<span id="1465">1465</span>
-<span id="1466">1466</span>
-<span id="1467">1467</span>
-<span id="1468">1468</span>
-<span id="1469">1469</span>
-<span id="1470">1470</span>
-<span id="1471">1471</span>
-<span id="1472">1472</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data</span>
@@ -1576,10 +1566,6 @@
     <span class="ident">MetricBuckets</span>,
     <span class="doccomment">/// Client internal report (eg: outcomes).</span>
     <span class="ident">ClientReport</span>,
-    <span class="doccomment">/// Profiling session</span>
-    <span class="ident">ProfilingSession</span>,
-    <span class="doccomment">/// Profiling data</span>
-    <span class="ident">ProfilingTrace</span>,
     <span class="doccomment">/// Profile event payload encoded in JSON</span>
     <span class="ident">Profile</span>,
 }
@@ -1613,8 +1599,6 @@
             <span class="ident"><span class="self">Self</span>::Metrics</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;metrics&quot;</span>),
             <span class="ident"><span class="self">Self</span>::MetricBuckets</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;metric buckets&quot;</span>),
             <span class="ident"><span class="self">Self</span>::ClientReport</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;client report&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::ProfilingSession</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;profiling session&quot;</span>),
-            <span class="ident"><span class="self">Self</span>::ProfilingTrace</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;profiling trace&quot;</span>),
             <span class="ident"><span class="self">Self</span>::Profile</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;profile&quot;</span>),
         }
     }
@@ -2060,8 +2044,6 @@
             <span class="op">|</span> <span class="ident">ItemType::Metrics</span>
             <span class="op">|</span> <span class="ident">ItemType::MetricBuckets</span>
             <span class="op">|</span> <span class="ident">ItemType::ClientReport</span>
-            <span class="op">|</span> <span class="ident">ItemType::ProfilingSession</span>
-            <span class="op">|</span> <span class="ident">ItemType::ProfilingTrace</span>
             <span class="op">|</span> <span class="ident">ItemType::Profile</span> =&gt; <span class="bool-val">false</span>,
         }
     }
@@ -2084,8 +2066,6 @@
             <span class="ident">ItemType::Metrics</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::MetricBuckets</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::ClientReport</span> =&gt; <span class="bool-val">false</span>,
-            <span class="ident">ItemType::ProfilingSession</span> =&gt; <span class="bool-val">false</span>,
-            <span class="ident">ItemType::ProfilingTrace</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::Profile</span> =&gt; <span class="bool-val">false</span>,
         }
     }

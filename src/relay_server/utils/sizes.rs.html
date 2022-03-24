@@ -97,7 +97,7 @@
             <span class="ident">ItemType::Metrics</span> =&gt; (),
             <span class="ident">ItemType::MetricBuckets</span> =&gt; (),
             <span class="ident">ItemType::ClientReport</span> =&gt; <span class="ident">client_reports_size</span> <span class="op">+</span><span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>(),
-            <span class="ident">ItemType::ProfilingSession</span> <span class="op">|</span> <span class="ident">ItemType::ProfilingTrace</span> <span class="op">|</span> <span class="ident">ItemType::Profile</span> =&gt; {
+            <span class="ident">ItemType::Profile</span> =&gt; {
                 <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">max_profile_size</span>() {
                     <span class="kw">return</span> <span class="bool-val">false</span>;
                 }

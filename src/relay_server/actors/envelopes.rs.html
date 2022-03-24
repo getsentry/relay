@@ -3295,9 +3295,6 @@
 <span id="3293">3293</span>
 <span id="3294">3294</span>
 <span id="3295">3295</span>
-<span id="3296">3296</span>
-<span id="3297">3297</span>
-<span id="3298">3298</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -4251,12 +4248,11 @@
         }
     }
 
-    <span class="doccomment">/// Remove profiling items if the feature flag is not enabled</span>
-    <span class="kw">fn</span> <span class="ident">process_profiling_items</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) {
+    <span class="doccomment">/// Remove profiles if the feature flag is not enabled</span>
+    <span class="kw">fn</span> <span class="ident">process_profiles</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) {
         <span class="kw">let</span> <span class="ident">profiling_enabled</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">has_feature</span>(<span class="ident">Feature::Profiling</span>);
         <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">retain_items</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
             <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
-                <span class="ident">ItemType::ProfilingSession</span> <span class="op">|</span> <span class="ident">ItemType::ProfilingTrace</span> =&gt; <span class="ident">profiling_enabled</span>,
                 <span class="ident">ItemType::Profile</span> =&gt; {
                     <span class="kw">if</span> <span class="op">!</span><span class="ident">profiling_enabled</span> {
                         <span class="kw">return</span> <span class="bool-val">false</span>;
@@ -4582,8 +4578,6 @@
             <span class="ident">ItemType::Metrics</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::MetricBuckets</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::ClientReport</span> =&gt; <span class="bool-val">false</span>,
-            <span class="ident">ItemType::ProfilingSession</span> =&gt; <span class="bool-val">false</span>,
-            <span class="ident">ItemType::ProfilingTrace</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::Profile</span> =&gt; <span class="bool-val">false</span>,
         }
     }
@@ -5089,7 +5083,7 @@
         <span class="self">self</span>.<span class="ident">process_sessions</span>(<span class="ident">state</span>);
         <span class="self">self</span>.<span class="ident">process_client_reports</span>(<span class="ident">state</span>);
         <span class="self">self</span>.<span class="ident">process_user_reports</span>(<span class="ident">state</span>);
-        <span class="self">self</span>.<span class="ident">process_profiling_items</span>(<span class="ident">state</span>);
+        <span class="self">self</span>.<span class="ident">process_profiles</span>(<span class="ident">state</span>);
 
         <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">creates_event</span>() {
             <span class="macro">if_processing!</span>({

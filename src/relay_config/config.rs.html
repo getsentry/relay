@@ -1993,18 +1993,6 @@
 <span id="1991">1991</span>
 <span id="1992">1992</span>
 <span id="1993">1993</span>
-<span id="1994">1994</span>
-<span id="1995">1995</span>
-<span id="1996">1996</span>
-<span id="1997">1997</span>
-<span id="1998">1998</span>
-<span id="1999">1999</span>
-<span id="2000">2000</span>
-<span id="2001">2001</span>
-<span id="2002">2002</span>
-<span id="2003">2003</span>
-<span id="2004">2004</span>
-<span id="2005">2005</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2772,10 +2760,6 @@
     <span class="ident">Sessions</span>,
     <span class="doccomment">/// Aggregate Metrics.</span>
     <span class="ident">Metrics</span>,
-    <span class="doccomment">/// Profiling sessions</span>
-    <span class="ident">ProfilingSessions</span>,
-    <span class="doccomment">/// Profiling traces</span>
-    <span class="ident">ProfilingTraces</span>,
     <span class="doccomment">/// Profiles</span>
     <span class="ident">Profiles</span>,
 }
@@ -2798,10 +2782,6 @@
     <span class="kw">pub</span> <span class="ident">sessions</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Metrics topic name.</span>
     <span class="kw">pub</span> <span class="ident">metrics</span>: <span class="ident">TopicAssignment</span>,
-    <span class="doccomment">/// Profiling sessions topic name</span>
-    <span class="kw">pub</span> <span class="ident">profiling_sessions</span>: <span class="ident">TopicAssignment</span>,
-    <span class="doccomment">/// Profiling traces topic name</span>
-    <span class="kw">pub</span> <span class="ident">profiling_traces</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Stacktrace topic name</span>
     <span class="kw">pub</span> <span class="ident">profiles</span>: <span class="ident">TopicAssignment</span>,
 }
@@ -2817,8 +2797,6 @@
             <span class="ident">KafkaTopic::OutcomesBilling</span> =&gt; <span class="self">self</span>.<span class="ident">outcomes_billing</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcomes</span>),
             <span class="ident">KafkaTopic::Sessions</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sessions</span>,
             <span class="ident">KafkaTopic::Metrics</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>,
-            <span class="ident">KafkaTopic::ProfilingSessions</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiling_sessions</span>,
-            <span class="ident">KafkaTopic::ProfilingTraces</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiling_traces</span>,
             <span class="ident">KafkaTopic::Profiles</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiles</span>,
         }
     }
@@ -2834,8 +2812,6 @@
             <span class="ident">outcomes_billing</span>: <span class="prelude-val">None</span>,
             <span class="ident">sessions</span>: <span class="string">&quot;ingest-sessions&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">metrics</span>: <span class="string">&quot;ingest-metrics&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
-            <span class="ident">profiling_sessions</span>: <span class="string">&quot;profiling-sessions&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
-            <span class="ident">profiling_traces</span>: <span class="string">&quot;profiling-traces&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">profiles</span>: <span class="string">&quot;profiles&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
         }
     }
