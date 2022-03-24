@@ -58,8 +58,6 @@ struct Producers {
     transactions: Producer,
     sessions: Producer,
     metrics: Producer,
-    profiling_sessions: Producer,
-    profiling_traces: Producer,
     profiles: Producer,
 }
 
@@ -77,8 +75,6 @@ impl Producers {
             }
             KafkaTopic::Sessions => Some(&self.sessions),
             KafkaTopic::Metrics => Some(&self.metrics),
-            KafkaTopic::ProfilingSessions => Some(&self.profiling_sessions),
-            KafkaTopic::ProfilingTraces => Some(&self.profiling_traces),
             KafkaTopic::Profiles => Some(&self.profiles),
         }
     }
@@ -136,16 +132,6 @@ impl StoreForwarder {
             transactions: make_producer(&*config, &mut reused_producers, KafkaTopic::Transactions)?,
             sessions: make_producer(&*config, &mut reused_producers, KafkaTopic::Sessions)?,
             metrics: make_producer(&*config, &mut reused_producers, KafkaTopic::Metrics)?,
-            profiling_sessions: make_producer(
-                &*config,
-                &mut reused_producers,
-                KafkaTopic::ProfilingSessions,
-            )?,
-            profiling_traces: make_producer(
-                &*config,
-                &mut reused_producers,
-                KafkaTopic::ProfilingTraces,
-            )?,
             profiles: make_producer(&*config, &mut reused_producers, KafkaTopic::Profiles)?,
         };
 
@@ -430,48 +416,6 @@ impl StoreForwarder {
         Ok(())
     }
 
-    fn produce_profiling_session_message(
-        &self,
-        organization_id: u64,
-        project_id: ProjectId,
-        start_time: Instant,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        let message = ProfilingKafkaMessage {
-            organization_id,
-            project_id,
-            received: UnixTimestamp::from_instant(start_time).as_secs(),
-            payload: item.payload(),
-        };
-        relay_log::trace!("Sending profiling session item to kafka");
-        self.produce(
-            KafkaTopic::ProfilingSessions,
-            KafkaMessage::ProfilingSession(message),
-        )?;
-        Ok(())
-    }
-
-    fn produce_profiling_trace_message(
-        &self,
-        organization_id: u64,
-        project_id: ProjectId,
-        start_time: Instant,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        let message = ProfilingKafkaMessage {
-            organization_id,
-            project_id,
-            received: UnixTimestamp::from_instant(start_time).as_secs(),
-            payload: item.payload(),
-        };
-        relay_log::trace!("Sending profiling trace item to kafka");
-        self.produce(
-            KafkaTopic::ProfilingTraces,
-            KafkaMessage::ProfilingTrace(message),
-        )?;
-        Ok(())
-    }
-
     fn produce_profile(
         &self,
         organization_id: u64,
@@ -479,7 +423,7 @@ impl StoreForwarder {
         start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
-        let message = ProfilingKafkaMessage {
+        let message = ProfileKafkaMessage {
             organization_id,
             project_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
@@ -660,7 +604,7 @@ struct MetricKafkaMessage {
 }
 
 #[derive(Clone, Debug, Serialize)]
-struct ProfilingKafkaMessage {
+struct ProfileKafkaMessage {
     organization_id: u64,
     project_id: ProjectId,
     received: u64,
@@ -678,9 +622,7 @@ enum KafkaMessage {
     UserReport(UserReportKafkaMessage),
     Session(SessionKafkaMessage),
     Metric(MetricKafkaMessage),
-    ProfilingSession(ProfilingKafkaMessage),
-    ProfilingTrace(ProfilingKafkaMessage),
-    Profile(ProfilingKafkaMessage),
+    Profile(ProfileKafkaMessage),
 }
 
 impl KafkaMessage {
@@ -692,8 +634,6 @@ impl KafkaMessage {
             KafkaMessage::UserReport(_) => "user_report",
             KafkaMessage::Session(_) => "session",
             KafkaMessage::Metric(_) => "metric",
-            KafkaMessage::ProfilingSession(_) => "profiling_session",
-            KafkaMessage::ProfilingTrace(_) => "profiling_trace",
             KafkaMessage::Profile(_) => "profile",
         }
     }
@@ -707,8 +647,6 @@ impl KafkaMessage {
             Self::UserReport(message) => message.event_id.0,
             Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
             Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
-            Self::ProfilingTrace(_message) => Uuid::nil(),
-            Self::ProfilingSession(_message) => Uuid::nil(),
             Self::Profile(_message) => Uuid::nil(),
         };
 
@@ -818,18 +756,6 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 ItemType::MetricBuckets => {
                     self.produce_metrics(scoping.organization_id, scoping.project_id, item)?
                 }
-                ItemType::ProfilingSession => self.produce_profiling_session_message(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    start_time,
-                    item,
-                )?,
-                ItemType::ProfilingTrace => self.produce_profiling_trace_message(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    start_time,
-                    item,
-                )?,
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,

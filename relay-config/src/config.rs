@@ -765,10 +765,6 @@ pub enum KafkaTopic {
     Sessions,
     /// Aggregate Metrics.
     Metrics,
-    /// Profiling sessions
-    ProfilingSessions,
-    /// Profiling traces
-    ProfilingTraces,
     /// Profiles
     Profiles,
 }
@@ -791,10 +787,6 @@ pub struct TopicAssignments {
     pub sessions: TopicAssignment,
     /// Metrics topic name.
     pub metrics: TopicAssignment,
-    /// Profiling sessions topic name
-    pub profiling_sessions: TopicAssignment,
-    /// Profiling traces topic name
-    pub profiling_traces: TopicAssignment,
     /// Stacktrace topic name
     pub profiles: TopicAssignment,
 }
@@ -810,8 +802,6 @@ impl TopicAssignments {
             KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
             KafkaTopic::Sessions => &self.sessions,
             KafkaTopic::Metrics => &self.metrics,
-            KafkaTopic::ProfilingSessions => &self.profiling_sessions,
-            KafkaTopic::ProfilingTraces => &self.profiling_traces,
             KafkaTopic::Profiles => &self.profiles,
         }
     }
@@ -827,8 +817,6 @@ impl Default for TopicAssignments {
             outcomes_billing: None,
             sessions: "ingest-sessions".to_owned().into(),
             metrics: "ingest-metrics".to_owned().into(),
-            profiling_sessions: "profiling-sessions".to_owned().into(),
-            profiling_traces: "profiling-traces".to_owned().into(),
             profiles: "profiles".to_owned().into(),
         }
     }
