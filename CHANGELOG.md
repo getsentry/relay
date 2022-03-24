@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Remove unused item types. ([#1211](https://github.com/getsentry/relay/pull/1211))
+
 ## 22.3.0
 
 **Features**:
