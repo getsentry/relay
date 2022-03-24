@@ -951,12 +951,11 @@ impl EnvelopeProcessor {
         }
     }
 
-    /// Remove profiling items if the feature flag is not enabled
-    fn process_profiling_items(&self, state: &mut ProcessEnvelopeState) {
+    /// Remove profiles if the feature flag is not enabled
+    fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         state.envelope.retain_items(|item| {
             match item.ty() {
-                ItemType::ProfilingSession | ItemType::ProfilingTrace => profiling_enabled,
                 ItemType::Profile => {
                     if !profiling_enabled {
                         return false;
@@ -1282,8 +1281,6 @@ impl EnvelopeProcessor {
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
-            ItemType::ProfilingSession => false,
-            ItemType::ProfilingTrace => false,
             ItemType::Profile => false,
         }
     }
@@ -1789,7 +1786,7 @@ impl EnvelopeProcessor {
         self.process_sessions(state);
         self.process_client_reports(state);
         self.process_user_reports(state);
-        self.process_profiling_items(state);
+        self.process_profiles(state);
 
         if state.creates_event() {
             if_processing!({
