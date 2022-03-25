@@ -5,6 +5,7 @@
 **Internal**:
 
 - Remove unused item types. ([#1211](https://github.com/getsentry/relay/pull/1211))
+- Emit span breakdowns from trace context if there are no spans. ([#1212](https://github.com/getsentry/relay/pull/1212))
 
 ## 22.3.0
 
