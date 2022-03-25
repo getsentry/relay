@@ -7,7 +7,9 @@ use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
+use crate::protocol::{
+    Breakdowns, Context, ContextInner, Event, Measurement, Measurements, Span, Timestamp,
+};
 use crate::types::Annotated;
 
 #[derive(Clone, Debug)]
@@ -105,10 +107,43 @@ impl EmitBreakdowns for SpanOperationsConfig {
             return None;
         }
 
-        let spans = match event.spans.value() {
-            None => return None,
-            Some(spans) => spans,
+        let mut spans = match event.spans.value() {
+            None => vec![],
+            Some(spans) => spans.to_vec(),
         };
+
+        if spans.is_empty() {
+            let contexts = match event.contexts.value() {
+                Some(contexts) => contexts,
+                None => return None,
+            };
+
+            let trace_context = match contexts.get("trace").map(Annotated::value) {
+                Some(Some(trace_context)) => trace_context,
+                _ => return None,
+            };
+
+            match trace_context {
+                ContextInner(Context::Trace(trace_context)) => {
+                    let op_name = match trace_context.op.value() {
+                        None => return None,
+                        Some(op_name) => op_name,
+                    };
+
+                    // Use the trace context (i.e. the root span) as an alternative source of the span op breakdown.
+                    let span = Annotated::new(Span {
+                        timestamp: event.timestamp.clone(),
+                        start_timestamp: event.start_timestamp.clone(),
+                        op: Annotated::new(op_name.to_string()),
+                        ..Default::default()
+                    });
+                    spans.push(span);
+                }
+                _ => {
+                    return None;
+                }
+            }
+        }
 
         // Generate span operation breakdowns
         let mut intervals = HashMap::new();
