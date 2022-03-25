@@ -279,6 +279,67 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     }
 
 
+def test_ops_breakdowns_from_trace_context(
+    mini_sentry, relay_with_processing, transactions_consumer
+):
+    events_consumer = transactions_consumer()
+
+    relay = relay_with_processing()
+    config = mini_sentry.add_basic_project_config(42)
+
+    config["config"].setdefault(
+        "breakdownsV2",
+        {
+            "span_ops": {
+                "type": "span_operations",
+                "matches": ["http", "db", "browser", "resource"],
+            },
+            "span_ops_2": {
+                "type": "spanOperations",
+                "matches": ["http", "db", "browser", "resource"],
+            },
+            "span_ops_3": {
+                "type": "whatever",
+                "matches": ["http", "db", "browser", "resource"],
+            },
+        },
+    )
+
+    transaction_item = generate_transaction_item()
+    transaction_item.update(
+        {
+            "contexts": {
+                "trace": {
+                    "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                    "span_id": "FA90FDEAD5F74052",
+                    "type": "trace",
+                    "op": "db",
+                }
+            },
+            "spans": [],
+        }
+    )
+
+    envelope = Envelope()
+    envelope.add_transaction(transaction_item)
+    relay.send_envelope(42, envelope)
+
+    event, _ = events_consumer.get_event()
+    assert event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    assert "trace" in event["contexts"]
+    assert "breakdowns" in event, event
+    assert event["breakdowns"] == {
+        "span_ops": {
+            "ops.db": {"value": 7964.689731},
+            "total.time": {"value": 7964.689731},
+        },
+        "span_ops_2": {
+            "ops.db": {"value": 7964.689731},
+            "total.time": {"value": 7964.689731},
+        },
+    }
+
+
 def test_no_span_attributes(mini_sentry, relay_with_processing, transactions_consumer):
     events_consumer = transactions_consumer()
 
