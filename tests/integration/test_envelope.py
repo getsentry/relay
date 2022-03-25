@@ -207,6 +207,16 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     transaction_item = generate_transaction_item()
     transaction_item.update(
         {
+            "start_timestamp": 0,
+            "timestamp": 5000,
+            "contexts": {
+                "trace": {
+                    "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                    "span_id": "FA90FDEAD5F74052",
+                    "type": "trace",
+                    "op": "db",
+                }
+            },
             "spans": [
                 {
                     "description": "GET /api/0/organizations/?member=1",
@@ -241,7 +251,7 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
                     "parent_span_id": "8f5a2b8768cafb4f",
                     "span_id": "bd429c44b67a3eb7",
                     "start_timestamp": 500.001,
-                    "timestamp": 600.002003,
+                    "timestamp": 600.002005,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                 },
                 {
@@ -267,14 +277,16 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     assert "breakdowns" in event, event
     assert event["breakdowns"] == {
         "span_ops": {
+            "ops.db": {"value": 5000000.0},
             "ops.http": {"value": 2000000.0},
-            "ops.resource": {"value": 100001.003},
-            "total.time": {"value": 2200001.003},
+            "ops.resource": {"value": pytest.approx(100001.005)},
+            "total.time": {"value": pytest.approx(7200001.005)},
         },
         "span_ops_2": {
+            "ops.db": {"value": 5000000.0},
             "ops.http": {"value": 2000000.0},
-            "ops.resource": {"value": 100001.003},
-            "total.time": {"value": 2200001.003},
+            "ops.resource": {"value": pytest.approx(100001.005)},
+            "total.time": {"value": pytest.approx(7200001.005)},
         },
     }
 

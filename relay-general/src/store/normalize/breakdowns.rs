@@ -7,7 +7,9 @@ use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
+use crate::protocol::{
+    Breakdowns, Context, ContextInner, Event, Measurement, Measurements, Span, Timestamp,
+};
 use crate::types::Annotated;
 
 #[derive(Clone, Debug)]
@@ -82,6 +84,37 @@ fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
     Some(op_time_spent)
 }
 
+fn span_from_trace_context(event: &Event) -> Option<Annotated<Span>> {
+    let contexts = match event.contexts.value() {
+        Some(contexts) => contexts,
+        None => return None,
+    };
+
+    let trace_context = match contexts.get("trace").map(Annotated::value) {
+        Some(Some(trace_context)) => trace_context,
+        _ => return None,
+    };
+
+    match trace_context {
+        ContextInner(Context::Trace(trace_context)) => {
+            let op_name = match trace_context.op.value() {
+                None => return None,
+                Some(op_name) => op_name,
+            };
+
+            // Use the trace context to construct the root span that is sufficient for the operation breakdown.
+            let root_span = Annotated::new(Span {
+                timestamp: event.timestamp.clone(),
+                start_timestamp: event.start_timestamp.clone(),
+                op: Annotated::new(op_name.to_string()),
+                ..Default::default()
+            });
+            Some(root_span)
+        }
+        _ => None,
+    }
+}
+
 /// Emit breakdowns that are derived using information from the given event.
 pub trait EmitBreakdowns {
     fn emit_breakdowns(&self, event: &Event) -> Option<Measurements>;
@@ -105,10 +138,14 @@ impl EmitBreakdowns for SpanOperationsConfig {
             return None;
         }
 
-        let spans = match event.spans.value() {
-            None => return None,
-            Some(spans) => spans,
+        let mut spans = match event.spans.value() {
+            None => vec![],
+            Some(spans) => spans.to_vec(),
         };
+
+        if let Some(root_span) = span_from_trace_context(event) {
+            spans.push(root_span);
+        }
 
         // Generate span operation breakdowns
         let mut intervals = HashMap::new();
@@ -278,7 +315,7 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
+    use crate::protocol::{Contexts, EventType, Span, SpanId, SpanStatus, TraceContext, TraceId};
     use crate::types::Object;
     use chrono::{TimeZone, Utc};
 
@@ -366,7 +403,24 @@ mod tests {
 
         let mut event = Event {
             ty: EventType::Transaction.into(),
+            start_timestamp: Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(10, 0, 0, 0).into()),
             spans: spans.into(),
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "trace".to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
+                        )),
+                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                        op: Annotated::new("db.oracle".to_owned()),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
             ..Default::default()
         };
 
@@ -399,16 +453,16 @@ mod tests {
             span_ops_breakdown.insert(
                 "ops.db".to_owned(),
                 Annotated::new(Measurement {
-                    // 2 hours in milliseconds
-                    value: Annotated::new(7_200_000.0),
+                    // 10 hours in milliseconds
+                    value: Annotated::new(36_000_000.0),
                 }),
             );
 
             span_ops_breakdown.insert(
                 "total.time".to_owned(),
                 Annotated::new(Measurement {
-                    // 4 hours and 10 microseconds in milliseconds
-                    value: Annotated::new(14_400_000.01),
+                    // 12 hours and 10 microseconds in milliseconds
+                    value: Annotated::new(43_200_000.01),
                 }),
             );
 
