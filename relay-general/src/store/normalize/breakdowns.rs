@@ -313,7 +313,7 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
+    use crate::protocol::{Contexts, EventType, Span, SpanId, SpanStatus, TraceContext, TraceId};
     use crate::types::Object;
     use chrono::{TimeZone, Utc};
 
@@ -401,7 +401,25 @@ mod tests {
 
         let mut event = Event {
             ty: EventType::Transaction.into(),
+            start_timestamp: Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(10, 0, 0, 0).into()),
             spans: spans.into(),
+            // Trace context should be ignored for span op breakdown if the transaction contains non-zero amount of spans.
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "trace".to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
+                        )),
+                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                        op: Annotated::new("db.oracle".to_owned()),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
             ..Default::default()
         };
 
