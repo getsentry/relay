@@ -478,4 +478,79 @@ mod tests {
 
         assert_eq_dbg!(event.breakdowns.into_value().unwrap(), expected_breakdowns);
     }
+
+    #[test]
+    fn test_emit_ops_breakdown_from_trace_context() {
+        let spans = vec![];
+
+        let mut event = Event {
+            ty: EventType::Transaction.into(),
+            start_timestamp: Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(0, 0, 0, 0).into()),
+            timestamp: Annotated::new(Utc.ymd(2020, 1, 1).and_hms_nano(10, 0, 0, 0).into()),
+            spans: spans.into(),
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "trace".to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
+                        )),
+                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                        op: Annotated::new("db".to_owned()),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Default::default()
+        };
+
+        let breakdowns_config = BreakdownsConfig({
+            let mut config = HashMap::new();
+
+            let span_ops_config = BreakdownConfig::SpanOperations(SpanOperationsConfig {
+                matches: vec!["http".to_string(), "db".to_string()],
+            });
+
+            config.insert("span_ops".to_string(), span_ops_config.clone());
+            config.insert("span_ops_2".to_string(), span_ops_config);
+
+            config
+        });
+
+        normalize_breakdowns(&mut event, &breakdowns_config);
+
+        let expected_breakdowns = Breakdowns({
+            let mut span_ops_breakdown = Measurements::default();
+
+            span_ops_breakdown.insert(
+                "ops.db".to_owned(),
+                Annotated::new(Measurement {
+                    // 10 hours in milliseconds
+                    value: Annotated::new(36_000_000.0),
+                }),
+            );
+
+            span_ops_breakdown.insert(
+                "total.time".to_owned(),
+                Annotated::new(Measurement {
+                    // 10 hours in milliseconds
+                    value: Annotated::new(36_000_000.0),
+                }),
+            );
+
+            let mut breakdowns = Object::new();
+            breakdowns.insert(
+                "span_ops_2".to_owned(),
+                Annotated::new(span_ops_breakdown.clone()),
+            );
+
+            breakdowns.insert("span_ops".to_owned(), Annotated::new(span_ops_breakdown));
+
+            breakdowns
+        });
+
+        assert_eq_dbg!(event.breakdowns.into_value().unwrap(), expected_breakdowns);
+    }
 }
