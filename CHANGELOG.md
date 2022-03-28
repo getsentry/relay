@@ -5,6 +5,7 @@
 **Internal**:
 
 - Remove unused item types. ([#1211](https://github.com/getsentry/relay/pull/1211))
+- Pin click dependency in requirements-dev.txt. ([#1214](https://github.com/getsentry/relay/pull/1214))
 
 ## 22.3.0
 
