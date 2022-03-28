@@ -472,7 +472,9 @@ def test_transaction_metrics(
         }
 
     transaction = generate_transaction_item()
-    transaction["timestamp"] = timestamp.isoformat()
+    end_timestamp = datetime.now(tz=timezone.utc)
+    transaction["timestamp"] = end_timestamp.isoformat()
+    transaction["start_timestamp"] = (end_timestamp - timedelta(seconds=10)).isoformat()
     transaction["measurements"] = {
         "foo": {"value": 1.2},
         "bar": {"value": 1.3},
@@ -493,7 +495,7 @@ def test_transaction_metrics(
         assert event["breakdowns"] == {
             "span_ops": {
                 "ops.react.mount": {"value": 9.910106},
-                "total.time": {"value": 9.910106},
+                "total.time": {"value": 10009.910106},
             }
         }
 
