@@ -1,4 +1,5 @@
 black==19.10b0
+click==8.0.4
 flake8==3.7.9
 confluent-kafka==1.6.0
 flask==2.0.1
