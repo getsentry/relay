@@ -1,6 +1,6 @@
-use std::collections::BTreeMap;
 use std::fmt;
 use std::iter::FusedIterator;
+use std::{collections::BTreeMap, fmt::Display};
 
 use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
@@ -407,6 +407,24 @@ pub struct Metric {
 }
 
 impl Metric {
+    /// TODO: Doc
+    pub fn from_basename(
+        namespace: impl Display,
+        name: impl Display,
+        unit: MetricUnit,
+        value: MetricValue,
+        timestamp: UnixTimestamp,
+        tags: BTreeMap<String, String>,
+    ) -> Self {
+        Self {
+            name: format!("{}:{}/{}@{}", value.ty(), namespace, name, unit),
+            unit,
+            value,
+            timestamp,
+            tags,
+        }
+    }
+
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
         let mut components = string.split('|');
 

@@ -18,11 +18,7 @@ fn nil_to_none(distinct_id: Option<&String>) -> Option<&String> {
     Some(distinct_id)
 }
 
-/// Generate a sessions-related metric name
-/// Would be nice to have this as a `const fn`, but [`Metric`] requires a [`String`] anyway.
-fn metric_name(name: &str) -> String {
-    format!("sentry.sessions.{}", name)
-}
+const METRIC_NAMESPACE: &str = "sessions";
 
 pub fn extract_session_metrics<T: SessionLike>(
     attributes: &SessionAttributes,
@@ -46,110 +42,119 @@ pub fn extract_session_metrics<T: SessionLike>(
     // Always capture with "init" tag for the first session update of a session. This is used
     // for adoption and as baseline for crash rates.
     if session.total_count() > 0 {
-        target.push(Metric {
-            name: metric_name("session"),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(session.total_count() as f64),
+        target.push(Metric::from_basename(
+            METRIC_NAMESPACE,
+            "session",
+            MetricUnit::None,
+            MetricValue::Counter(session.total_count() as f64),
             timestamp,
-            tags: with_tag(&tags, "session.status", "init"),
-        });
+            with_tag(&tags, "session.status", "init"),
+        ));
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric {
-                name: metric_name("user"),
-                unit: MetricUnit::None,
-                value: MetricValue::set_from_str(distinct_id),
+            target.push(Metric::from_basename(
+                METRIC_NAMESPACE,
+                "user",
+                MetricUnit::None,
+                MetricValue::set_from_str(distinct_id),
                 timestamp,
-                tags: with_tag(&tags, "session.status", "init"),
-            });
+                with_tag(&tags, "session.status", "init"),
+            ));
         }
     }
 
     // Mark the session as errored, which includes fatal sessions.
     if let Some(errors) = session.errors() {
         target.push(match errors {
-            SessionErrored::Individual(session_id) => Metric {
-                name: metric_name("session.error"),
-                unit: MetricUnit::None,
-                value: MetricValue::set_from_display(session_id),
+            SessionErrored::Individual(session_id) => Metric::from_basename(
+                METRIC_NAMESPACE,
+                "error",
+                MetricUnit::None,
+                MetricValue::set_from_display(session_id),
                 timestamp,
-                tags: tags.clone(),
-            },
-            SessionErrored::Aggregated(count) => Metric {
-                name: metric_name("session"),
-                unit: MetricUnit::None,
-                value: MetricValue::Counter(count as f64),
+                tags.clone(),
+            ),
+            SessionErrored::Aggregated(count) => Metric::from_basename(
+                METRIC_NAMESPACE,
+                "session",
+                MetricUnit::None,
+                MetricValue::Counter(count as f64),
                 timestamp,
-                tags: with_tag(&tags, "session.status", "errored_preaggr"),
-            },
+                with_tag(&tags, "session.status", "errored_preaggr"),
+            ),
         });
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric {
-                name: metric_name("user"),
-                unit: MetricUnit::None,
-                value: MetricValue::set_from_str(distinct_id),
+            target.push(Metric::from_basename(
+                METRIC_NAMESPACE,
+                "user",
+                MetricUnit::None,
+                MetricValue::set_from_str(distinct_id),
                 timestamp,
-                tags: with_tag(&tags, "session.status", "errored"),
-            });
+                with_tag(&tags, "session.status", "errored"),
+            ));
         }
     }
 
     // Record fatal sessions for crash rate computation. This is a strict subset of errored
     // sessions above.
     if session.abnormal_count() > 0 {
-        target.push(Metric {
-            name: metric_name("session"),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(session.abnormal_count() as f64),
+        target.push(Metric::from_basename(
+            METRIC_NAMESPACE,
+            "session",
+            MetricUnit::None,
+            MetricValue::Counter(session.abnormal_count() as f64),
             timestamp,
-            tags: with_tag(&tags, "session.status", SessionStatus::Abnormal),
-        });
+            with_tag(&tags, "session.status", SessionStatus::Abnormal),
+        ));
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric {
-                name: metric_name("user"),
-                unit: MetricUnit::None,
-                value: MetricValue::set_from_str(distinct_id),
+            target.push(Metric::from_basename(
+                METRIC_NAMESPACE,
+                "user",
+                MetricUnit::None,
+                MetricValue::set_from_str(distinct_id),
                 timestamp,
-                tags: with_tag(&tags, "session.status", SessionStatus::Abnormal),
-            });
+                with_tag(&tags, "session.status", SessionStatus::Abnormal),
+            ));
         }
     }
+
     if session.crashed_count() > 0 {
-        target.push(Metric {
-            name: metric_name("session"),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(session.crashed_count() as f64),
+        target.push(Metric::from_basename(
+            METRIC_NAMESPACE,
+            "session",
+            MetricUnit::None,
+            MetricValue::Counter(session.crashed_count() as f64),
             timestamp,
-            tags: with_tag(&tags, "session.status", SessionStatus::Crashed),
-        });
+            with_tag(&tags, "session.status", SessionStatus::Crashed),
+        ));
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric {
-                name: metric_name("user"),
-                unit: MetricUnit::None,
-                value: MetricValue::set_from_str(distinct_id),
+            target.push(Metric::from_basename(
+                METRIC_NAMESPACE,
+                "user",
+                MetricUnit::None,
+                MetricValue::set_from_str(distinct_id),
                 timestamp,
-                tags: with_tag(&tags, "session.status", SessionStatus::Crashed),
-            });
+                with_tag(&tags, "session.status", SessionStatus::Crashed),
+            ));
         }
     }
 
     // Count durations for all exited/crashed sessions. Note that right now, in the product we
     // really only use durations from session.status=exited, but decided it may be worth ingesting
     // this data in case we need it. If we need to cut cost, this is one place to start though.
-    // if session.status.is_terminal() {
     if let Some((duration, status)) = session.final_duration() {
-        target.push(Metric {
-            name: metric_name("session.duration"),
-            unit: MetricUnit::Duration(DurationPrecision::Second),
-            value: MetricValue::Distribution(duration),
+        target.push(Metric::from_basename(
+            METRIC_NAMESPACE,
+            "duration",
+            MetricUnit::Duration(DurationPrecision::Second),
+            MetricValue::Distribution(duration),
             timestamp,
-            tags: with_tag(&tags, "session.status", status),
-        });
+            with_tag(&tags, "session.status", status),
+        ));
     }
-    // }
 }
 
 #[cfg(test)]
@@ -210,14 +215,14 @@ mod tests {
 
         let session_metric = &metrics[0];
         assert_eq!(session_metric.timestamp, started());
-        assert_eq!(session_metric.name, "sentry.sessions.session");
+        assert_eq!(session_metric.name, "c:sessions/session@");
         assert!(matches!(session_metric.value, MetricValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(session_metric.tags["release"], "1.0.0");
 
         let user_metric = &metrics[1];
         assert_eq!(session_metric.timestamp, started());
-        assert_eq!(user_metric.name, "sentry.sessions.user");
+        assert_eq!(user_metric.name, "s:sessions/user@");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(user_metric.tags["release"], "1.0.0");
@@ -281,13 +286,13 @@ mod tests {
 
             let session_metric = &metrics[expected_metrics - 2];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(session_metric.name, "sentry.sessions.session.error");
+            assert_eq!(session_metric.name, "s:sessions/error@");
             assert!(matches!(session_metric.value, MetricValue::Set(_)));
             assert_eq!(session_metric.tags.len(), 1); // Only the release tag
 
             let user_metric = &metrics[expected_metrics - 1];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(user_metric.name, "sentry.sessions.user");
+            assert_eq!(user_metric.name, "s:sessions/user@");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "errored");
             assert_eq!(user_metric.tags["release"], "1.0.0");
@@ -317,19 +322,19 @@ mod tests {
 
             assert_eq!(metrics.len(), 4);
 
-            assert_eq!(metrics[0].name, "sentry.sessions.session.error");
-            assert_eq!(metrics[1].name, "sentry.sessions.user");
+            assert_eq!(metrics[0].name, "s:sessions/error@");
+            assert_eq!(metrics[1].name, "s:sessions/user@");
             assert_eq!(metrics[1].tags["session.status"], "errored");
 
             let session_metric = &metrics[2];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(session_metric.name, "sentry.sessions.session");
+            assert_eq!(session_metric.name, "c:sessions/session@");
             assert!(matches!(session_metric.value, MetricValue::Counter(_)));
             assert_eq!(session_metric.tags["session.status"], status.to_string());
 
             let user_metric = &metrics[3];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(user_metric.name, "sentry.sessions.user");
+            assert_eq!(user_metric.name, "s:sessions/user@");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], status.to_string());
         }
@@ -359,7 +364,7 @@ mod tests {
         assert_eq!(metrics.len(), 1);
 
         let duration_metric = &metrics[0];
-        assert_eq!(duration_metric.name, "sentry.sessions.session.duration");
+        assert_eq!(duration_metric.name, "d:sessions/duration@s");
         assert!(matches!(
             duration_metric.value,
             MetricValue::Distribution(_)
@@ -402,7 +407,7 @@ mod tests {
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
-                name: "sentry.sessions.session",
+                name: "c:sessions/session@",
                 unit: None,
                 value: Counter(
                     135.0,
@@ -415,7 +420,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "sentry.sessions.session",
+                name: "c:sessions/session@",
                 unit: None,
                 value: Counter(
                     5.0,
@@ -428,7 +433,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "sentry.sessions.session",
+                name: "c:sessions/session@",
                 unit: None,
                 value: Counter(
                     7.0,
@@ -441,7 +446,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "sentry.sessions.session",
+                name: "c:sessions/session@",
                 unit: None,
                 value: Counter(
                     15.0,
@@ -454,7 +459,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "sentry.sessions.user",
+                name: "s:sessions/user@",
                 unit: None,
                 value: Set(
                     3097475539,
@@ -467,7 +472,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "sentry.sessions.session",
+                name: "c:sessions/session@",
                 unit: None,
                 value: Counter(
                     3.0,
@@ -480,7 +485,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "sentry.sessions.user",
+                name: "s:sessions/user@",
                 unit: None,
                 value: Set(
                     3097475539,

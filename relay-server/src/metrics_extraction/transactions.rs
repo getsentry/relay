@@ -10,7 +10,6 @@ use {
     },
     relay_metrics::{Metric, MetricUnit, MetricValue},
     std::fmt,
-    std::fmt::Write,
 };
 
 /// The metric on which the user satisfaction threshold is applied.
@@ -51,19 +50,7 @@ pub struct TransactionMetricsConfig {
 }
 
 #[cfg(feature = "processing")]
-const METRIC_NAME_PREFIX: &str = "sentry.transactions";
-
-/// Generate a transaction-related metric name
-#[cfg(feature = "processing")]
-fn metric_name(parts: &[&str]) -> String {
-    let mut name = METRIC_NAME_PREFIX.to_owned();
-    for part in parts {
-        // Unwrapping here should be fine:
-        // https://github.com/rust-lang/rust/blob/1.57.0/library/alloc/src/string.rs#L2721-L2724
-        write!(name, ".{}", part).unwrap();
-    }
-    name
-}
+const METRIC_NAMESPACE: &str = "transactions";
 
 #[cfg(feature = "processing")]
 fn extract_transaction_status(transaction: &Event) -> Option<String> {
@@ -259,38 +246,39 @@ pub fn extract_transaction_metrics(
                 None => continue,
             };
 
-            let name = metric_name(&["measurements", measurement_name]);
             let mut tags = tags.clone();
             if let Some(rating) = get_measurement_rating(measurement_name, measurement) {
                 tags.insert("measurement_rating".to_owned(), rating);
             }
 
-            push_metric(Metric {
-                name,
-                unit: MetricUnit::None,
-                value: MetricValue::Distribution(measurement),
-                timestamp: unix_timestamp,
+            push_metric(Metric::from_basename(
+                METRIC_NAMESPACE,
+                format_args!("measurements.{}", measurement_name),
+                MetricUnit::None,
+                MetricValue::Distribution(measurement),
+                unix_timestamp,
                 tags,
-            });
+            ));
         }
     }
 
     // Breakdowns
     if let Some(breakdowns_config) = breakdowns_config {
-        for (breakdown_name, measurements) in get_breakdown_measurements(event, breakdowns_config) {
+        for (_breakdown, measurements) in get_breakdown_measurements(event, breakdowns_config) {
             for (measurement_name, annotated) in measurements.iter() {
                 let measurement = match annotated.value().and_then(|m| m.value.value()) {
                     Some(measurement) => *measurement,
                     None => continue,
                 };
 
-                push_metric(Metric {
-                    name: metric_name(&["breakdowns", breakdown_name, measurement_name]),
-                    unit: MetricUnit::None,
-                    value: MetricValue::Distribution(measurement),
-                    timestamp: unix_timestamp,
-                    tags: tags.clone(),
-                });
+                push_metric(Metric::from_basename(
+                    METRIC_NAMESPACE,
+                    format_args!("breakdowns.{}", measurement_name),
+                    MetricUnit::None,
+                    MetricValue::Distribution(measurement),
+                    unix_timestamp,
+                    tags.clone(),
+                ));
             }
         }
     }
@@ -309,32 +297,34 @@ pub fn extract_transaction_metrics(
     // Duration
     let duration_millis = get_duration_millis(start_timestamp, end_timestamp);
 
-    push_metric(Metric {
-        name: metric_name(&["transaction.duration"]),
-        unit: MetricUnit::Duration(DurationPrecision::MilliSecond),
-        value: MetricValue::Distribution(duration_millis),
-        timestamp: unix_timestamp,
-        tags: match extract_transaction_status(event) {
+    push_metric(Metric::from_basename(
+        METRIC_NAMESPACE,
+        "duration",
+        MetricUnit::Duration(DurationPrecision::MilliSecond),
+        MetricValue::Distribution(duration_millis),
+        unix_timestamp,
+        match extract_transaction_status(event) {
             Some(status) => with_tag(&tags, "transaction.status", status),
             None => tags_with_satisfaction.clone(),
         },
-    });
+    ));
 
     // User
     if let Some(user) = event.user.value() {
         if let Some(user_id) = user.id.as_str() {
-            push_metric(Metric {
-                name: metric_name(&["user"]),
-                unit: MetricUnit::None,
-                value: MetricValue::set_from_str(user_id),
-                timestamp: unix_timestamp,
+            push_metric(Metric::from_basename(
+                METRIC_NAMESPACE,
+                "user",
+                MetricUnit::None,
+                MetricValue::set_from_str(user_id),
+                unix_timestamp,
                 // A single user might end up in multiple satisfaction buckets when they have
                 // some satisfying transactions and some frustrating transactions.
                 // This is OK as long as we do not add these numbers *after* aggregation:
                 //     <WRONG>total_users = uniqIf(user, satisfied) + uniqIf(user, tolerated) + uniqIf(user, frustrated)</WRONG>
                 //     <RIGHT>total_users = uniq(user)</RIGHT>
-                tags: tags_with_satisfaction,
-            });
+                tags_with_satisfaction,
+            ));
         }
     }
 
@@ -435,11 +425,11 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "sentry.transactions.measurements.foo",
-                "sentry.transactions.measurements.lcp",
-                "sentry.transactions.breakdowns.span_ops.ops.react.mount",
-                "sentry.transactions.transaction.duration",
-                "sentry.transactions.user"
+                "d:transactions/measurements.foo@",
+                "d:transactions/measurements.lcp@",
+                "d:transactions/breakdowns.ops.react.mount@",
+                "d:transactions/duration@ms",
+                "s:transactions/user@"
             ],
             "extractCustomTags": ["fOO"]
         }
@@ -457,18 +447,15 @@ mod tests {
 
         assert_eq!(metrics.len(), 5, "{:?}", metrics);
 
-        assert_eq!(metrics[0].name, "sentry.transactions.measurements.foo");
-        assert_eq!(metrics[1].name, "sentry.transactions.measurements.lcp");
+        assert_eq!(metrics[0].name, "d:transactions/measurements.foo@");
+        assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@");
         assert_eq!(
             metrics[2].name,
-            "sentry.transactions.breakdowns.span_ops.ops.react.mount"
+            "d:transactions/breakdowns.ops.react.mount@"
         );
 
         let duration_metric = &metrics[3];
-        assert_eq!(
-            duration_metric.name,
-            "sentry.transactions.transaction.duration"
-        );
+        assert_eq!(duration_metric.name, "d:transactions/duration@ms");
         if let MetricValue::Distribution(value) = duration_metric.value {
             assert_eq!(value, 59000.0);
         } else {
@@ -476,7 +463,7 @@ mod tests {
         }
 
         let user_metric = &metrics[4];
-        assert_eq!(user_metric.name, "sentry.transactions.user");
+        assert_eq!(user_metric.name, "s:transactions/user@");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
 
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
@@ -519,7 +506,7 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "sentry.transactions.transaction.duration"
+                "d:transactions/duration@ms"
             ]
         }
         "#,
@@ -531,10 +518,7 @@ mod tests {
         assert_eq!(metrics.len(), 1);
 
         let duration_metric = &metrics[0];
-        assert_eq!(
-            duration_metric.name,
-            "sentry.transactions.transaction.duration"
-        );
+        assert_eq!(duration_metric.name, "d:transactions/duration@ms");
         assert_eq!(
             duration_metric.unit,
             MetricUnit::Duration(DurationPrecision::MilliSecond)
@@ -572,8 +556,8 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "sentry.transactions.transaction.duration",
-                "sentry.transactions.user"
+                "d:transactions/duration@ms",
+                "s:transactions/user@"
             ],
             "satisfactionThresholds": {
                 "projectThreshold": {
@@ -616,7 +600,7 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "sentry.transactions.transaction.duration"
+                "d:transactions/duration@ms"
             ],
             "satisfactionThresholds": {
                 "projectThreshold": {
@@ -664,7 +648,7 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "sentry.transactions.transaction.duration"
+                "d:transactions/duration@ms"
             ],
             "satisfactionThresholds": {
                 "projectThreshold": {

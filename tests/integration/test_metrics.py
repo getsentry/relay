@@ -317,10 +317,10 @@ def test_metrics_extracted_only_once(
     metrics = metrics_by_name(metrics_consumer, 3, timeout=6)
 
     # if it is not 1 it means the session was extracted multiple times
-    assert metrics["sentry.sessions.session"]["value"] == 1.0
+    assert metrics["c:sessions/session@"]["value"] == 1.0
 
     # if the vector contains multiple duration we have the session extracted multiple times
-    assert len(metrics["sentry.sessions.session.duration"]["value"]) == 1
+    assert len(metrics["d:sessions/duration@s"]["value"]) == 1
 
 
 @pytest.mark.parametrize(
@@ -360,7 +360,7 @@ def test_session_metrics_processing(
     metrics = metrics_by_name(metrics_consumer, 3)
 
     expected_timestamp = int(started.timestamp())
-    assert metrics["sentry.sessions.session"] == {
+    assert metrics["c:sessions/session@"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
@@ -375,7 +375,7 @@ def test_session_metrics_processing(
         },
     }
 
-    assert metrics["sentry.sessions.user"] == {
+    assert metrics["s:sessions/user@"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
@@ -390,7 +390,7 @@ def test_session_metrics_processing(
         },
     }
 
-    assert metrics["sentry.sessions.session.duration"] == {
+    assert metrics["d:sessions/duration@s"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
@@ -464,10 +464,10 @@ def test_transaction_metrics(
     elif extract_metrics:
         config["transactionMetrics"] = {
             "extractMetrics": [
-                "sentry.transactions.measurements.foo",
-                "sentry.transactions.measurements.bar",
-                "sentry.transactions.breakdowns.span_ops.total.time",
-                "sentry.transactions.breakdowns.span_ops.ops.react.mount",
+                "d:transactions/measurements.foo@",
+                "d:transactions/measurements.bar@",
+                "d:transactions/breakdowns.total.time@",
+                "d:transactions/breakdowns.ops.react.mount@",
             ]
         }
 
@@ -512,33 +512,33 @@ def test_transaction_metrics(
         "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
     }
 
-    assert metrics["sentry.transactions.measurements.foo"] == {
+    assert metrics["d:transactions/measurements.foo"] == {
         **common,
-        "name": "sentry.transactions.measurements.foo",
+        "name": "d:transactions/measurements.foo",
         "type": "d",
         "unit": "",
         "value": [1.2, 2.2],
     }
 
-    assert metrics["sentry.transactions.measurements.bar"] == {
+    assert metrics["d:transactions/measurements.bar"] == {
         **common,
-        "name": "sentry.transactions.measurements.bar",
+        "name": "d:transactions/measurements.bar",
         "type": "d",
         "unit": "",
         "value": [1.3],
     }
 
-    assert metrics["sentry.transactions.breakdowns.span_ops.ops.react.mount"] == {
+    assert metrics["transactions/breakdowns.ops.react.mount@"] == {
         **common,
-        "name": "sentry.transactions.breakdowns.span_ops.ops.react.mount",
+        "name": "transactions/breakdowns.ops.react.mount@",
         "type": "d",
         "unit": "",
         "value": [9.910106, 9.910106],
     }
 
-    assert metrics["sentry.transactions.breakdowns.span_ops.total.time"] == {
+    assert metrics["transactions/breakdowns.total.time@"] == {
         **common,
-        "name": "sentry.transactions.breakdowns.span_ops.total.time",
+        "name": "transactions/breakdowns.total.time@",
         "type": "d",
         "unit": "",
         "value": [9.910106, 9.910106],
