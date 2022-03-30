@@ -231,7 +231,7 @@ def test_session_metrics_non_processing(
         ts = int(started.timestamp())
         assert session_metrics == [
             {
-                "name": "sentry.sessions.session",
+                "name": "c:sessions/session@",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -243,7 +243,7 @@ def test_session_metrics_non_processing(
                 "value": 1.0,
             },
             {
-                "name": "sentry.sessions.session.duration",
+                "name": "d:sessions/duration@s",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -256,7 +256,7 @@ def test_session_metrics_non_processing(
                 "value": [1947.49],
             },
             {
-                "name": "sentry.sessions.user",
+                "name": "s:sessions/user@",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -364,7 +364,7 @@ def test_session_metrics_processing(
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "sentry.sessions.session",
+        "name": "c:sessions/session@",
         "type": "c",
         "unit": "",
         "value": 1.0,
@@ -379,7 +379,7 @@ def test_session_metrics_processing(
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "sentry.sessions.user",
+        "name": "s:sessions/user@",
         "type": "s",
         "unit": "",
         "value": [1617781333],
@@ -394,7 +394,7 @@ def test_session_metrics_processing(
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "sentry.sessions.session.duration",
+        "name": "d:sessions/duration@s",
         "type": "d",
         "unit": "s",
         "value": [1947.49],
@@ -512,33 +512,33 @@ def test_transaction_metrics(
         "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
     }
 
-    assert metrics["d:transactions/measurements.foo"] == {
+    assert metrics["d:transactions/measurements.foo@"] == {
         **common,
-        "name": "d:transactions/measurements.foo",
+        "name": "d:transactions/measurements.foo@",
         "type": "d",
         "unit": "",
         "value": [1.2, 2.2],
     }
 
-    assert metrics["d:transactions/measurements.bar"] == {
+    assert metrics["d:transactions/measurements.bar@"] == {
         **common,
-        "name": "d:transactions/measurements.bar",
+        "name": "d:transactions/measurements.bar@",
         "type": "d",
         "unit": "",
         "value": [1.3],
     }
 
-    assert metrics["transactions/breakdowns.ops.react.mount@"] == {
+    assert metrics["d:transactions/breakdowns.ops.react.mount@"] == {
         **common,
-        "name": "transactions/breakdowns.ops.react.mount@",
+        "name": "d:transactions/breakdowns.ops.react.mount@",
         "type": "d",
         "unit": "",
         "value": [9.910106, 9.910106],
     }
 
-    assert metrics["transactions/breakdowns.total.time@"] == {
+    assert metrics["d:transactions/breakdowns.total.time@"] == {
         **common,
-        "name": "transactions/breakdowns.total.time@",
+        "name": "d:transactions/breakdowns.total.time@",
         "type": "d",
         "unit": "",
         "value": [9.910106, 9.910106],
