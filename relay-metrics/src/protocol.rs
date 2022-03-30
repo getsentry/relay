@@ -407,8 +407,11 @@ pub struct Metric {
 }
 
 impl Metric {
-    /// TODO: Doc
-    pub fn from_basename(
+    /// Creates a new metric using the MRI naming format.
+    ///
+    /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
+    /// ensures that just the name determines correct bucketing of metrics with name collisions.
+    pub fn new_mri(
         namespace: impl Display,
         name: impl Display,
         unit: MetricUnit,

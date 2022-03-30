@@ -251,7 +251,7 @@ pub fn extract_transaction_metrics(
                 tags.insert("measurement_rating".to_owned(), rating);
             }
 
-            push_metric(Metric::from_basename(
+            push_metric(Metric::new_mri(
                 METRIC_NAMESPACE,
                 format_args!("measurements.{}", measurement_name),
                 MetricUnit::None,
@@ -271,7 +271,7 @@ pub fn extract_transaction_metrics(
                     None => continue,
                 };
 
-                push_metric(Metric::from_basename(
+                push_metric(Metric::new_mri(
                     METRIC_NAMESPACE,
                     format_args!("breakdowns.{}", measurement_name),
                     MetricUnit::None,
@@ -297,7 +297,7 @@ pub fn extract_transaction_metrics(
     // Duration
     let duration_millis = get_duration_millis(start_timestamp, end_timestamp);
 
-    push_metric(Metric::from_basename(
+    push_metric(Metric::new_mri(
         METRIC_NAMESPACE,
         "duration",
         MetricUnit::Duration(DurationPrecision::MilliSecond),
@@ -312,7 +312,7 @@ pub fn extract_transaction_metrics(
     // User
     if let Some(user) = event.user.value() {
         if let Some(user_id) = user.id.as_str() {
-            push_metric(Metric::from_basename(
+            push_metric(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
