@@ -1,8 +1,9 @@
-use relay_config::Config;
+use chrono::{TimeZone, Utc};
 use symbolic::unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
 };
 
+use relay_config::Config;
 use relay_general::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
     GpuContext, LenientString, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp, User,
@@ -133,8 +134,12 @@ fn merge_unreal_logs(event: &mut Event, data: &[u8]) -> Result<(), Unreal4Error>
         .get_or_insert_with(Array::default);
 
     for log in logs {
+        let timestamp = log
+            .timestamp
+            .map(|ts| Timestamp(Utc.timestamp(ts.unix_timestamp(), 0)));
+
         breadcrumbs.push(Annotated::new(Breadcrumb {
-            timestamp: Annotated::from(log.timestamp.map(Timestamp)),
+            timestamp: Annotated::from(timestamp),
             category: Annotated::from(log.component),
             message: Annotated::new(log.message),
             ..Breadcrumb::default()
