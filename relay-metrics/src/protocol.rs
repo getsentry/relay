@@ -1,6 +1,6 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::iter::FusedIterator;
-use std::{collections::BTreeMap, fmt::Display};
 
 use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
@@ -412,8 +412,8 @@ impl Metric {
     /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
     pub fn new_mri(
-        namespace: impl Display,
-        name: impl Display,
+        namespace: impl fmt::Display,
+        name: impl fmt::Display,
         unit: MetricUnit,
         value: MetricValue,
         timestamp: UnixTimestamp,
