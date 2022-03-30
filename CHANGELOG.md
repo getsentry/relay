@@ -6,6 +6,7 @@
 
 - Remove unused item types. ([#1211](https://github.com/getsentry/relay/pull/1211))
 - Pin click dependency in requirements-dev.txt. ([#1214](https://github.com/getsentry/relay/pull/1214))
+- Use fully qualified metric resource identifiers (MRI) for metrics ingestion. For example, the sessions duration is now called `d:sessions/duration@s`. ([#1215](https://github.com/getsentry/relay/pull/1215))
 
 ## 22.3.0
 
