@@ -171,7 +171,7 @@ pub fn extract_transaction_metrics(
     event: &Event,
     target: &mut Vec<Metric>,
 ) -> bool {
-    use relay_metrics::DurationPrecision;
+    use relay_metrics::DurationUnit;
 
     use crate::metrics_extraction::utils::with_tag;
 
@@ -300,7 +300,7 @@ pub fn extract_transaction_metrics(
     push_metric(Metric::new_mri(
         METRIC_NAMESPACE,
         "duration",
-        MetricUnit::Duration(DurationPrecision::MilliSecond),
+        MetricUnit::Duration(DurationUnit::MilliSecond),
         MetricValue::Distribution(duration_millis),
         unix_timestamp,
         match extract_transaction_status(event) {
@@ -360,7 +360,7 @@ mod tests {
 
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
-    use relay_metrics::DurationPrecision;
+    use relay_metrics::DurationUnit;
 
     #[test]
     fn test_extract_transaction_metrics() {
@@ -521,7 +521,7 @@ mod tests {
         assert_eq!(duration_metric.name, "d:transactions/duration@ms");
         assert_eq!(
             duration_metric.unit,
-            MetricUnit::Duration(DurationPrecision::MilliSecond)
+            MetricUnit::Duration(DurationUnit::MilliSecond)
         );
         if let MetricValue::Distribution(value) = duration_metric.value {
             assert_eq!(value, 59000.0); // millis

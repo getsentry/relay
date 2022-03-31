@@ -616,7 +616,7 @@ pub struct ParseBucketError(#[cause] serde_json::Error);
 ///     "timestamp": 1615889440,
 ///     "name": "endpoint.response_time",
 ///     "type": "d",
-///     "unit": "ms",
+///     "unit": "millisecond",
 ///     "value": [36, 49, 57, 68],
 ///     "tags": {
 ///       "route": "user_index"
@@ -1365,7 +1365,7 @@ mod tests {
 
     use super::*;
 
-    use crate::{DurationPrecision, MetricUnit};
+    use crate::{DurationUnit, MetricUnit};
 
     struct BucketCountInquiry;
 
@@ -1520,7 +1520,7 @@ mod tests {
         let json = r#"[
           {
             "name": "endpoint.response_time",
-            "unit": "ms",
+            "unit": "millisecond",
             "value": [36, 49, 57, 68],
             "type": "d",
             "timestamp": 1615889440,
@@ -1877,7 +1877,7 @@ mod tests {
         let metric1 = some_metric();
 
         let mut metric2 = metric1.clone();
-        metric2.unit = MetricUnit::Duration(DurationPrecision::Second);
+        metric2.unit = MetricUnit::Duration(DurationUnit::Second);
 
         // It's OK to have same metric with different units:
         aggregator.insert(project_key, metric1).unwrap();

@@ -93,7 +93,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     mini_sentry.add_full_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"foo:42|c\nbar@s:17|c"
+    metrics_payload = f"foo:42|c\nbar@second:17|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
     metrics = metrics_by_name(metrics_consumer, 2)
@@ -112,7 +112,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "org_id": 1,
         "project_id": project_id,
         "name": "bar",
-        "unit": "s",
+        "unit": "second",
         "value": 17.0,
         "type": "c",
         "timestamp": timestamp,
@@ -243,7 +243,7 @@ def test_session_metrics_non_processing(
                 "value": 1.0,
             },
             {
-                "name": "d:sessions/duration@s",
+                "name": "d:sessions/duration@second",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -252,7 +252,7 @@ def test_session_metrics_non_processing(
                 "timestamp": ts,
                 "width": 1,
                 "type": "d",
-                "unit": "s",
+                "unit": "second",
                 "value": [1947.49],
             },
             {
@@ -320,7 +320,7 @@ def test_metrics_extracted_only_once(
     assert metrics["c:sessions/session@"]["value"] == 1.0
 
     # if the vector contains multiple duration we have the session extracted multiple times
-    assert len(metrics["d:sessions/duration@s"]["value"]) == 1
+    assert len(metrics["d:sessions/duration@second"]["value"]) == 1
 
 
 @pytest.mark.parametrize(
@@ -390,13 +390,13 @@ def test_session_metrics_processing(
         },
     }
 
-    assert metrics["d:sessions/duration@s"] == {
+    assert metrics["d:sessions/duration@second"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "d:sessions/duration@s",
+        "name": "d:sessions/duration@second",
         "type": "d",
-        "unit": "s",
+        "unit": "second",
         "value": [1947.49],
         "tags": {
             "environment": "production",

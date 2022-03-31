@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{SessionAttributes, SessionErrored, SessionLike, SessionStatus};
-use relay_metrics::{DurationPrecision, Metric, MetricUnit, MetricValue};
+use relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue};
 
 use super::utils::with_tag;
 
@@ -149,7 +149,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         target.push(Metric::new_mri(
             METRIC_NAMESPACE,
             "duration",
-            MetricUnit::Duration(DurationPrecision::Second),
+            MetricUnit::Duration(DurationUnit::Second),
             MetricValue::Distribution(duration),
             timestamp,
             with_tag(&tags, "session.status", status),
@@ -364,7 +364,7 @@ mod tests {
         assert_eq!(metrics.len(), 1);
 
         let duration_metric = &metrics[0];
-        assert_eq!(duration_metric.name, "d:sessions/duration@s");
+        assert_eq!(duration_metric.name, "d:sessions/duration@second");
         assert!(matches!(
             duration_metric.value,
             MetricValue::Distribution(_)
