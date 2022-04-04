@@ -381,11 +381,17 @@
 <span id="379">379</span>
 <span id="380">380</span>
 <span id="381">381</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_config::Config</span>;
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">symbolic::unreal</span>::{
     <span class="ident">Unreal4Context</span>, <span class="ident">Unreal4Crash</span>, <span class="ident">Unreal4Error</span>, <span class="ident">Unreal4ErrorKind</span>, <span class="ident">Unreal4FileType</span>, <span class="ident">Unreal4LogEntry</span>,
 };
 
+<span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
     <span class="ident">AsPair</span>, <span class="ident">Breadcrumb</span>, <span class="ident">ClientSdkInfo</span>, <span class="ident">Context</span>, <span class="ident">Contexts</span>, <span class="ident">DeviceContext</span>, <span class="ident">Event</span>, <span class="ident">EventId</span>,
     <span class="ident">GpuContext</span>, <span class="ident">LenientString</span>, <span class="ident">LogEntry</span>, <span class="ident">Message</span>, <span class="ident">OsContext</span>, <span class="ident">TagEntry</span>, <span class="ident">Tags</span>, <span class="ident">Timestamp</span>, <span class="ident">User</span>,
@@ -516,8 +522,12 @@
         .<span class="ident">get_or_insert_with</span>(<span class="ident">Array::default</span>);
 
     <span class="kw">for</span> <span class="ident">log</span> <span class="kw">in</span> <span class="ident">logs</span> {
+        <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">log</span>
+            .<span class="ident">timestamp</span>
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">ts</span><span class="op">|</span> <span class="ident">Timestamp</span>(<span class="ident">Utc</span>.<span class="ident">timestamp</span>(<span class="ident">ts</span>.<span class="ident">unix_timestamp</span>(), <span class="ident">ts</span>.<span class="ident">nanosecond</span>())));
+
         <span class="ident">breadcrumbs</span>.<span class="ident">push</span>(<span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
-            <span class="ident">timestamp</span>: <span class="ident">Annotated::from</span>(<span class="ident">log</span>.<span class="ident">timestamp</span>.<span class="ident">map</span>(<span class="ident">Timestamp</span>)),
+            <span class="ident">timestamp</span>: <span class="ident">Annotated::from</span>(<span class="ident">timestamp</span>),
             <span class="ident">category</span>: <span class="ident">Annotated::from</span>(<span class="ident">log</span>.<span class="ident">component</span>),
             <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="ident">log</span>.<span class="ident">message</span>),
             ..<span class="ident">Breadcrumb::default</span>()
