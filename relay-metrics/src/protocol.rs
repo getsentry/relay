@@ -407,6 +407,27 @@ pub struct Metric {
 }
 
 impl Metric {
+    /// Creates a new metric using the MRI naming format.
+    ///
+    /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
+    /// ensures that just the name determines correct bucketing of metrics with name collisions.
+    pub fn new_mri(
+        namespace: impl fmt::Display,
+        name: impl fmt::Display,
+        unit: MetricUnit,
+        value: MetricValue,
+        timestamp: UnixTimestamp,
+        tags: BTreeMap<String, String>,
+    ) -> Self {
+        Self {
+            name: format!("{}:{}/{}@{}", value.ty(), namespace, name, unit),
+            unit,
+            value,
+            timestamp,
+            tags,
+        }
+    }
+
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
         let mut components = string.split('|');
 
