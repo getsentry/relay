@@ -102,7 +102,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "org_id": 1,
         "project_id": project_id,
         "name": "foo",
-        "unit": "",
+        "unit": "none",
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
@@ -150,7 +150,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
         "org_id": 1,
         "project_id": project_id,
         "name": "foo",
-        "unit": "",
+        "unit": "none",
         "value": 15.0,
         "type": "c",
     }
@@ -366,7 +366,7 @@ def test_session_metrics_processing(
         "timestamp": expected_timestamp,
         "name": "c:sessions/session@none",
         "type": "c",
-        "unit": "",
+        "unit": "none",
         "value": 1.0,
         "tags": {
             "environment": "production",
@@ -381,7 +381,7 @@ def test_session_metrics_processing(
         "timestamp": expected_timestamp,
         "name": "s:sessions/user@none",
         "type": "s",
-        "unit": "",
+        "unit": "none",
         "value": [1617781333],
         "tags": {
             "environment": "production",
@@ -516,7 +516,7 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/measurements.foo@none",
         "type": "d",
-        "unit": "",
+        "unit": "none",
         "value": [1.2, 2.2],
     }
 
@@ -524,7 +524,7 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/measurements.bar@none",
         "type": "d",
-        "unit": "",
+        "unit": "none",
         "value": [1.3],
     }
 
@@ -532,7 +532,7 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/breakdowns.span_ops.ops.react.mount@none",
         "type": "d",
-        "unit": "",
+        "unit": "none",
         "value": [9.910106, 9.910106],
     }
 
@@ -540,7 +540,7 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/breakdowns.span_ops.total.time@none",
         "type": "d",
-        "unit": "",
+        "unit": "none",
         "value": [9.910106, 9.910106],
     }
 
