@@ -204,13 +204,13 @@ impl std::ops::Deref for CustomUnit {
 /// Units and their precisions are uniquely represented by a string identifier.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum MetricUnit {
-    /// A time duration, defaulting to milliseconds (`"millisecond"`).
+    /// A time duration, defaulting to `"millisecond"`.
     Duration(DurationUnit),
-    /// TODO: Doc
+    /// Size of information derived from bytes, defaulting to `"byte"`.
     Information(InformationUnit),
-    /// TODO: Doc
+    /// Fractions such as percentages, defaulting to `"ratio"`.
     Fraction(FractionUnit),
-    /// TODO: Doc
+    /// user-defined units without builtin conversion or default.
     Custom(CustomUnit),
     /// Untyped value without a unit (`""`).
     None,
