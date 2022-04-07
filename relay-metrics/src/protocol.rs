@@ -155,6 +155,7 @@ impl CustomUnit {
 
         let mut unit = Self(Default::default());
         unit.0.copy_from_slice(s.as_bytes());
+        unit.0.make_ascii_lowercase();
         Ok(unit)
     }
 
