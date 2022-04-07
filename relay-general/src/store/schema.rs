@@ -85,7 +85,7 @@ where
 }
 
 fn verify_value_characters(
-    value: &mut String,
+    value: &mut str,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
 ) -> ProcessingResult {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Prevent potential OOM panics when handling corrupt Unreal Engine crashes. ([#1216](https://github.com/getsentry/relay/pull/1216))
+
 **Internal**:
 
 - Remove unused item types. ([#1211](https://github.com/getsentry/relay/pull/1211))
