@@ -217,8 +217,6 @@ pub enum MetricUnit {
     None,
 }
 
-// TODO: Test sizeof and alignof
-
 impl MetricUnit {
     /// Returns `true` if the metric_unit is [`None`].
     pub fn is_none(&self) -> bool {
@@ -740,6 +738,12 @@ impl FusedIterator for ParseMetrics<'_> {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_sizeof_unit() {
+        assert_eq!(std::mem::size_of::<MetricUnit>(), 16);
+        assert_eq!(std::mem::align_of::<MetricUnit>(), 1);
+    }
 
     #[test]
     fn test_parse_garbage() {
