@@ -264,7 +264,7 @@ pub fn extract_transaction_metrics(
 
     // Breakdowns
     if let Some(breakdowns_config) = breakdowns_config {
-        for (_breakdown, measurements) in get_breakdown_measurements(event, breakdowns_config) {
+        for (breakdown, measurements) in get_breakdown_measurements(event, breakdowns_config) {
             for (measurement_name, annotated) in measurements.iter() {
                 let measurement = match annotated.value().and_then(|m| m.value.value()) {
                     Some(measurement) => *measurement,
@@ -273,7 +273,7 @@ pub fn extract_transaction_metrics(
 
                 push_metric(Metric::new_mri(
                     METRIC_NAMESPACE,
-                    format_args!("breakdowns.{}", measurement_name),
+                    format_args!("breakdowns.{}.{}", breakdown, measurement_name),
                     MetricUnit::None,
                     MetricValue::Distribution(measurement),
                     unix_timestamp,
@@ -427,7 +427,7 @@ mod tests {
             "extractMetrics": [
                 "d:transactions/measurements.foo@",
                 "d:transactions/measurements.lcp@",
-                "d:transactions/breakdowns.ops.react.mount@",
+                "d:transactions/breakdowns.span_ops.ops.react.mount@",
                 "d:transactions/duration@ms",
                 "s:transactions/user@"
             ],
@@ -451,7 +451,7 @@ mod tests {
         assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@");
         assert_eq!(
             metrics[2].name,
-            "d:transactions/breakdowns.ops.react.mount@"
+            "d:transactions/breakdowns.span_ops.ops.react.mount@"
         );
 
         let duration_metric = &metrics[3];

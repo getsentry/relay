@@ -466,8 +466,8 @@ def test_transaction_metrics(
             "extractMetrics": [
                 "d:transactions/measurements.foo@",
                 "d:transactions/measurements.bar@",
-                "d:transactions/breakdowns.total.time@",
-                "d:transactions/breakdowns.ops.react.mount@",
+                "d:transactions/breakdowns.span_ops.total.time@",
+                "d:transactions/breakdowns.span_ops.ops.react.mount@",
             ]
         }
 
@@ -528,17 +528,17 @@ def test_transaction_metrics(
         "value": [1.3],
     }
 
-    assert metrics["d:transactions/breakdowns.ops.react.mount@"] == {
+    assert metrics["d:transactions/breakdowns.span_ops.ops.react.mount@"] == {
         **common,
-        "name": "d:transactions/breakdowns.ops.react.mount@",
+        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@",
         "type": "d",
         "unit": "",
         "value": [9.910106, 9.910106],
     }
 
-    assert metrics["d:transactions/breakdowns.total.time@"] == {
+    assert metrics["d:transactions/breakdowns.span_ops.total.time@"] == {
         **common,
-        "name": "d:transactions/breakdowns.total.time@",
+        "name": "d:transactions/breakdowns.span_ops.total.time@",
         "type": "d",
         "unit": "",
         "value": [9.910106, 9.910106],
