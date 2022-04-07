@@ -5,8 +5,8 @@ use crate::types::Empty;
 
 lazy_static::lazy_static! {
     /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
-    static ref OS_WINDOWS_REGEX1: Regex = Regex::new(r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.\d+).*$"#).unwrap();
-    static ref OS_WINDOWS_REGEX2: Regex = Regex::new(r#"^Windows\s+\d+\s+\((?P<version>\d+\.\d+\.\d+).*$"#).unwrap();
+    static ref OS_WINDOWS_REGEX1: Regex = Regex::new(r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.(?P<build_number>\d+)).*$"#).unwrap();
+    static ref OS_WINDOWS_REGEX2: Regex = Regex::new(r#"^Windows\s+\d+\s+\((?P<version>\d+\.\d+\.(?P<build_number>\d+)).*$"#).unwrap();
 
     static ref OS_ANDROID_REGEX: Regex = Regex::new(r#"^Android (OS )?(?P<version>\d+(\.\d+){0,2}) / API-(?P<api>(\d+))"#).unwrap();
 
@@ -76,13 +76,32 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     }
 }
 
+/// Parses the Windows build number from the description and maps it to a marketing name.
+/// Source: https://en.wikipedia.org/wiki/List_of_Microsoft_Windows_versions
+/// Note: We cannot distinguish between Windows Server and PC versions, so we map to the PC versions
+/// here.
 fn get_windows_version(description: &str) -> Option<&str> {
-    if let Some(captures) = OS_WINDOWS_REGEX1.captures(description) {
-        captures.name("version").map(|m| m.as_str())
-    } else if let Some(captures) = OS_WINDOWS_REGEX2.captures(description) {
-        captures.name("version").map(|m| m.as_str())
-    } else {
-        None
+    let captures = OS_WINDOWS_REGEX1
+        .captures(description)
+        .or_else(|| OS_WINDOWS_REGEX2.captures(description))?;
+
+    let build_number = captures
+        .name("build_number")?
+        .as_str()
+        .parse::<u64>()
+        .ok()?;
+
+    match build_number {
+        // Not considering versions below Windows XP
+        2600..=3790 => Some("XP"),
+        6002 => Some("Vista"),
+        7601 => Some("7"),
+        9200 => Some("8"),
+        9600 => Some("8.1"),
+        10240..=19044 => Some("10"),
+        22000..=22999 => Some("11"),
+        // Fall back to raw version:
+        _ => Some(captures.name("version")?.as_str()),
     }
 }
 
@@ -227,7 +246,7 @@ fn test_windows_7_or_server_2008() {
 
     normalize_os_context(&mut os);
     assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("6.1.7601"), os.version.as_str());
+    assert_eq_dbg!(Some("7"), os.version.as_str());
 }
 
 #[test]
@@ -243,7 +262,7 @@ fn test_windows_8_or_server_2012_or_later() {
 
     normalize_os_context(&mut os);
     assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("6.2.9200"), os.version.as_str());
+    assert_eq_dbg!(Some("8"), os.version.as_str());
 }
 
 #[test]
@@ -257,7 +276,46 @@ fn test_windows_10() {
 
     normalize_os_context(&mut os);
     assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("10.0.16299"), os.version.as_str());
+    assert_eq_dbg!(Some("10"), os.version.as_str());
+}
+
+#[test]
+fn test_windows_11() {
+    // https://github.com/getsentry/relay/issues/1201
+    let mut os = OsContext {
+        raw_description: "Microsoft Windows 10.0.22000".to_string().into(),
+        ..OsContext::default()
+    };
+
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("Windows"), os.name.as_str());
+    assert_eq_dbg!(Some("11"), os.version.as_str());
+}
+
+#[test]
+fn test_windows_11_future1() {
+    // This is fictional as of today, but let's be explicit about the behavior we expect.
+    let mut os = OsContext {
+        raw_description: "Microsoft Windows 10.0.22001".to_string().into(),
+        ..OsContext::default()
+    };
+
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("Windows"), os.name.as_str());
+    assert_eq_dbg!(Some("11"), os.version.as_str());
+}
+
+#[test]
+fn test_windows_11_future2() {
+    // This is fictional, but let's be explicit about the behavior we expect.
+    let mut os = OsContext {
+        raw_description: "Microsoft Windows 10.1.23456".to_string().into(),
+        ..OsContext::default()
+    };
+
+    normalize_os_context(&mut os);
+    assert_eq_dbg!(Some("Windows"), os.name.as_str());
+    assert_eq_dbg!(Some("10.1.23456"), os.version.as_str());
 }
 
 #[test]
@@ -412,7 +470,7 @@ fn test_unity_windows_os() {
     };
     normalize_os_context(&mut os);
     assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("10.0.19042"), os.version.as_str());
+    assert_eq_dbg!(Some("10"), os.version.as_str());
     assert_eq_dbg!(None, os.build.value());
 }
 
