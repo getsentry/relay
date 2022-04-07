@@ -76,6 +76,7 @@ fn normalize_url(request: &mut Request) {
     };
 }
 
+#[allow(clippy::ptr_arg)] // normalize_method must be &mut String for `apply`.
 fn normalize_method(method: &mut String, meta: &mut Meta) -> ProcessingResult {
     method.make_ascii_uppercase();
 
@@ -86,6 +87,7 @@ fn normalize_method(method: &mut String, meta: &mut Meta) -> ProcessingResult {
 
     Ok(())
 }
+
 /// Decodes an urlencoded body.
 fn urlencoded_from_str(raw: &str) -> Option<Value> {
     // Binary strings would be decoded, but we know url-encoded bodies are ASCII.
