@@ -93,7 +93,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     mini_sentry.add_full_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"foo:42|c\nbar@s:17|c"
+    metrics_payload = f"foo:42|c\nbar@second:17|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
     metrics = metrics_by_name(metrics_consumer, 2)
@@ -102,7 +102,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "org_id": 1,
         "project_id": project_id,
         "name": "foo",
-        "unit": "",
+        "unit": "none",
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
@@ -112,7 +112,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "org_id": 1,
         "project_id": project_id,
         "name": "bar",
-        "unit": "s",
+        "unit": "second",
         "value": 17.0,
         "type": "c",
         "timestamp": timestamp,
@@ -150,7 +150,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
         "org_id": 1,
         "project_id": project_id,
         "name": "foo",
-        "unit": "",
+        "unit": "none",
         "value": 15.0,
         "type": "c",
     }
@@ -231,7 +231,7 @@ def test_session_metrics_non_processing(
         ts = int(started.timestamp())
         assert session_metrics == [
             {
-                "name": "c:sessions/session@",
+                "name": "c:sessions/session@none",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -243,7 +243,7 @@ def test_session_metrics_non_processing(
                 "value": 1.0,
             },
             {
-                "name": "d:sessions/duration@s",
+                "name": "d:sessions/duration@second",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -252,11 +252,11 @@ def test_session_metrics_non_processing(
                 "timestamp": ts,
                 "width": 1,
                 "type": "d",
-                "unit": "s",
+                "unit": "second",
                 "value": [1947.49],
             },
             {
-                "name": "s:sessions/user@",
+                "name": "s:sessions/user@none",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -317,10 +317,10 @@ def test_metrics_extracted_only_once(
     metrics = metrics_by_name(metrics_consumer, 3, timeout=6)
 
     # if it is not 1 it means the session was extracted multiple times
-    assert metrics["c:sessions/session@"]["value"] == 1.0
+    assert metrics["c:sessions/session@none"]["value"] == 1.0
 
     # if the vector contains multiple duration we have the session extracted multiple times
-    assert len(metrics["d:sessions/duration@s"]["value"]) == 1
+    assert len(metrics["d:sessions/duration@second"]["value"]) == 1
 
 
 @pytest.mark.parametrize(
@@ -360,13 +360,13 @@ def test_session_metrics_processing(
     metrics = metrics_by_name(metrics_consumer, 3)
 
     expected_timestamp = int(started.timestamp())
-    assert metrics["c:sessions/session@"] == {
+    assert metrics["c:sessions/session@none"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "c:sessions/session@",
+        "name": "c:sessions/session@none",
         "type": "c",
-        "unit": "",
+        "unit": "none",
         "value": 1.0,
         "tags": {
             "environment": "production",
@@ -375,13 +375,13 @@ def test_session_metrics_processing(
         },
     }
 
-    assert metrics["s:sessions/user@"] == {
+    assert metrics["s:sessions/user@none"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "s:sessions/user@",
+        "name": "s:sessions/user@none",
         "type": "s",
-        "unit": "",
+        "unit": "none",
         "value": [1617781333],
         "tags": {
             "environment": "production",
@@ -390,13 +390,13 @@ def test_session_metrics_processing(
         },
     }
 
-    assert metrics["d:sessions/duration@s"] == {
+    assert metrics["d:sessions/duration@second"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "d:sessions/duration@s",
+        "name": "d:sessions/duration@second",
         "type": "d",
-        "unit": "s",
+        "unit": "second",
         "value": [1947.49],
         "tags": {
             "environment": "production",
@@ -464,10 +464,10 @@ def test_transaction_metrics(
     elif extract_metrics:
         config["transactionMetrics"] = {
             "extractMetrics": [
-                "d:transactions/measurements.foo@",
-                "d:transactions/measurements.bar@",
-                "d:transactions/breakdowns.span_ops.total.time@",
-                "d:transactions/breakdowns.span_ops.ops.react.mount@",
+                "d:transactions/measurements.foo@none",
+                "d:transactions/measurements.bar@none",
+                "d:transactions/breakdowns.span_ops.total.time@none",
+                "d:transactions/breakdowns.span_ops.ops.react.mount@none",
             ]
         }
 
@@ -512,35 +512,35 @@ def test_transaction_metrics(
         "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
     }
 
-    assert metrics["d:transactions/measurements.foo@"] == {
+    assert metrics["d:transactions/measurements.foo@none"] == {
         **common,
-        "name": "d:transactions/measurements.foo@",
+        "name": "d:transactions/measurements.foo@none",
         "type": "d",
-        "unit": "",
+        "unit": "none",
         "value": [1.2, 2.2],
     }
 
-    assert metrics["d:transactions/measurements.bar@"] == {
+    assert metrics["d:transactions/measurements.bar@none"] == {
         **common,
-        "name": "d:transactions/measurements.bar@",
+        "name": "d:transactions/measurements.bar@none",
         "type": "d",
-        "unit": "",
+        "unit": "none",
         "value": [1.3],
     }
 
-    assert metrics["d:transactions/breakdowns.span_ops.ops.react.mount@"] == {
+    assert metrics["d:transactions/breakdowns.span_ops.ops.react.mount@none"] == {
         **common,
-        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@",
+        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@none",
         "type": "d",
-        "unit": "",
+        "unit": "none",
         "value": [9.910106, 9.910106],
     }
 
-    assert metrics["d:transactions/breakdowns.span_ops.total.time@"] == {
+    assert metrics["d:transactions/breakdowns.span_ops.total.time@none"] == {
         **common,
-        "name": "d:transactions/breakdowns.span_ops.total.time@",
+        "name": "d:transactions/breakdowns.span_ops.total.time@none",
         "type": "d",
-        "unit": "",
+        "unit": "none",
         "value": [9.910106, 9.910106],
     }
 
