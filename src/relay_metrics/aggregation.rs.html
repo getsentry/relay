@@ -2704,7 +2704,7 @@
 <span class="doccomment">///     &quot;timestamp&quot;: 1615889440,</span>
 <span class="doccomment">///     &quot;name&quot;: &quot;endpoint.response_time&quot;,</span>
 <span class="doccomment">///     &quot;type&quot;: &quot;d&quot;,</span>
-<span class="doccomment">///     &quot;unit&quot;: &quot;ms&quot;,</span>
+<span class="doccomment">///     &quot;unit&quot;: &quot;millisecond&quot;,</span>
 <span class="doccomment">///     &quot;value&quot;: [36, 49, 57, 68],</span>
 <span class="doccomment">///     &quot;tags&quot;: {</span>
 <span class="doccomment">///       &quot;route&quot;: &quot;user_index&quot;</span>
@@ -3453,7 +3453,7 @@
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">DurationPrecision</span>, <span class="ident">MetricUnit</span>};
+    <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">DurationUnit</span>, <span class="ident">MetricUnit</span>};
 
     <span class="kw">struct</span> <span class="ident">BucketCountInquiry</span>;
 
@@ -3608,7 +3608,7 @@
         <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;[
           {
             &quot;name&quot;: &quot;endpoint.response_time&quot;,
-            &quot;unit&quot;: &quot;ms&quot;,
+            &quot;unit&quot;: &quot;millisecond&quot;,
             &quot;value&quot;: [36, 49, 57, 68],
             &quot;type&quot;: &quot;d&quot;,
             &quot;timestamp&quot;: 1615889440,
@@ -3965,7 +3965,7 @@
         <span class="kw">let</span> <span class="ident">metric1</span> <span class="op">=</span> <span class="ident">some_metric</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metric2</span> <span class="op">=</span> <span class="ident">metric1</span>.<span class="ident">clone</span>();
-        <span class="ident">metric2</span>.<span class="ident">unit</span> <span class="op">=</span> <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationPrecision::Second</span>);
+        <span class="ident">metric2</span>.<span class="ident">unit</span> <span class="op">=</span> <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::Second</span>);
 
         <span class="comment">// It&#39;s OK to have same metric with different units:</span>
         <span class="ident">aggregator</span>.<span class="ident">insert</span>(<span class="ident">project_key</span>, <span class="ident">metric1</span>).<span class="ident">unwrap</span>();

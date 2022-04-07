@@ -6,7 +6,7 @@
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
         </a><h2 class="location"><a href="#">Crate relay_metrics</a></h2><div class="sidebar-elems"><div class="block"><ul><li class="version">Version 22.3.0</li><li><a id="all-types" href="all.html">All Items</a></li></div></ul><section><div class="block"><ul><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></div></section><div id="sidebar-vars" data-name="relay_metrics" data-ty="mod" data-relpath=""></div><script defer src="sidebar-items.js"></script></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../relay_metrics/index.html">
                         <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="main-heading">
-    <h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">relay_metrics</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/relay_metrics/lib.rs.html#1-114">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Metric protocol, aggregation and processing for Sentry.</p>
+    <h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">relay_metrics</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/relay_metrics/lib.rs.html#1-102">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Metric protocol, aggregation and processing for Sentry.</p>
 <p>Metrics are high-volume values sent from Sentry clients, integrations, or extracted from errors
 and transactions, that can be aggregated and queried over large time windows. As opposed to rich
 errors and transactions, metrics carry relatively little context information in tags with low
@@ -14,7 +14,7 @@ cardinality.</p>
 <h2 id="protocol"><a href="#protocol">Protocol</a></h2>
 <p>Clients submit metrics in a <a href="struct.Metric.html">text-based protocol</a> based on StatsD. A sample submission
 looks like this:</p>
-<div class="example-wrap"><pre class="language-text"><code>endpoint.response_time@ms:57|d|#route:user_index
+<div class="example-wrap"><pre class="language-text"><code>endpoint.response_time@millisecond:57|d|#route:user_index
 endpoint.hits:1|c|#route:user_index</code></pre></div>
 <p>The metric type is part of its signature just like the unit. Therefore, it is allowed to reuse a
 metric name for multiple metric types, which will result in multiple metrics being recorded.</p>
@@ -23,7 +23,7 @@ metric name for multiple metric types, which will result in multiple metrics bei
 <code>metrics</code>:</p>
 <div class="example-wrap"><pre class="language-text"><code>{}
 {&quot;type&quot;: &quot;metrics&quot;, &quot;timestamp&quot;: 1615889440, ...}
-endpoint.response_time@ms:57|d|#route:user_index
+endpoint.response_time@millisecond:57|d|#route:user_index
 ...</code></pre></div>
 <p>The timestamp in the item header is used to send backdated metrics. If it is omitted,
 the <code>received</code> time of the envelope is assumed.</p>
@@ -37,7 +37,7 @@ with a debounce delay for backdated submissions.</p>
 <div class="example-wrap"><pre class="language-json"><code>[
   {
     &quot;name&quot;: &quot;endpoint.response_time&quot;,
-    &quot;unit&quot;: &quot;ms&quot;,
+    &quot;unit&quot;: &quot;millisecond&quot;,
     &quot;value&quot;: [36, 49, 57, 68],
     &quot;type&quot;: &quot;d&quot;,
     &quot;timestamp&quot;: 1615889440,
@@ -56,38 +56,27 @@ with a debounce delay for backdated submissions.</p>
   }
 ]</code></pre></div><h2 id="ingestion"><a href="#ingestion">Ingestion</a></h2>
 <p>Processing Relays write aggregate buckets into the ingestion Kafka stream. The schema is similar
-to the aggregation payload, with the addition of scoping information:</p>
-<div class="example-wrap"><pre class="language-json"><code>[
-  {
-    &quot;org_id&quot;: 1,
-    &quot;project_id&quot;: 42,
-    &quot;name&quot;: &quot;endpoint.response_time&quot;,
-    &quot;unit&quot;: &quot;ms&quot;,
-    &quot;value&quot;: [36, 49, 57, 68],
-    &quot;type&quot;: &quot;d&quot;,
-    &quot;timestamp&quot;: 1615889440,
-    &quot;tags&quot;: {
-      &quot;route&quot;: &quot;user_index&quot;
-    }
-  },
-  {
-    &quot;org_id&quot;: 1,
-    &quot;project_id&quot;: 42,
-    &quot;name&quot;: &quot;endpoint.hits&quot;,
-    &quot;value&quot;: 4,
-    &quot;type&quot;: &quot;c&quot;,
-    &quot;timestamp&quot;: 1615889440,
-    &quot;tags&quot;: {
-      &quot;route&quot;: &quot;user_index&quot;
-    }
+to the aggregation payload, with the addition of scoping information. Each bucket is sent in a
+separate message:</p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;org_id&quot;: 1,
+  &quot;project_id&quot;: 42,
+  &quot;name&quot;: &quot;endpoint.response_time&quot;,
+  &quot;unit&quot;: &quot;millisecond&quot;,
+  &quot;value&quot;: [36, 49, 57, 68],
+  &quot;type&quot;: &quot;d&quot;,
+  &quot;timestamp&quot;: 1615889440,
+  &quot;tags&quot;: {
+    &quot;route&quot;: &quot;user_index&quot;
   }
-]</code></pre></div></div></details><h2 id="macros" class="small-section-header"><a href="#macros">Macros</a></h2>
+}</code></pre></div></div></details><h2 id="macros" class="small-section-header"><a href="#macros">Macros</a></h2>
 <div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="macro" href="macro.dist.html" title="relay_metrics::dist macro">dist</a></div><div class="item-right docblock-short"><p>Creates a <a href="struct.DistributionValue.html" title="DistributionValue"><code>DistributionValue</code></a> containing the given arguments.</p>
 </div></div></div><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2>
 <div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.AggregateMetricsError.html" title="relay_metrics::AggregateMetricsError struct">AggregateMetricsError</a></div><div class="item-right docblock-short"><p>Any error that may occur during aggregation.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.Aggregator.html" title="relay_metrics::Aggregator struct">Aggregator</a></div><div class="item-right docblock-short"><p>A collector of <a href="struct.Metric.html" title="Metric"><code>Metric</code></a> submissions.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.AggregatorConfig.html" title="relay_metrics::AggregatorConfig struct">AggregatorConfig</a></div><div class="item-right docblock-short"><p>Parameters used by the <a href="struct.Aggregator.html" title="Aggregator"><code>Aggregator</code></a>.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.Bucket.html" title="relay_metrics::Bucket struct">Bucket</a></div><div class="item-right docblock-short"><p>An aggregation of metric values by the <a href="struct.Aggregator.html" title="Aggregator"><code>Aggregator</code></a>.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.CustomUnit.html" title="relay_metrics::CustomUnit struct">CustomUnit</a></div><div class="item-right docblock-short"><p>Custom user-defined units without builtin conversion.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.DistributionIter.html" title="relay_metrics::DistributionIter struct">DistributionIter</a></div><div class="item-right docblock-short"><p>An iterator over distribution entries in a <a href="struct.DistributionValue.html" title="DistributionValue"><code>DistributionValue</code></a>.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.DistributionValue.html" title="relay_metrics::DistributionValue struct">DistributionValue</a></div><div class="item-right docblock-short"><p>A distribution of values within a <a href="struct.Bucket.html" title="Bucket"><code>Bucket</code></a>.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.DistributionValuesIter.html" title="relay_metrics::DistributionValuesIter struct">DistributionValuesIter</a></div><div class="item-right docblock-short"><p>An iterator over all individual values in a <a href="struct.DistributionValue.html" title="DistributionValue"><code>DistributionValue</code></a>.</p>
@@ -102,7 +91,9 @@ to the aggregation payload, with the addition of scoping information:</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.UnixTimestamp.html" title="relay_metrics::UnixTimestamp struct">UnixTimestamp</a></div><div class="item-right docblock-short"><p>A unix timestamp (full seconds elapsed since 1970-01-01 00:00 UTC).</p>
 </div></div></div><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2>
 <div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.BucketValue.html" title="relay_metrics::BucketValue enum">BucketValue</a></div><div class="item-right docblock-short"><p>The <a href="struct.Bucket.html#structfield.value">aggregated value</a> of a metric bucket.</p>
-</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.DurationPrecision.html" title="relay_metrics::DurationPrecision enum">DurationPrecision</a></div><div class="item-right docblock-short"><p>Time duration units used in <a href="enum.MetricUnit.html#variant.Duration" title="MetricUnit::Duration"><code>MetricUnit::Duration</code></a>.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.DurationUnit.html" title="relay_metrics::DurationUnit enum">DurationUnit</a></div><div class="item-right docblock-short"><p>Time duration units used in <a href="enum.MetricUnit.html#variant.Duration" title="MetricUnit::Duration"><code>MetricUnit::Duration</code></a>.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.FractionUnit.html" title="relay_metrics::FractionUnit enum">FractionUnit</a></div><div class="item-right docblock-short"><p>Units of fraction used in <a href="enum.MetricUnit.html#variant.Fraction" title="MetricUnit::Fraction"><code>MetricUnit::Fraction</code></a>.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.InformationUnit.html" title="relay_metrics::InformationUnit enum">InformationUnit</a></div><div class="item-right docblock-short"><p>Size of information derived from bytes, used in <a href="enum.MetricUnit.html#variant.Information" title="MetricUnit::Information"><code>MetricUnit::Information</code></a>.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.MetricType.html" title="relay_metrics::MetricType enum">MetricType</a></div><div class="item-right docblock-short"><p>The type of a <a href="enum.MetricValue.html" title="MetricValue"><code>MetricValue</code></a>, determining its aggregation and evaluation.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.MetricUnit.html" title="relay_metrics::MetricUnit enum">MetricUnit</a></div><div class="item-right docblock-short"><p>The <a href="struct.Metric.html#structfield.unit">unit</a> of measurement of a metric <a href="struct.Metric.html#structfield.value">value</a>.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.MetricValue.html" title="relay_metrics::MetricValue enum">MetricValue</a></div><div class="item-right docblock-short"><p>The <a href="struct.Metric.html#structfield.value">typed value</a> of a metric.</p>

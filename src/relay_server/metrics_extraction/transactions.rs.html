@@ -850,7 +850,7 @@
     <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
     <span class="ident">target</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
 ) -&gt; <span class="ident">bool</span> {
-    <span class="kw">use</span> <span class="ident">relay_metrics::DurationPrecision</span>;
+    <span class="kw">use</span> <span class="ident">relay_metrics::DurationUnit</span>;
 
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::utils::with_tag</span>;
 
@@ -979,7 +979,7 @@
     <span class="ident">push_metric</span>(<span class="ident">Metric::new_mri</span>(
         <span class="ident">METRIC_NAMESPACE</span>,
         <span class="string">&quot;duration&quot;</span>,
-        <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationPrecision::MilliSecond</span>),
+        <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>),
         <span class="ident">MetricValue::Distribution</span>(<span class="ident">duration_millis</span>),
         <span class="ident">unix_timestamp</span>,
         <span class="kw">match</span> <span class="ident">extract_transaction_status</span>(<span class="ident">event</span>) {
@@ -1039,7 +1039,7 @@
 
     <span class="kw">use</span> <span class="ident">relay_general::store::BreakdownsConfig</span>;
     <span class="kw">use</span> <span class="ident">relay_general::types::Annotated</span>;
-    <span class="kw">use</span> <span class="ident">relay_metrics::DurationPrecision</span>;
+    <span class="kw">use</span> <span class="ident">relay_metrics::DurationUnit</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_extract_transaction_metrics</span>() {
@@ -1104,11 +1104,11 @@
             <span class="string">r#&quot;
         {
             &quot;extractMetrics&quot;: [
-                &quot;d:transactions/measurements.foo@&quot;,
-                &quot;d:transactions/measurements.lcp@&quot;,
-                &quot;d:transactions/breakdowns.span_ops.ops.react.mount@&quot;,
-                &quot;d:transactions/duration@ms&quot;,
-                &quot;s:transactions/user@&quot;
+                &quot;d:transactions/measurements.foo@none&quot;,
+                &quot;d:transactions/measurements.lcp@none&quot;,
+                &quot;d:transactions/breakdowns.span_ops.ops.react.mount@none&quot;,
+                &quot;d:transactions/duration@millisecond&quot;,
+                &quot;s:transactions/user@none&quot;
             ],
             &quot;extractCustomTags&quot;: [&quot;fOO&quot;]
         }
@@ -1126,15 +1126,15 @@
 
         <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">5</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="ident">metrics</span>);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">name</span>, <span class="string">&quot;d:transactions/measurements.foo@&quot;</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">1</span>].<span class="ident">name</span>, <span class="string">&quot;d:transactions/measurements.lcp@&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">name</span>, <span class="string">&quot;d:transactions/measurements.foo@none&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">1</span>].<span class="ident">name</span>, <span class="string">&quot;d:transactions/measurements.lcp@none&quot;</span>);
         <span class="macro">assert_eq!</span>(
             <span class="ident">metrics</span>[<span class="number">2</span>].<span class="ident">name</span>,
-            <span class="string">&quot;d:transactions/breakdowns.span_ops.ops.react.mount@&quot;</span>
+            <span class="string">&quot;d:transactions/breakdowns.span_ops.ops.react.mount@none&quot;</span>
         );
 
         <span class="kw">let</span> <span class="ident">duration_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">3</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">name</span>, <span class="string">&quot;d:transactions/duration@ms&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">name</span>, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">MetricValue::Distribution</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">duration_metric</span>.<span class="ident">value</span> {
             <span class="macro">assert_eq!</span>(<span class="ident">value</span>, <span class="number">59000.0</span>);
         } <span class="kw">else</span> {
@@ -1142,7 +1142,7 @@
         }
 
         <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">4</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:transactions/user@&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:transactions/user@none&quot;</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
 
         <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>[<span class="number">1</span>].<span class="ident">tags</span>[<span class="string">&quot;measurement_rating&quot;</span>], <span class="string">&quot;meh&quot;</span>);
@@ -1185,7 +1185,7 @@
             <span class="string">r#&quot;
         {
             &quot;extractMetrics&quot;: [
-                &quot;d:transactions/duration@ms&quot;
+                &quot;d:transactions/duration@millisecond&quot;
             ]
         }
         &quot;#</span>,
@@ -1197,10 +1197,10 @@
         <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">1</span>);
 
         <span class="kw">let</span> <span class="ident">duration_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">0</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">name</span>, <span class="string">&quot;d:transactions/duration@ms&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">duration_metric</span>.<span class="ident">name</span>, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
         <span class="macro">assert_eq!</span>(
             <span class="ident">duration_metric</span>.<span class="ident">unit</span>,
-            <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationPrecision::MilliSecond</span>)
+            <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)
         );
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">MetricValue::Distribution</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">duration_metric</span>.<span class="ident">value</span> {
             <span class="macro">assert_eq!</span>(<span class="ident">value</span>, <span class="number">59000.0</span>); <span class="comment">// millis</span>
@@ -1235,8 +1235,8 @@
             <span class="string">r#&quot;
         {
             &quot;extractMetrics&quot;: [
-                &quot;d:transactions/duration@ms&quot;,
-                &quot;s:transactions/user@&quot;
+                &quot;d:transactions/duration@millisecond&quot;,
+                &quot;s:transactions/user@none&quot;
             ],
             &quot;satisfactionThresholds&quot;: {
                 &quot;projectThreshold&quot;: {
@@ -1279,7 +1279,7 @@
             <span class="string">r#&quot;
         {
             &quot;extractMetrics&quot;: [
-                &quot;d:transactions/duration@ms&quot;
+                &quot;d:transactions/duration@millisecond&quot;
             ],
             &quot;satisfactionThresholds&quot;: {
                 &quot;projectThreshold&quot;: {
@@ -1327,7 +1327,7 @@
             <span class="string">r#&quot;
         {
             &quot;extractMetrics&quot;: [
-                &quot;d:transactions/duration@ms&quot;
+                &quot;d:transactions/duration@millisecond&quot;
             ],
             &quot;satisfactionThresholds&quot;: {
                 &quot;projectThreshold&quot;: {
