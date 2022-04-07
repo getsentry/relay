@@ -1,11 +1,17 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="This package contains the C-ABI of Relay. It builds a C header file and associated library that can be linked to any C or C++ program. Note that the header is C only. Primarily, this package is meant to be consumed by higher-level wrappers in other languages, such as the `sentry-relay` Python package."><meta name="keywords" content="rust, rustlang, rust-lang, relay_cabi"><title>relay_cabi - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../dark.css" disabled><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../storage.js"></script><script src="../crates.js"></script><script defer src="../main.js"></script>
-    <noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a class="sidebar-logo" href="../relay_cabi/index.html"><div class="logo-container"><img src="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png" alt="logo"></div>
-        </a><h2 class="location">Crate relay_cabi</h2><div class="block version"><div class="narrow-helper"></div><p>Version 0.8.9</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all relay_cabi's items</p></a><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#functions">Functions</a></li></ul></div><div id="sidebar-vars" data-name="relay_cabi" data-ty="mod" data-relpath=""></div><script defer src="sidebar-items.js"></script></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../relay_cabi/index.html"><img src="https:&#x2F;&#x2F;raw.githubusercontent.com&#x2F;getsentry&#x2F;relay&#x2F;master&#x2F;artwork&#x2F;relay-icon.png" alt="logo"></a><nav class="sub"><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="18" height="18" alt="Pick another theme!" src="../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../settings.html" title="settings"><img width="18" height="18" alt="Change settings" src="../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">relay_cabi</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/relay_cabi/lib.rs.html#1-109" title="goto source code">[src]</a></span></h1><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>This package contains the C-ABI of Relay. It builds a C header file and
+    <noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../relay_cabi/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../relay_cabi/index.html"><div class="logo-container">
+                    <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
+        </a><h2 class="location"><a href="#">Crate relay_cabi</a></h2><div class="sidebar-elems"><div class="block"><ul><li class="version">Version 0.8.9</li><li><a id="all-types" href="all.html">All Items</a></li></div></ul><section><div class="block"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#functions">Functions</a></li></ul></div></section><div id="sidebar-vars" data-name="relay_cabi" data-ty="mod" data-relpath=""></div><script defer src="sidebar-items.js"></script></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../relay_cabi/index.html">
+                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="main-heading">
+    <h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">relay_cabi</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/relay_cabi/lib.rs.html#1-109">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>This package contains the C-ABI of Relay. It builds a C header file and
 associated library that can be linked to any C or C++ program. Note that the
 header is C only. Primarily, this package is meant to be consumed by
 higher-level wrappers in other languages, such as the
 <a href="https://pypi.org/project/sentry-relay/"><code>sentry-relay</code></a> Python package.</p>
-<h2 id="building" class="section-header"><a href="#building">Building</a></h2>
+<h2 id="building"><a href="#building">Building</a></h2>
 <p>Building the dynamic library has the same requirements as building the
 <code>relay</code> crate:</p>
 <ul>
@@ -14,7 +20,7 @@ higher-level wrappers in other languages, such as the
 </ul>
 <p>To build, run <code>make release</code> in this directory. This creates a release build of
 the dynamic library in <code>target/release/librelay_cabi.*</code>.</p>
-<h2 id="usage" class="section-header"><a href="#usage">Usage</a></h2>
+<h2 id="usage"><a href="#usage">Usage</a></h2>
 <p>The header comes packaged in the <code>include/</code> directory. It does not have any
 dependencies other than standard C headers. Then, include it in sources and use
 like this:</p>
@@ -28,7 +34,7 @@ int main() {
 }</code></pre></div>
 <p>In your application, point to the Relay include directory and specify the
 <code>relay</code> library:</p>
-<div class="example-wrap"><pre class="language-bash"><code>$(CC) -Irelay-cabi/include -Ltarget/release -lrelay -o myprogram main.c</code></pre></div><h2 id="development" class="section-header"><a href="#development">Development</a></h2><h3 id="requirements" class="section-header"><a href="#requirements">Requirements</a></h3>
+<div class="example-wrap"><pre class="language-bash"><code>$(CC) -Irelay-cabi/include -Ltarget/release -lrelay -o myprogram main.c</code></pre></div><h2 id="development"><a href="#development">Development</a></h2><h3 id="requirements"><a href="#requirements">Requirements</a></h3>
 <p>In addition to the build requirements, development requires a recent version
 of the the <code>cbindgen</code> tool. To set this up, run:</p>
 <div class="example-wrap"><pre class="language-bash"><code>cargo install cbindgen</code></pre></div>
@@ -37,7 +43,7 @@ of the the <code>cbindgen</code> tool. To set this up, run:</p>
 running <code>cbindgen --version</code>. It is generally advisable to keep <code>cbindgen</code>
 updated to its latest version, and always check in cbindgen updates separate
 from changes to the public interface.</p>
-<h3 id="makefile" class="section-header"><a href="#makefile">Makefile</a></h3>
+<h3 id="makefile"><a href="#makefile">Makefile</a></h3>
 <p>This package contains the Rust crate <code>relay-cabi</code> that exposes a public FFI
 interface. There are additional build steps involved in generating the header
 file located at <code>include/relay.h</code>. To aid development, there is a <em>Makefile</em>
@@ -51,7 +57,7 @@ that exposes all relevant commands for building:</p>
 <p>For ease of development, the header is always checked into the repository. After
 making changes, do not forget to run at least <code>make header</code> to ensure the header
 is in sync with the library.</p>
-<h3 id="development-flow" class="section-header"><a href="#development-flow">Development Flow</a></h3>
+<h3 id="development-flow"><a href="#development-flow">Development Flow</a></h3>
 <ol>
 <li>Make changes to the <code>relay</code> crates and add tests.</li>
 <li>Update <code>relay-cabi</code> and add, remove or update functions as needed.</li>
@@ -133,5 +139,5 @@ function is used in the UI to provide auto-completion of selectors.</p>
 The implementation in relay is just to make sure that the Sentry implementation doesn’t
 go out of sync.</p>
 </div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.relay_version_supported.html" title="relay_cabi::relay_version_supported fn">relay_version_supported</a><a title="unsafe function" href="#"><sup>⚠</sup></a></div><div class="item-right docblock-short"><p>Returns true if the given version is supported by this library.</p>
-</div></div></div></section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_cabi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.59.0 (9d1b2106e 2022-02-23)" ></div>
+</div></div></div></section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_cabi" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
 </body></html>
