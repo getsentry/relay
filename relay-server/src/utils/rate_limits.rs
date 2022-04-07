@@ -365,7 +365,7 @@ where
         let mut enforcement = Enforcement::default();
 
         if let Some(category) = summary.event_category {
-            let event_limits = (&mut self.check)(scoping.item(category), 1)?;
+            let event_limits = (self.check)(scoping.item(category), 1)?;
             let longest = event_limits.longest();
             enforcement.event = CategoryLimit::new(category, 1, longest);
 
@@ -381,7 +381,7 @@ where
 
         if !enforcement.event.is_active() && summary.attachment_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Attachment);
-            let attachment_limits = (&mut self.check)(item_scoping, summary.attachment_quantity)?;
+            let attachment_limits = (self.check)(item_scoping, summary.attachment_quantity)?;
             enforcement.attachments = CategoryLimit::new(
                 DataCategory::Attachment,
                 summary.attachment_quantity,
@@ -398,7 +398,7 @@ where
 
         if summary.session_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Session);
-            let session_limits = (&mut self.check)(item_scoping, summary.session_quantity)?;
+            let session_limits = (self.check)(item_scoping, summary.session_quantity)?;
             enforcement.sessions = CategoryLimit::new(
                 DataCategory::Session,
                 summary.session_quantity,
