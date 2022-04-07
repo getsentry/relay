@@ -198,7 +198,7 @@ impl std::ops::Deref for CustomUnit {
 /// The [unit](Metric::unit) of measurement of a metric [value](Metric::value).
 ///
 /// Units augment metric values by giving them a magnitude and semantics. There are certain types of
-/// units that are subdivided in their precision, such as the [`DurationPrecision`] for time
+/// units that are subdivided in their precision, such as the [`DurationUnit`] for time
 /// measurements.
 ///
 /// Units and their precisions are uniquely represented by a string identifier.
@@ -570,8 +570,8 @@ pub struct Metric {
     /// The unit of the metric value.
     ///
     /// Units augment metric values by giving them a magnitude and semantics. There are certain
-    /// types of units that are subdivided in their precision, such as the [`DurationPrecision`] for
-    /// time measurements.
+    /// types of units that are subdivided in their precision, such as the [`DurationUnit`] for time
+    /// measurements.
     ///
     /// The unit can be omitted and defaults to [`MetricUnit::None`].
     #[serde(default, skip_serializing_if = "MetricUnit::is_none")]
