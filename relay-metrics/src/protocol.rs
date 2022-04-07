@@ -238,7 +238,7 @@ impl fmt::Display for MetricUnit {
             MetricUnit::Information(u) => u.fmt(f),
             MetricUnit::Fraction(u) => u.fmt(f),
             MetricUnit::Custom(u) => u.fmt(f),
-            MetricUnit::None => f.write_str(""), // TODO: Change?
+            MetricUnit::None => f.write_str("none"),
         }
     }
 }
@@ -513,7 +513,7 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 /// submission looks like this:
 ///
 /// ```text
-/// endpoint.response_time@ms:57|d|#route:user_index
+/// endpoint.response_time@millisecond:57|d|#route:user_index
 /// endpoint.hits:1|c|#route:user_index
 /// ```
 ///
@@ -655,7 +655,7 @@ impl Metric {
     /// ```
     /// use relay_metrics::{Metric, UnixTimestamp};
     ///
-    /// let metric = Metric::parse(b"response_time@ms:57|d", UnixTimestamp::now())
+    /// let metric = Metric::parse(b"response_time@millisecond:57|d", UnixTimestamp::now())
     ///     .expect("metric should parse");
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
@@ -678,7 +678,7 @@ impl Metric {
     /// use relay_metrics::{Metric, UnixTimestamp};
     ///
     /// let data = br#"
-    /// endpoint.response_time@ms:57|d
+    /// endpoint.response_time@millisecond:57|d
     /// endpoint.hits:1|c
     /// "#;
     ///

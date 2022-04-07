@@ -231,7 +231,7 @@ def test_session_metrics_non_processing(
         ts = int(started.timestamp())
         assert session_metrics == [
             {
-                "name": "c:sessions/session@",
+                "name": "c:sessions/session@none",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -256,7 +256,7 @@ def test_session_metrics_non_processing(
                 "value": [1947.49],
             },
             {
-                "name": "s:sessions/user@",
+                "name": "s:sessions/user@none",
                 "tags": {
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
@@ -317,7 +317,7 @@ def test_metrics_extracted_only_once(
     metrics = metrics_by_name(metrics_consumer, 3, timeout=6)
 
     # if it is not 1 it means the session was extracted multiple times
-    assert metrics["c:sessions/session@"]["value"] == 1.0
+    assert metrics["c:sessions/session@none"]["value"] == 1.0
 
     # if the vector contains multiple duration we have the session extracted multiple times
     assert len(metrics["d:sessions/duration@second"]["value"]) == 1
@@ -360,11 +360,11 @@ def test_session_metrics_processing(
     metrics = metrics_by_name(metrics_consumer, 3)
 
     expected_timestamp = int(started.timestamp())
-    assert metrics["c:sessions/session@"] == {
+    assert metrics["c:sessions/session@none"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "c:sessions/session@",
+        "name": "c:sessions/session@none",
         "type": "c",
         "unit": "",
         "value": 1.0,
@@ -375,11 +375,11 @@ def test_session_metrics_processing(
         },
     }
 
-    assert metrics["s:sessions/user@"] == {
+    assert metrics["s:sessions/user@none"] == {
         "org_id": 1,
         "project_id": 42,
         "timestamp": expected_timestamp,
-        "name": "s:sessions/user@",
+        "name": "s:sessions/user@none",
         "type": "s",
         "unit": "",
         "value": [1617781333],
@@ -464,10 +464,10 @@ def test_transaction_metrics(
     elif extract_metrics:
         config["transactionMetrics"] = {
             "extractMetrics": [
-                "d:transactions/measurements.foo@",
-                "d:transactions/measurements.bar@",
-                "d:transactions/breakdowns.span_ops.total.time@",
-                "d:transactions/breakdowns.span_ops.ops.react.mount@",
+                "d:transactions/measurements.foo@none",
+                "d:transactions/measurements.bar@none",
+                "d:transactions/breakdowns.span_ops.total.time@none",
+                "d:transactions/breakdowns.span_ops.ops.react.mount@none",
             ]
         }
 
@@ -512,33 +512,33 @@ def test_transaction_metrics(
         "tags": {"transaction": "/organizations/:orgId/performance/:eventSlug/"},
     }
 
-    assert metrics["d:transactions/measurements.foo@"] == {
+    assert metrics["d:transactions/measurements.foo@none"] == {
         **common,
-        "name": "d:transactions/measurements.foo@",
+        "name": "d:transactions/measurements.foo@none",
         "type": "d",
         "unit": "",
         "value": [1.2, 2.2],
     }
 
-    assert metrics["d:transactions/measurements.bar@"] == {
+    assert metrics["d:transactions/measurements.bar@none"] == {
         **common,
-        "name": "d:transactions/measurements.bar@",
+        "name": "d:transactions/measurements.bar@none",
         "type": "d",
         "unit": "",
         "value": [1.3],
     }
 
-    assert metrics["d:transactions/breakdowns.span_ops.ops.react.mount@"] == {
+    assert metrics["d:transactions/breakdowns.span_ops.ops.react.mount@none"] == {
         **common,
-        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@",
+        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@none",
         "type": "d",
         "unit": "",
         "value": [9.910106, 9.910106],
     }
 
-    assert metrics["d:transactions/breakdowns.span_ops.total.time@"] == {
+    assert metrics["d:transactions/breakdowns.span_ops.total.time@none"] == {
         **common,
-        "name": "d:transactions/breakdowns.span_ops.total.time@",
+        "name": "d:transactions/breakdowns.span_ops.total.time@none",
         "type": "d",
         "unit": "",
         "value": [9.910106, 9.910106],

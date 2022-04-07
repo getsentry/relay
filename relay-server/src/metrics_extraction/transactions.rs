@@ -425,11 +425,11 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "d:transactions/measurements.foo@",
-                "d:transactions/measurements.lcp@",
-                "d:transactions/breakdowns.span_ops.ops.react.mount@",
-                "d:transactions/duration@ms",
-                "s:transactions/user@"
+                "d:transactions/measurements.foo@none",
+                "d:transactions/measurements.lcp@none",
+                "d:transactions/breakdowns.span_ops.ops.react.mount@none",
+                "d:transactions/duration@millisecond",
+                "s:transactions/user@none"
             ],
             "extractCustomTags": ["fOO"]
         }
@@ -447,15 +447,15 @@ mod tests {
 
         assert_eq!(metrics.len(), 5, "{:?}", metrics);
 
-        assert_eq!(metrics[0].name, "d:transactions/measurements.foo@");
-        assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@");
+        assert_eq!(metrics[0].name, "d:transactions/measurements.foo@none");
+        assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@none");
         assert_eq!(
             metrics[2].name,
-            "d:transactions/breakdowns.span_ops.ops.react.mount@"
+            "d:transactions/breakdowns.span_ops.ops.react.mount@none"
         );
 
         let duration_metric = &metrics[3];
-        assert_eq!(duration_metric.name, "d:transactions/duration@ms");
+        assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
         if let MetricValue::Distribution(value) = duration_metric.value {
             assert_eq!(value, 59000.0);
         } else {
@@ -463,7 +463,7 @@ mod tests {
         }
 
         let user_metric = &metrics[4];
-        assert_eq!(user_metric.name, "s:transactions/user@");
+        assert_eq!(user_metric.name, "s:transactions/user@none");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
 
         assert_eq!(metrics[1].tags["measurement_rating"], "meh");
@@ -506,7 +506,7 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "d:transactions/duration@ms"
+                "d:transactions/duration@millisecond"
             ]
         }
         "#,
@@ -518,7 +518,7 @@ mod tests {
         assert_eq!(metrics.len(), 1);
 
         let duration_metric = &metrics[0];
-        assert_eq!(duration_metric.name, "d:transactions/duration@ms");
+        assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
         assert_eq!(
             duration_metric.unit,
             MetricUnit::Duration(DurationUnit::MilliSecond)
@@ -556,8 +556,8 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "d:transactions/duration@ms",
-                "s:transactions/user@"
+                "d:transactions/duration@millisecond",
+                "s:transactions/user@none"
             ],
             "satisfactionThresholds": {
                 "projectThreshold": {
@@ -600,7 +600,7 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "d:transactions/duration@ms"
+                "d:transactions/duration@millisecond"
             ],
             "satisfactionThresholds": {
                 "projectThreshold": {
@@ -648,7 +648,7 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "d:transactions/duration@ms"
+                "d:transactions/duration@millisecond"
             ],
             "satisfactionThresholds": {
                 "projectThreshold": {

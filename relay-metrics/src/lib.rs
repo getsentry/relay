@@ -11,7 +11,7 @@
 //! looks like this:
 //!
 //! ```text
-//! endpoint.response_time@ms:57|d|#route:user_index
+//! endpoint.response_time@millisecond:57|d|#route:user_index
 //! endpoint.hits:1|c|#route:user_index
 //! ```
 //!
@@ -26,7 +26,7 @@
 //! ```text
 //! {}
 //! {"type": "metrics", "timestamp": 1615889440, ...}
-//! endpoint.response_time@ms:57|d|#route:user_index
+//! endpoint.response_time@millisecond:57|d|#route:user_index
 //! ...
 //! ```
 //!

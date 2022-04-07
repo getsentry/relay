@@ -215,14 +215,14 @@ mod tests {
 
         let session_metric = &metrics[0];
         assert_eq!(session_metric.timestamp, started());
-        assert_eq!(session_metric.name, "c:sessions/session@");
+        assert_eq!(session_metric.name, "c:sessions/session@none");
         assert!(matches!(session_metric.value, MetricValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(session_metric.tags["release"], "1.0.0");
 
         let user_metric = &metrics[1];
         assert_eq!(session_metric.timestamp, started());
-        assert_eq!(user_metric.name, "s:sessions/user@");
+        assert_eq!(user_metric.name, "s:sessions/user@none");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(user_metric.tags["release"], "1.0.0");
@@ -286,13 +286,13 @@ mod tests {
 
             let session_metric = &metrics[expected_metrics - 2];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(session_metric.name, "s:sessions/error@");
+            assert_eq!(session_metric.name, "s:sessions/error@none");
             assert!(matches!(session_metric.value, MetricValue::Set(_)));
             assert_eq!(session_metric.tags.len(), 1); // Only the release tag
 
             let user_metric = &metrics[expected_metrics - 1];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(user_metric.name, "s:sessions/user@");
+            assert_eq!(user_metric.name, "s:sessions/user@none");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "errored");
             assert_eq!(user_metric.tags["release"], "1.0.0");
@@ -322,19 +322,19 @@ mod tests {
 
             assert_eq!(metrics.len(), 4);
 
-            assert_eq!(metrics[0].name, "s:sessions/error@");
-            assert_eq!(metrics[1].name, "s:sessions/user@");
+            assert_eq!(metrics[0].name, "s:sessions/error@none");
+            assert_eq!(metrics[1].name, "s:sessions/user@none");
             assert_eq!(metrics[1].tags["session.status"], "errored");
 
             let session_metric = &metrics[2];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(session_metric.name, "c:sessions/session@");
+            assert_eq!(session_metric.name, "c:sessions/session@none");
             assert!(matches!(session_metric.value, MetricValue::Counter(_)));
             assert_eq!(session_metric.tags["session.status"], status.to_string());
 
             let user_metric = &metrics[3];
             assert_eq!(session_metric.timestamp, started());
-            assert_eq!(user_metric.name, "s:sessions/user@");
+            assert_eq!(user_metric.name, "s:sessions/user@none");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], status.to_string());
         }
@@ -407,7 +407,7 @@ mod tests {
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
-                name: "c:sessions/session@",
+                name: "c:sessions/session@none",
                 unit: None,
                 value: Counter(
                     135.0,
@@ -420,7 +420,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "c:sessions/session@",
+                name: "c:sessions/session@none",
                 unit: None,
                 value: Counter(
                     5.0,
@@ -433,7 +433,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "c:sessions/session@",
+                name: "c:sessions/session@none",
                 unit: None,
                 value: Counter(
                     7.0,
@@ -446,7 +446,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "c:sessions/session@",
+                name: "c:sessions/session@none",
                 unit: None,
                 value: Counter(
                     15.0,
@@ -459,7 +459,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:sessions/user@",
+                name: "s:sessions/user@none",
                 unit: None,
                 value: Set(
                     3097475539,
@@ -472,7 +472,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "c:sessions/session@",
+                name: "c:sessions/session@none",
                 unit: None,
                 value: Counter(
                     3.0,
@@ -485,7 +485,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:sessions/user@",
+                name: "s:sessions/user@none",
                 unit: None,
                 value: Set(
                     3097475539,
