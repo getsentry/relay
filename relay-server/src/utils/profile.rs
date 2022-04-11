@@ -28,7 +28,7 @@ struct AndroidProfile {
     device_os_version: String,
     device_physical_memory_bytes: String,
     duration_ns: String,
-    environment: String,
+    environment: Option<String>,
     platform: String,
     profile_id: String,
     trace_id: String,
