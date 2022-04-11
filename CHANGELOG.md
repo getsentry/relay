@@ -12,6 +12,7 @@
 - Pin click dependency in requirements-dev.txt. ([#1214](https://github.com/getsentry/relay/pull/1214))
 - Use fully qualified metric resource identifiers (MRI) for metrics ingestion. For example, the sessions duration is now called `d:sessions/duration@s`. ([#1215](https://github.com/getsentry/relay/pull/1215))
 - Introduce metric units for rates and information, add support for custom user-declared units, and rename duration units to self-explanatory identifiers such as `second`. ([#1217](https://github.com/getsentry/relay/pull/1217))
+- Increase the max profile size to accomodate a new platform. ([#1223](https://github.com/getsentry/relay/pull/1223))
 
 ## 22.3.0
 
