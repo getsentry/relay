@@ -187,7 +187,7 @@ fn extract_transaction_metrics_inner(
     config: &TransactionMetricsConfig,
     breakdowns_config: Option<&BreakdownsConfig>,
     event: &Event,
-    mut push_metric: impl FnMut(Metric) -> (),
+    mut push_metric: impl FnMut(Metric),
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
         return;
