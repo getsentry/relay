@@ -244,6 +244,7 @@ contexts:
   server-os:
     name: Windows
     version: "10"
+    build: 10.0.17134
     raw_description: "Microsoft Windows 10.0.17134 "
     type: os
   server-runtime:

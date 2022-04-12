@@ -80,29 +80,32 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
 /// Source: https://en.wikipedia.org/wiki/List_of_Microsoft_Windows_versions
 /// Note: We cannot distinguish between Windows Server and PC versions, so we map to the PC versions
 /// here.
-fn get_windows_version(description: &str) -> Option<&str> {
+fn get_windows_version(description: &str) -> Option<(&str, &str)> {
     let captures = OS_WINDOWS_REGEX1
         .captures(description)
         .or_else(|| OS_WINDOWS_REGEX2.captures(description))?;
 
+    let full_version = captures.name("version")?.as_str();
     let build_number = captures
         .name("build_number")?
         .as_str()
         .parse::<u64>()
         .ok()?;
 
-    match build_number {
+    let version_name = match build_number {
         // Not considering versions below Windows XP
-        2600..=3790 => Some("XP"),
-        6002 => Some("Vista"),
-        7601 => Some("7"),
-        9200 => Some("8"),
-        9600 => Some("8.1"),
-        10240..=19044 => Some("10"),
-        22000..=22999 => Some("11"),
+        2600..=3790 => ("XP"),
+        6002 => ("Vista"),
+        7601 => ("7"),
+        9200 => ("8"),
+        9600 => ("8.1"),
+        10240..=19044 => ("10"),
+        22000..=22999 => ("11"),
         // Fall back to raw version:
-        _ => Some(captures.name("version")?.as_str()),
-    }
+        _ => full_version,
+    };
+
+    Some((version_name, full_version))
 }
 
 #[allow(dead_code)]
@@ -121,9 +124,13 @@ fn normalize_os_context(os: &mut OsContext) {
     }
 
     if let Some(raw_description) = os.raw_description.as_str() {
-        if let Some(version) = get_windows_version(raw_description) {
+        if let Some((version, full_version)) = get_windows_version(raw_description) {
             os.name = "Windows".to_string().into();
             os.version = version.to_string().into();
+            if os.build.is_empty() {
+                // Keep raw version as build
+                os.build.set_value(Some(full_version.to_string().into()));
+            }
         } else if let Some(captures) = OS_MACOS_REGEX.captures(raw_description) {
             os.name = "macOS".to_string().into();
             os.version = captures
@@ -471,7 +478,10 @@ fn test_unity_windows_os() {
     normalize_os_context(&mut os);
     assert_eq_dbg!(Some("Windows"), os.name.as_str());
     assert_eq_dbg!(Some("10"), os.version.as_str());
-    assert_eq_dbg!(None, os.build.value());
+    assert_eq_dbg!(
+        Some(&LenientString("10.0.19042".to_string())),
+        os.build.value()
+    );
 }
 
 #[test]
