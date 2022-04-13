@@ -314,7 +314,7 @@ pub fn extract_transaction_metrics(
         MetricValue::Distribution(duration_millis),
         unix_timestamp,
         match extract_transaction_status(event) {
-            Some(status) => with_tag(&tags, "transaction.status", status),
+            Some(status) => with_tag(&tags_with_satisfaction, "transaction.status", status),
             None => tags_with_satisfaction.clone(),
         },
     ));
@@ -556,6 +556,11 @@ mod tests {
             "timestamp": "2021-04-26T08:00:01+0100",
             "user": {
                 "id": "user123"
+            },
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
             }
         }
         "#;
@@ -584,10 +589,14 @@ mod tests {
         extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
         assert_eq!(metrics.len(), 2);
 
-        for metric in metrics {
-            assert_eq!(metric.tags.len(), 2);
-            assert_eq!(metric.tags["satisfaction"], "tolerated");
-        }
+        let duration_metric = &metrics[0];
+        assert_eq!(duration_metric.tags.len(), 3);
+        assert_eq!(duration_metric.tags["satisfaction"], "tolerated");
+        assert_eq!(duration_metric.tags["transaction.status"], "ok");
+
+        let user_metric = &metrics[1];
+        assert_eq!(user_metric.tags.len(), 2);
+        assert_eq!(user_metric.tags["satisfaction"], "tolerated");
     }
 
     #[test]
