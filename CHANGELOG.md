@@ -14,6 +14,7 @@
 - Introduce metric units for rates and information, add support for custom user-declared units, and rename duration units to self-explanatory identifiers such as `second`. ([#1217](https://github.com/getsentry/relay/pull/1217))
 - Increase the max profile size to accomodate a new platform. ([#1223](https://github.com/getsentry/relay/pull/1223))
 - Set environment as optional when parsing a profile so we get a null value later on. ([#1224](https://github.com/getsentry/relay/pull/1224))
+- Return better BadStoreRequest for unreal events. ([#1226](https://github.com/getsentry/relay/pull/1226))
 
 ## 22.3.0
 
@@ -67,7 +68,7 @@
 **Features**:
 
 - Extract measurement ratings, port from frontend. ([#1130](https://github.com/getsentry/relay/pull/1130))
-- External Relays perform dynamic sampling and emit outcomes as client reports. This feature is now enabled *by default*. ([#1119](https://github.com/getsentry/relay/pull/1119))
+- External Relays perform dynamic sampling and emit outcomes as client reports. This feature is now enabled _by default_. ([#1119](https://github.com/getsentry/relay/pull/1119))
 - Metrics extraction config, custom tags. ([#1141](https://github.com/getsentry/relay/pull/1141))
 - Update the user agent parser (uap-core Feb 2020 to Nov 2021). This allows Relay and Sentry to infer more recent browsers, operating systems, and devices in events containing a user agent header. ([#1143](https://github.com/getsentry/relay/pull/1143), [#1145](https://github.com/getsentry/relay/pull/1145))
 - Improvements to Unity OS context parsing ([#1150](https://github.com/getsentry/relay/pull/1150))
