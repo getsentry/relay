@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Map Windows version from raw_description to version name (XP, Vista, 11, ...). ([#1219](https://github.com/getsentry/relay/pull/1219))
+
 - Update the user agent parser (uap-core Feb 2020 to Nov 2021). ([#1143](https://github.com/getsentry/relay/pull/1143), [#1145](https://github.com/getsentry/relay/pull/1145))
 
 ## 0.8.9
