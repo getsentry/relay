@@ -164,6 +164,44 @@ fn extract_user_satisfaction(
     None
 }
 
+/// These are the tags that are added to all extracted metrics.
+fn extract_universal_tags(
+    event: &Event,
+    custom_tags: &BTreeSet<String>,
+) -> BTreeMap<String, String> {
+    let mut tags = BTreeMap::new();
+    if let Some(release) = event.release.as_str() {
+        tags.insert("release".to_owned(), release.to_owned());
+    }
+    if let Some(dist) = extract_dist(event) {
+        tags.insert("dist".to_owned(), dist);
+    }
+    if let Some(environment) = event.environment.as_str() {
+        tags.insert("environment".to_owned(), environment.to_owned());
+    }
+    if let Some(transaction) = event.transaction.as_str() {
+        tags.insert("transaction".to_owned(), transaction.to_owned());
+    }
+
+    if !custom_tags.is_empty() {
+        // XXX(slow): event tags are a flat array
+        if let Some(event_tags) = event.tags.value() {
+            for tag_entry in &**event_tags {
+                if let Some(entry) = tag_entry.value() {
+                    let (key, value) = entry.as_pair();
+                    if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
+                        if custom_tags.contains(key) {
+                            tags.insert(key.to_owned(), value.to_owned());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    tags
+}
+
 #[cfg(feature = "processing")]
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
@@ -208,35 +246,7 @@ pub fn extract_transaction_metrics(
         None => return false,
     };
 
-    let mut tags = BTreeMap::new();
-    if let Some(release) = event.release.as_str() {
-        tags.insert("release".to_owned(), release.to_owned());
-    }
-    if let Some(dist) = extract_dist(event) {
-        tags.insert("dist".to_owned(), dist);
-    }
-    if let Some(environment) = event.environment.as_str() {
-        tags.insert("environment".to_owned(), environment.to_owned());
-    }
-    if let Some(transaction) = event.transaction.as_str() {
-        tags.insert("transaction".to_owned(), transaction.to_owned());
-    }
-
-    if !config.extract_custom_tags.is_empty() {
-        // XXX(slow): event tags are a flat array
-        if let Some(event_tags) = event.tags.value() {
-            for tag_entry in &**event_tags {
-                if let Some(entry) = tag_entry.value() {
-                    let (key, value) = entry.as_pair();
-                    if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
-                        if config.extract_custom_tags.contains(key) {
-                            tags.insert(key.to_owned(), value.to_owned());
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let tags = extract_universal_tags(event, &config.extract_custom_tags);
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
@@ -246,9 +256,9 @@ pub fn extract_transaction_metrics(
                 None => continue,
             };
 
-            let mut tags = tags.clone();
+            let mut tags_for_measurements = tags.clone();
             if let Some(rating) = get_measurement_rating(measurement_name, measurement) {
-                tags.insert("measurement_rating".to_owned(), rating);
+                tags_for_measurements.insert("measurement_rating".to_owned(), rating);
             }
 
             push_metric(Metric::new_mri(
@@ -257,7 +267,7 @@ pub fn extract_transaction_metrics(
                 MetricUnit::None,
                 MetricValue::Distribution(measurement),
                 unix_timestamp,
-                tags,
+                tags_for_measurements,
             ));
         }
     }
