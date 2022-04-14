@@ -152,6 +152,36 @@ fn extract_user_satisfaction(
     None
 }
 
+/// Returns the unit of the provided metric. Defaults to None.
+#[cfg(feature = "processing")]
+fn get_metric_measurement_unit(metric: &String) -> MetricUnit {
+    match metric.as_str() {
+        // Web
+        "fcp" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "lcp" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "fid" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "fp" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "ttfb" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "ttfb.requesttime" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "cls" => MetricUnit::None,
+
+        // Mobile
+        "app_start_cold" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "app_start_warm" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "frames_total" => MetricUnit::None,
+        "frames_slow" => MetricUnit::None,
+        "frames_frozen" => MetricUnit::None,
+
+        // React-Native
+        "stall_count" => MetricUnit::None,
+        "stall_total_time" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "stall_longest_time" => MetricUnit::Duration(DurationUnit::MilliSecond),
+
+        // Default
+        _ => MetricUnit::None,
+    }
+}
+
 #[cfg(feature = "processing")]
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
@@ -251,7 +281,7 @@ fn extract_transaction_metrics_inner(
             push_metric(Metric::new_mri(
                 METRIC_NAMESPACE,
                 format_args!("measurements.{}", measurement_name),
-                MetricUnit::None,
+                get_metric_measurement_unit(&measurement_name),
                 MetricValue::Distribution(measurement),
                 unix_timestamp,
                 tags,
