@@ -5,6 +5,7 @@
 **Features**:
 
 - Map Windows version from raw_description to version name (XP, Vista, 11, ...). ([#1219](https://github.com/getsentry/relay/pull/1219))
+- Add units in built-in measurements. ([#1229](https://github.com/getsentry/relay/pull/1229))
 
 **Bug Fixes**:
 
