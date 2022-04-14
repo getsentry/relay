@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Map Windows version from raw_description to version name (XP, Vista, 11, ...). ([#1219](https://github.com/getsentry/relay/pull/1219))
+
 **Bug Fixes**:
 
 - Prevent potential OOM panics when handling corrupt Unreal Engine crashes. ([#1216](https://github.com/getsentry/relay/pull/1216))
