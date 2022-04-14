@@ -154,8 +154,8 @@ fn extract_user_satisfaction(
 
 /// Returns the unit of the provided metric. Defaults to None.
 #[cfg(feature = "processing")]
-fn get_metric_measurement_unit(metric: &String) -> MetricUnit {
-    match metric.as_str() {
+fn get_metric_measurement_unit(metric: &str) -> MetricUnit {
+    match metric {
         // Web
         "fcp" => MetricUnit::Duration(DurationUnit::MilliSecond),
         "lcp" => MetricUnit::Duration(DurationUnit::MilliSecond),
@@ -281,7 +281,7 @@ fn extract_transaction_metrics_inner(
             push_metric(Metric::new_mri(
                 METRIC_NAMESPACE,
                 format_args!("measurements.{}", measurement_name),
-                get_metric_measurement_unit(&measurement_name),
+                get_metric_measurement_unit(measurement_name),
                 MetricValue::Distribution(measurement),
                 unix_timestamp,
                 tags,
