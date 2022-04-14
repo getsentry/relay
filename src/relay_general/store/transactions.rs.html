@@ -951,11 +951,27 @@
 <span id="944">944</span>
 <span id="945">945</span>
 <span id="946">946</span>
+<span id="947">947</span>
+<span id="948">948</span>
+<span id="949">949</span>
+<span id="950">950</span>
+<span id="951">951</span>
+<span id="952">952</span>
+<span id="953">953</span>
+<span id="954">954</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Span</span>, <span class="ident">Timestamp</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>};
 <span class="doccomment">/// Rejects transactions based on required fields.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TransactionsProcessor</span>;
+
+<span class="doccomment">/// Get the value for a measurement, e.g. lcp -&gt; event.measurements.lcp</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_measurement</span>(<span class="ident">transaction</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">measurements</span> <span class="op">=</span> <span class="ident">transaction</span>.<span class="ident">measurements</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">annotated</span> <span class="op">=</span> <span class="ident">measurements</span>.<span class="ident">get</span>(<span class="ident">name</span>)<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">annotated</span>.<span class="ident">value</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">value</span>.<span class="ident">value</span>())<span class="question-mark">?</span>;
+    <span class="prelude-val">Some</span>(<span class="kw-2">*</span><span class="ident">value</span>)
+}
 
 <span class="doccomment">/// Returns start and end timestamps if they are both set and start &lt;= end.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">validate_timestamps</span>(

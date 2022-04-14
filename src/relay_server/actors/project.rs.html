@@ -717,6 +717,10 @@
 <span id="710">710</span>
 <span id="711">711</span>
 <span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -749,6 +753,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::RequestMeta</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::transactions::TransactionMetricsConfig</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">EnvelopeLimiter</span>, <span class="ident">ErrorBoundary</span>, <span class="ident">Response</span>};
 
@@ -809,12 +814,14 @@
     <span class="doccomment">/// Configuration for operation breakdown. Will be emitted only if present.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">breakdowns_v2</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BreakdownsConfig</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="doccomment">/// Configuration in relation to extracting metrics from transaction events.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">transaction_metrics</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ErrorBoundary</span><span class="op">&lt;</span><span class="ident">TransactionMetricsConfig</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The span attributes configuration.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">span_attributes</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SpanAttribute</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Vec::is_empty&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">metric_conditional_tagging</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TaggingRule</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Exposable features enabled for this project</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">features</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">Feature</span><span class="op">&gt;</span>,
@@ -835,6 +842,7 @@
             <span class="ident">breakdowns_v2</span>: <span class="prelude-val">None</span>,
             <span class="ident">transaction_metrics</span>: <span class="prelude-val">None</span>,
             <span class="ident">span_attributes</span>: <span class="ident">BTreeSet::new</span>(),
+            <span class="ident">metric_conditional_tagging</span>: <span class="ident">Vec::new</span>(),
             <span class="ident">features</span>: <span class="ident">BTreeSet::new</span>(),
         }
     }

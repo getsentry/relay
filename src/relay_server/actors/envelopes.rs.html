@@ -3300,6 +3300,12 @@
 <span id="3293">3293</span>
 <span id="3294">3294</span>
 <span id="3295">3295</span>
+<span id="3296">3296</span>
+<span id="3297">3297</span>
+<span id="3298">3298</span>
+<span id="3299">3299</span>
+<span id="3300">3300</span>
+<span id="3301">3301</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -4928,6 +4934,11 @@
         };
 
         <span class="kw">let</span> <span class="ident">breakdowns_config</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">breakdowns_v2</span>.<span class="ident">as_ref</span>();
+        <span class="kw">let</span> <span class="ident">conditional_tagging_config</span> <span class="op">=</span> <span class="ident">state</span>
+            .<span class="ident">project_state</span>
+            .<span class="ident">config</span>
+            .<span class="ident">metric_conditional_tagging</span>
+            .<span class="ident">as_slice</span>();
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event</span>.<span class="ident">value</span>() {
             <span class="kw">let</span> <span class="ident">extracted_anything</span>;
@@ -4940,6 +4951,7 @@
                     <span class="ident">extracted_anything</span> <span class="op">=</span> <span class="ident">extract_transaction_metrics</span>(
                         <span class="ident">config</span>,
                         <span class="ident">breakdowns_config</span>,
+                        <span class="ident">conditional_tagging_config</span>,
                         <span class="ident">event</span>,
                         <span class="kw-2">&amp;mut</span> <span class="ident">state</span>.<span class="ident">extracted_metrics</span>,
                     );
