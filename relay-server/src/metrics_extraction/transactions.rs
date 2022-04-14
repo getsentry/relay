@@ -4,10 +4,13 @@ use std::collections::{BTreeMap, BTreeSet};
 #[cfg(feature = "processing")]
 use {
     relay_common::UnixTimestamp,
+    relay_general::protocol::TraceContext,
     relay_general::protocol::{AsPair, Event, EventType, Timestamp},
+    relay_general::protocol::{Context, ContextInner},
     relay_general::store::{
         get_breakdown_measurements, normalize_dist, validate_timestamps, BreakdownsConfig,
     },
+    relay_general::types::Annotated,
     relay_metrics::{Metric, MetricUnit, MetricValue},
     std::fmt,
 };
@@ -53,19 +56,26 @@ pub struct TransactionMetricsConfig {
 const METRIC_NAMESPACE: &str = "transactions";
 
 #[cfg(feature = "processing")]
-fn extract_transaction_status(transaction: &Event) -> Option<String> {
-    use relay_general::{
-        protocol::{Context, ContextInner},
-        types::Annotated,
-    };
+fn get_trace_context(event: &Event) -> Option<&TraceContext> {
+    let contexts = event.contexts.value()?;
+    let trace = contexts.get("trace").map(Annotated::value);
+    if let Some(Some(ContextInner(Context::Trace(trace_context)))) = trace {
+        return Some(trace_context.as_ref());
+    }
 
-    let contexts = transaction.contexts.value()?;
-    let trace_context = match contexts.get("trace").map(Annotated::value) {
-        Some(Some(ContextInner(Context::Trace(trace_context)))) => trace_context,
-        _ => return None,
-    };
+    None
+}
+
+#[cfg(feature = "processing")]
+fn extract_transaction_status(trace_context: &TraceContext) -> Option<String> {
     let span_status = trace_context.status.value()?;
     Some(span_status.to_string())
+}
+
+#[cfg(feature = "processing")]
+fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
+    let op = trace_context.op.value()?;
+    Some(op.to_string())
 }
 
 #[cfg(feature = "processing")]
@@ -73,6 +83,15 @@ fn extract_dist(transaction: &Event) -> Option<String> {
     let mut dist = transaction.dist.0.clone();
     normalize_dist(&mut dist);
     dist
+}
+
+/// Extract HTTP method
+/// See https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67
+#[cfg(feature = "processing")]
+fn extract_http_method(transaction: &Event) -> Option<String> {
+    let request = transaction.request.value()?;
+    let method = request.method.value()?;
+    Some(method.to_owned())
 }
 
 /// Satisfaction value used for Apdex and User Misery
@@ -183,8 +202,18 @@ fn extract_universal_tags(
         tags.insert("transaction".to_owned(), transaction.to_owned());
     }
 
-    if let Some(status) = extract_transaction_status(event) {
-        tags.insert("transaction.status".to_owned(), status);
+    if let Some(trace_context) = get_trace_context(event) {
+        if let Some(status) = extract_transaction_status(trace_context) {
+            tags.insert("transaction.status".to_owned(), status);
+        }
+
+        if let Some(status) = extract_transaction_op(trace_context) {
+            tags.insert("transaction.op".to_owned(), status);
+        }
+    }
+
+    if let Some(http_method) = extract_http_method(event) {
+        tags.insert("http.method".to_owned(), http_method);
     }
 
     if !custom_tags.is_empty() {
@@ -395,6 +424,12 @@ mod tests {
                 "foo": {"value": 420.69},
                 "lcp": {"value": 3000.0}
             },
+            "contexts": {
+                "trace": {
+                    "op": "myop",
+                    "status": "ok"
+                }
+            },
             "spans": [
                 {
                     "description": "<OrganizationContext>",
@@ -405,7 +440,10 @@ mod tests {
                     "timestamp": 1597976393.4718769,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 }
-            ]
+            ],
+            "request": {
+                "method": "POST"
+            }
         }
         "#;
 
@@ -489,6 +527,9 @@ mod tests {
             assert_eq!(metric.tags["environment"], "fake_environment");
             assert_eq!(metric.tags["transaction"], "mytransaction");
             assert_eq!(metric.tags["fOO"], "bar");
+            assert_eq!(metric.tags["http.method"], "POST");
+            assert_eq!(metric.tags["transaction.status"], "ok");
+            assert_eq!(metric.tags["transaction.op"], "myop");
             assert!(!metric.tags.contains_key("bogus"));
         }
     }
