@@ -28,9 +28,15 @@ pub fn run_conditional_tagging(event: &Event, config: &[TaggingRule], metrics: &
 
         // XXX(slow): this is a double-for-loop, but we extract like 6 metrics per transaction
         for metric in &mut *metrics {
-            if !rule.target_metrics.contains(&metric.name)
-                || metric.tags.contains_key(&rule.target_tag)
-            {
+            if !rule.target_metrics.contains(&metric.name) {
+                // this metric should not be updated as part of this rule
+                continue;
+            }
+
+            if metric.tags.contains_key(&rule.target_tag) {
+                // the metric tag already exists, and we are supposed to skip over rules if the tag
+                // is already set. This behavior helps with building specific rules and fallback
+                // rules.
                 continue;
             }
 

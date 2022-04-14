@@ -441,8 +441,8 @@ impl FieldValueProvider for Event {
                 }
                 _ => Value::Null,
             },
-            x if x.starts_with("transaction.measurements.") => {
-                let measurement_name = &x["transaction.measurements.".len()..];
+            field_name if field_name.starts_with("transaction.measurements.") => {
+                let measurement_name = &field_name["transaction.measurements.".len()..];
                 if let Some(value) = get_measurement(self, measurement_name) {
                     value.into()
                 } else {
