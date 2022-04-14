@@ -484,6 +484,68 @@
 <span id="477">477</span>
 <span id="478">478</span>
 <span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">regex::Regex</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">OsContext</span>, <span class="ident">RuntimeContext</span>};
@@ -491,8 +553,8 @@
 
 <span class="macro">lazy_static::lazy_static!</span> {
     <span class="doccomment">/// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_WINDOWS_REGEX1</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.\d+).*$&quot;#</span>).<span class="ident">unwrap</span>();
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_WINDOWS_REGEX2</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Windows\s+\d+\s+\((?P&lt;version&gt;\d+\.\d+\.\d+).*$&quot;#</span>).<span class="ident">unwrap</span>();
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_WINDOWS_REGEX1</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>).<span class="ident">unwrap</span>();
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_WINDOWS_REGEX2</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Windows\s+\d+\s+\((?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>).<span class="ident">unwrap</span>();
 
     <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_ANDROID_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Android (OS )?(?P&lt;version&gt;\d+(\.\d+){0,2}) / API-(?P&lt;api&gt;(\d+))&quot;#</span>).<span class="ident">unwrap</span>();
 
@@ -562,14 +624,33 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">get_windows_version</span>(<span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_WINDOWS_REGEX1</span>.<span class="ident">captures</span>(<span class="ident">description</span>) {
-        <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;version&quot;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>())
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_WINDOWS_REGEX2</span>.<span class="ident">captures</span>(<span class="ident">description</span>) {
-        <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;version&quot;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_str</span>())
-    } <span class="kw">else</span> {
-        <span class="prelude-val">None</span>
-    }
+<span class="doccomment">/// Parses the Windows build number from the description and maps it to a marketing name.</span>
+<span class="doccomment">/// Source: https://en.wikipedia.org/wiki/List_of_Microsoft_Windows_versions</span>
+<span class="doccomment">/// Note: We cannot distinguish between Windows Server and PC versions, so we map to the PC versions</span>
+<span class="doccomment">/// here.</span>
+<span class="kw">fn</span> <span class="ident">get_windows_version</span>(<span class="ident">description</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>)<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">captures</span> <span class="op">=</span> <span class="ident">OS_WINDOWS_REGEX1</span>
+        .<span class="ident">captures</span>(<span class="ident">description</span>)
+        .<span class="ident">or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">OS_WINDOWS_REGEX2</span>.<span class="ident">captures</span>(<span class="ident">description</span>))<span class="question-mark">?</span>;
+
+    <span class="kw">let</span> <span class="ident">full_version</span> <span class="op">=</span> <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;version&quot;</span>)<span class="question-mark">?</span>.<span class="ident">as_str</span>();
+    <span class="kw">let</span> <span class="ident">build_number_str</span> <span class="op">=</span> <span class="ident">captures</span>.<span class="ident">name</span>(<span class="string">&quot;build_number&quot;</span>)<span class="question-mark">?</span>.<span class="ident">as_str</span>();
+    <span class="kw">let</span> <span class="ident">build_number</span> <span class="op">=</span> <span class="ident">build_number_str</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>;
+
+    <span class="kw">let</span> <span class="ident">version_name</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">build_number</span> {
+        <span class="comment">// Not considering versions below Windows XP</span>
+        <span class="number">2600</span>..<span class="op">=</span><span class="number">3790</span> =&gt; (<span class="string">&quot;XP&quot;</span>),
+        <span class="number">6002</span> =&gt; (<span class="string">&quot;Vista&quot;</span>),
+        <span class="number">7601</span> =&gt; (<span class="string">&quot;7&quot;</span>),
+        <span class="number">9200</span> =&gt; (<span class="string">&quot;8&quot;</span>),
+        <span class="number">9600</span> =&gt; (<span class="string">&quot;8.1&quot;</span>),
+        <span class="number">10240</span>..<span class="op">=</span><span class="number">19044</span> =&gt; (<span class="string">&quot;10&quot;</span>),
+        <span class="number">22000</span>..<span class="op">=</span><span class="number">22999</span> =&gt; (<span class="string">&quot;11&quot;</span>),
+        <span class="comment">// Fall back to raw version:</span>
+        <span class="kw">_</span> =&gt; <span class="ident">full_version</span>,
+    };
+
+    <span class="prelude-val">Some</span>((<span class="ident">version_name</span>, <span class="ident">build_number_str</span>))
 }
 
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
@@ -588,9 +669,13 @@
     }
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">raw_description</span>) <span class="op">=</span> <span class="ident">os</span>.<span class="ident">raw_description</span>.<span class="ident">as_str</span>() {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">version</span>) <span class="op">=</span> <span class="ident">get_windows_version</span>(<span class="ident">raw_description</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">version</span>, <span class="ident">build_number</span>)) <span class="op">=</span> <span class="ident">get_windows_version</span>(<span class="ident">raw_description</span>) {
             <span class="ident">os</span>.<span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;Windows&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>();
             <span class="ident">os</span>.<span class="ident">version</span> <span class="op">=</span> <span class="ident">version</span>.<span class="ident">to_string</span>().<span class="ident">into</span>();
+            <span class="kw">if</span> <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">is_empty</span>() {
+                <span class="comment">// Keep raw version as build</span>
+                <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">set_value</span>(<span class="prelude-val">Some</span>(<span class="ident">build_number</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()));
+            }
         } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">captures</span>) <span class="op">=</span> <span class="ident">OS_MACOS_REGEX</span>.<span class="ident">captures</span>(<span class="ident">raw_description</span>) {
             <span class="ident">os</span>.<span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;macOS&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>();
             <span class="ident">os</span>.<span class="ident">version</span> <span class="op">=</span> <span class="ident">captures</span>
@@ -713,7 +798,7 @@
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
     <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;6.1.7601&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;7&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -729,7 +814,7 @@
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
     <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;6.2.9200&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;8&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -743,7 +828,46 @@
 
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
     <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.0.16299&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+}
+
+<span class="attribute">#[<span class="ident">test</span>]</span>
+<span class="kw">fn</span> <span class="ident">test_windows_11</span>() {
+    <span class="comment">// https://github.com/getsentry/relay/issues/1201</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
+        <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows 10.0.22000&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
+        ..<span class="ident">OsContext::default</span>()
+    };
+
+    <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;11&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+}
+
+<span class="attribute">#[<span class="ident">test</span>]</span>
+<span class="kw">fn</span> <span class="ident">test_windows_11_future1</span>() {
+    <span class="comment">// This is fictional as of today, but let&#39;s be explicit about the behavior we expect.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
+        <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows 10.0.22001&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
+        ..<span class="ident">OsContext::default</span>()
+    };
+
+    <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;11&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+}
+
+<span class="attribute">#[<span class="ident">test</span>]</span>
+<span class="kw">fn</span> <span class="ident">test_windows_11_future2</span>() {
+    <span class="comment">// This is fictional, but let&#39;s be explicit about the behavior we expect.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext</span> {
+        <span class="ident">raw_description</span>: <span class="string">&quot;Microsoft Windows 10.1.23456&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>(),
+        ..<span class="ident">OsContext::default</span>()
+    };
+
+    <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.1.23456&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -898,8 +1022,8 @@
     };
     <span class="ident">normalize_os_context</span>(<span class="kw-2">&amp;mut</span> <span class="ident">os</span>);
     <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Windows&quot;</span>), <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10.0.19042&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">None</span>, <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;10&quot;</span>), <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>());
+    <span class="macro">assert_eq_dbg!</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">LenientString</span>(<span class="string">&quot;19042&quot;</span>.<span class="ident">to_string</span>())), <span class="ident">os</span>.<span class="ident">build</span>.<span class="ident">value</span>());
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
