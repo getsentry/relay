@@ -514,6 +514,68 @@ mod tests {
     }
 
     #[test]
+    fn test_metric_measurement_units() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "measurements": {
+                "fcp": {"value": 1.1},
+                "stall_count": {"value": 3.3},
+                "foo": {"value": 8.8}
+            }
+        }
+        "#;
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/measurements.fcp@millisecond",
+                "d:transactions/measurements.stall_count@none",
+                "d:transactions/measurements.foo@none"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 3, "{:?}", metrics);
+
+        assert_eq!(
+            metrics[0].name, "d:transactions/measurements.fcp@millisecond",
+            "{:?}",
+            metrics[0]
+        );
+        assert_eq!(
+            metrics[0].unit,
+            MetricUnit::Duration(DurationUnit::MilliSecond),
+            "{:?}",
+            metrics[0]
+        );
+
+        assert_eq!(
+            metrics[1].name, "d:transactions/measurements.foo@none",
+            "{:?}",
+            metrics[1]
+        );
+        assert_eq!(metrics[1].unit, MetricUnit::None, "{:?}", metrics[1]);
+
+        assert_eq!(
+            metrics[2].name, "d:transactions/measurements.stall_count@none",
+            "{:?}",
+            metrics[2]
+        );
+        assert_eq!(metrics[2].unit, MetricUnit::None, "{:?}", metrics[2]);
+    }
+
+    #[test]
     fn test_transaction_duration() {
         let json = r#"
         {
