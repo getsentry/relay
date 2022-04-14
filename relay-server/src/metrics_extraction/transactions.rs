@@ -746,4 +746,84 @@ mod tests {
             )]
         );
     }
+
+    #[test]
+    fn test_conditional_tagging_lcp() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:02+0100",
+            "measurements": {
+                "lcp": {"value": 41}
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/measurements.lcp@none"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let tagging_config: Vec<TaggingRule> = serde_json::from_str(
+            r#"
+        [
+            {
+                "condition": {"op": "gte", "name": "transaction.measurements.lcp", "value": 41},
+                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetTag": "satisfaction",
+                "tagValue": "frustrated"
+            },
+            {
+                "condition": {"op": "gte", "name": "transaction.measurements.lcp", "value": 20},
+                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetTag": "satisfaction",
+                "tagValue": "tolerated"
+            },
+            {
+                "condition": {"op": "and", "inner": []},
+                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetTag": "satisfaction",
+                "tagValue": "satisfied"
+            }
+        ]
+        "#,
+        )
+        .unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &config,
+            None,
+            &tagging_config,
+            event.value().unwrap(),
+            &mut metrics,
+        );
+        assert_eq!(
+            metrics,
+            &[Metric::new_mri(
+                METRIC_NAMESPACE,
+                "measurements.lcp",
+                MetricUnit::None,
+                MetricValue::Distribution(41.0),
+                UnixTimestamp::from_secs(1619420402),
+                {
+                    let mut tags = BTreeMap::new();
+                    tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
+                    tags.insert("measurement_rating".to_owned(), "good".to_owned());
+                    tags.insert("transaction".to_owned(), "foo".to_owned());
+                    tags
+                }
+            )]
+        );
+    }
 }
