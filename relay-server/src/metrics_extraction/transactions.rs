@@ -453,7 +453,7 @@ mod tests {
         {
             "extractMetrics": [
                 "d:transactions/measurements.foo@none",
-                "d:transactions/measurements.lcp@none",
+                "d:transactions/measurements.lcp@millisecond",
                 "d:transactions/breakdowns.span_ops.ops.react.mount@none",
                 "d:transactions/duration@millisecond",
                 "s:transactions/user@none"
@@ -476,7 +476,10 @@ mod tests {
         assert_eq!(metrics.len(), 5, "{:?}", metrics);
 
         assert_eq!(metrics[0].name, "d:transactions/measurements.foo@none");
-        assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@none");
+        assert_eq!(
+            metrics[1].name,
+            "d:transactions/measurements.lcp@millisecond"
+        );
         assert_eq!(
             metrics[2].name,
             "d:transactions/breakdowns.span_ops.ops.react.mount@none"
@@ -797,7 +800,7 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "d:transactions/measurements.lcp@none"
+                "d:transactions/measurements.lcp@millisecond"
             ]
         }
         "#,
@@ -809,19 +812,19 @@ mod tests {
         [
             {
                 "condition": {"op": "gte", "name": "transaction.measurements.lcp", "value": 41},
-                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
                 "targetTag": "satisfaction",
                 "tagValue": "frustrated"
             },
             {
                 "condition": {"op": "gte", "name": "transaction.measurements.lcp", "value": 20},
-                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
                 "targetTag": "satisfaction",
                 "tagValue": "tolerated"
             },
             {
                 "condition": {"op": "and", "inner": []},
-                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
                 "targetTag": "satisfaction",
                 "tagValue": "satisfied"
             }
@@ -843,7 +846,7 @@ mod tests {
             &[Metric::new_mri(
                 METRIC_NAMESPACE,
                 "measurements.lcp",
-                MetricUnit::None,
+                MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(41.0),
                 UnixTimestamp::from_secs(1619420402),
                 {
