@@ -15,7 +15,6 @@ use {
     },
     relay_general::types::Annotated,
     relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue},
-    relay_metrics::{Metric, MetricUnit, MetricValue},
     std::fmt,
 };
 
@@ -173,6 +172,7 @@ fn extract_user_satisfaction(
 }
 
 /// These are the tags that are added to all extracted metrics.
+#[cfg(feature = "processing")]
 fn extract_universal_tags(
     event: &Event,
     custom_tags: &BTreeSet<String>,
@@ -332,7 +332,7 @@ fn extract_transaction_metrics_inner(
     );
     let tags_with_satisfaction = match user_satisfaction {
         Some(satisfaction) => utils::with_tag(&tags, "satisfaction", satisfaction),
-        None => tags.clone(),
+        None => tags,
     };
 
     // Duration
