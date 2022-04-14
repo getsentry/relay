@@ -86,11 +86,8 @@ fn get_windows_version(description: &str) -> Option<(&str, &str)> {
         .or_else(|| OS_WINDOWS_REGEX2.captures(description))?;
 
     let full_version = captures.name("version")?.as_str();
-    let build_number = captures
-        .name("build_number")?
-        .as_str()
-        .parse::<u64>()
-        .ok()?;
+    let build_number_str = captures.name("build_number")?.as_str();
+    let build_number = build_number_str.parse::<u64>().ok()?;
 
     let version_name = match build_number {
         // Not considering versions below Windows XP
@@ -105,7 +102,7 @@ fn get_windows_version(description: &str) -> Option<(&str, &str)> {
         _ => full_version,
     };
 
-    Some((version_name, full_version))
+    Some((version_name, build_number_str))
 }
 
 #[allow(dead_code)]
@@ -124,12 +121,12 @@ fn normalize_os_context(os: &mut OsContext) {
     }
 
     if let Some(raw_description) = os.raw_description.as_str() {
-        if let Some((version, full_version)) = get_windows_version(raw_description) {
+        if let Some((version, build_number)) = get_windows_version(raw_description) {
             os.name = "Windows".to_string().into();
             os.version = version.to_string().into();
             if os.build.is_empty() {
                 // Keep raw version as build
-                os.build.set_value(Some(full_version.to_string().into()));
+                os.build.set_value(Some(build_number.to_string().into()));
             }
         } else if let Some(captures) = OS_MACOS_REGEX.captures(raw_description) {
             os.name = "macOS".to_string().into();
@@ -478,10 +475,7 @@ fn test_unity_windows_os() {
     normalize_os_context(&mut os);
     assert_eq_dbg!(Some("Windows"), os.name.as_str());
     assert_eq_dbg!(Some("10"), os.version.as_str());
-    assert_eq_dbg!(
-        Some(&LenientString("10.0.19042".to_string())),
-        os.build.value()
-    );
+    assert_eq_dbg!(Some(&LenientString("19042".to_string())), os.build.value());
 }
 
 #[test]
