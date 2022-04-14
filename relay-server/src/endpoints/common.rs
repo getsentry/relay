@@ -63,9 +63,6 @@ pub enum BadStoreRequest {
     #[fail(display = "missing minidump")]
     MissingMinidump,
 
-    #[fail(display = "invalid unreal crash report")]
-    InvalidUnrealReport,
-
     #[fail(display = "invalid event id")]
     InvalidEventId,
 
@@ -87,10 +84,6 @@ impl BadStoreRequest {
         Some(match self {
             BadStoreRequest::UnsupportedProtocolVersion(_) => {
                 Outcome::Invalid(DiscardReason::AuthVersion)
-            }
-
-            BadStoreRequest::InvalidUnrealReport => {
-                Outcome::Invalid(DiscardReason::MissingMinidumpUpload)
             }
 
             BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),

@@ -30,6 +30,7 @@ use crate::actors::project_cache::{
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::metrics_extraction::transactions::TransactionMetricsConfig;
+use crate::metrics_extraction::TaggingRule;
 use crate::statsd::RelayCounters;
 use crate::utils::{EnvelopeLimiter, ErrorBoundary, Response};
 
@@ -90,12 +91,14 @@ pub struct ProjectConfig {
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     /// Configuration in relation to extracting metrics from transaction events.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
     /// The span attributes configuration.
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub span_attributes: BTreeSet<SpanAttribute>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub metric_conditional_tagging: Vec<TaggingRule>,
     /// Exposable features enabled for this project
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
@@ -116,6 +119,7 @@ impl Default for ProjectConfig {
             breakdowns_v2: None,
             transaction_metrics: None,
             span_attributes: BTreeSet::new(),
+            metric_conditional_tagging: Vec::new(),
             features: BTreeSet::new(),
         }
     }

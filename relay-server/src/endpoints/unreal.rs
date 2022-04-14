@@ -18,8 +18,12 @@ fn extract_envelope(
     let max_payload_size = request.state().config().max_attachments_size();
 
     let future = RequestBody::new(request, max_payload_size)
-        .map_err(|_| BadStoreRequest::InvalidUnrealReport)
+        .map_err(BadStoreRequest::PayloadError)
         .and_then(move |data| {
+            if data.is_empty() {
+                return Err(BadStoreRequest::EmptyBody);
+            }
+
             let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
 
             let mut item = Item::new(ItemType::UnrealReport);

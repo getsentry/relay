@@ -4,6 +4,14 @@ use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult};
 /// Rejects transactions based on required fields.
 pub struct TransactionsProcessor;
 
+/// Get the value for a measurement, e.g. lcp -> event.measurements.lcp
+pub fn get_measurement(transaction: &Event, name: &str) -> Option<f64> {
+    let measurements = transaction.measurements.value()?;
+    let annotated = measurements.get(name)?;
+    let value = annotated.value().and_then(|m| m.value.value())?;
+    Some(*value)
+}
+
 /// Returns start and end timestamps if they are both set and start <= end.
 pub fn validate_timestamps(
     transaction_event: &Event,
