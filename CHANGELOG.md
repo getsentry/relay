@@ -4,6 +4,11 @@
 
 **Features**:
 
+- Add op, http.method and status tag to all extracted transaction metrics. ([#1227](https://github.com/getsentry/relay/pull/1227))
+
+
+**Features**:
+
 - Map Windows version from raw_description to version name (XP, Vista, 11, ...). ([#1219](https://github.com/getsentry/relay/pull/1219))
 
 **Bug Fixes**:
