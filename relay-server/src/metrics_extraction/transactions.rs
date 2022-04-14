@@ -183,6 +183,10 @@ fn extract_universal_tags(
         tags.insert("transaction".to_owned(), transaction.to_owned());
     }
 
+    if let Some(status) = extract_transaction_status(event) {
+        tags.insert("transaction.status".to_owned(), status);
+    }
+
     if !custom_tags.is_empty() {
         // XXX(slow): event tags are a flat array
         if let Some(event_tags) = event.tags.value() {
@@ -313,10 +317,7 @@ pub fn extract_transaction_metrics(
         MetricUnit::Duration(DurationUnit::MilliSecond),
         MetricValue::Distribution(duration_millis),
         unix_timestamp,
-        match extract_transaction_status(event) {
-            Some(status) => with_tag(&tags_with_satisfaction, "transaction.status", status),
-            None => tags_with_satisfaction.clone(),
-        },
+        tags_with_satisfaction.clone(),
     ));
 
     // User
@@ -595,7 +596,7 @@ mod tests {
         assert_eq!(duration_metric.tags["transaction.status"], "ok");
 
         let user_metric = &metrics[1];
-        assert_eq!(user_metric.tags.len(), 2);
+        assert_eq!(user_metric.tags.len(), 3);
         assert_eq!(user_metric.tags["satisfaction"], "tolerated");
     }
 
