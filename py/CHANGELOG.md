@@ -3,8 +3,10 @@
 ## Unreleased
 
 - Map Windows version from raw_description to version name (XP, Vista, 11, ...). ([#1219](https://github.com/getsentry/relay/pull/1219))
-
+- Update rust-minidump to 0.10.0 ([#1209](https://github.com/getsentry/relay/pull/1209))
+- Update regex to 1.5.5 ([#1207](https://github.com/getsentry/relay/pull/1207))
 - Update the user agent parser (uap-core Feb 2020 to Nov 2021). ([#1143](https://github.com/getsentry/relay/pull/1143), [#1145](https://github.com/getsentry/relay/pull/1145))
+- Improvements to Unity OS context parsing ([#1150](https://github.com/getsentry/relay/pull/1150))
 
 ## 0.8.9
 
