@@ -18,6 +18,7 @@
 - Introduce metric units for rates and information, add support for custom user-declared units, and rename duration units to self-explanatory identifiers such as `second`. ([#1217](https://github.com/getsentry/relay/pull/1217))
 - Increase the max profile size to accomodate a new platform. ([#1223](https://github.com/getsentry/relay/pull/1223))
 - Set environment as optional when parsing a profile so we get a null value later on. ([#1224](https://github.com/getsentry/relay/pull/1224))
+- Expose new tagging rules interface for metrics extracted from transactions. ([#1225](https://github.com/getsentry/relay/pull/1225))
 - Return better BadStoreRequest for unreal events. ([#1226](https://github.com/getsentry/relay/pull/1226))
 
 ## 22.3.0

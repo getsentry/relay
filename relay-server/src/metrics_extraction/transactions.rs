@@ -3,12 +3,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(feature = "processing")]
 use {
+    crate::metrics_extraction::conditional_tagging::run_conditional_tagging,
+    crate::metrics_extraction::{utils, TaggingRule},
     relay_common::UnixTimestamp,
     relay_general::protocol::{AsPair, Event, EventType, Timestamp},
     relay_general::store::{
-        get_breakdown_measurements, normalize_dist, validate_timestamps, BreakdownsConfig,
+        get_breakdown_measurements, get_measurement, normalize_dist, validate_timestamps,
+        BreakdownsConfig,
     },
-    relay_metrics::{Metric, MetricUnit, MetricValue},
+    relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue},
     std::fmt,
 };
 
@@ -121,21 +124,6 @@ fn get_duration_millis(start: &Timestamp, end: &Timestamp) -> f64 {
     end.saturating_sub(start) as f64
 }
 
-/// Get the value for a measurement, e.g. lcp -> event.measurements.lcp
-#[cfg(feature = "processing")]
-fn get_measurement(transaction: &Event, name: &str) -> Option<f64> {
-    if let Some(measurements) = transaction.measurements.value() {
-        for (measurement_name, annotated) in measurements.iter() {
-            if measurement_name == name {
-                if let Some(value) = annotated.value().and_then(|m| m.value.value()) {
-                    return Some(*value);
-                }
-            }
-        }
-    }
-    None
-}
-
 /// Extract the the satisfaction value depending on the actual measurement/duration value
 /// and the configured threshold.
 #[cfg(feature = "processing")]
@@ -168,23 +156,18 @@ fn extract_user_satisfaction(
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
     breakdowns_config: Option<&BreakdownsConfig>,
+    conditional_tagging_config: &[TaggingRule],
     event: &Event,
     target: &mut Vec<Metric>,
 ) -> bool {
-    use relay_metrics::DurationUnit;
-
-    use crate::metrics_extraction::utils::with_tag;
-
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return false;
-    }
-
     if config.extract_metrics.is_empty() {
         relay_log::trace!("dropping all transaction metrics because of empty allow-list");
         return false;
     }
 
-    let mut push_metric = move |metric: Metric| {
+    let before_len = target.len();
+
+    let push_metric = |metric: Metric| {
         if config.extract_metrics.contains(&metric.name) {
             target.push(metric);
         } else {
@@ -192,23 +175,37 @@ pub fn extract_transaction_metrics(
         }
     };
 
-    // Every metric push should go through push_metric, so let's shadow the identifier
-    #[allow(unused_variables)]
-    let target = ();
+    extract_transaction_metrics_inner(config, breakdowns_config, event, push_metric);
+
+    let added_slice = &mut target[before_len..];
+    run_conditional_tagging(event, conditional_tagging_config, added_slice);
+    !added_slice.is_empty()
+}
+
+#[cfg(feature = "processing")]
+fn extract_transaction_metrics_inner(
+    config: &TransactionMetricsConfig,
+    breakdowns_config: Option<&BreakdownsConfig>,
+    event: &Event,
+    mut push_metric: impl FnMut(Metric),
+) {
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return;
+    }
 
     let (start_timestamp, end_timestamp) = match validate_timestamps(event) {
         Ok(pair) => pair,
         Err(_) => {
-            return false; // invalid transaction
+            return; // invalid transaction
         }
     };
 
     let unix_timestamp = match UnixTimestamp::from_datetime(end_timestamp.into_inner()) {
         Some(ts) => ts,
-        None => return false,
+        None => return,
     };
 
-    let mut tags = BTreeMap::new();
+    let mut tags = BTreeMap::<String, String>::new();
     if let Some(release) = event.release.as_str() {
         tags.insert("release".to_owned(), release.to_owned());
     }
@@ -290,7 +287,7 @@ pub fn extract_transaction_metrics(
         end_timestamp,
     );
     let tags_with_satisfaction = match user_satisfaction {
-        Some(satisfaction) => with_tag(&tags, "satisfaction", satisfaction),
+        Some(satisfaction) => utils::with_tag(&tags, "satisfaction", satisfaction),
         None => tags.clone(),
     };
 
@@ -304,7 +301,7 @@ pub fn extract_transaction_metrics(
         MetricValue::Distribution(duration_millis),
         unix_timestamp,
         match extract_transaction_status(event) {
-            Some(status) => with_tag(&tags, "transaction.status", status),
+            Some(status) => utils::with_tag(&tags, "transaction.status", status),
             None => tags_with_satisfaction.clone(),
         },
     ));
@@ -327,8 +324,6 @@ pub fn extract_transaction_metrics(
             ));
         }
     }
-
-    true
 }
 
 #[cfg(feature = "processing")]
@@ -358,6 +353,7 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use super::*;
 
+    use crate::metrics_extraction::TaggingRule;
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
@@ -416,6 +412,7 @@ mod tests {
         extract_transaction_metrics(
             &TransactionMetricsConfig::default(),
             Some(&breakdowns_config),
+            &[],
             event.value().unwrap(),
             &mut metrics,
         );
@@ -441,6 +438,7 @@ mod tests {
         extract_transaction_metrics(
             &config,
             Some(&breakdowns_config),
+            &[],
             event.value().unwrap(),
             &mut metrics,
         );
@@ -513,7 +511,7 @@ mod tests {
         )
         .unwrap();
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
         assert_eq!(metrics.len(), 1);
 
@@ -571,7 +569,7 @@ mod tests {
         )
         .unwrap();
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
         assert_eq!(metrics.len(), 2);
 
         for metric in metrics {
@@ -619,7 +617,7 @@ mod tests {
         )
         .unwrap();
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
         assert_eq!(metrics.len(), 1);
 
         for metric in metrics {
@@ -661,12 +659,171 @@ mod tests {
         )
         .unwrap();
         let mut metrics = vec![];
-        extract_transaction_metrics(&config, None, event.value().unwrap(), &mut metrics);
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
         assert_eq!(metrics.len(), 1);
 
         for metric in metrics {
             assert_eq!(metric.tags.len(), 1);
             assert!(!metric.tags.contains_key("satisfaction"));
         }
+    }
+
+    #[test]
+    fn test_conditional_tagging() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:02+0100",
+            "measurements": {
+                "lcp": {"value": 41}
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/duration@millisecond"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let tagging_config: Vec<TaggingRule> = serde_json::from_str(
+            r#"
+        [
+            {
+                "condition": {"op": "gte", "name": "transaction.duration", "value": 9001},
+                "targetMetrics": ["d:transactions/duration@millisecond"],
+                "targetTag": "satisfaction",
+                "tagValue": "frustrated"
+            },
+            {
+                "condition": {"op": "gte", "name": "transaction.duration", "value": 666},
+                "targetMetrics": ["d:transactions/duration@millisecond"],
+                "targetTag": "satisfaction",
+                "tagValue": "tolerated"
+            },
+            {
+                "condition": {"op": "and", "inner": []},
+                "targetMetrics": ["d:transactions/duration@millisecond"],
+                "targetTag": "satisfaction",
+                "tagValue": "satisfied"
+            }
+        ]
+        "#,
+        )
+        .unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &config,
+            None,
+            &tagging_config,
+            event.value().unwrap(),
+            &mut metrics,
+        );
+        assert_eq!(
+            metrics,
+            &[Metric::new_mri(
+                METRIC_NAMESPACE,
+                "duration",
+                MetricUnit::Duration(DurationUnit::MilliSecond),
+                MetricValue::Distribution(2000.0),
+                UnixTimestamp::from_secs(1619420402),
+                {
+                    let mut tags = BTreeMap::new();
+                    tags.insert("satisfaction".to_owned(), "tolerated".to_owned());
+                    tags.insert("transaction".to_owned(), "foo".to_owned());
+                    tags
+                }
+            )]
+        );
+    }
+
+    #[test]
+    fn test_conditional_tagging_lcp() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:02+0100",
+            "measurements": {
+                "lcp": {"value": 41}
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/measurements.lcp@none"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let tagging_config: Vec<TaggingRule> = serde_json::from_str(
+            r#"
+        [
+            {
+                "condition": {"op": "gte", "name": "transaction.measurements.lcp", "value": 41},
+                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetTag": "satisfaction",
+                "tagValue": "frustrated"
+            },
+            {
+                "condition": {"op": "gte", "name": "transaction.measurements.lcp", "value": 20},
+                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetTag": "satisfaction",
+                "tagValue": "tolerated"
+            },
+            {
+                "condition": {"op": "and", "inner": []},
+                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetTag": "satisfaction",
+                "tagValue": "satisfied"
+            }
+        ]
+        "#,
+        )
+        .unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(
+            &config,
+            None,
+            &tagging_config,
+            event.value().unwrap(),
+            &mut metrics,
+        );
+        assert_eq!(
+            metrics,
+            &[Metric::new_mri(
+                METRIC_NAMESPACE,
+                "measurements.lcp",
+                MetricUnit::None,
+                MetricValue::Distribution(41.0),
+                UnixTimestamp::from_secs(1619420402),
+                {
+                    let mut tags = BTreeMap::new();
+                    tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
+                    tags.insert("measurement_rating".to_owned(), "good".to_owned());
+                    tags.insert("transaction".to_owned(), "foo".to_owned());
+                    tags
+                }
+            )]
+        );
     }
 }

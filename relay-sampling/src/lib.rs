@@ -11,11 +11,12 @@ use std::net::IpAddr;
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Number, Value};
 
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::Event;
+use relay_general::store::{get_measurement, validate_timestamps};
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -114,6 +115,51 @@ impl EqCondition {
         }
     }
 }
+
+macro_rules! impl_cmp_condition {
+    ($struct_name:ident, $operator:tt) => {
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        pub struct $struct_name {
+            pub name: String,
+            pub value: Number,
+        }
+
+        impl $struct_name {
+            fn matches_event(&self, event: &Event) -> bool {
+                self.matches(event)
+            }
+            fn matches_trace(&self, trace: &TraceContext) -> bool {
+                self.matches(trace)
+            }
+
+            fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+                let value = match value_provider.get_value(self.name.as_str()) {
+                    Value::Number(x) => x,
+                    _ => return false
+                };
+
+                // Try various conversion functions in order of expensiveness and likelihood
+                // - as_i64 is not really fast, but most values in sampling rules can be i64, so we could
+                //   return early
+                // - f64 is more likely to succeed than u64, but we might lose precision
+                if let (Some(a), Some(b)) = (value.as_i64(), self.value.as_i64()) {
+                    a $operator b
+                } else if let (Some(a), Some(b)) = (value.as_u64(), self.value.as_u64()) {
+                    a $operator b
+                } else if let (Some(a), Some(b)) = (value.as_f64(), self.value.as_f64()) {
+                    a $operator b
+                } else {
+                    false
+                }
+            }
+        }
+    }
+}
+
+impl_cmp_condition!(GteCondition, >=);
+impl_cmp_condition!(LteCondition, <=);
+impl_cmp_condition!(LtCondition, <);
+impl_cmp_condition!(GtCondition, >);
 
 /// A condition that uses glob matching.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -235,6 +281,10 @@ impl NotCondition {
 #[serde(rename_all = "camelCase", tag = "op")]
 pub enum RuleCondition {
     Eq(EqCondition),
+    Gte(GteCondition),
+    Lte(LteCondition),
+    Lt(LtCondition),
+    Gt(GtCondition),
     Glob(GlobCondition),
     Or(OrCondition),
     And(AndCondition),
@@ -252,7 +302,12 @@ impl RuleCondition {
         match self {
             RuleCondition::Unsupported => false,
             // we have a known condition
-            RuleCondition::Eq(_) | RuleCondition::Glob(_) => true,
+            RuleCondition::Gte(_)
+            | RuleCondition::Lte(_)
+            | RuleCondition::Gt(_)
+            | RuleCondition::Lt(_)
+            | RuleCondition::Eq(_)
+            | RuleCondition::Glob(_) => true,
             // dig down for embedded conditions
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
@@ -260,9 +315,13 @@ impl RuleCondition {
             RuleCondition::Custom(_) => true,
         }
     }
-    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
+    pub fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
         match self {
             RuleCondition::Eq(condition) => condition.matches_event(event),
+            RuleCondition::Lte(condition) => condition.matches_event(event),
+            RuleCondition::Gte(condition) => condition.matches_event(event),
+            RuleCondition::Gt(condition) => condition.matches_event(event),
+            RuleCondition::Lt(condition) => condition.matches_event(event),
             RuleCondition::Glob(condition) => condition.matches_event(event),
             RuleCondition::And(conditions) => conditions.matches_event(event, ip_addr),
             RuleCondition::Or(conditions) => conditions.matches_event(event, ip_addr),
@@ -271,9 +330,13 @@ impl RuleCondition {
             RuleCondition::Custom(condition) => condition.matches_event(event, ip_addr),
         }
     }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+    pub fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
         match self {
             RuleCondition::Eq(condition) => condition.matches_trace(trace),
+            RuleCondition::Gte(condition) => condition.matches_trace(trace),
+            RuleCondition::Lte(condition) => condition.matches_trace(trace),
+            RuleCondition::Gt(condition) => condition.matches_trace(trace),
+            RuleCondition::Lt(condition) => condition.matches_trace(trace),
             RuleCondition::Glob(condition) => condition.matches_trace(trace),
             RuleCondition::And(conditions) => conditions.matches_trace(trace, ip_addr),
             RuleCondition::Or(conditions) => conditions.matches_trace(trace, ip_addr),
@@ -369,6 +432,23 @@ impl FieldValueProvider for Event {
                 None => Value::Null,
                 Some(s) => s.as_str().into(),
             },
+            "transaction.duration" => match (self.ty.value(), validate_timestamps(self)) {
+                (Some(&EventType::Transaction), Ok((start, end))) => {
+                    let start = start.timestamp_millis();
+                    let end = end.timestamp_millis();
+
+                    Value::Number(end.saturating_sub(start).into())
+                }
+                _ => Value::Null,
+            },
+            field_name if field_name.starts_with("transaction.measurements.") => {
+                let measurement_name = &field_name["transaction.measurements.".len()..];
+                if let Some(value) = get_measurement(self, measurement_name) {
+                    value.into()
+                } else {
+                    Value::Null
+                }
+            }
             _ => Value::Null,
         }
     }

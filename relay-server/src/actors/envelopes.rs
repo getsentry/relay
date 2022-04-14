@@ -1626,6 +1626,11 @@ impl EnvelopeProcessor {
         };
 
         let breakdowns_config = state.project_state.config.breakdowns_v2.as_ref();
+        let conditional_tagging_config = state
+            .project_state
+            .config
+            .metric_conditional_tagging
+            .as_slice();
 
         if let Some(event) = state.event.value() {
             let extracted_anything;
@@ -1638,6 +1643,7 @@ impl EnvelopeProcessor {
                     extracted_anything = extract_transaction_metrics(
                         config,
                         breakdowns_config,
+                        conditional_tagging_config,
                         event,
                         &mut state.extracted_metrics,
                     );
