@@ -289,9 +289,9 @@ pub fn extract_transaction_metrics(
                 None => continue,
             };
 
-            let mut tags_for_measurements = tags.clone();
+            let mut tags_for_measurement = tags.clone();
             if let Some(rating) = get_measurement_rating(measurement_name, measurement) {
-                tags_for_measurements.insert("measurement_rating".to_owned(), rating);
+                tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
             push_metric(Metric::new_mri(
@@ -300,7 +300,7 @@ pub fn extract_transaction_metrics(
                 MetricUnit::None,
                 MetricValue::Distribution(measurement),
                 unix_timestamp,
-                tags_for_measurements,
+                tags_for_measurement,
             ));
         }
     }
