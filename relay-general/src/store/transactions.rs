@@ -15,7 +15,7 @@ pub fn get_measurement(transaction: &Event, name: &str) -> Option<f64> {
 pub fn get_transaction_op(transaction: &Event) -> Option<&str> {
     let context = transaction.contexts.value()?.get("trace")?.value()?;
     match **context {
-        Context::Trace(ref trace_context) => Some(&trace_context.op.value()?),
+        Context::Trace(ref trace_context) => Some(trace_context.op.value()?),
         _ => None,
     }
 }
