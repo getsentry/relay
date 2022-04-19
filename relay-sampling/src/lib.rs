@@ -454,6 +454,10 @@ impl FieldValueProvider for Event {
             field_name
                 if field_name.starts_with("event.measurements.")
                     && field_name.ends_with(".value")
+
+                    // greater than: there must be at least one character between the prefix and
+                    // suffix. `event.measurements.value` is not valid. If we let that through, the
+                    // indexed access below would panic
                     && field_name.len() > "event.measurements.".len() + ".value".len() =>
             {
                 let measurement_name =
