@@ -26,7 +26,7 @@ pub use normalize::breakdowns::{
     get_breakdown_measurements, BreakdownConfig, BreakdownsConfig, SpanOperationsConfig,
 };
 pub use normalize::normalize_dist;
-pub use transactions::{get_measurement, validate_timestamps};
+pub use transactions::{get_measurement, get_transaction_op, validate_timestamps};
 
 /// The config for store.
 #[derive(Serialize, Deserialize, Debug, Default)]

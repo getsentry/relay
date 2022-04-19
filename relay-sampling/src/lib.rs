@@ -16,7 +16,7 @@ use serde_json::{Number, Value};
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::Event;
-use relay_general::store::{get_measurement, validate_timestamps};
+use relay_general::store::{get_measurement, get_transaction_op, validate_timestamps};
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -441,6 +441,14 @@ impl FieldValueProvider for Event {
                 }
                 _ => Value::Null,
             },
+            "transaction.op" => match (self.ty.value(), get_transaction_op(self)) {
+                (Some(&EventType::Transaction), Some(op_name)) => Value::String(op_name.to_owned()),
+                _ => Value::Null,
+            },
+            "event.platform" => self
+                .platform
+                .value()
+                .map_or(Value::Null, |platform| Value::String(platform.to_owned())),
             field_name if field_name.starts_with("transaction.measurements.") => {
                 let measurement_name = &field_name["transaction.measurements.".len()..];
                 if let Some(value) = get_measurement(self, measurement_name) {

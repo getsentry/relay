@@ -12,6 +12,14 @@ pub fn get_measurement(transaction: &Event, name: &str) -> Option<f64> {
     Some(*value)
 }
 
+pub fn get_transaction_op(transaction: &Event) -> Option<&str> {
+    let context = transaction.contexts.value()?.get("trace")?.value()?;
+    match **context {
+        Context::Trace(ref trace_context) => Some(&trace_context.op.value()?),
+        _ => None,
+    }
+}
+
 /// Returns start and end timestamps if they are both set and start <= end.
 pub fn validate_timestamps(
     transaction_event: &Event,
