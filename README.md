@@ -250,7 +250,7 @@ There are two separate projects to publish:
 
 - **Relay binary** is automatically released using [Calendar Versioning](https://calver.org/) on a monthly basis together with `sentry` (see https://develop.sentry.dev/self-hosted/releases/), so there should be no reason to create a release manually. That said, manual releases are possible with the ["Release" action](https://github.com/getsentry/relay/actions/workflows/release_binary.yml). Make sure that [`CHANGELOG.md`](./CHANGELOG.md) is up-to-date before running the action.
 
-- **Relay Python library** along with the C-ABI are released with the ["Release Library" action](https://github.com/getsentry/relay/actions/workflows/release_library.yml). Make sure that [`py/CHANGELOG.md`](./py/CHANGELOG.md) is up-to-date before running the action. Hit "Run workflow" and choose a new version. We use [Semantic Versioning](https://semver.org/) and release during the development cycle.
+- **Relay Python library** along with the C-ABI are released with the ["Release Library" action](https://github.com/getsentry/relay/actions/workflows/release_library.yml). Make sure that [`py/CHANGELOG.md`](./py/CHANGELOG.md) is up-to-date before running the action. Press "Run workflow" and choose a new version. We use [Semantic Versioning](https://semver.org/) and release during the development cycle.
 
 ### Instructions for changelogs
 
