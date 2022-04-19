@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add op, http.method and status tag to all extracted transaction metrics. ([#1227](https://github.com/getsentry/relay/pull/1227))
+- Add platform, op, http.method and status tag to all extracted transaction metrics. ([#1227](https://github.com/getsentry/relay/pull/1227))
 
 
 **Features**:
