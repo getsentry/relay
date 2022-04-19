@@ -166,7 +166,7 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize::breakdowns</span>::{
     <span class="ident">get_breakdown_measurements</span>, <span class="ident">BreakdownConfig</span>, <span class="ident">BreakdownsConfig</span>, <span class="ident">SpanOperationsConfig</span>,
 };
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize::normalize_dist</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize</span>::{<span class="ident">is_valid_platform</span>, <span class="ident">normalize_dist</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">transactions</span>::{<span class="ident">get_measurement</span>, <span class="ident">validate_timestamps</span>};
 
 <span class="doccomment">/// The config for store.</span>
