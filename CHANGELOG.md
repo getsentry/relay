@@ -9,7 +9,7 @@
 
 **Internal**:
 
-* Add sampling + tagging by event platform and transaction op. ([#1231](https://github.com/getsentry/relay/pull/1231))
+* Add sampling + tagging by event platform and transaction op. Some (unused) tagging rules from 22.4.0 have been renamed. ([#1231](https://github.com/getsentry/relay/pull/1231))
 
 ## 22.4.0
 
