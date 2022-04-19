@@ -190,11 +190,9 @@ fn extract_universal_tags(
 
     // The platform tag should not increase dimensionality in most cases, because most
     // transactions are specific to one platform
-    let platform = event.platform.as_str().unwrap_or("other");
-    let platform = if store::is_valid_platform(platform) {
-        platform
-    } else {
-        "other"
+    let platform = match event.platform.as_str() {
+        Some(platform) if store::is_valid_platform(platform) => platform,
+        _ => "other",
     };
     tags.insert("platform".to_owned(), platform.to_owned());
 
@@ -643,6 +641,7 @@ mod tests {
         let json = r#"
         {
             "type": "transaction",
+            "platform": "bogus",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "release": "1.2.3",
