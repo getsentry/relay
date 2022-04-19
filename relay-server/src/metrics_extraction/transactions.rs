@@ -231,6 +231,36 @@ fn extract_universal_tags(
     tags
 }
 
+/// Returns the unit of the provided metric. Defaults to None.
+#[cfg(feature = "processing")]
+fn get_metric_measurement_unit(metric: &str) -> MetricUnit {
+    match metric {
+        // Web
+        "fcp" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "lcp" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "fid" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "fp" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "ttfb" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "ttfb.requesttime" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "cls" => MetricUnit::None,
+
+        // Mobile
+        "app_start_cold" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "app_start_warm" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "frames_total" => MetricUnit::None,
+        "frames_slow" => MetricUnit::None,
+        "frames_frozen" => MetricUnit::None,
+
+        // React-Native
+        "stall_count" => MetricUnit::None,
+        "stall_total_time" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "stall_longest_time" => MetricUnit::Duration(DurationUnit::MilliSecond),
+
+        // Default
+        _ => MetricUnit::None,
+    }
+}
+
 #[cfg(feature = "processing")]
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
@@ -302,7 +332,7 @@ fn extract_transaction_metrics_inner(
             push_metric(Metric::new_mri(
                 METRIC_NAMESPACE,
                 format_args!("measurements.{}", measurement_name),
-                MetricUnit::None,
+                get_metric_measurement_unit(measurement_name),
                 MetricValue::Distribution(measurement),
                 unix_timestamp,
                 tags_for_measurement,
@@ -482,7 +512,7 @@ mod tests {
         {
             "extractMetrics": [
                 "d:transactions/measurements.foo@none",
-                "d:transactions/measurements.lcp@none",
+                "d:transactions/measurements.lcp@millisecond",
                 "d:transactions/breakdowns.span_ops.ops.react.mount@none",
                 "d:transactions/duration@millisecond",
                 "s:transactions/user@none"
@@ -505,7 +535,10 @@ mod tests {
         assert_eq!(metrics.len(), 5, "{:?}", metrics);
 
         assert_eq!(metrics[0].name, "d:transactions/measurements.foo@none");
-        assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@none");
+        assert_eq!(
+            metrics[1].name,
+            "d:transactions/measurements.lcp@millisecond"
+        );
         assert_eq!(
             metrics[2].name,
             "d:transactions/breakdowns.span_ops.ops.react.mount@none"
@@ -541,6 +574,68 @@ mod tests {
             assert_eq!(metric.tags["platform"], "javascript");
             assert!(!metric.tags.contains_key("bogus"));
         }
+    }
+
+    #[test]
+    fn test_metric_measurement_units() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "measurements": {
+                "fcp": {"value": 1.1},
+                "stall_count": {"value": 3.3},
+                "foo": {"value": 8.8}
+            }
+        }
+        "#;
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/measurements.fcp@millisecond",
+                "d:transactions/measurements.stall_count@none",
+                "d:transactions/measurements.foo@none"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 3, "{:?}", metrics);
+
+        assert_eq!(
+            metrics[0].name, "d:transactions/measurements.fcp@millisecond",
+            "{:?}",
+            metrics[0]
+        );
+        assert_eq!(
+            metrics[0].unit,
+            MetricUnit::Duration(DurationUnit::MilliSecond),
+            "{:?}",
+            metrics[0]
+        );
+
+        assert_eq!(
+            metrics[1].name, "d:transactions/measurements.foo@none",
+            "{:?}",
+            metrics[1]
+        );
+        assert_eq!(metrics[1].unit, MetricUnit::None, "{:?}", metrics[1]);
+
+        assert_eq!(
+            metrics[2].name, "d:transactions/measurements.stall_count@none",
+            "{:?}",
+            metrics[2]
+        );
+        assert_eq!(metrics[2].unit, MetricUnit::None, "{:?}", metrics[2]);
     }
 
     #[test]
@@ -841,7 +936,7 @@ mod tests {
             r#"
         {
             "extractMetrics": [
-                "d:transactions/measurements.lcp@none"
+                "d:transactions/measurements.lcp@millisecond"
             ]
         }
         "#,
@@ -853,19 +948,19 @@ mod tests {
         [
             {
                 "condition": {"op": "gte", "name": "transaction.measurements.lcp", "value": 41},
-                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
                 "targetTag": "satisfaction",
                 "tagValue": "frustrated"
             },
             {
                 "condition": {"op": "gte", "name": "transaction.measurements.lcp", "value": 20},
-                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
                 "targetTag": "satisfaction",
                 "tagValue": "tolerated"
             },
             {
                 "condition": {"op": "and", "inner": []},
-                "targetMetrics": ["d:transactions/measurements.lcp@none"],
+                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
                 "targetTag": "satisfaction",
                 "tagValue": "satisfied"
             }
@@ -887,7 +982,7 @@ mod tests {
             &[Metric::new_mri(
                 METRIC_NAMESPACE,
                 "measurements.lcp",
-                MetricUnit::None,
+                MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(41.0),
                 UnixTimestamp::from_secs(1619420402),
                 {
