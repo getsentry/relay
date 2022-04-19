@@ -432,7 +432,7 @@ impl FieldValueProvider for Event {
                 None => Value::Null,
                 Some(s) => s.as_str().into(),
             },
-            "transaction.duration" => match (self.ty.value(), store::validate_timestamps(self)) {
+            "event.duration" => match (self.ty.value(), store::validate_timestamps(self)) {
                 (Some(&EventType::Transaction), Ok((start, end))) => {
                     let start = start.timestamp_millis();
                     let end = end.timestamp_millis();
@@ -441,7 +441,7 @@ impl FieldValueProvider for Event {
                 }
                 _ => Value::Null,
             },
-            "transaction.op" => match (self.ty.value(), store::get_transaction_op(self)) {
+            "event.contexts.trace.op" => match (self.ty.value(), store::get_transaction_op(self)) {
                 (Some(&EventType::Transaction), Some(op_name)) => Value::String(op_name.to_owned()),
                 _ => Value::Null,
             },
@@ -451,8 +451,13 @@ impl FieldValueProvider for Event {
                 }
                 _ => Value::Null,
             },
-            field_name if field_name.starts_with("transaction.measurements.") => {
-                let measurement_name = &field_name["transaction.measurements.".len()..];
+            field_name
+                if field_name.starts_with("event.measurements.")
+                    && field_name.ends_with(".value")
+                    && field_name.len() > "event.measurements.".len() + ".value".len() =>
+            {
+                let measurement_name =
+                    &field_name["event.measurements.".len()..field_name.len() - ".value".len()];
                 if let Some(value) = store::get_measurement(self, measurement_name) {
                     value.into()
                 } else {
