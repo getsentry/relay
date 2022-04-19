@@ -449,7 +449,7 @@ impl FieldValueProvider for Event {
                 Some(platform) if store::is_valid_platform(platform) => {
                     Value::String(platform.to_owned())
                 }
-                _ => Value::Null,
+                _ => Value::String("other".to_owned()),
             },
             field_name
                 if field_name.starts_with("event.measurements.")
