@@ -62,7 +62,7 @@ impl DedupCache {
     }
 }
 
-fn is_valid_platform(platform: &str) -> bool {
+pub fn is_valid_platform(platform: &str) -> bool {
     VALID_PLATFORMS.contains(&platform)
 }
 

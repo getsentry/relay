@@ -6,11 +6,11 @@ use {
     crate::metrics_extraction::conditional_tagging::run_conditional_tagging,
     crate::metrics_extraction::{utils, TaggingRule},
     relay_common::UnixTimestamp,
+    relay_general::protocol::TraceContext,
     relay_general::protocol::{AsPair, Event, EventType, Timestamp},
-    relay_general::store::{
-        get_breakdown_measurements, get_measurement, normalize_dist, validate_timestamps,
-        BreakdownsConfig,
-    },
+    relay_general::protocol::{Context, ContextInner},
+    relay_general::store,
+    relay_general::types::Annotated,
     relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue},
     std::fmt,
 };
@@ -56,26 +56,42 @@ pub struct TransactionMetricsConfig {
 const METRIC_NAMESPACE: &str = "transactions";
 
 #[cfg(feature = "processing")]
-fn extract_transaction_status(transaction: &Event) -> Option<String> {
-    use relay_general::{
-        protocol::{Context, ContextInner},
-        types::Annotated,
-    };
+fn get_trace_context(event: &Event) -> Option<&TraceContext> {
+    let contexts = event.contexts.value()?;
+    let trace = contexts.get("trace").map(Annotated::value);
+    if let Some(Some(ContextInner(Context::Trace(trace_context)))) = trace {
+        return Some(trace_context.as_ref());
+    }
 
-    let contexts = transaction.contexts.value()?;
-    let trace_context = match contexts.get("trace").map(Annotated::value) {
-        Some(Some(ContextInner(Context::Trace(trace_context)))) => trace_context,
-        _ => return None,
-    };
+    None
+}
+
+#[cfg(feature = "processing")]
+fn extract_transaction_status(trace_context: &TraceContext) -> Option<String> {
     let span_status = trace_context.status.value()?;
     Some(span_status.to_string())
 }
 
 #[cfg(feature = "processing")]
+fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
+    let op = trace_context.op.value()?;
+    Some(op.to_string())
+}
+
+#[cfg(feature = "processing")]
 fn extract_dist(transaction: &Event) -> Option<String> {
     let mut dist = transaction.dist.0.clone();
-    normalize_dist(&mut dist);
+    store::normalize_dist(&mut dist);
     dist
+}
+
+/// Extract HTTP method
+/// See https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67
+#[cfg(feature = "processing")]
+fn extract_http_method(transaction: &Event) -> Option<String> {
+    let request = transaction.request.value()?;
+    let method = request.method.value()?;
+    Some(method.to_owned())
 }
 
 /// Satisfaction value used for Apdex and User Misery
@@ -143,13 +159,74 @@ fn extract_user_satisfaction(
             SatisfactionMetric::Duration => {
                 Some(get_duration_millis(start_timestamp, end_timestamp))
             }
-            SatisfactionMetric::Lcp => get_measurement(transaction, "lcp"),
+            SatisfactionMetric::Lcp => store::get_measurement(transaction, "lcp"),
             SatisfactionMetric::Unknown => None,
         } {
             return Some(UserSatisfaction::from_value(value, threshold.threshold));
         }
     }
     None
+}
+
+/// These are the tags that are added to all extracted metrics.
+#[cfg(feature = "processing")]
+fn extract_universal_tags(
+    event: &Event,
+    custom_tags: &BTreeSet<String>,
+) -> BTreeMap<String, String> {
+    let mut tags = BTreeMap::new();
+    if let Some(release) = event.release.as_str() {
+        tags.insert("release".to_owned(), release.to_owned());
+    }
+    if let Some(dist) = extract_dist(event) {
+        tags.insert("dist".to_owned(), dist);
+    }
+    if let Some(environment) = event.environment.as_str() {
+        tags.insert("environment".to_owned(), environment.to_owned());
+    }
+    if let Some(transaction) = event.transaction.as_str() {
+        tags.insert("transaction".to_owned(), transaction.to_owned());
+    }
+
+    // The platform tag should not increase dimensionality in most cases, because most
+    // transactions are specific to one platform
+    let platform = match event.platform.as_str() {
+        Some(platform) if store::is_valid_platform(platform) => platform,
+        _ => "other",
+    };
+    tags.insert("platform".to_owned(), platform.to_owned());
+
+    if let Some(trace_context) = get_trace_context(event) {
+        if let Some(status) = extract_transaction_status(trace_context) {
+            tags.insert("transaction.status".to_owned(), status);
+        }
+
+        if let Some(op) = extract_transaction_op(trace_context) {
+            tags.insert("transaction.op".to_owned(), op);
+        }
+    }
+
+    if let Some(http_method) = extract_http_method(event) {
+        tags.insert("http.method".to_owned(), http_method);
+    }
+
+    if !custom_tags.is_empty() {
+        // XXX(slow): event tags are a flat array
+        if let Some(event_tags) = event.tags.value() {
+            for tag_entry in &**event_tags {
+                if let Some(entry) = tag_entry.value() {
+                    let (key, value) = entry.as_pair();
+                    if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
+                        if custom_tags.contains(key) {
+                            tags.insert(key.to_owned(), value.to_owned());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    tags
 }
 
 /// Returns the unit of the provided metric. Defaults to None.
@@ -185,7 +262,7 @@ fn get_metric_measurement_unit(metric: &str) -> MetricUnit {
 #[cfg(feature = "processing")]
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
-    breakdowns_config: Option<&BreakdownsConfig>,
+    breakdowns_config: Option<&store::BreakdownsConfig>,
     conditional_tagging_config: &[TaggingRule],
     event: &Event,
     target: &mut Vec<Metric>,
@@ -215,7 +292,7 @@ pub fn extract_transaction_metrics(
 #[cfg(feature = "processing")]
 fn extract_transaction_metrics_inner(
     config: &TransactionMetricsConfig,
-    breakdowns_config: Option<&BreakdownsConfig>,
+    breakdowns_config: Option<&store::BreakdownsConfig>,
     event: &Event,
     mut push_metric: impl FnMut(Metric),
 ) {
@@ -223,7 +300,7 @@ fn extract_transaction_metrics_inner(
         return;
     }
 
-    let (start_timestamp, end_timestamp) = match validate_timestamps(event) {
+    let (start_timestamp, end_timestamp) = match store::validate_timestamps(event) {
         Ok(pair) => pair,
         Err(_) => {
             return; // invalid transaction
@@ -235,35 +312,7 @@ fn extract_transaction_metrics_inner(
         None => return,
     };
 
-    let mut tags = BTreeMap::<String, String>::new();
-    if let Some(release) = event.release.as_str() {
-        tags.insert("release".to_owned(), release.to_owned());
-    }
-    if let Some(dist) = extract_dist(event) {
-        tags.insert("dist".to_owned(), dist);
-    }
-    if let Some(environment) = event.environment.as_str() {
-        tags.insert("environment".to_owned(), environment.to_owned());
-    }
-    if let Some(transaction) = event.transaction.as_str() {
-        tags.insert("transaction".to_owned(), transaction.to_owned());
-    }
-
-    if !config.extract_custom_tags.is_empty() {
-        // XXX(slow): event tags are a flat array
-        if let Some(event_tags) = event.tags.value() {
-            for tag_entry in &**event_tags {
-                if let Some(entry) = tag_entry.value() {
-                    let (key, value) = entry.as_pair();
-                    if let (Some(key), Some(value)) = (key.as_str(), value.as_str()) {
-                        if config.extract_custom_tags.contains(key) {
-                            tags.insert(key.to_owned(), value.to_owned());
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let tags = extract_universal_tags(event, &config.extract_custom_tags);
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
@@ -273,9 +322,9 @@ fn extract_transaction_metrics_inner(
                 None => continue,
             };
 
-            let mut tags = tags.clone();
+            let mut tags_for_measurement = tags.clone();
             if let Some(rating) = get_measurement_rating(measurement_name, measurement) {
-                tags.insert("measurement_rating".to_owned(), rating);
+                tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
             push_metric(Metric::new_mri(
@@ -284,14 +333,15 @@ fn extract_transaction_metrics_inner(
                 get_metric_measurement_unit(measurement_name),
                 MetricValue::Distribution(measurement),
                 unix_timestamp,
-                tags,
+                tags_for_measurement,
             ));
         }
     }
 
     // Breakdowns
     if let Some(breakdowns_config) = breakdowns_config {
-        for (breakdown, measurements) in get_breakdown_measurements(event, breakdowns_config) {
+        for (breakdown, measurements) in store::get_breakdown_measurements(event, breakdowns_config)
+        {
             for (measurement_name, annotated) in measurements.iter() {
                 let measurement = match annotated.value().and_then(|m| m.value.value()) {
                     Some(measurement) => *measurement,
@@ -318,7 +368,7 @@ fn extract_transaction_metrics_inner(
     );
     let tags_with_satisfaction = match user_satisfaction {
         Some(satisfaction) => utils::with_tag(&tags, "satisfaction", satisfaction),
-        None => tags.clone(),
+        None => tags,
     };
 
     // Duration
@@ -330,10 +380,7 @@ fn extract_transaction_metrics_inner(
         MetricUnit::Duration(DurationUnit::MilliSecond),
         MetricValue::Distribution(duration_millis),
         unix_timestamp,
-        match extract_transaction_status(event) {
-            Some(status) => utils::with_tag(&tags, "transaction.status", status),
-            None => tags_with_satisfaction.clone(),
-        },
+        tags_with_satisfaction.clone(),
     ));
 
     // User
@@ -393,6 +440,7 @@ mod tests {
         let json = r#"
         {
             "type": "transaction",
+            "platform": "javascript",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "release": "1.2.3",
@@ -410,6 +458,12 @@ mod tests {
                 "foo": {"value": 420.69},
                 "lcp": {"value": 3000.0}
             },
+            "contexts": {
+                "trace": {
+                    "op": "myop",
+                    "status": "ok"
+                }
+            },
             "spans": [
                 {
                     "description": "<OrganizationContext>",
@@ -420,7 +474,10 @@ mod tests {
                     "timestamp": 1597976393.4718769,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 }
-            ]
+            ],
+            "request": {
+                "method": "POST"
+            }
         }
         "#;
 
@@ -509,6 +566,10 @@ mod tests {
             assert_eq!(metric.tags["environment"], "fake_environment");
             assert_eq!(metric.tags["transaction"], "mytransaction");
             assert_eq!(metric.tags["fOO"], "bar");
+            assert_eq!(metric.tags["http.method"], "POST");
+            assert_eq!(metric.tags["transaction.status"], "ok");
+            assert_eq!(metric.tags["transaction.op"], "myop");
+            assert_eq!(metric.tags["platform"], "javascript");
             assert!(!metric.tags.contains_key("bogus"));
         }
     }
@@ -580,6 +641,7 @@ mod tests {
         let json = r#"
         {
             "type": "transaction",
+            "platform": "bogus",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "release": "1.2.3",
@@ -622,11 +684,12 @@ mod tests {
             panic!(); // Duration must be set
         }
 
-        assert_eq!(duration_metric.tags.len(), 4);
+        assert_eq!(duration_metric.tags.len(), 5);
         assert_eq!(duration_metric.tags["release"], "1.2.3");
         assert_eq!(duration_metric.tags["transaction.status"], "ok");
         assert_eq!(duration_metric.tags["environment"], "fake_environment");
         assert_eq!(duration_metric.tags["transaction"], "mytransaction");
+        assert_eq!(duration_metric.tags["platform"], "other");
     }
 
     #[test]
@@ -639,6 +702,11 @@ mod tests {
             "timestamp": "2021-04-26T08:00:01+0100",
             "user": {
                 "id": "user123"
+            },
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
             }
         }
         "#;
@@ -667,10 +735,14 @@ mod tests {
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
         assert_eq!(metrics.len(), 2);
 
-        for metric in metrics {
-            assert_eq!(metric.tags.len(), 2);
-            assert_eq!(metric.tags["satisfaction"], "tolerated");
-        }
+        let duration_metric = &metrics[0];
+        assert_eq!(duration_metric.tags.len(), 4);
+        assert_eq!(duration_metric.tags["satisfaction"], "tolerated");
+        assert_eq!(duration_metric.tags["transaction.status"], "ok");
+
+        let user_metric = &metrics[1];
+        assert_eq!(user_metric.tags.len(), 4);
+        assert_eq!(user_metric.tags["satisfaction"], "tolerated");
     }
 
     #[test]
@@ -716,7 +788,7 @@ mod tests {
         assert_eq!(metrics.len(), 1);
 
         for metric in metrics {
-            assert_eq!(metric.tags.len(), 2);
+            assert_eq!(metric.tags.len(), 3);
             assert_eq!(metric.tags["satisfaction"], "satisfied");
         }
     }
@@ -758,7 +830,7 @@ mod tests {
         assert_eq!(metrics.len(), 1);
 
         for metric in metrics {
-            assert_eq!(metric.tags.len(), 1);
+            assert_eq!(metric.tags.len(), 2);
             assert!(!metric.tags.contains_key("satisfaction"));
         }
     }
@@ -836,6 +908,7 @@ mod tests {
                     let mut tags = BTreeMap::new();
                     tags.insert("satisfaction".to_owned(), "tolerated".to_owned());
                     tags.insert("transaction".to_owned(), "foo".to_owned());
+                    tags.insert("platform".to_owned(), "other".to_owned());
                     tags
                 }
             )]
@@ -916,6 +989,7 @@ mod tests {
                     tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
                     tags.insert("measurement_rating".to_owned(), "good".to_owned());
                     tags.insert("transaction".to_owned(), "foo".to_owned());
+                    tags.insert("platform".to_owned(), "other".to_owned());
                     tags
                 }
             )]
