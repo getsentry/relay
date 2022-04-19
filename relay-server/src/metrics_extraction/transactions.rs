@@ -203,8 +203,8 @@ fn extract_universal_tags(
             tags.insert("transaction.status".to_owned(), status);
         }
 
-        if let Some(status) = extract_transaction_op(trace_context) {
-            tags.insert("transaction.op".to_owned(), status);
+        if let Some(op) = extract_transaction_op(trace_context) {
+            tags.insert("transaction.op".to_owned(), op);
         }
     }
 
