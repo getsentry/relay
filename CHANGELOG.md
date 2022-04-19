@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+* Add sampling + tagging by event platform and transaction op. ([#1231](https://github.com/getsentry/relay/pull/1231))
+
 ## 22.4.0
 
 **Features**:
