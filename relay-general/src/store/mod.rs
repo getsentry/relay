@@ -25,7 +25,7 @@ pub use self::geo::{GeoIpError, GeoIpLookup};
 pub use normalize::breakdowns::{
     get_breakdown_measurements, BreakdownConfig, BreakdownsConfig, SpanOperationsConfig,
 };
-pub use normalize::normalize_dist;
+pub use normalize::{is_valid_platform, normalize_dist};
 pub use transactions::{get_measurement, validate_timestamps};
 
 /// The config for store.
