@@ -16,7 +16,7 @@ use serde_json::{Number, Value};
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::Event;
-use relay_general::store::{get_measurement, validate_timestamps};
+use relay_general::store;
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -432,7 +432,7 @@ impl FieldValueProvider for Event {
                 None => Value::Null,
                 Some(s) => s.as_str().into(),
             },
-            "transaction.duration" => match (self.ty.value(), validate_timestamps(self)) {
+            "event.duration" => match (self.ty.value(), store::validate_timestamps(self)) {
                 (Some(&EventType::Transaction), Ok((start, end))) => {
                     let start = start.timestamp_millis();
                     let end = end.timestamp_millis();
@@ -441,13 +441,25 @@ impl FieldValueProvider for Event {
                 }
                 _ => Value::Null,
             },
-            field_name if field_name.starts_with("transaction.measurements.") => {
-                let measurement_name = &field_name["transaction.measurements.".len()..];
-                if let Some(value) = get_measurement(self, measurement_name) {
-                    value.into()
-                } else {
-                    Value::Null
+            "event.contexts.trace.op" => match (self.ty.value(), store::get_transaction_op(self)) {
+                (Some(&EventType::Transaction), Some(op_name)) => Value::String(op_name.to_owned()),
+                _ => Value::Null,
+            },
+            "event.platform" => match self.platform.value() {
+                Some(platform) if store::is_valid_platform(platform) => {
+                    Value::String(platform.to_owned())
                 }
+                _ => Value::String("other".to_owned()),
+            },
+            field_name
+                if field_name.starts_with("event.measurements.")
+                    && field_name.ends_with(".value") =>
+            {
+                field_name
+                    .get("event.measurements.".len()..field_name.len() - ".value".len())
+                    .filter(|measurement_name| !measurement_name.is_empty())
+                    .and_then(|measurement_name| store::get_measurement(self, measurement_name))
+                    .map_or(Value::Null, Into::into)
             }
             _ => Value::Null,
         }

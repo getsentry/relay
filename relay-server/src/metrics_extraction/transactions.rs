@@ -866,13 +866,13 @@ mod tests {
             r#"
         [
             {
-                "condition": {"op": "gte", "name": "transaction.duration", "value": 9001},
+                "condition": {"op": "gte", "name": "event.duration", "value": 9001},
                 "targetMetrics": ["d:transactions/duration@millisecond"],
                 "targetTag": "satisfaction",
                 "tagValue": "frustrated"
             },
             {
-                "condition": {"op": "gte", "name": "transaction.duration", "value": 666},
+                "condition": {"op": "gte", "name": "event.duration", "value": 666},
                 "targetMetrics": ["d:transactions/duration@millisecond"],
                 "targetTag": "satisfaction",
                 "tagValue": "tolerated"
@@ -946,13 +946,13 @@ mod tests {
             r#"
         [
             {
-                "condition": {"op": "gte", "name": "transaction.measurements.lcp", "value": 41},
+                "condition": {"op": "gte", "name": "event.measurements.lcp.value", "value": 41},
                 "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
                 "targetTag": "satisfaction",
                 "tagValue": "frustrated"
             },
             {
-                "condition": {"op": "gte", "name": "transaction.measurements.lcp", "value": 20},
+                "condition": {"op": "gte", "name": "event.measurements.lcp.value", "value": 20},
                 "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
                 "targetTag": "satisfaction",
                 "tagValue": "tolerated"
