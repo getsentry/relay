@@ -453,20 +453,13 @@ impl FieldValueProvider for Event {
             },
             field_name
                 if field_name.starts_with("event.measurements.")
-                    && field_name.ends_with(".value")
-
-                    // greater than: there must be at least one character between the prefix and
-                    // suffix. `event.measurements.value` is not valid. If we let that through, the
-                    // indexed access below would panic
-                    && field_name.len() > "event.measurements.".len() + ".value".len() =>
+                    && field_name.ends_with(".value") =>
             {
-                let measurement_name =
-                    &field_name["event.measurements.".len()..field_name.len() - ".value".len()];
-                if let Some(value) = store::get_measurement(self, measurement_name) {
-                    value.into()
-                } else {
-                    Value::Null
-                }
+                field_name
+                    .get("event.measurements.".len()..field_name.len() - ".value".len())
+                    .filter(|measurement_name| !measurement_name.is_empty())
+                    .and_then(|measurement_name| store::get_measurement(self, measurement_name))
+                    .map_or(Value::Null, Into::into)
             }
             _ => Value::Null,
         }
