@@ -1003,4 +1003,44 @@ mod tests {
             .unwrap()]
         );
     }
+
+    #[test]
+    fn test_too_large_tx_metric_name() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2022-04-21T08:00:00+0100",
+            "start_timestamp": "2022-04-21T07:59:01+0100",
+            "measurements": {
+                "short_name": {"value": 10},
+                "long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is": {"value": 275}
+            }
+        }
+        "#;
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/measurements.short_name@none",
+                "d:transactions/measurements.long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is@none"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+        dbg!(&metrics);
+
+        assert_eq!(metrics.len(), 1, "{:?}", metrics);
+        assert_eq!(
+            metrics[0].name, "d:transactions/measurements.short_name@none",
+            "{:?}",
+            metrics[0]
+        );
+    }
 }
