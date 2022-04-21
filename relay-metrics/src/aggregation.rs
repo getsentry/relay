@@ -2127,8 +2127,9 @@ mod tests {
                 // strip out NUL-bytes instead of dropping the tag such that those values line up
                 // again across sessions and events. Should that cause too high cardinality we'll
                 // have to drop tags.
-                // Note that releases are validated separately against much 
-                // stricter character set, but the above idea should still apply to other tags.
+                //
+                // Note that releases are validated separately against much stricter character set,
+                // but the above idea should still apply to other tags.
                 tags.insert(
                     "is_it_garbage".to_owned(),
                     "a\0b\0s\0o\0l\0u\0t\0e\0l\0y".to_owned(),
