@@ -36,7 +36,6 @@ use human_size::{Any, Size, SpecificSize};
 /// let size = ByteSize::kibibytes(42);
 /// assert_eq!("42KiB", size.to_string());
 /// ```
-#[derive(Clone)]
 pub struct ByteSize(Size);
 
 impl ByteSize {

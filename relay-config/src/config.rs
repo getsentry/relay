@@ -413,7 +413,7 @@ impl Default for ReadinessCondition {
 }
 
 /// Relay specific configuration values.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Relay {
     /// The operation mode of this relay.
@@ -454,7 +454,7 @@ impl Default for Relay {
 }
 
 /// Control the metrics.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Metrics {
     /// Hostname and port of the statsd server.
@@ -494,7 +494,7 @@ impl Default for Metrics {
 }
 
 /// Controls various limits
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Limits {
     /// How many requests can be sent concurrently from Relay to the upstream before Relay starts
@@ -637,7 +637,7 @@ impl Default for HttpEncoding {
 }
 
 /// Controls authentication with upstream.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Http {
     /// Timeout for upstream requests in seconds.
@@ -701,7 +701,7 @@ impl Default for Http {
 }
 
 /// Controls internal caching behavior.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Cache {
     /// The cache timeout for project configurations in seconds.
@@ -770,7 +770,7 @@ pub enum KafkaTopic {
 }
 
 /// Configuration for topics.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct TopicAssignments {
     /// Simple events topic name.
@@ -829,7 +829,7 @@ impl Default for TopicAssignments {
 /// custom kafka cluster.
 ///
 /// See documentation for `secondary_kafka_configs` for more information.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum TopicAssignment {
     /// String containing the kafka topic name. In this case the default kafka cluster configured
@@ -876,7 +876,7 @@ impl TopicAssignment {
 }
 
 /// A name value pair of Kafka config parameter.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct KafkaConfigParam {
     /// Name of the Kafka config parameter.
     pub name: String,
@@ -910,7 +910,7 @@ fn default_max_rate_limit() -> Option<u32> {
 }
 
 /// Controls Sentry-internal event processing.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Processing {
     /// True if the Relay should do processing. Defaults to `false`.
     pub enabled: bool,
@@ -987,7 +987,7 @@ impl Default for Processing {
 }
 
 /// Configuration values for the outcome aggregator
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct OutcomeAggregatorConfig {
     /// Defines the width of the buckets into which outcomes are aggregated, in seconds.
@@ -1081,7 +1081,7 @@ impl<'de> Deserialize<'de> for EmitOutcomes {
 }
 
 /// Outcome generation specific configuration values.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Outcomes {
     /// Controls whether outcomes will be emitted when processing is disabled.
@@ -1200,7 +1200,7 @@ mod config_relay_info {
 }
 
 /// Authentication options.
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct AuthConfig {
     /// Controls responses from the readiness health check endpoint based on authentication.
     #[serde(default, skip_serializing_if = "is_default")]
@@ -1211,7 +1211,7 @@ pub struct AuthConfig {
     pub static_relays: HashMap<RelayId, RelayInfo>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
     relay: Relay,
@@ -1248,7 +1248,6 @@ impl ConfigObject for ConfigValues {
 }
 
 /// Config struct.
-#[derive(Clone)]
 pub struct Config {
     values: ConfigValues,
     credentials: Option<Credentials>,
