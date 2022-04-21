@@ -599,6 +599,31 @@ pub struct Metric {
     pub tags: BTreeMap<String, String>,
 }
 
+const METRIC_NAME_MAX_LENGTH: u8 = 200;
+
+/// An error used when creating a new metric.
+#[derive(Debug)]
+pub struct MetricInitError {
+    name_len: usize,
+}
+
+impl std::error::Error for MetricInitError {}
+
+impl MetricInitError {
+    /// Retrieves an error from the metric name the metric was tried to create with.
+    pub fn from_name(name: &str) -> Self {
+        Self {
+            name_len: name.len(),
+        }
+    }
+}
+
+impl fmt::Display for MetricInitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Failed to create metric, name len: {}", self.name_len)
+    }
+}
+
 impl Metric {
     /// Creates a new metric using the MRI naming format.
     ///
@@ -611,14 +636,18 @@ impl Metric {
         value: MetricValue,
         timestamp: UnixTimestamp,
         tags: BTreeMap<String, String>,
-    ) -> Self {
-        Self {
-            name: format!("{}:{}/{}@{}", value.ty(), namespace, name, unit),
+    ) -> Result<Self, MetricInitError> {
+        let name = format!("{}:{}/{}@{}", value.ty(), namespace, name, unit);
+        if name.len() > METRIC_NAME_MAX_LENGTH.into() {
+            return Err(MetricInitError::from_name(&name));
+        }
+        Ok(Self {
+            name,
             unit,
             value,
             timestamp,
             tags,
-        }
+        })
     }
 
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
