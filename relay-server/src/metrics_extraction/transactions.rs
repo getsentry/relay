@@ -917,7 +917,8 @@ mod tests {
                     tags.insert("platform".to_owned(), "other".to_owned());
                     tags
                 }
-            )]
+            )
+            .unwrap()]
         );
     }
 
@@ -998,7 +999,8 @@ mod tests {
                     tags.insert("platform".to_owned(), "other".to_owned());
                     tags
                 }
-            )]
+            )
+            .unwrap()]
         );
     }
 }
