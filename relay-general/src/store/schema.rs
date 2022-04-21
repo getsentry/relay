@@ -105,7 +105,7 @@ fn verify_value_characters(
 mod tests {
     use super::SchemaProcessor;
     use crate::processor::{process_value, ProcessingState};
-    use crate::types::{Annotated, Array, Error, Object, Value};
+    use crate::types::{Annotated, Array, Error, Object};
 
     fn assert_nonempty_base<T>()
     where
@@ -146,29 +146,6 @@ mod tests {
     #[test]
     fn test_nonempty_object() {
         assert_nonempty_base::<Object<u64>>();
-    }
-
-    #[test]
-    fn test_release_invalid_newlines() {
-        use crate::protocol::Event;
-
-        let mut event = Annotated::new(Event {
-            release: Annotated::new("a\nb".to_string().into()),
-            ..Default::default()
-        });
-
-        process_value(&mut event, &mut SchemaProcessor, ProcessingState::root()).unwrap();
-
-        assert_eq_dbg!(
-            event,
-            Annotated::new(Event {
-                release: Annotated::from_error(
-                    Error::invalid("invalid character \'\\n\'"),
-                    Some(Value::String("a\nb".into())),
-                ),
-                ..Default::default()
-            })
-        );
     }
 
     #[test]
