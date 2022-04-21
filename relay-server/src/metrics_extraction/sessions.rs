@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{SessionAttributes, SessionErrored, SessionLike, SessionStatus};
-use relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue};
+use relay_metrics::{DurationUnit, Metric, MetricInitError, MetricUnit, MetricValue};
 
 use super::utils::with_tag;
 
@@ -33,6 +33,12 @@ pub fn extract_session_metrics<T: SessionLike>(
         }
     };
 
+    let mut push_metric_if_ok =
+        |potential_metric: Result<Metric, MetricInitError>| match potential_metric {
+            Ok(metric) => target.push(metric),
+            Err(error) => relay_log::error!("{}", error),
+        };
+
     let mut tags = BTreeMap::new();
     tags.insert("release".to_owned(), attributes.release.clone());
     if let Some(ref environment) = attributes.environment {
@@ -42,7 +48,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     // Always capture with "init" tag for the first session update of a session. This is used
     // for adoption and as baseline for crash rates.
     if session.total_count() > 0 {
-        target.push(Metric::new_mri(
+        push_metric_if_ok(Metric::new_mri(
             METRIC_NAMESPACE,
             "session",
             MetricUnit::None,
@@ -52,7 +58,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         ));
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric::new_mri(
+            push_metric_if_ok(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
@@ -65,7 +71,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
     // Mark the session as errored, which includes fatal sessions.
     if let Some(errors) = session.errors() {
-        target.push(match errors {
+        push_metric_if_ok(match errors {
             SessionErrored::Individual(session_id) => Metric::new_mri(
                 METRIC_NAMESPACE,
                 "error",
@@ -85,7 +91,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         });
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric::new_mri(
+            push_metric_if_ok(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
@@ -99,7 +105,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     // Record fatal sessions for crash rate computation. This is a strict subset of errored
     // sessions above.
     if session.abnormal_count() > 0 {
-        target.push(Metric::new_mri(
+        push_metric_if_ok(Metric::new_mri(
             METRIC_NAMESPACE,
             "session",
             MetricUnit::None,
@@ -109,7 +115,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         ));
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric::new_mri(
+            push_metric_if_ok(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
@@ -121,7 +127,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     }
 
     if session.crashed_count() > 0 {
-        target.push(Metric::new_mri(
+        push_metric_if_ok(Metric::new_mri(
             METRIC_NAMESPACE,
             "session",
             MetricUnit::None,
@@ -131,7 +137,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         ));
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric::new_mri(
+            push_metric_if_ok(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
@@ -146,7 +152,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     // really only use durations from session.status=exited, but decided it may be worth ingesting
     // this data in case we need it. If we need to cut cost, this is one place to start though.
     if let Some((duration, status)) = session.final_duration() {
-        target.push(Metric::new_mri(
+        push_metric_if_ok(Metric::new_mri(
             METRIC_NAMESPACE,
             "duration",
             MetricUnit::Duration(DurationUnit::Second),
