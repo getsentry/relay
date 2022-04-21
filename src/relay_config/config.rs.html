@@ -1998,6 +1998,7 @@
 <span id="1991">1991</span>
 <span id="1992">1992</span>
 <span id="1993">1993</span>
+<span id="1994">1994</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2413,7 +2414,7 @@
 }
 
 <span class="doccomment">/// Relay specific configuration values.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Relay</span> {
     <span class="doccomment">/// The operation mode of this relay.</span>
@@ -2454,7 +2455,7 @@
 }
 
 <span class="doccomment">/// Control the metrics.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">Metrics</span> {
     <span class="doccomment">/// Hostname and port of the statsd server.</span>
@@ -2494,7 +2495,7 @@
 }
 
 <span class="doccomment">/// Controls various limits</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">Limits</span> {
     <span class="doccomment">/// How many requests can be sent concurrently from Relay to the upstream before Relay starts</span>
@@ -2637,7 +2638,7 @@
 }
 
 <span class="doccomment">/// Controls authentication with upstream.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">Http</span> {
     <span class="doccomment">/// Timeout for upstream requests in seconds.</span>
@@ -2701,7 +2702,7 @@
 }
 
 <span class="doccomment">/// Controls internal caching behavior.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">Cache</span> {
     <span class="doccomment">/// The cache timeout for project configurations in seconds.</span>
@@ -2770,7 +2771,7 @@
 }
 
 <span class="doccomment">/// Configuration for topics.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TopicAssignments</span> {
     <span class="doccomment">/// Simple events topic name.</span>
@@ -2829,7 +2830,7 @@
 <span class="doccomment">/// custom kafka cluster.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// See documentation for `secondary_kafka_configs` for more information.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">untagged</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">TopicAssignment</span> {
     <span class="doccomment">/// String containing the kafka topic name. In this case the default kafka cluster configured</span>
@@ -2876,7 +2877,7 @@
 }
 
 <span class="doccomment">/// A name value pair of Kafka config parameter.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">KafkaConfigParam</span> {
     <span class="doccomment">/// Name of the Kafka config parameter.</span>
     <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
@@ -2910,7 +2911,7 @@
 }
 
 <span class="doccomment">/// Controls Sentry-internal event processing.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Processing</span> {
     <span class="doccomment">/// True if the Relay should do processing. Defaults to `false`.</span>
     <span class="kw">pub</span> <span class="ident">enabled</span>: <span class="ident">bool</span>,
@@ -2987,7 +2988,7 @@
 }
 
 <span class="doccomment">/// Configuration values for the outcome aggregator</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OutcomeAggregatorConfig</span> {
     <span class="doccomment">/// Defines the width of the buckets into which outcomes are aggregated, in seconds.</span>
@@ -3081,7 +3082,7 @@
 }
 
 <span class="doccomment">/// Outcome generation specific configuration values.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Outcomes</span> {
     <span class="doccomment">/// Controls whether outcomes will be emitted when processing is disabled.</span>
@@ -3200,7 +3201,7 @@
 }
 
 <span class="doccomment">/// Authentication options.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AuthConfig</span> {
     <span class="doccomment">/// Controls responses from the readiness health check endpoint based on authentication.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;is_default&quot;</span>)]</span>
@@ -3211,7 +3212,7 @@
     <span class="kw">pub</span> <span class="ident">static_relays</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayInfo</span><span class="op">&gt;</span>,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">struct</span> <span class="ident">ConfigValues</span> {
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="ident">relay</span>: <span class="ident">Relay</span>,
@@ -3248,6 +3249,7 @@
 }
 
 <span class="doccomment">/// Config struct.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Config</span> {
     <span class="ident">values</span>: <span class="ident">ConfigValues</span>,
     <span class="ident">credentials</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Credentials</span><span class="op">&gt;</span>,

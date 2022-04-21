@@ -265,6 +265,7 @@
 <span id="258">258</span>
 <span id="259">259</span>
 <span id="260">260</span>
+<span id="261">261</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
@@ -303,6 +304,7 @@
 <span class="doccomment">/// let size = ByteSize::kibibytes(42);</span>
 <span class="doccomment">/// assert_eq!(&quot;42KiB&quot;, size.to_string());</span>
 <span class="doccomment">/// ```</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ByteSize</span>(<span class="ident">Size</span>);
 
 <span class="kw">impl</span> <span class="ident">ByteSize</span> {
