@@ -11,7 +11,7 @@ use {
     relay_general::protocol::{Context, ContextInner},
     relay_general::store,
     relay_general::types::Annotated,
-    relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue},
+    relay_metrics::{DurationUnit, Metric, MetricInitError, MetricUnit, MetricValue},
     std::fmt,
 };
 
@@ -312,6 +312,12 @@ fn extract_transaction_metrics_inner(
         None => return,
     };
 
+    let mut push_metric_if_ok =
+        |potential_metric: Result<Metric, MetricInitError>| match potential_metric {
+            Ok(metric) => push_metric(metric),
+            Err(error) => relay_log::error!("{}", error),
+        };
+
     let tags = extract_universal_tags(event, &config.extract_custom_tags);
 
     // Measurements
@@ -327,7 +333,7 @@ fn extract_transaction_metrics_inner(
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
-            push_metric(Metric::new_mri(
+            push_metric_if_ok(Metric::new_mri(
                 METRIC_NAMESPACE,
                 format_args!("measurements.{}", measurement_name),
                 get_metric_measurement_unit(measurement_name),
@@ -348,7 +354,7 @@ fn extract_transaction_metrics_inner(
                     None => continue,
                 };
 
-                push_metric(Metric::new_mri(
+                push_metric_if_ok(Metric::new_mri(
                     METRIC_NAMESPACE,
                     format_args!("breakdowns.{}.{}", breakdown, measurement_name),
                     MetricUnit::None,
@@ -374,7 +380,7 @@ fn extract_transaction_metrics_inner(
     // Duration
     let duration_millis = get_duration_millis(start_timestamp, end_timestamp);
 
-    push_metric(Metric::new_mri(
+    push_metric_if_ok(Metric::new_mri(
         METRIC_NAMESPACE,
         "duration",
         MetricUnit::Duration(DurationUnit::MilliSecond),
@@ -386,7 +392,7 @@ fn extract_transaction_metrics_inner(
     // User
     if let Some(user) = event.user.value() {
         if let Some(user_id) = user.id.as_str() {
-            push_metric(Metric::new_mri(
+            push_metric_if_ok(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
