@@ -7,6 +7,10 @@
 - Add platform, op, http.method and status tag to all extracted transaction metrics. ([#1227](https://github.com/getsentry/relay/pull/1227))
 - Add units in built-in measurements. ([#1229](https://github.com/getsentry/relay/pull/1229))
 
+**Internal**:
+
+- Remove/reject nul-bytes from metric strings. ([#1235](https://github.com/getsentry/relay/pull/1235))
+
 ## 22.4.0
 
 **Features**:
