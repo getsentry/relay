@@ -9,7 +9,7 @@
 
 **Bug fixes**:
 
-- Return error when metric name is large. ([#1233](https://github.com/getsentry/relay/pull/1233))
+- Enforce metric name length limit. ([#1233](https://github.com/getsentry/relay/pull/1233))
 
 **Internal**:
 
