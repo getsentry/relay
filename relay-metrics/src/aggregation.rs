@@ -745,6 +745,31 @@ impl BucketKey {
         std::hash::Hash::hash(self, &mut hasher);
         hasher.finalize() as i64
     }
+
+    /// Remove invalid characters from tags and metric names.
+    ///
+    /// Returns `Err` if the metric should be dropped.
+    fn validate_strings(mut self) -> Result<Self, ()> {
+        if self.metric_name.contains('\0') {
+            relay_log::error!("invalid metric name {:?}", self.metric_name);
+            return Err(());
+        }
+
+        self.metric_name.retain(|c| c != '\0');
+        self.tags.retain(|tag_key, _| {
+            if !tag_key.contains('\0') {
+                true
+            } else {
+                relay_log::error!("invalid metric tag key {:?}", tag_key);
+                false
+            }
+        });
+        for (_, tag_value) in self.tags.iter_mut() {
+            tag_value.retain(|c| c != '\0');
+        }
+
+        Ok(self)
+    }
 }
 
 /// Parameters used by the [`Aggregator`].
@@ -1054,6 +1079,8 @@ impl Aggregator {
     ) -> Result<(), AggregateMetricsError> {
         let timestamp = key.timestamp;
         let project_key = key.project_key;
+
+        let key = key.validate_strings().map_err(|()| AggregateMetricsError)?;
 
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
@@ -2077,5 +2104,48 @@ mod tests {
                 .as_secs(),
             rounded_now + 10
         );
+    }
+
+    #[test]
+    fn test_validate_strings() {
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+        let bucket_key = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "hergus.bergus".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: {
+                let mut tags = BTreeMap::new();
+                // There are some SDKs which mess up content encodings, and interpret the raw bytes
+                // of an UTF-16 string as UTF-8. Leading to ASCII
+                // strings getting null-bytes interleaved.
+                //
+                // Somehow those values end up as release tag in sessions, while in error events we
+                // haven't observed this malformed encoding. We believe it's slightly better to
+                // strip out NUL-bytes instead of dropping the tag such that those values line up
+                // again across sessions and events. Should that cause too high cardinality we'll
+                // have to drop tags.
+                tags.insert(
+                    "is_it_garbage".to_owned(),
+                    "a\0b\0s\0o\0l\0u\0t\0e\0l\0y".to_owned(),
+                );
+                tags.insert("another\0garbage".to_owned(), "bye".to_owned());
+                tags
+            },
+        };
+
+        let mut bucket_key = bucket_key.validate_strings().unwrap();
+
+        assert_eq!(bucket_key.tags.len(), 1);
+        assert_eq!(
+            bucket_key.tags.get("is_it_garbage"),
+            Some(&"absolutely".to_owned())
+        );
+        assert_eq!(bucket_key.tags.get("another\0garbage"), None);
+
+        bucket_key.metric_name = "hergus\0bergus".to_owned();
+        bucket_key.validate_strings().unwrap_err();
     }
 }
