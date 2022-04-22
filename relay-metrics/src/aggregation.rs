@@ -1167,7 +1167,7 @@ impl Aggregator {
         I: IntoIterator<Item = Bucket>,
     {
         for bucket in buckets.into_iter() {
-            self.merge(project_key, bucket)?;
+            let _result = self.merge(project_key, bucket);
         }
 
         Ok(())
