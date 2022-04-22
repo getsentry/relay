@@ -60,6 +60,7 @@ struct Producers {
     metrics: Producer,
     profiles: Producer,
     replay_payloads: Producer,
+    replay_events: Producer,
 }
 
 impl Producers {
@@ -78,6 +79,7 @@ impl Producers {
             KafkaTopic::Metrics => Some(&self.metrics),
             KafkaTopic::Profiles => Some(&self.profiles),
             KafkaTopic::ReplayPayloads => Some(&self.replay_payloads),
+            KafkaTopic::ReplayEvents => Some(&self.replay_events),
         }
     }
 }
@@ -140,6 +142,11 @@ impl StoreForwarder {
                 &mut reused_producers,
                 KafkaTopic::ReplayPayloads,
             )?,
+            replay_events: make_producer(
+                &*config,
+                &mut reused_producers,
+                KafkaTopic::ReplayEvents,
+            )?,
         };
 
         Ok(Self { config, producers })
@@ -193,6 +200,7 @@ impl StoreForwarder {
                 id: id.clone(),
                 chunk_index,
             });
+
             self.produce(topic, attachment_message)?;
             offset += chunk_size;
             chunk_index += 1;
@@ -444,6 +452,27 @@ impl StoreForwarder {
         );
         Ok(())
     }
+    fn produce_replay_event(
+        &self,
+        event_id: EventId,
+        project_id: ProjectId,
+        start_time: Instant,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = ReplayEventKafkaMessage {
+            event_id,
+            project_id,
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            payload: item.payload(),
+        };
+        relay_log::trace!("Sending replay event to Kafka");
+        self.produce(KafkaTopic::ReplayEvents, KafkaMessage::ReplayEvent(message))?;
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "replay_event"
+        );
+        Ok(())
+    }
 }
 
 /// StoreMessageForwarder is an async actor since the only thing it does is put the messages
@@ -530,6 +559,17 @@ struct EventKafkaMessage {
     remote_addr: Option<String>,
     /// Attachments that are potentially relevant for processing.
     attachments: Vec<ChunkedAttachment>,
+}
+#[derive(Clone, Debug, Serialize)]
+struct ReplayEventKafkaMessage {
+    /// Raw event payload.
+    payload: Bytes,
+    /// Time at which the event was received by Relay.
+    start_time: u64,
+    /// The event id.
+    event_id: EventId,
+    /// The project id for the current event.
+    project_id: ProjectId,
 }
 
 /// Container payload for chunks of attachments.
@@ -631,6 +671,7 @@ enum KafkaMessage {
     Metric(MetricKafkaMessage),
     Profile(ProfileKafkaMessage),
     ReplayPayload(AttachmentKafkaMessage),
+    ReplayEvent(ReplayEventKafkaMessage),
 }
 
 impl KafkaMessage {
@@ -644,6 +685,7 @@ impl KafkaMessage {
             KafkaMessage::Metric(_) => "metric",
             KafkaMessage::Profile(_) => "profile",
             KafkaMessage::ReplayPayload(_) => "replay_payload",
+            KafkaMessage::ReplayEvent(_) => "replay_event",
         }
     }
 
@@ -658,6 +700,7 @@ impl KafkaMessage {
             Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
             Self::Profile(_message) => Uuid::nil(),
             Self::ReplayPayload(_message) => Uuid::nil(),
+            Self::ReplayEvent(_message) => Uuid::nil(),
         };
 
         if uuid.is_nil() {
@@ -790,6 +833,12 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                     )?;
                     replay_payloads.push(replay_payload);
                 }
+                ItemType::ReplayEvent => self.produce_replay_event(
+                    event_id.ok_or(StoreError::NoEventId)?,
+                    scoping.project_id,
+                    start_time,
+                    item,
+                )?,
                 _ => {}
             }
         }

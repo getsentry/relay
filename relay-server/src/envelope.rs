@@ -106,6 +106,8 @@ pub enum ItemType {
     Profile,
     /// Replay Payload blob payload
     ReplayPayload,
+    /// Replay metadata and breadcrumb payload
+    ReplayEvent,
 }
 
 impl ItemType {
@@ -114,6 +116,7 @@ impl ItemType {
         match event_type {
             EventType::Default | EventType::Error => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
+            EventType::ReplayEvent => ItemType::ReplayEvent,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 ItemType::Security
             }
@@ -139,6 +142,7 @@ impl fmt::Display for ItemType {
             Self::ClientReport => write!(f, "client report"),
             Self::Profile => write!(f, "profile"),
             Self::ReplayPayload => write!(f, "replay_payload"),
+            Self::ReplayEvent => write!(f, "replay_event"),
         }
     }
 }
@@ -557,6 +561,7 @@ impl Item {
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
+            | ItemType::ReplayEvent
             | ItemType::UnrealReport => true,
 
             // Attachments are only event items if they are crash reports or if they carry partial
@@ -601,6 +606,7 @@ impl Item {
             ItemType::RawSecurity => true,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
+            ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
             ItemType::Metrics => false,

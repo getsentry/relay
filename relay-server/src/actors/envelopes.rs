@@ -1283,6 +1283,7 @@ impl EnvelopeProcessor {
             ItemType::ClientReport => false,
             ItemType::Profile => false,
             ItemType::ReplayPayload => false,
+            ItemType::ReplayEvent => false,
         }
     }
 
@@ -1302,6 +1303,7 @@ impl EnvelopeProcessor {
         // `process_event`.
         let event_item = envelope.take_item_by(|item| item.ty() == ItemType::Event);
         let transaction_item = envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
+        let replay_item = envelope.take_item_by(|item| item.ty() == ItemType::ReplayEvent);
         let security_item = envelope.take_item_by(|item| item.ty() == ItemType::Security);
         let raw_security_item = envelope.take_item_by(|item| item.ty() == ItemType::RawSecurity);
         let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
@@ -1332,6 +1334,12 @@ impl EnvelopeProcessor {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
                 self.event_from_json_payload(item, Some(EventType::Transaction))?
+            })
+        } else if let Some(mut item) = replay_item {
+            relay_log::trace!("processing json replay event");
+            state.sample_rates = item.take_sample_rates();
+            metric!(timer(RelayTimers::EventProcessingDeserialize), {
+                self.event_from_json_payload(item, Some(EventType::ReplayEvent))?
             })
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");

@@ -22,9 +22,10 @@ from .fixtures.processing import (
     outcomes_consumer,
     transactions_consumer,
     attachments_consumer,
-    replay_payloads_consumer,
     sessions_consumer,
     metrics_consumer,
+    replay_payloads_consumer,
+    replay_events_consumer,
 )  # noqa
 
 

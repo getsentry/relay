@@ -769,6 +769,8 @@ pub enum KafkaTopic {
     Profiles,
     /// ReplayPayloads, large blobs sent by the replay sdk
     ReplayPayloads,
+    /// ReplayEvents, breadcrumb + session updates for replays
+    ReplayEvents,
 }
 
 /// Configuration for topics.
@@ -793,6 +795,8 @@ pub struct TopicAssignments {
     pub profiles: TopicAssignment,
     /// Payloads topic name.
     pub replay_payloads: TopicAssignment,
+    /// Replay Events topic name.
+    pub replay_events: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -808,6 +812,7 @@ impl TopicAssignments {
             KafkaTopic::Metrics => &self.metrics,
             KafkaTopic::Profiles => &self.profiles,
             KafkaTopic::ReplayPayloads => &self.replay_payloads,
+            KafkaTopic::ReplayEvents => &self.replay_events,
         }
     }
 }
@@ -824,6 +829,7 @@ impl Default for TopicAssignments {
             metrics: "ingest-metrics".to_owned().into(),
             profiles: "profiles".to_owned().into(),
             replay_payloads: "ingest-replay-payloads".to_owned().into(),
+            replay_events: "ingest-replay-events".to_owned().into(),
         }
     }
 }

@@ -1228,6 +1228,7 @@ expression: event_json_schema()
         "expectct",
         "expectstaple",
         "transaction",
+        "replayevent",
         "default"
       ]
     },
