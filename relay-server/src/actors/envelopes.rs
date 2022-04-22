@@ -1282,6 +1282,7 @@ impl EnvelopeProcessor {
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::Profile => false,
+            ItemType::ReplayRecording => false,
         }
     }
 
