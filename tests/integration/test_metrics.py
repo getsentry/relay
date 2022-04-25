@@ -58,8 +58,20 @@ def test_metrics(mini_sentry, relay):
     received_metrics = json.loads(metrics_item.get_bytes().decode())
     received_metrics = sorted(received_metrics, key=lambda x: x["name"])
     assert received_metrics == [
-        {"timestamp": timestamp, "width": 1, "name": "c:bar", "value": 17.0, "type": "c"},
-        {"timestamp": timestamp, "width": 1, "name": "c:foo", "value": 42.0, "type": "c"},
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:bar",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:foo",
+            "value": 42.0,
+            "type": "c",
+        },
     ]
 
 
@@ -81,7 +93,13 @@ def test_metrics_backdated(mini_sentry, relay):
 
     received_metrics = metrics_item.get_bytes()
     assert json.loads(received_metrics.decode()) == [
-        {"timestamp": timestamp, "width": 1, "name": "c:foo", "value": 42.0, "type": "c"},
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:foo",
+            "value": 42.0,
+            "type": "c",
+        },
     ]
 
 
