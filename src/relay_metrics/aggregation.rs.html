@@ -2086,6 +2086,29 @@
 <span id="2079">2079</span>
 <span id="2080">2080</span>
 <span id="2081">2081</span>
+<span id="2082">2082</span>
+<span id="2083">2083</span>
+<span id="2084">2084</span>
+<span id="2085">2085</span>
+<span id="2086">2086</span>
+<span id="2087">2087</span>
+<span id="2088">2088</span>
+<span id="2089">2089</span>
+<span id="2090">2090</span>
+<span id="2091">2091</span>
+<span id="2092">2092</span>
+<span id="2093">2093</span>
+<span id="2094">2094</span>
+<span id="2095">2095</span>
+<span id="2096">2096</span>
+<span id="2097">2097</span>
+<span id="2098">2098</span>
+<span id="2099">2099</span>
+<span id="2100">2100</span>
+<span id="2101">2101</span>
+<span id="2102">2102</span>
+<span id="2103">2103</span>
+<span id="2104">2104</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2638,7 +2661,7 @@
             (<span class="ident">BucketValue::Distribution</span>(<span class="ident">lhs</span>), <span class="ident">BucketValue::Distribution</span>(<span class="ident">rhs</span>)) =&gt; <span class="ident">lhs</span>.<span class="ident">extend</span>(<span class="kw-2">&amp;</span><span class="ident">rhs</span>),
             (<span class="ident">BucketValue::Set</span>(<span class="ident">lhs</span>), <span class="ident">BucketValue::Set</span>(<span class="ident">rhs</span>)) =&gt; <span class="ident">lhs</span>.<span class="ident">extend</span>(<span class="ident">rhs</span>),
             (<span class="ident">BucketValue::Gauge</span>(<span class="ident">lhs</span>), <span class="ident">BucketValue::Gauge</span>(<span class="ident">rhs</span>)) =&gt; <span class="ident">lhs</span>.<span class="ident">merge</span>(<span class="ident">rhs</span>),
-            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AggregateMetricsError</span>),
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AggregateMetricsErrorKind::InvalidTypes</span>.<span class="ident">into</span>()),
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -2661,7 +2684,7 @@
                 <span class="ident">gauge</span>.<span class="ident">insert</span>(<span class="ident">value</span>);
             }
             <span class="kw">_</span> =&gt; {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AggregateMetricsError</span>);
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AggregateMetricsErrorKind::InvalidTypes</span>.<span class="ident">into</span>());
             }
         }
 
@@ -2804,8 +2827,26 @@
 
 <span class="doccomment">/// Any error that may occur during aggregation.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
-<span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to aggregate metrics&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AggregateMetricsError</span>;
+<span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to aggregate metrics: {}&quot;</span>, <span class="ident">kind</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AggregateMetricsError</span> {
+    <span class="ident">kind</span>: <span class="ident">AggregateMetricsErrorKind</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">AggregateMetricsErrorKind</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AggregateMetricsError</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">kind</span>: <span class="ident">AggregateMetricsErrorKind</span>) -&gt; <span class="self">Self</span> {
+        <span class="ident">AggregateMetricsError</span> { <span class="ident">kind</span> }
+    }
+}
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
+<span class="kw">enum</span> <span class="ident">AggregateMetricsErrorKind</span> {
+    <span class="doccomment">/// A metric bucket&#39;s timestamp was out of the configured acceptable range.</span>
+    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;found invalid timestamp&quot;</span>)]</span>
+    <span class="ident">InvalidTimestamp</span>,
+    <span class="doccomment">/// Internal error: Attempted to merge two metric buckets of different types.</span>
+    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;found incompatible metric types&quot;</span>)]</span>
+    <span class="ident">InvalidTypes</span>,
+}
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>
 <span class="kw">struct</span> <span class="ident">BucketKey</span> {
@@ -2916,7 +2957,7 @@
         <span class="kw">let</span> <span class="ident">output_timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="ident">ts</span>);
 
         <span class="kw">if</span> <span class="ident">output_timestamp</span> <span class="op">&lt;</span> <span class="ident">min_timestamp</span> <span class="op">|</span><span class="op">|</span> <span class="ident">output_timestamp</span> <span class="op">&gt;</span> <span class="ident">max_timestamp</span> {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AggregateMetricsError</span>);
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">AggregateMetricsErrorKind::InvalidTimestamp</span>.<span class="ident">into</span>());
         }
 
         <span class="prelude-val">Ok</span>(<span class="ident">output_timestamp</span>)
@@ -3228,7 +3269,9 @@
         <span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Bucket</span><span class="op">&gt;</span>,
     {
         <span class="kw">for</span> <span class="ident">bucket</span> <span class="kw">in</span> <span class="ident">buckets</span>.<span class="ident">into_iter</span>() {
-            <span class="self">self</span>.<span class="ident">merge</span>(<span class="ident">project_key</span>, <span class="ident">bucket</span>)<span class="question-mark">?</span>;
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">merge</span>(<span class="ident">project_key</span>, <span class="ident">bucket</span>) {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">error</span>);
+            }
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -4103,8 +4146,11 @@
         };
 
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            <span class="ident">config</span>.<span class="ident">get_bucket_timestamp</span>(<span class="ident">UnixTimestamp::from_secs</span>(<span class="ident">u64::MAX</span>), <span class="number">2</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">AggregateMetricsError</span>)
+            <span class="ident">config</span>
+                .<span class="ident">get_bucket_timestamp</span>(<span class="ident">UnixTimestamp::from_secs</span>(<span class="ident">u64::MAX</span>), <span class="number">2</span>)
+                .<span class="ident">unwrap_err</span>()
+                .<span class="ident">kind</span>,
+            <span class="ident">AggregateMetricsErrorKind::InvalidTimestamp</span>
         ));
     }
 
