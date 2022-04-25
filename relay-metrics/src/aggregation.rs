@@ -728,6 +728,7 @@ impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
 }
 
 #[derive(Debug, Fail)]
+#[allow(clippy::enum_variant_names)]
 enum AggregateMetricsErrorKind {
     /// A metric bucket had invalid characters in the metric name.
     #[fail(display = "found invalid characters")]
