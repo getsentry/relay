@@ -550,7 +550,7 @@ impl MergeValue for BucketValue {
             (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => lhs.extend(&rhs),
             (BucketValue::Set(lhs), BucketValue::Set(rhs)) => lhs.extend(rhs),
             (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => lhs.merge(rhs),
-            _ => return Err(AggregateMetricsError::InvalidTypes),
+            _ => return Err(AggregateMetricsErrorKind::InvalidTypes.into()),
         }
 
         Ok(())
@@ -573,7 +573,7 @@ impl MergeValue for MetricValue {
                 gauge.insert(value);
             }
             _ => {
-                return Err(AggregateMetricsError::InvalidTypes);
+                return Err(AggregateMetricsErrorKind::InvalidTypes.into());
             }
         }
 
@@ -716,7 +716,19 @@ impl Bucket {
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Fail)]
-pub enum AggregateMetricsError {
+#[fail(display = "failed to aggregate metrics: {}", kind)]
+pub struct AggregateMetricsError {
+    kind: AggregateMetricsErrorKind,
+}
+
+impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
+    fn from(kind: AggregateMetricsErrorKind) -> Self {
+        AggregateMetricsError { kind }
+    }
+}
+
+#[derive(Debug, Fail)]
+enum AggregateMetricsErrorKind {
     /// A metric bucket had invalid characters in the metric name.
     #[fail(display = "found invalid characters")]
     InvalidCharacters,
@@ -862,7 +874,7 @@ impl AggregatorConfig {
         let output_timestamp = UnixTimestamp::from_secs(ts);
 
         if output_timestamp < min_timestamp || output_timestamp > max_timestamp {
-            return Err(AggregateMetricsError::InvalidTimestamp);
+            return Err(AggregateMetricsErrorKind::InvalidTimestamp.into());
         }
 
         Ok(output_timestamp)
@@ -1091,7 +1103,7 @@ impl Aggregator {
 
         let key = key
             .validate_strings()
-            .map_err(|()| AggregateMetricsError::InvalidCharacters)?;
+            .map_err(|()| AggregateMetricsErrorKind::InvalidCharacters.into())?;
 
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
@@ -2055,8 +2067,11 @@ mod tests {
         };
 
         assert!(matches!(
-            config.get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2),
-            Err(AggregateMetricsError::InvalidTimestamp)
+            config
+                .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2)
+                .unwrap_err()
+                .kind,
+            AggregateMetricsErrorKind::InvalidTimestamp
         ));
     }
 
