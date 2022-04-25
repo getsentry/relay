@@ -408,15 +408,15 @@ impl fmt::Display for ParseMetricError {
     }
 }
 
-/// Validates a metric name.
+/// Validates a metric name. This is the statsd name, i.e. without type or unit.
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
-/// underscores and periods.
+/// underscores, slashes and periods.
 fn is_valid_name(name: &str) -> bool {
     let mut iter = name.as_bytes().iter();
     if let Some(first_byte) = iter.next() {
         if first_byte.is_ascii_alphabetic() {
-            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'));
+            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/'));
         }
     }
     false
@@ -629,7 +629,7 @@ impl Metric {
         let (name, unit, value) = parse_name_unit_value(name_value_str, ty)?;
 
         let mut metric = Self {
-            name,
+            name: format!("{}:{}", ty, name),
             unit,
             value,
             timestamp,
@@ -760,7 +760,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "foo",
+            name: "c:foo",
             unit: None,
             value: Counter(
                 42.0,
@@ -778,7 +778,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "foo",
+            name: "d:foo",
             unit: None,
             value: Distribution(
                 17.5,
@@ -804,7 +804,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "foo",
+            name: "s:foo",
             unit: None,
             value: Set(
                 4267882815,
@@ -822,7 +822,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "foo",
+            name: "g:foo",
             unit: None,
             value: Gauge(
                 42.0,

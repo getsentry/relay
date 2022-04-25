@@ -58,8 +58,20 @@ def test_metrics(mini_sentry, relay):
     received_metrics = json.loads(metrics_item.get_bytes().decode())
     received_metrics = sorted(received_metrics, key=lambda x: x["name"])
     assert received_metrics == [
-        {"timestamp": timestamp, "width": 1, "name": "bar", "value": 17.0, "type": "c"},
-        {"timestamp": timestamp, "width": 1, "name": "foo", "value": 42.0, "type": "c"},
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:bar",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:foo",
+            "value": 42.0,
+            "type": "c",
+        },
     ]
 
 
@@ -81,7 +93,13 @@ def test_metrics_backdated(mini_sentry, relay):
 
     received_metrics = metrics_item.get_bytes()
     assert json.loads(received_metrics.decode()) == [
-        {"timestamp": timestamp, "width": 1, "name": "foo", "value": 42.0, "type": "c"},
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:foo",
+            "value": 42.0,
+            "type": "c",
+        },
     ]
 
 
@@ -98,20 +116,20 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
 
     metrics = metrics_by_name(metrics_consumer, 2)
 
-    assert metrics["foo"] == {
+    assert metrics["c:foo"] == {
         "org_id": 1,
         "project_id": project_id,
-        "name": "foo",
+        "name": "c:foo",
         "unit": "none",
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
     }
 
-    assert metrics["bar"] == {
+    assert metrics["c:bar"] == {
         "org_id": 1,
         "project_id": project_id,
-        "name": "bar",
+        "name": "c:bar",
         "unit": "second",
         "value": 17.0,
         "type": "c",
@@ -149,7 +167,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     assert metric == {
         "org_id": 1,
         "project_id": project_id,
-        "name": "foo",
+        "name": "c:foo",
         "unit": "none",
         "value": 15.0,
         "type": "c",
@@ -592,14 +610,14 @@ def test_graceful_shutdown(mini_sentry, relay):
         {
             "timestamp": future_timestamp,
             "width": 1,
-            "name": "bar",
+            "name": "c:bar",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": past_timestamp,
             "width": 1,
-            "name": "foo",
+            "name": "c:foo",
             "value": 42.0,
             "type": "c",
         },
