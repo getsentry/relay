@@ -412,7 +412,7 @@ impl fmt::Display for ParseMetricError {
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
 /// underscores and periods.
-fn is_valid_name(name: &str) -> bool {
+pub(crate) fn is_valid_name(name: &str) -> bool {
     let mut iter = name.as_bytes().iter();
     if let Some(first_byte) = iter.next() {
         if first_byte.is_ascii_alphabetic() {
@@ -420,6 +420,27 @@ fn is_valid_name(name: &str) -> bool {
         }
     }
     false
+}
+
+/// Validates a tag key.
+///
+/// Tag keys currently only need to not contain ASCII control characters. This might change.
+pub(crate) fn is_valid_tag_key(tag_key: &str) -> bool {
+    // iterating over bytes produces better asm, and we're only checking for ascii chars
+    for &byte in tag_key.as_bytes() {
+        if (byte as char).is_ascii_control() {
+            return false;
+        }
+    }
+    true
+}
+
+/// Validates a tag value.
+///
+/// Tag values are never entirely rejected, but invalid characters (ASCII control characters) are
+/// stripped out.
+pub(crate) fn validate_tag_value(tag_value: &mut String) {
+    tag_value.retain(|c| !c.is_ascii_control());
 }
 
 /// Parses the `name[@unit]` part of a metric string.
@@ -487,9 +508,17 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 
     for pair in string.split(',') {
         let mut name_value = pair.splitn(2, ':');
+
         let name = name_value.next()?;
-        let value = name_value.next().unwrap_or_default();
-        map.insert(name.to_owned(), value.to_owned());
+        if !is_valid_tag_key(name) {
+            continue;
+        }
+
+        let mut value = name_value.next().unwrap_or_default().to_owned();
+
+        validate_tag_value(&mut value);
+
+        map.insert(name.to_owned(), value);
     }
 
     Some(map)

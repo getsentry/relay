@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{Metric, MetricType, MetricUnit, MetricValue};
+use crate::{protocol, Metric, MetricType, MetricUnit, MetricValue};
 
 /// Interval for the flush cycle of the [`Aggregator`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -766,31 +766,6 @@ impl BucketKey {
         std::hash::Hash::hash(self, &mut hasher);
         hasher.finalize() as i64
     }
-
-    /// Remove invalid characters from tags and metric names.
-    ///
-    /// Returns `Err` if the metric should be dropped.
-    fn validate_strings(mut self) -> Result<Self, ()> {
-        if self.metric_name.contains('\0') {
-            relay_log::error!("invalid metric name {:?}", self.metric_name);
-            return Err(());
-        }
-
-        self.metric_name.retain(|c| c != '\0');
-        self.tags.retain(|tag_key, _| {
-            if !tag_key.contains('\0') {
-                true
-            } else {
-                relay_log::error!("invalid metric tag key {:?}", tag_key);
-                false
-            }
-        });
-        for (_, tag_value) in self.tags.iter_mut() {
-            tag_value.retain(|c| c != '\0');
-        }
-
-        Ok(self)
-    }
 }
 
 /// Parameters used by the [`Aggregator`].
@@ -1090,6 +1065,29 @@ impl Aggregator {
         }
     }
 
+    /// Remove invalid characters from tags and metric names.
+    ///
+    /// Returns `Err` if the metric should be dropped.
+    fn validate_bucket_key(mut key: BucketKey) -> Result<BucketKey, AggregateMetricsError> {
+        if !protocol::is_valid_name(&key.metric_name) {
+            return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
+        }
+
+        key.tags.retain(|tag_key, _| {
+            if protocol::is_valid_tag_key(tag_key) {
+                true
+            } else {
+                relay_log::error!("invalid metric tag key {:?}", tag_key);
+                false
+            }
+        });
+        for (_, tag_value) in key.tags.iter_mut() {
+            protocol::validate_tag_value(tag_value);
+        }
+
+        Ok(key)
+    }
+
     /// Merges any mergeable value into the bucket at the given `key`.
     ///
     /// If no bucket exists for the given bucket key, a new bucket will be created.
@@ -1101,9 +1099,7 @@ impl Aggregator {
         let timestamp = key.timestamp;
         let project_key = key.project_key;
 
-        let key = key
-            .validate_strings()
-            .map_err(|()| AggregateMetricsErrorKind::InvalidCharacters.into())?;
+        let key = Self::validate_bucket_key(key)?;
 
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
@@ -2135,7 +2131,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_strings() {
+    fn test_validate_bucket_key() {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
         let bucket_key = BucketKey {
@@ -2167,7 +2163,7 @@ mod tests {
             },
         };
 
-        let mut bucket_key = bucket_key.validate_strings().unwrap();
+        let mut bucket_key = Aggregator::validate_bucket_key(bucket_key).unwrap();
 
         assert_eq!(bucket_key.tags.len(), 1);
         assert_eq!(
@@ -2177,6 +2173,6 @@ mod tests {
         assert_eq!(bucket_key.tags.get("another\0garbage"), None);
 
         bucket_key.metric_name = "hergus\0bergus".to_owned();
-        bucket_key.validate_strings().unwrap_err();
+        Aggregator::validate_bucket_key(bucket_key).unwrap_err();
     }
 }
