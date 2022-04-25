@@ -412,14 +412,31 @@ impl fmt::Display for ParseMetricError {
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
 /// underscores and periods.
-pub(crate) fn is_valid_name(name: &str) -> bool {
+fn is_valid_name(name: &str) -> bool {
     let mut iter = name.as_bytes().iter();
     if let Some(first_byte) = iter.next() {
         if first_byte.is_ascii_alphabetic() {
-            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'));
+            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/'));
         }
     }
     false
+}
+
+/// Validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
+///
+/// Note that the format used in the statsd protocol is different: Metric names are not prefixed
+/// with `<ty>:` as the type is somewhere else in the protocol.
+pub(crate) fn is_valid_mri(name: &str) -> bool {
+    let mut components = name.splitn(2, ':');
+    if components.next().is_none() {
+        return false;
+    }
+
+    if let Some(name_unit) = components.next() {
+        parse_name_unit(name_unit).is_some()
+    } else {
+        false
+    }
 }
 
 /// Validates a tag key.
@@ -658,7 +675,7 @@ impl Metric {
         let (name, unit, value) = parse_name_unit_value(name_value_str, ty)?;
 
         let mut metric = Self {
-            name,
+            name: format!("{}:{}", ty, name),
             unit,
             value,
             timestamp,
