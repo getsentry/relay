@@ -416,7 +416,7 @@ fn is_valid_name(name: &str) -> bool {
     let mut iter = name.as_bytes().iter();
     if let Some(first_byte) = iter.next() {
         if first_byte.is_ascii_alphabetic() {
-            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'));
+            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/'));
         }
     }
     false
@@ -629,7 +629,7 @@ impl Metric {
         let (name, unit, value) = parse_name_unit_value(name_value_str, ty)?;
 
         let mut metric = Self {
-            name,
+            name: format!("{}:{}", ty, name),
             unit,
             value,
             timestamp,
