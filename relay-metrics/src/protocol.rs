@@ -408,10 +408,10 @@ impl fmt::Display for ParseMetricError {
     }
 }
 
-/// Validates a metric name.
+/// Validates a metric name. This is the statsd name, i.e. without type or unit.
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
-/// underscores and periods.
+/// underscores, slashes and periods.
 fn is_valid_name(name: &str) -> bool {
     let mut iter = name.as_bytes().iter();
     if let Some(first_byte) = iter.next() {
