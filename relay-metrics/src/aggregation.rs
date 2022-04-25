@@ -2139,7 +2139,7 @@ mod tests {
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "hergus.bergus".to_owned(),
+            metric_name: "c:hergus.bergus".to_owned(),
             metric_type: MetricType::Counter,
             metric_unit: MetricUnit::None,
             tags: {
