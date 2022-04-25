@@ -550,7 +550,7 @@ impl MergeValue for BucketValue {
             (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => lhs.extend(&rhs),
             (BucketValue::Set(lhs), BucketValue::Set(rhs)) => lhs.extend(rhs),
             (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => lhs.merge(rhs),
-            _ => return Err(AggregateMetricsError),
+            _ => return Err(AggregateMetricsErrorKind::InvalidTypes.into()),
         }
 
         Ok(())
@@ -573,7 +573,7 @@ impl MergeValue for MetricValue {
                 gauge.insert(value);
             }
             _ => {
-                return Err(AggregateMetricsError);
+                return Err(AggregateMetricsErrorKind::InvalidTypes.into());
             }
         }
 
@@ -716,8 +716,26 @@ impl Bucket {
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Fail)]
-#[fail(display = "failed to aggregate metrics")]
-pub struct AggregateMetricsError;
+#[fail(display = "failed to aggregate metrics: {}", kind)]
+pub struct AggregateMetricsError {
+    kind: AggregateMetricsErrorKind,
+}
+
+impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
+    fn from(kind: AggregateMetricsErrorKind) -> Self {
+        AggregateMetricsError { kind }
+    }
+}
+
+#[derive(Debug, Fail)]
+enum AggregateMetricsErrorKind {
+    /// A metric bucket's timestamp was out of the configured acceptable range.
+    #[fail(display = "found invalid timestamp")]
+    InvalidTimestamp,
+    /// Internal error: Attempted to merge two metric buckets of different types.
+    #[fail(display = "found incompatible metric types")]
+    InvalidTypes,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct BucketKey {
@@ -828,7 +846,7 @@ impl AggregatorConfig {
         let output_timestamp = UnixTimestamp::from_secs(ts);
 
         if output_timestamp < min_timestamp || output_timestamp > max_timestamp {
-            return Err(AggregateMetricsError);
+            return Err(AggregateMetricsErrorKind::InvalidTimestamp.into());
         }
 
         Ok(output_timestamp)
@@ -1140,7 +1158,9 @@ impl Aggregator {
         I: IntoIterator<Item = Bucket>,
     {
         for bucket in buckets.into_iter() {
-            self.merge(project_key, bucket)?;
+            if let Err(error) = self.merge(project_key, bucket) {
+                relay_log::error!("{}", error);
+            }
         }
 
         Ok(())
@@ -2015,8 +2035,11 @@ mod tests {
         };
 
         assert!(matches!(
-            config.get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2),
-            Err(AggregateMetricsError)
+            config
+                .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2)
+                .unwrap_err()
+                .kind,
+            AggregateMetricsErrorKind::InvalidTimestamp
         ));
     }
 
