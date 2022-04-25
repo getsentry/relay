@@ -1484,7 +1484,7 @@ mod tests {
 
     fn some_metric() -> Metric {
         Metric {
-            name: "foo".to_owned(),
+            name: "c:foo".to_owned(),
             unit: MetricUnit::None,
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
@@ -1810,7 +1810,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
-                    metric_name: "foo",
+                    metric_name: "c:foo",
                     metric_type: Counter,
                     metric_unit: None,
                     tags: {},
@@ -1859,7 +1859,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
-                    metric_name: "foo",
+                    metric_name: "c:foo",
                     metric_type: Counter,
                     metric_unit: None,
                     tags: {},
@@ -1872,7 +1872,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
-                    metric_name: "foo",
+                    metric_name: "c:foo",
                     metric_type: Counter,
                     metric_unit: None,
                     tags: {},
