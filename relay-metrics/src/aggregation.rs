@@ -1071,6 +1071,7 @@ impl Aggregator {
     /// Returns `Err` if the metric should be dropped.
     fn validate_bucket_key(mut key: BucketKey) -> Result<BucketKey, AggregateMetricsError> {
         if !protocol::is_valid_name(&key.metric_name) {
+            relay_log::debug!("invalid metric name {:?}", key.metric_name);
             return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
         }
 
@@ -1078,7 +1079,7 @@ impl Aggregator {
             if protocol::is_valid_tag_key(tag_key) {
                 true
             } else {
-                relay_log::error!("invalid metric tag key {:?}", tag_key);
+                relay_log::debug!("invalid metric tag key {:?}", tag_key);
                 false
             }
         });
