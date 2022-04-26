@@ -1066,10 +1066,25 @@ impl Aggregator {
         }
     }
 
-    /// Remove invalid characters from tags and metric names.
+    /// Validates the metric name and its tags are correct.
     ///
     /// Returns `Err` if the metric should be dropped.
-    fn validate_bucket_key(mut key: BucketKey) -> Result<BucketKey, AggregateMetricsError> {
+    fn validate_bucket_key(
+        mut key: BucketKey,
+        aggregator_config: &AggregatorConfig,
+    ) -> Result<BucketKey, AggregateMetricsError> {
+        key = Self::validate_metric_name(key, aggregator_config)?;
+        key = Self::validate_metric_tags(key);
+        Ok(key)
+    }
+
+    /// Removes invalid characters from metric names.
+    ///
+    /// Returns `Err` if the metric must be dropped.
+    fn validate_metric_name(
+        key: BucketKey,
+        aggregator_config: &AggregatorConfig,
+    ) -> Result<BucketKey, AggregateMetricsError> {
         if !protocol::is_valid_mri(&key.metric_name) {
             relay_log::debug!("invalid metric name {:?}", key.metric_name);
             relay_log::configure_scope(|scope| {
@@ -1081,7 +1096,13 @@ impl Aggregator {
             });
             return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
         }
+        Ok(key)
+    }
 
+    /// Removes tags with invalid characters in the key, and validates tag values.
+    ///
+    /// Tag values are validated with `protocol::validate_tag_value`.
+    fn validate_metric_tags(mut key: BucketKey) -> BucketKey {
         key.tags.retain(|tag_key, _| {
             if protocol::is_valid_tag_key(tag_key) {
                 true
@@ -1093,8 +1114,7 @@ impl Aggregator {
         for (_, tag_value) in key.tags.iter_mut() {
             protocol::validate_tag_value(tag_value);
         }
-
-        Ok(key)
+        key
     }
 
     /// Merges any mergeable value into the bucket at the given `key`.
@@ -1108,7 +1128,7 @@ impl Aggregator {
         let timestamp = key.timestamp;
         let project_key = key.project_key;
 
-        let key = Self::validate_bucket_key(key)?;
+        let key = Self::validate_bucket_key(key, &self.config)?;
 
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
