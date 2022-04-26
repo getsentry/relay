@@ -1072,6 +1072,7 @@ impl Aggregator {
     fn validate_bucket_key(mut key: BucketKey) -> Result<BucketKey, AggregateMetricsError> {
         if !protocol::is_valid_mri(&key.metric_name) {
             relay_log::debug!("invalid metric name {:?}", key.metric_name);
+            sentry::set_extra("bucket_key", key);
             return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
         }
 
