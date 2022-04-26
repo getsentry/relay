@@ -807,6 +807,11 @@ pub struct AggregatorConfig {
     ///
     /// Defaults to 1 minute.
     pub max_secs_in_future: u64,
+
+    /// The length the name of a metric is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    pub max_name_length: usize,
 }
 
 impl AggregatorConfig {
