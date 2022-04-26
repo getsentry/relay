@@ -1111,7 +1111,7 @@
     <span class="doccomment">/// can be the git SHA for the given project, or a product identifier with a semantic version.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(
         <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;tag_value&quot;</span>,  <span class="comment">// release ends in tag</span>
-        <span class="ident">deny_chars</span> <span class="op">=</span> <span class="string">&quot;\r\n\x0c\t/\\&quot;</span>,
+        <span class="comment">// release allowed chars are validated in the sentry-release-parser crate!</span>
         <span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>,
         <span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>,
         <span class="ident">nonempty</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>,
@@ -1142,7 +1142,7 @@
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(
         <span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;environment&quot;</span>,
-        <span class="ident">deny_chars</span> <span class="op">=</span> <span class="string">&quot;\r\n\x0C/&quot;</span>,
+        <span class="comment">// environment allowed chars are validated in the sentry-release-parser crate!</span>
         <span class="ident">nonempty</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>,
         <span class="ident">required</span> <span class="op">=</span> <span class="string">&quot;false&quot;</span>,
         <span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>
