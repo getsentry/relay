@@ -610,7 +610,7 @@ pub struct Metric {
     /// The name of the metric without its unit.
     ///
     /// Metric names cannot be empty, must start with a letter and can consist of ASCII
-    /// alphanumerics, underscores and periods.
+    /// alphanumerics, underscores, slashes, @s and periods.
     pub name: String,
     /// The unit of the metric value.
     ///
