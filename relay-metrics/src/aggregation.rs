@@ -815,6 +815,16 @@ pub struct AggregatorConfig {
     ///
     /// Defaults to `200` bytes.
     pub max_name_length: usize,
+
+    /// The length the tag key is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    pub max_tag_key_length: usize,
+
+    /// The length the tag value is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    pub max_tag_value_length: usize,
 }
 
 impl AggregatorConfig {
@@ -912,6 +922,8 @@ impl Default for AggregatorConfig {
             max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
             max_secs_in_future: 60,             // 1 minute
             max_name_length: 200,
+            max_tag_key_length: 200,
+            max_tag_value_length: 200,
         }
     }
 }
@@ -1540,6 +1552,8 @@ mod tests {
             max_secs_in_past: 50 * 365 * 24 * 60 * 60,
             max_secs_in_future: 50 * 365 * 24 * 60 * 60,
             max_name_length: 200,
+            max_tag_key_length: 200,
+            max_tag_value_length: 200,
         }
     }
 
