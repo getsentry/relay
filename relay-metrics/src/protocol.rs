@@ -422,6 +422,44 @@ fn is_valid_name(name: &str) -> bool {
     false
 }
 
+/// Validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
+///
+/// Note that the format used in the statsd protocol is different: Metric names are not prefixed
+/// with `<ty>:` as the type is somewhere else in the protocol.
+pub(crate) fn is_valid_mri(name: &str) -> bool {
+    let mut components = name.splitn(2, ':');
+    if components.next().is_none() {
+        return false;
+    }
+
+    if let Some(name_unit) = components.next() {
+        parse_name_unit(name_unit).is_some()
+    } else {
+        false
+    }
+}
+
+/// Validates a tag key.
+///
+/// Tag keys currently only need to not contain ASCII control characters. This might change.
+pub(crate) fn is_valid_tag_key(tag_key: &str) -> bool {
+    // iterating over bytes produces better asm, and we're only checking for ascii chars
+    for &byte in tag_key.as_bytes() {
+        if (byte as char).is_ascii_control() {
+            return false;
+        }
+    }
+    true
+}
+
+/// Validates a tag value.
+///
+/// Tag values are never entirely rejected, but invalid characters (ASCII control characters) are
+/// stripped out.
+pub(crate) fn validate_tag_value(tag_value: &mut String) {
+    tag_value.retain(|c| !c.is_ascii_control());
+}
+
 /// Parses the `name[@unit]` part of a metric string.
 ///
 /// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
@@ -487,9 +525,17 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 
     for pair in string.split(',') {
         let mut name_value = pair.splitn(2, ':');
+
         let name = name_value.next()?;
-        let value = name_value.next().unwrap_or_default();
-        map.insert(name.to_owned(), value.to_owned());
+        if !is_valid_tag_key(name) {
+            continue;
+        }
+
+        let mut value = name_value.next().unwrap_or_default().to_owned();
+
+        validate_tag_value(&mut value);
+
+        map.insert(name.to_owned(), value);
     }
 
     Some(map)
@@ -564,7 +610,7 @@ pub struct Metric {
     /// The name of the metric without its unit.
     ///
     /// Metric names cannot be empty, must start with a letter and can consist of ASCII
-    /// alphanumerics, underscores and periods.
+    /// alphanumerics, underscores, slashes, @s and periods.
     pub name: String,
     /// The unit of the metric value.
     ///

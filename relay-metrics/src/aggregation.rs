@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{Metric, MetricType, MetricUnit, MetricValue};
+use crate::{protocol, Metric, MetricType, MetricUnit, MetricValue};
 
 /// Interval for the flush cycle of the [`Aggregator`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -728,7 +728,11 @@ impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
 }
 
 #[derive(Debug, Fail)]
+#[allow(clippy::enum_variant_names)]
 enum AggregateMetricsErrorKind {
+    /// A metric bucket had invalid characters in the metric name.
+    #[fail(display = "found invalid characters")]
+    InvalidCharacters,
     /// A metric bucket's timestamp was out of the configured acceptable range.
     #[fail(display = "found invalid timestamp")]
     InvalidTimestamp,
@@ -1062,6 +1066,30 @@ impl Aggregator {
         }
     }
 
+    /// Remove invalid characters from tags and metric names.
+    ///
+    /// Returns `Err` if the metric should be dropped.
+    fn validate_bucket_key(mut key: BucketKey) -> Result<BucketKey, AggregateMetricsError> {
+        if !protocol::is_valid_mri(&key.metric_name) {
+            relay_log::debug!("invalid metric name {:?}", key.metric_name);
+            return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
+        }
+
+        key.tags.retain(|tag_key, _| {
+            if protocol::is_valid_tag_key(tag_key) {
+                true
+            } else {
+                relay_log::debug!("invalid metric tag key {:?}", tag_key);
+                false
+            }
+        });
+        for (_, tag_value) in key.tags.iter_mut() {
+            protocol::validate_tag_value(tag_value);
+        }
+
+        Ok(key)
+    }
+
     /// Merges any mergeable value into the bucket at the given `key`.
     ///
     /// If no bucket exists for the given bucket key, a new bucket will be created.
@@ -1072,6 +1100,8 @@ impl Aggregator {
     ) -> Result<(), AggregateMetricsError> {
         let timestamp = key.timestamp;
         let project_key = key.project_key;
+
+        let key = Self::validate_bucket_key(key)?;
 
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
@@ -1454,7 +1484,7 @@ mod tests {
 
     fn some_metric() -> Metric {
         Metric {
-            name: "foo".to_owned(),
+            name: "c:foo".to_owned(),
             unit: MetricUnit::None,
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
@@ -1780,7 +1810,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
-                    metric_name: "foo",
+                    metric_name: "c:foo",
                     metric_type: Counter,
                     metric_unit: None,
                     tags: {},
@@ -1829,7 +1859,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
-                    metric_name: "foo",
+                    metric_name: "c:foo",
                     metric_type: Counter,
                     metric_unit: None,
                     tags: {},
@@ -1842,7 +1872,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
-                    metric_name: "foo",
+                    metric_name: "c:foo",
                     metric_type: Counter,
                     metric_unit: None,
                     tags: {},
@@ -2100,5 +2130,51 @@ mod tests {
                 .as_secs(),
             rounded_now + 10
         );
+    }
+
+    #[test]
+    fn test_validate_bucket_key() {
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
+        let bucket_key = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:hergus.bergus".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: {
+                let mut tags = BTreeMap::new();
+                // There are some SDKs which mess up content encodings, and interpret the raw bytes
+                // of an UTF-16 string as UTF-8. Leading to ASCII
+                // strings getting null-bytes interleaved.
+                //
+                // Somehow those values end up as release tag in sessions, while in error events we
+                // haven't observed this malformed encoding. We believe it's slightly better to
+                // strip out NUL-bytes instead of dropping the tag such that those values line up
+                // again across sessions and events. Should that cause too high cardinality we'll
+                // have to drop tags.
+                //
+                // Note that releases are validated separately against much stricter character set,
+                // but the above idea should still apply to other tags.
+                tags.insert(
+                    "is_it_garbage".to_owned(),
+                    "a\0b\0s\0o\0l\0u\0t\0e\0l\0y".to_owned(),
+                );
+                tags.insert("another\0garbage".to_owned(), "bye".to_owned());
+                tags
+            },
+        };
+
+        let mut bucket_key = Aggregator::validate_bucket_key(bucket_key).unwrap();
+
+        assert_eq!(bucket_key.tags.len(), 1);
+        assert_eq!(
+            bucket_key.tags.get("is_it_garbage"),
+            Some(&"absolutely".to_owned())
+        );
+        assert_eq!(bucket_key.tags.get("another\0garbage"), None);
+
+        bucket_key.metric_name = "hergus\0bergus".to_owned();
+        Aggregator::validate_bucket_key(bucket_key).unwrap_err();
     }
 }
