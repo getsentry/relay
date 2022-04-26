@@ -739,6 +739,9 @@ enum AggregateMetricsErrorKind {
     /// Internal error: Attempted to merge two metric buckets of different types.
     #[fail(display = "found incompatible metric types")]
     InvalidTypes,
+    /// A metric bucket had a too long string (metric name or a tag key/value).
+    #[fail(display = "found invalid string")]
+    InvalidStringLength,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1091,6 +1094,11 @@ impl Aggregator {
         key: BucketKey,
         aggregator_config: &AggregatorConfig,
     ) -> Result<BucketKey, AggregateMetricsError> {
+        if key.metric_name.len() > aggregator_config.max_name_length {
+            // TODO: log error?
+            return Err(AggregateMetricsErrorKind::InvalidStringLength.into());
+        }
+
         if !protocol::is_valid_mri(&key.metric_name) {
             relay_log::debug!("invalid metric name {:?}", key.metric_name);
             relay_log::configure_scope(|scope| {
