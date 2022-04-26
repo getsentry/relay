@@ -908,6 +908,7 @@ impl Default for AggregatorConfig {
             debounce_delay: 10,
             max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
             max_secs_in_future: 60,             // 1 minute
+            max_name_length: 200,
         }
     }
 }
@@ -1511,6 +1512,7 @@ mod tests {
             debounce_delay: 0,
             max_secs_in_past: 50 * 365 * 24 * 60 * 60,
             max_secs_in_future: 50 * 365 * 24 * 60 * 60,
+            max_name_length: 200,
         }
     }
 
@@ -2196,8 +2198,10 @@ mod tests {
                 tags
             },
         };
+        let aggregator_config = test_config();
 
-        let mut bucket_key = Aggregator::validate_bucket_key(bucket_key).unwrap();
+        let mut bucket_key =
+            Aggregator::validate_bucket_key(bucket_key, &aggregator_config).unwrap();
 
         assert_eq!(bucket_key.tags.len(), 1);
         assert_eq!(
@@ -2207,6 +2211,6 @@ mod tests {
         assert_eq!(bucket_key.tags.get("another\0garbage"), None);
 
         bucket_key.metric_name = "hergus\0bergus".to_owned();
-        Aggregator::validate_bucket_key(bucket_key).unwrap_err();
+        Aggregator::validate_bucket_key(bucket_key, &aggregator_config).unwrap_err();
     }
 }
