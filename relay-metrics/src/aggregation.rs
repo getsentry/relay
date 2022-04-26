@@ -1094,8 +1094,27 @@ impl Aggregator {
         key: BucketKey,
         aggregator_config: &AggregatorConfig,
     ) -> Result<BucketKey, AggregateMetricsError> {
-        if key.metric_name.len() > aggregator_config.max_name_length {
-            // TODO: log error?
+        let metric_name_length = key.metric_name.len();
+        if metric_name_length > aggregator_config.max_name_length {
+            relay_log::configure_scope(|scope| {
+                scope.set_extra(
+                    "bucket.project_key",
+                    key.project_key.as_str().to_owned().into(),
+                );
+                scope.set_extra("bucket.metric_name", key.metric_name.into());
+                scope.set_extra(
+                    "bucket.metric_name.length",
+                    metric_name_length.to_string().to_owned().into(),
+                );
+                scope.set_extra(
+                    "aggregator_config.max_name_length",
+                    aggregator_config
+                        .max_name_length
+                        .to_string()
+                        .to_owned()
+                        .into(),
+                );
+            });
             return Err(AggregateMetricsErrorKind::InvalidStringLength.into());
         }
 
