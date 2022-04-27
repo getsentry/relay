@@ -10,6 +10,8 @@
 **Internal**:
 
 * Add sampling + tagging by event platform and transaction op. Some (unused) tagging rules from 22.4.0 have been renamed. ([#1231](https://github.com/getsentry/relay/pull/1231))
+- Refactor aggregation error, recover from errors more gracefully. ([#1240](https://github.com/getsentry/relay/pull/1240))
+- Remove/reject nul-bytes from metric strings. ([#1235](https://github.com/getsentry/relay/pull/1235))
 
 ## 22.4.0
 
