@@ -55,7 +55,7 @@ pub fn expand_unreal_envelope(
     let crash = Unreal4Crash::parse_with_limit(&payload, config.max_envelope_size())?;
 
     let mut has_event = envelope
-        .get_item_by(|item| item.ty() == ItemType::Event)
+        .get_item_by(|item| item.ty() == &ItemType::Event)
         .is_some();
 
     for file in crash.files() {

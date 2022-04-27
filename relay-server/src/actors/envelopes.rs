@@ -793,7 +793,7 @@ impl EnvelopeProcessor {
     /// is written back into the item.
     fn process_user_reports(&self, state: &mut ProcessEnvelopeState) {
         state.envelope.retain_items(|item| {
-            if item.ty() != ItemType::UserReport {
+            if item.ty() != &ItemType::UserReport {
                 return true;
             };
 
@@ -831,7 +831,7 @@ impl EnvelopeProcessor {
             if self.config.processing_enabled() {
                 state
                     .envelope
-                    .retain_items(|item| item.ty() != ItemType::ClientReport);
+                    .retain_items(|item| item.ty() != &ItemType::ClientReport);
             }
             return;
         }
@@ -846,7 +846,7 @@ impl EnvelopeProcessor {
         // we're going through all client reports but we're effectively just merging
         // them into the first one.
         state.envelope.retain_items(|item| {
-            if item.ty() != ItemType::ClientReport {
+            if item.ty() != &ItemType::ClientReport {
                 return true;
             };
             match ClientReport::parse(&item.payload()) {
@@ -1038,7 +1038,7 @@ impl EnvelopeProcessor {
     fn expand_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let envelope = &mut state.envelope;
 
-        if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
+        if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
             utils::expand_unreal_envelope(item, envelope, &self.config)?;
         }
 
@@ -1302,11 +1302,11 @@ impl EnvelopeProcessor {
         // Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
         // `process_event`.
-        let event_item = envelope.take_item_by(|item| item.ty() == ItemType::Event);
-        let transaction_item = envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
-        let security_item = envelope.take_item_by(|item| item.ty() == ItemType::Security);
-        let raw_security_item = envelope.take_item_by(|item| item.ty() == ItemType::RawSecurity);
-        let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
+        let event_item = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
+        let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
+        let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
+        let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
+        let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
         let attachment_item = envelope
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
         let breadcrumbs1 = envelope
@@ -1316,7 +1316,7 @@ impl EnvelopeProcessor {
 
         // Event items can never occur twice in an envelope.
         if let Some(duplicate) = envelope.get_item_by(|item| self.is_duplicate(item)) {
-            return Err(ProcessingError::DuplicateItem(duplicate.ty()));
+            return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
         }
 
         let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
@@ -2010,7 +2010,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 
         for item in items {
             let payload = item.payload();
-            if item.ty() == ItemType::Metrics {
+            if item.ty() == &ItemType::Metrics {
                 let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
                 clock_drift_processor.process_timestamp(&mut timestamp);
 
@@ -2027,7 +2027,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
                     relay_log::trace!("inserting metrics into project cache");
                     project_cache.do_send(InsertMetrics::new(public_key, metrics));
                 }
-            } else if item.ty() == ItemType::MetricBuckets {
+            } else if item.ty() == &ItemType::MetricBuckets {
                 match Bucket::parse_all(&payload) {
                     Ok(mut buckets) => {
                         for bucket in &mut buckets {
@@ -3040,7 +3040,7 @@ mod tests {
         let new_envelope = envelope_response.envelope.unwrap();
 
         assert_eq!(new_envelope.len(), 1);
-        assert_eq!(new_envelope.items().next().unwrap().ty(), ItemType::Event);
+        assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
     }
 
     #[test]
@@ -3153,7 +3153,7 @@ mod tests {
 
         let envelope = envelope_response.envelope.unwrap();
         let item = envelope.items().next().unwrap();
-        assert_eq!(item.ty(), ItemType::ClientReport);
+        assert_eq!(item.ty(), &ItemType::ClientReport);
     }
 
     #[test]
