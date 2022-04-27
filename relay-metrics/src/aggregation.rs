@@ -1116,15 +1116,11 @@ impl Aggregator {
                 scope.set_extra("bucket.metric_name", key.metric_name.into());
                 scope.set_extra(
                     "bucket.metric_name.length",
-                    metric_name_length.to_string().to_owned().into(),
+                    metric_name_length.to_string().into(),
                 );
                 scope.set_extra(
                     "aggregator_config.max_name_length",
-                    aggregator_config
-                        .max_name_length
-                        .to_string()
-                        .to_owned()
-                        .into(),
+                    aggregator_config.max_name_length.to_string().into(),
                 );
             });
             return Err(AggregateMetricsErrorKind::InvalidStringLength.into());
@@ -1156,11 +1152,7 @@ impl Aggregator {
                     scope.set_extra("bucket.metric.tag_key", tag_key.to_owned().into());
                     scope.set_extra(
                         "aggregator_config.max_tag_key_length",
-                        aggregator_config
-                            .max_tag_key_length
-                            .to_string()
-                            .to_owned()
-                            .into(),
+                        aggregator_config.max_tag_key_length.to_string().into(),
                     );
                 });
                 relay_log::debug!("Invalid metric tag key");
@@ -1172,11 +1164,7 @@ impl Aggregator {
                     scope.set_extra("bucket.metric.tag_value", tag_value.to_owned().into());
                     scope.set_extra(
                         "aggregator_config.max_tag_value_length",
-                        aggregator_config
-                            .max_tag_value_length
-                            .to_string()
-                            .to_owned()
-                            .into(),
+                        aggregator_config.max_tag_value_length.to_string().into(),
                     );
                 });
                 relay_log::debug!("Invalid metric tag value");
