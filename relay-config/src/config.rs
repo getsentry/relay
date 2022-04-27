@@ -576,6 +576,13 @@ impl Default for Limits {
     }
 }
 
+/// Controls traffic steering.
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Routing {
+    forward_unknown_items: Option<bool>,
+}
+
 /// Http content encoding for both incoming and outgoing web requests.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -1223,6 +1230,8 @@ struct ConfigValues {
     limits: Limits,
     #[serde(default)]
     logging: relay_log::LogConfig,
+    #[serde(default)]
+    routing: Routing,
     #[serde(default)]
     metrics: Metrics,
     #[serde(default)]
@@ -1939,6 +1948,12 @@ impl Config {
     /// Return the statically configured Relays.
     pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
         &self.values.auth.static_relays
+    }
+
+    /// Returns `true` if unknown items should be forwarded (default).
+    pub fn forward_unknown_items(&self) -> bool {
+        let forward = self.values.routing.forward_unknown_items;
+        forward.unwrap_or_else(|| !self.processing_enabled())
     }
 }
 

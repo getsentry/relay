@@ -346,8 +346,14 @@ where
 
     let future = extract_envelope(&request, meta)
         .into_future()
-        .and_then(clone!(envelope_context, |envelope| {
+        .and_then(clone!(config, envelope_context, |mut envelope| {
             envelope_context.borrow_mut().update(&envelope);
+
+            // If configured, remove unknown items at the very beginning. If the envelope is
+            // empty, we fail the request with a special control flow error to skip checks and
+            // queueing, that still results in a `200 OK` response.
+            utils::remove_unknown_items(&config, &mut envelope);
+
             if envelope.is_empty() {
                 // envelope is empty, cannot send outcomes
                 Err(BadStoreRequest::EmptyEnvelope)
@@ -426,6 +432,11 @@ where
             let event_id = envelope_context.borrow().event_id();
 
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
+                return Ok(create_response(event_id));
+            }
+
+            // This is a control-flow error without a bad status code.
+            if matches!(error, BadStoreRequest::EmptyEnvelope) {
                 return Ok(create_response(event_id));
             }
 

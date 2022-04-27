@@ -54,3 +54,19 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
         && session_count <= config.max_session_count()
         && client_reports_size <= config.max_client_reports_size()
 }
+
+/// Checks for valid envelope items.
+///
+/// If Relay is configured to drop unknown items, this function removes them from the Envelope. All
+/// known items will be retained.
+pub fn remove_unknown_items(config: &Config, envelope: &mut Envelope) {
+    if !config.forward_unknown_items() {
+        envelope.retain_items(|item| match item.ty() {
+            ItemType::Unknown(ty) => {
+                relay_log::debug!("dropping unknown item of type '{}'", ty);
+                false
+            }
+            _ => true,
+        });
+    }
+}
