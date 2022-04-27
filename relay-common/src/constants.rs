@@ -112,8 +112,6 @@ pub enum DataCategory {
     Session = 5,
     /// Replay Events
     ReplayEvent = 6,
-    /// Reserved data category that shall not appear in the outcomes.
-    Internal = -2,
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
