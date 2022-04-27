@@ -105,12 +105,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::UserReport => None,
         ItemType::Profile => None,
         ItemType::ReplayRecording => None,
-        // the following items are "internal" item types.  From the perspective of the SDK
-        // the use the "internal" data category however this data category is in fact never
-        // supposed to be emitted by relay as internal items must not be rate limited.  As
-        // such we do not emit a data category here.  An SDK however is supposed to assume
-        // that such item types use the reserved "internal" data category to not accidentally
-        // assume another rate limit (such as default).
         ItemType::ClientReport => None,
     }
 }

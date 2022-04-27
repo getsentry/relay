@@ -343,7 +343,7 @@ pub struct Event {
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
         max_chars = "tag_value",  // release ends in tag
-        deny_chars = "\r\n\x0c\t/\\",
+        // release allowed chars are validated in the sentry-release-parser crate!
         required = "false",
         trim_whitespace = "true",
         nonempty = "true",
@@ -374,7 +374,7 @@ pub struct Event {
     /// ```
     #[metastructure(
         max_chars = "environment",
-        deny_chars = "\r\n\x0C/",
+        // environment allowed chars are validated in the sentry-release-parser crate!
         nonempty = "true",
         required = "false",
         trim_whitespace = "true"

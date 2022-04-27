@@ -408,18 +408,56 @@ impl fmt::Display for ParseMetricError {
     }
 }
 
-/// Validates a metric name.
+/// Validates a metric name. This is the statsd name, i.e. without type or unit.
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
-/// underscores and periods.
+/// underscores, slashes and periods.
 fn is_valid_name(name: &str) -> bool {
     let mut iter = name.as_bytes().iter();
     if let Some(first_byte) = iter.next() {
         if first_byte.is_ascii_alphabetic() {
-            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'));
+            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/'));
         }
     }
     false
+}
+
+/// Validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
+///
+/// Note that the format used in the statsd protocol is different: Metric names are not prefixed
+/// with `<ty>:` as the type is somewhere else in the protocol.
+pub(crate) fn is_valid_mri(name: &str) -> bool {
+    let mut components = name.splitn(2, ':');
+    if components.next().is_none() {
+        return false;
+    }
+
+    if let Some(name_unit) = components.next() {
+        parse_name_unit(name_unit).is_some()
+    } else {
+        false
+    }
+}
+
+/// Validates a tag key.
+///
+/// Tag keys currently only need to not contain ASCII control characters. This might change.
+pub(crate) fn is_valid_tag_key(tag_key: &str) -> bool {
+    // iterating over bytes produces better asm, and we're only checking for ascii chars
+    for &byte in tag_key.as_bytes() {
+        if (byte as char).is_ascii_control() {
+            return false;
+        }
+    }
+    true
+}
+
+/// Validates a tag value.
+///
+/// Tag values are never entirely rejected, but invalid characters (ASCII control characters) are
+/// stripped out.
+pub(crate) fn validate_tag_value(tag_value: &mut String) {
+    tag_value.retain(|c| !c.is_ascii_control());
 }
 
 /// Parses the `name[@unit]` part of a metric string.
@@ -487,9 +525,17 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 
     for pair in string.split(',') {
         let mut name_value = pair.splitn(2, ':');
+
         let name = name_value.next()?;
-        let value = name_value.next().unwrap_or_default();
-        map.insert(name.to_owned(), value.to_owned());
+        if !is_valid_tag_key(name) {
+            continue;
+        }
+
+        let mut value = name_value.next().unwrap_or_default().to_owned();
+
+        validate_tag_value(&mut value);
+
+        map.insert(name.to_owned(), value);
     }
 
     Some(map)
@@ -564,7 +610,7 @@ pub struct Metric {
     /// The name of the metric without its unit.
     ///
     /// Metric names cannot be empty, must start with a letter and can consist of ASCII
-    /// alphanumerics, underscores and periods.
+    /// alphanumerics, underscores, slashes, @s and periods.
     pub name: String,
     /// The unit of the metric value.
     ///
@@ -629,7 +675,7 @@ impl Metric {
         let (name, unit, value) = parse_name_unit_value(name_value_str, ty)?;
 
         let mut metric = Self {
-            name,
+            name: format!("{}:{}", ty, name),
             unit,
             value,
             timestamp,
@@ -760,7 +806,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "foo",
+            name: "c:foo",
             unit: None,
             value: Counter(
                 42.0,
@@ -778,7 +824,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "foo",
+            name: "d:foo",
             unit: None,
             value: Distribution(
                 17.5,
@@ -804,7 +850,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "foo",
+            name: "s:foo",
             unit: None,
             value: Set(
                 4267882815,
@@ -822,7 +868,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "foo",
+            name: "g:foo",
             unit: None,
             value: Gauge(
                 42.0,
