@@ -1,7 +1,7 @@
 import pytest
+import queue
 
-from requests.exceptions import HTTPError
-from sentry_sdk.envelope import Envelope
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 
 def test_envelope(mini_sentry, relay_chain):
@@ -23,11 +23,11 @@ def test_envelope_empty(mini_sentry, relay):
     mini_sentry.add_basic_project_config(PROJECT_ID)
 
     envelope = Envelope()
+    relay.send_envelope(PROJECT_ID, envelope)
 
-    with pytest.raises(HTTPError) as excinfo:
-        relay.send_envelope(PROJECT_ID, envelope)
-
-    assert excinfo.value.response.status_code == 400
+    # there is nothing sent to the upstream
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_events.get(timeout=1)
 
 
 def test_envelope_without_header(mini_sentry, relay):
@@ -45,6 +45,38 @@ def test_envelope_without_header(mini_sentry, relay):
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
+def test_unknown_item(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    PROJECT_ID = 42
+    mini_sentry.add_basic_project_config(PROJECT_ID)
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(payload=PayloadRef(bytes=b"something"), type="invalid_unknown")
+    )
+    relay.send_envelope(PROJECT_ID, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert len(envelope.items) == 1
+    assert envelope.items[0].type == "invalid_unknown"
+
+
+def test_drop_unknown_item(mini_sentry, relay):
+    relay = relay(mini_sentry, {"routing": {"unknown_items": False}})
+    PROJECT_ID = 42
+    mini_sentry.add_basic_project_config(PROJECT_ID)
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(payload=PayloadRef(bytes=b"something"), type="invalid_unknown")
+    )
+    relay.send_envelope(PROJECT_ID, envelope)
+
+    # there is nothing sent to the upstream
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_events.get(timeout=1)
 
 
 def generate_transaction_item():

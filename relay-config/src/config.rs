@@ -580,7 +580,16 @@ impl Default for Limits {
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Routing {
-    forward_unknown_items: Option<bool>,
+    /// Accept and forward unknown Envelope items to the upstream.
+    ///
+    /// Forwarding unknown items should be enabled in most cases to allow proxying traffic for newer
+    /// SDK versions. The upstream in Sentry makes the final decision on which items are valid. If
+    /// this is disabled, just the unknown items are removed from Envelopes, and the rest is
+    /// processed as usual.
+    ///
+    /// Defaults to `true` for all Relay modes other than processing mode. In processing mode, this
+    /// is disabled by default since the item cannot be handled.
+    unknown_items: Option<bool>,
 }
 
 /// Http content encoding for both incoming and outgoing web requests.
@@ -1950,9 +1959,9 @@ impl Config {
         &self.values.auth.static_relays
     }
 
-    /// Returns `true` if unknown items should be forwarded (default).
-    pub fn forward_unknown_items(&self) -> bool {
-        let forward = self.values.routing.forward_unknown_items;
+    /// Returns `true` if unknown items should be accepted and forwarded.
+    pub fn accept_unknown_items(&self) -> bool {
+        let forward = self.values.routing.unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
     }
 }
