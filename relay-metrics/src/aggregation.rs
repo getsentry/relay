@@ -715,7 +715,7 @@ impl Bucket {
 }
 
 /// Any error that may occur during aggregation.
-#[derive(Debug, Fail)]
+#[derive(Debug, Fail, PartialEq)]
 #[fail(display = "failed to aggregate metrics: {}", kind)]
 pub struct AggregateMetricsError {
     kind: AggregateMetricsErrorKind,
@@ -727,7 +727,7 @@ impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
     }
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Fail, PartialEq)]
 #[allow(clippy::enum_variant_names)]
 enum AggregateMetricsErrorKind {
     /// A metric bucket had invalid characters in the metric name.
@@ -1163,6 +1163,7 @@ impl Aggregator {
                             .into(),
                     );
                 });
+                relay_log::debug!("Invalid metric tag key");
                 return false;
             }
             if tag_value.len() > aggregator_config.max_tag_value_length {
@@ -1178,6 +1179,7 @@ impl Aggregator {
                             .into(),
                     );
                 });
+                relay_log::debug!("Invalid metric tag value");
                 return false;
             }
 
@@ -2291,101 +2293,56 @@ mod tests {
     fn test_validate_bucket_key_str_lens() {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let aggregator_config = test_config();
 
-        let receiver = TestReceiver::start_default().recipient();
-        let mut aggregator = Aggregator::new(test_config(), receiver);
-
-        let short_name = Metric {
-            name: "a_short_metric".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(14.0), // name.len()
-            timestamp: UnixTimestamp::from_secs(999994711),
+        let short_metric = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:a_short_metric".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
             tags: BTreeMap::new(),
         };
-        assert!(aggregator.insert(project_key, short_name).is_ok());
+        assert!(Aggregator::validate_bucket_key(short_metric, &aggregator_config).is_ok());
 
-        let short_metric_long_tag_key = Metric {
-            name: "a_short_metric".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(14.279), // name.len()
-            timestamp: UnixTimestamp::from_secs(999994711),
+        let long_metric = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: BTreeMap::new(),
+        };
+        let validation = Aggregator::validate_bucket_key(long_metric, &aggregator_config);
+
+        assert_eq!(
+            validation.unwrap_err(),
+            AggregateMetricsError::from(AggregateMetricsErrorKind::InvalidStringLength)
+        );
+
+        let short_metric_long_tag_key = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:a_short_metric_with_long_tag_key".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
         };
-        assert!(aggregator
-            .insert(project_key, short_metric_long_tag_key)
-            .is_ok());
+        let validation =
+            Aggregator::validate_bucket_key(short_metric_long_tag_key, &aggregator_config).unwrap();
+        assert_eq!(validation.tags.len(), 0);
 
-        let short_metric_long_tag_value = Metric {
-                name: "a_short_metric".to_owned(),
-                unit: MetricUnit::None,
-                value: MetricValue::Counter(14.279), // name.len()
-                timestamp: UnixTimestamp::from_secs(999994711),
+        let short_metric_long_tag_value = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:a_short_metric_with_long_tag_value".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
                 tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
-            };
-        assert!(aggregator
-            .insert(project_key, short_metric_long_tag_value)
-            .is_ok());
-
-        let long = Metric {
-                    name: "long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
-                    unit: MetricUnit::None,
-                    value: MetricValue::Counter(275.0), // name.len()
-                    timestamp: UnixTimestamp::from_secs(999994711),
-                    tags: BTreeMap::new(),
-                };
-        assert!(aggregator.insert(project_key, long).is_err());
-
-        let another_short_name = Metric {
-            name: "not_that_short_metric".to_owned(),
-            unit: MetricUnit::None,
-            value: MetricValue::Counter(21.7), // name.len()
-            timestamp: UnixTimestamp::from_secs(999994711),
-            tags: BTreeMap::from([("tag_key".into(), "tag_value".into())]),
         };
-        assert!(aggregator.insert(project_key, another_short_name).is_ok());
-
-        let mut buckets: Vec<_> = aggregator
-            .buckets
-            .iter()
-            .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
-            .collect();
-
-        buckets.sort_by(|a, b| a.0.metric_name.cmp(&b.0.metric_name));
-
-        insta::assert_debug_snapshot!(
-            buckets,
-            @r###"
-        [
-            (
-                BucketKey {
-                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    timestamp: UnixTimestamp(999994711),
-                    metric_name: "a_short_metric",
-                    metric_type: Counter,
-                    metric_unit: None,
-                    tags: {},
-                },
-                Counter(
-                    42.558,
-                ),
-            ),
-            (
-                BucketKey {
-                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    timestamp: UnixTimestamp(999994711),
-                    metric_name: "not_that_short_metric",
-                    metric_type: Counter,
-                    metric_unit: None,
-                    tags: {
-                        "tag_key": "tag_value",
-                    },
-                },
-                Counter(
-                    21.7,
-                ),
-            ),
-        ]
-        "###
-        );
+        let validation =
+            Aggregator::validate_bucket_key(short_metric_long_tag_value, &aggregator_config)
+                .unwrap();
+        assert_eq!(validation.tags.len(), 0);
     }
 }
