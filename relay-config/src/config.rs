@@ -243,6 +243,8 @@ pub struct OverridableConfig {
     pub public_key: Option<String>,
     /// Outcome source
     pub outcome_source: Option<String>,
+    /// shutdown timeout
+    pub shutdown_timeout: Option<u64>,
 }
 
 /// The relay credentials
@@ -1421,6 +1423,11 @@ impl Config {
                         .field("incomplete credentials"));
                 }
             }
+        }
+
+        let limits = &mut self.values.limits;
+        if let Some(shutdown_timeout) = overrides.shutdown_timeout {
+            limits.shutdown_timeout = shutdown_timeout;
         }
 
         Ok(self)
