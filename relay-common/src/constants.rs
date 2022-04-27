@@ -107,8 +107,6 @@ pub enum DataCategory {
     Attachment = 4,
     /// Session updates. Quantity is the number of updates in the batch.
     Session = 5,
-    /// Reserved data category that shall not appear in the outcomes.
-    Internal = -2,
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
@@ -124,7 +122,6 @@ impl DataCategory {
             "security" => Self::Security,
             "attachment" => Self::Attachment,
             "session" => Self::Session,
-            "internal" => Self::Internal,
             _ => Self::Unknown,
         }
     }
@@ -138,7 +135,6 @@ impl DataCategory {
             Self::Security => "security",
             Self::Attachment => "attachment",
             Self::Session => "session",
-            Self::Internal => "internal",
             Self::Unknown => "unknown",
         }
     }
