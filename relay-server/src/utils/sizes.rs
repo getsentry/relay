@@ -45,6 +45,7 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
                     return false;
                 }
             }
+            ItemType::Unknown(_) => (),
         }
     }
 

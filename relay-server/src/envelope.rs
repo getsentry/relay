@@ -73,8 +73,7 @@ pub enum EnvelopeError {
 }
 
 /// The type of an envelope item.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ItemType {
     /// Event payload encoded in JSON.
     Event,
@@ -104,6 +103,13 @@ pub enum ItemType {
     ClientReport,
     /// Profile event payload encoded in JSON
     Profile,
+    /// A new item type that is yet unknown by this version of Relay.
+    ///
+    /// By default, items of this type are forwarded without modification. Processing Relays and
+    /// Relays explicitly configured to do so will instead drop those items. This allows
+    /// forward-compatibility with new item types where we expect outdated Relays.
+    Unknown(String),
+    // Keep `Unknown` last in the list. Add new items above `Unknown`.
 }
 
 impl ItemType {
@@ -124,21 +130,48 @@ impl fmt::Display for ItemType {
         match *self {
             Self::Event => write!(f, "event"),
             Self::Transaction => write!(f, "transaction"),
-            Self::Security => write!(f, "security report"),
+            Self::Security => write!(f, "security"),
             Self::Attachment => write!(f, "attachment"),
-            Self::FormData => write!(f, "form data"),
-            Self::RawSecurity => write!(f, "raw security report"),
-            Self::UnrealReport => write!(f, "unreal report"),
-            Self::UserReport => write!(f, "user feedback"),
+            Self::FormData => write!(f, "form_data"),
+            Self::RawSecurity => write!(f, "raw_security"),
+            Self::UnrealReport => write!(f, "unreal_report"),
+            Self::UserReport => write!(f, "user_report"),
             Self::Session => write!(f, "session"),
-            Self::Sessions => write!(f, "aggregated sessions"),
+            Self::Sessions => write!(f, "sessions"),
             Self::Metrics => write!(f, "metrics"),
-            Self::MetricBuckets => write!(f, "metric buckets"),
-            Self::ClientReport => write!(f, "client report"),
+            Self::MetricBuckets => write!(f, "metric_buckets"),
+            Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
+            Self::Unknown(s) => s.fmt(f),
         }
     }
 }
+
+impl std::str::FromStr for ItemType {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "event" => Self::Event,
+            "transaction" => Self::Transaction,
+            "security" => Self::Security,
+            "attachment" => Self::Attachment,
+            "form_data" => Self::FormData,
+            "raw_security" => Self::RawSecurity,
+            "unreal_report" => Self::UnrealReport,
+            "user_report" => Self::UserReport,
+            "session" => Self::Session,
+            "sessions" => Self::Sessions,
+            "metrics" => Self::Metrics,
+            "metric_buckets" => Self::MetricBuckets,
+            "client_report" => Self::ClientReport,
+            "profile" => Self::Profile,
+            other => Self::Unknown(other.to_owned()),
+        })
+    }
+}
+
+relay_common::impl_str_serde!(ItemType, "an envelope item type (see sentry develop docs)");
 
 /// Payload content types.
 ///
@@ -581,6 +614,10 @@ impl Item {
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::Profile => false,
+
+            // The unknown item type can observe any behavior, most likely there are going to be no
+            // item types added that create events.
+            ItemType::Unknown(_) => false,
         }
     }
 
@@ -603,6 +640,20 @@ impl Item {
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::Profile => false,
+
+            // Since this Relay cannot interpret the semantics of this item, it does not know
+            // whether it requires an event or not. Depending on the strategy, this can cause two
+            // wrong actions here:
+            //  1. return false, but the item requires an event. It is split off by Relay and
+            //     handled separately. If the event is rate limited or filtered, the item still gets
+            //     ingested and needs to be pruned at a later point in the pipeline. This also
+            //     happens with standalone attachments.
+            //  2. return true, but the item does not require an event. It is kept in the same
+            //     envelope and dropped along with the event, even though it should be ingested.
+            // Realistically, most new item types should be ingested largely independent of events,
+            // and the ingest pipeline needs to assume split submission from clients. This makes
+            // returning `false` the safer option.
+            ItemType::Unknown(_) => false,
         }
     }
 }
@@ -1284,6 +1335,24 @@ mod tests {
         );
         assert_eq!(items[1].content_type(), Some(&ContentType::Json));
         assert_eq!(items[1].filename(), Some("application.log"));
+    }
+
+    #[test]
+    fn test_deserialize_envelope_unknown_item() {
+        // With terminating newline after item payload
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"invalid_unknown\"}\n\
+             helloworld\n\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].len(), 10);
     }
 
     #[test]

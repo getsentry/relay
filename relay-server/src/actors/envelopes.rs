@@ -1275,13 +1275,16 @@ impl EnvelopeProcessor {
             ItemType::Attachment => false,
             ItemType::UserReport => false,
 
-            // aggregate data is never considered as part of deduplication
+            // Aggregate data is never considered as part of deduplication
             ItemType::Session => false,
             ItemType::Sessions => false,
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::Profile => false,
+
+            // Without knowing more, `Unknown` items are allowed to be repeated
+            ItemType::Unknown(_) => false,
         }
     }
 
