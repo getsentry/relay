@@ -1095,7 +1095,7 @@ impl Aggregator {
         aggregator_config: &AggregatorConfig,
     ) -> Result<BucketKey, AggregateMetricsError> {
         key = Self::validate_metric_name(key, aggregator_config)?;
-        key = Self::validate_metric_tags(key);
+        key = Self::validate_metric_tags(key, aggregator_config);
         Ok(key)
     }
 
@@ -1147,8 +1147,40 @@ impl Aggregator {
     /// Removes tags with invalid characters in the key, and validates tag values.
     ///
     /// Tag values are validated with `protocol::validate_tag_value`.
-    fn validate_metric_tags(mut key: BucketKey) -> BucketKey {
-        key.tags.retain(|tag_key, _| {
+    fn validate_metric_tags(mut key: BucketKey, aggregator_config: &AggregatorConfig) -> BucketKey {
+        let proj_key = key.project_key.as_str();
+        key.tags.retain(|tag_key, tag_value| {
+            if tag_key.len() > aggregator_config.max_tag_key_length {
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("bucket.project_key", proj_key.to_owned().into());
+                    scope.set_extra("bucket.metric.tag_key", tag_key.to_owned().into());
+                    scope.set_extra(
+                        "aggregator_config.max_tag_key_length",
+                        aggregator_config
+                            .max_tag_key_length
+                            .to_string()
+                            .to_owned()
+                            .into(),
+                    );
+                });
+                return false;
+            }
+            if tag_value.len() > aggregator_config.max_tag_value_length {
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("bucket.project_key", proj_key.to_owned().into());
+                    scope.set_extra("bucket.metric.tag_value", tag_value.to_owned().into());
+                    scope.set_extra(
+                        "aggregator_config.max_tag_value_length",
+                        aggregator_config
+                            .max_tag_value_length
+                            .to_string()
+                            .to_owned()
+                            .into(),
+                    );
+                });
+                return false;
+            }
+
             if protocol::is_valid_tag_key(tag_key) {
                 true
             } else {
