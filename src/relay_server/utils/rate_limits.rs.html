@@ -817,12 +817,6 @@
 <span id="810">810</span>
 <span id="811">811</span>
 <span id="812">812</span>
-<span id="813">813</span>
-<span id="814">814</span>
-<span id="815">815</span>
-<span id="816">816</span>
-<span id="817">817</span>
-<span id="818">818</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
 <span class="kw">use</span> <span class="ident">actix::SystemService</span>;
@@ -929,12 +923,6 @@
         <span class="ident">ItemType::FormData</span> =&gt; <span class="prelude-val">None</span>,
         <span class="ident">ItemType::UserReport</span> =&gt; <span class="prelude-val">None</span>,
         <span class="ident">ItemType::Profile</span> =&gt; <span class="prelude-val">None</span>,
-        <span class="comment">// the following items are &quot;internal&quot; item types.  From the perspective of the SDK</span>
-        <span class="comment">// the use the &quot;internal&quot; data category however this data category is in fact never</span>
-        <span class="comment">// supposed to be emitted by relay as internal items must not be rate limited.  As</span>
-        <span class="comment">// such we do not emit a data category here.  An SDK however is supposed to assume</span>
-        <span class="comment">// that such item types use the reserved &quot;internal&quot; data category to not accidentally</span>
-        <span class="comment">// assume another rate limit (such as default).</span>
         <span class="ident">ItemType::ClientReport</span> =&gt; <span class="prelude-val">None</span>,
     }
 }
