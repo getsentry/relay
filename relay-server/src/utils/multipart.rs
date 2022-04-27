@@ -12,7 +12,7 @@ use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
 use crate::extractors::DecodingPayload;
 use crate::service::ServiceState;
 
-const REPLAY_RECORDING_FILENAME: &str = "sentry_replay_rec";
+const REPLAY_RECORDING_FILENAME: &str = "sentry_replay_payload";
 
 #[derive(Debug, Fail)]
 pub enum MultipartError {
@@ -221,7 +221,7 @@ fn consume_item(
 
         if let Some(file_name) = file_name {
             let item_type = match file_name {
-                REPLAY_RECORDING_FILENAME => ItemType::ReplayRecording,
+                REPLAY_RECORDING_FILENAME => ItemType::ReplayPayload,
                 _ => ItemType::Attachment,
             };
             let mut item = Item::new(item_type);
