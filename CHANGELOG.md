@@ -7,6 +7,9 @@
 - Add platform, op, http.method and status tag to all extracted transaction metrics. ([#1227](https://github.com/getsentry/relay/pull/1227))
 - Add units in built-in measurements. ([#1229](https://github.com/getsentry/relay/pull/1229))
 
+**Bug Fixes**:
+- Accept and forward unknown Envelope items. In processing mode, drop items individually rather than rejecting the entire request. This allows SDKs to send new data in combined Envelopes in the future. ([#1246](https://github.com/getsentry/relay/pull/1246))
+
 **Internal**:
 
 * Add sampling + tagging by event platform and transaction op. Some (unused) tagging rules from 22.4.0 have been renamed. ([#1231](https://github.com/getsentry/relay/pull/1231))
