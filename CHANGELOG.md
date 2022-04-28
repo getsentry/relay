@@ -17,6 +17,7 @@
 - Refactor aggregation error, recover from errors more gracefully. ([#1240](https://github.com/getsentry/relay/pull/1240))
 - Remove/reject nul-bytes from metric strings. ([#1235](https://github.com/getsentry/relay/pull/1235))
 - Remove the unused "internal" data category. ([#1245](https://github.com/getsentry/relay/pull/1245))
+- Add the client and version as `sdk` tag to extracted session metrics in the format `name/version`. ([#1248](https://github.com/getsentry/relay/pull/1248))
 
 ## 22.4.0
 
