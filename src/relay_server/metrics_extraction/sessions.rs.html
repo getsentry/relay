@@ -508,6 +508,21 @@
 <span id="501">501</span>
 <span id="502">502</span>
 <span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
@@ -533,6 +548,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">extract_session_metrics</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">SessionLike</span><span class="op">&gt;</span>(
     <span class="ident">attributes</span>: <span class="kw-2">&amp;</span><span class="ident">SessionAttributes</span>,
     <span class="ident">session</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>,
+    <span class="ident">client</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>,
     <span class="ident">target</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
 ) {
     <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">UnixTimestamp::from_datetime</span>(<span class="ident">session</span>.<span class="ident">started</span>()) {
@@ -547,6 +563,9 @@
     <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;release&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">attributes</span>.<span class="ident">release</span>.<span class="ident">clone</span>());
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">environment</span>) <span class="op">=</span> <span class="ident">attributes</span>.<span class="ident">environment</span> {
         <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;environment&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">environment</span>.<span class="ident">clone</span>());
+    }
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">client</span>) <span class="op">=</span> <span class="ident">client</span> {
+        <span class="ident">tags</span>.<span class="ident">insert</span>(<span class="string">&quot;sdk&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">client</span>.<span class="ident">to_owned</span>());
     }
 
     <span class="comment">// Always capture with &quot;init&quot; tag for the first session update of a session. This is used</span>
@@ -706,6 +725,7 @@
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
 
+        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="string">&quot;sentry-test/1.0&quot;</span>;
         <span class="kw">let</span> <span class="ident">session</span> <span class="op">=</span> <span class="ident">SessionUpdate::parse</span>(
             <span class="string">r#&quot;{
             &quot;init&quot;: true,
@@ -719,7 +739,7 @@
         )
         .<span class="ident">unwrap</span>();
 
-        <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="prelude-val">Some</span>(<span class="ident">client</span>), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
 
         <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">2</span>);
 
@@ -729,13 +749,15 @@
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">session_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Counter</span>(<span class="kw">_</span>)));
         <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;init&quot;</span>);
         <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;sdk&quot;</span>], <span class="ident">client</span>);
 
         <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">1</span>];
-        <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
         <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:sessions/user@none&quot;</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
-        <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;init&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;init&quot;</span>);
         <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;sdk&quot;</span>], <span class="ident">client</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -755,7 +777,7 @@
         )
         .<span class="ident">unwrap</span>();
 
-        <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
 
         <span class="comment">// A none-initial update will not trigger any metric if it&#39;s not errored/crashed</span>
         <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">0</span>);
@@ -790,7 +812,7 @@
             (<span class="ident">update3</span>, <span class="number">2</span>),
         ] {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
-            <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">update</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">update</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+            <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">update</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">update</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
 
             <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="ident">expected_metrics</span>);
 
@@ -801,7 +823,7 @@
             <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>.<span class="ident">len</span>(), <span class="number">1</span>); <span class="comment">// Only the release tag</span>
 
             <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="ident">expected_metrics</span> <span class="op">-</span> <span class="number">1</span>];
-            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
+            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
             <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:sessions/user@none&quot;</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;errored&quot;</span>);
@@ -828,7 +850,7 @@
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
 
-            <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+            <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
 
             <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">4</span>);
 
@@ -843,7 +865,7 @@
             <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="ident">status</span>.<span class="ident">to_string</span>());
 
             <span class="kw">let</span> <span class="ident">user_metric</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">metrics</span>[<span class="number">3</span>];
-            <span class="macro">assert_eq!</span>(<span class="ident">session_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
+            <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">timestamp</span>, <span class="ident">started</span>());
             <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">name</span>, <span class="string">&quot;s:sessions/user@none&quot;</span>);
             <span class="macro">assert!</span>(<span class="macro">matches!</span>(<span class="ident">user_metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Set</span>(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(<span class="ident">user_metric</span>.<span class="ident">tags</span>[<span class="string">&quot;session.status&quot;</span>], <span class="ident">status</span>.<span class="ident">to_string</span>());
@@ -869,7 +891,7 @@
         )
         .<span class="ident">unwrap</span>();
 
-        <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+        <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
 
         <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">1</span>);
 
@@ -885,6 +907,7 @@
     <span class="kw">fn</span> <span class="ident">test_extract_session_metrics_aggregate</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
 
+        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="string">&quot;sentry-test/1.0&quot;</span>;
         <span class="kw">let</span> <span class="ident">session</span> <span class="op">=</span> <span class="ident">SessionAggregates::parse</span>(
             <span class="string">r#&quot;{
                 &quot;aggregates&quot;: [
@@ -911,7 +934,7 @@
         .<span class="ident">unwrap</span>();
 
         <span class="kw">for</span> <span class="ident">aggregate</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">aggregates</span> {
-            <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="ident">aggregate</span>, <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+            <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="ident">aggregate</span>, <span class="prelude-val">Some</span>(<span class="ident">client</span>), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
         }
 
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metrics</span>, @<span class="string">r###&quot;
@@ -926,6 +949,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
+                    &quot;sdk&quot;: &quot;sentry-test/1.0&quot;,
                     &quot;session.status&quot;: &quot;init&quot;,
                 },
             },
@@ -939,6 +963,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
+                    &quot;sdk&quot;: &quot;sentry-test/1.0&quot;,
                     &quot;session.status&quot;: &quot;abnormal&quot;,
                 },
             },
@@ -952,6 +977,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
+                    &quot;sdk&quot;: &quot;sentry-test/1.0&quot;,
                     &quot;session.status&quot;: &quot;crashed&quot;,
                 },
             },
@@ -965,6 +991,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
+                    &quot;sdk&quot;: &quot;sentry-test/1.0&quot;,
                     &quot;session.status&quot;: &quot;init&quot;,
                 },
             },
@@ -978,6 +1005,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
+                    &quot;sdk&quot;: &quot;sentry-test/1.0&quot;,
                     &quot;session.status&quot;: &quot;init&quot;,
                 },
             },
@@ -991,6 +1019,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
+                    &quot;sdk&quot;: &quot;sentry-test/1.0&quot;,
                     &quot;session.status&quot;: &quot;errored_preaggr&quot;,
                 },
             },
@@ -1004,6 +1033,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
+                    &quot;sdk&quot;: &quot;sentry-test/1.0&quot;,
                     &quot;session.status&quot;: &quot;errored&quot;,
                 },
             },
