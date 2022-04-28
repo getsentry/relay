@@ -574,17 +574,17 @@ impl EnvelopeProcessor {
 
     fn is_valid_session_timestamp(
         &self,
-        received: &DateTime<Utc>,
-        timestamp: &DateTime<Utc>,
+        received: DateTime<Utc>,
+        timestamp: DateTime<Utc>,
     ) -> bool {
         let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
-        if (*received - *timestamp) > max_age {
+        if (received - timestamp) > max_age {
             relay_log::trace!("skipping session older than {} days", max_age.num_days());
             return false;
         }
 
         let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
-        if (*timestamp - *received) > max_future {
+        if (timestamp - received) > max_future {
             relay_log::trace!(
                 "skipping session more than {}s in the future",
                 max_future.num_seconds()
@@ -596,13 +596,15 @@ impl EnvelopeProcessor {
     }
 
     /// Returns true if the item should be kept.
+    #[allow(clippy::too_many_arguments)]
     fn process_session(
         &self,
+        item: &mut Item,
+        received: DateTime<Utc>,
+        client: Option<&str>,
+        client_addr: Option<net::IpAddr>,
         metrics_extraction_enabled: bool,
         clock_drift_processor: &ClockDriftProcessor,
-        received: &DateTime<Utc>,
-        client_addr: &Option<net::IpAddr>,
-        item: &mut Item,
         extracted_metrics: &mut Vec<Metric>,
     ) -> bool {
         let mut changed = false;
@@ -635,7 +637,7 @@ impl EnvelopeProcessor {
         }
 
         // Log the timestamp delay for all sessions after clock drift correction.
-        let session_delay = *received - session.timestamp;
+        let session_delay = received - session.timestamp;
         if session_delay > SignedDuration::minutes(1) {
             metric!(
                 timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
@@ -644,14 +646,14 @@ impl EnvelopeProcessor {
         }
 
         // Validate timestamps
-        for t in &[&session.timestamp, &session.started] {
+        for t in [session.timestamp, session.started] {
             if !self.is_valid_session_timestamp(received, t) {
                 return false;
             }
         }
 
         // Validate attributes
-        match self.validate_attributes(client_addr, &mut session.attributes) {
+        match self.validate_attributes(&client_addr, &mut session.attributes) {
             Err(_) => return false,
             Ok(changed_attributes) => {
                 changed |= changed_attributes;
@@ -660,7 +662,7 @@ impl EnvelopeProcessor {
 
         // Extract metrics
         if metrics_extraction_enabled && !item.metrics_extracted() {
-            extract_session_metrics(&session.attributes, &session, extracted_metrics);
+            extract_session_metrics(&session.attributes, &session, client, extracted_metrics);
             item.set_metrics_extracted(true);
         }
 
@@ -679,13 +681,15 @@ impl EnvelopeProcessor {
         true
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn process_session_aggregates(
         &self,
+        item: &mut Item,
+        received: DateTime<Utc>,
+        client: Option<&str>,
+        client_addr: Option<net::IpAddr>,
         metrics_extraction_enabled: bool,
         clock_drift_processor: &ClockDriftProcessor,
-        received: &DateTime<Utc>,
-        client_addr: &Option<net::IpAddr>,
-        item: &mut Item,
         extracted_metrics: &mut Vec<Metric>,
     ) -> bool {
         let mut changed = false;
@@ -710,7 +714,7 @@ impl EnvelopeProcessor {
         // Validate timestamps
         session
             .aggregates
-            .retain(|aggregate| self.is_valid_session_timestamp(received, &aggregate.started));
+            .retain(|aggregate| self.is_valid_session_timestamp(received, aggregate.started));
 
         // Aftter timestamp validation, aggregates could now be empty
         if session.aggregates.is_empty() {
@@ -718,7 +722,7 @@ impl EnvelopeProcessor {
         }
 
         // Validate attributes
-        match self.validate_attributes(client_addr, &mut session.attributes) {
+        match self.validate_attributes(&client_addr, &mut session.attributes) {
             Err(_) => return false,
             Ok(changed_attributes) => {
                 changed |= changed_attributes;
@@ -728,7 +732,7 @@ impl EnvelopeProcessor {
         // Extract metrics
         if metrics_extraction_enabled && !item.metrics_extracted() {
             for aggregate in &session.aggregates {
-                extract_session_metrics(&session.attributes, aggregate, extracted_metrics);
+                extract_session_metrics(&session.attributes, aggregate, client, extracted_metrics);
                 item.set_metrics_extracted(true);
             }
         }
@@ -758,6 +762,7 @@ impl EnvelopeProcessor {
         let metrics_extraction_enabled =
             state.project_state.has_feature(Feature::MetricsExtraction);
         let envelope = &mut state.envelope;
+        let client = envelope.meta().client().map(|x| x.to_owned());
         let client_addr = envelope.meta().client_addr();
 
         let clock_drift_processor =
@@ -766,19 +771,21 @@ impl EnvelopeProcessor {
         envelope.retain_items(|item| {
             match item.ty() {
                 ItemType::Session => self.process_session(
+                    item,
+                    received,
+                    client.as_deref(),
+                    client_addr,
                     metrics_extraction_enabled,
                     &clock_drift_processor,
-                    &received,
-                    &client_addr,
-                    item,
                     extracted_metrics,
                 ),
                 ItemType::Sessions => self.process_session_aggregates(
+                    item,
+                    received,
+                    client.as_deref(),
+                    client_addr,
                     metrics_extraction_enabled,
                     &clock_drift_processor,
-                    &received,
-                    &client_addr,
-                    item,
                     extracted_metrics,
                 ),
                 _ => true, // Keep all other item types

@@ -251,6 +251,7 @@ def test_session_metrics_non_processing(
             {
                 "name": "c:sessions/session@none",
                 "tags": {
+                    "sdk": "raven-node/2.6.3",
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
                     "session.status": "init",
@@ -263,6 +264,7 @@ def test_session_metrics_non_processing(
             {
                 "name": "d:sessions/duration@second",
                 "tags": {
+                    "sdk": "raven-node/2.6.3",
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
                     "session.status": "exited",
@@ -276,6 +278,7 @@ def test_session_metrics_non_processing(
             {
                 "name": "s:sessions/user@none",
                 "tags": {
+                    "sdk": "raven-node/2.6.3",
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
                     "session.status": "init",
@@ -387,6 +390,7 @@ def test_session_metrics_processing(
         "unit": "none",
         "value": 1.0,
         "tags": {
+            "sdk": "raven-node/2.6.3",
             "environment": "production",
             "release": "sentry-test@1.0.0",
             "session.status": "init",
@@ -402,6 +406,7 @@ def test_session_metrics_processing(
         "unit": "none",
         "value": [1617781333],
         "tags": {
+            "sdk": "raven-node/2.6.3",
             "environment": "production",
             "release": "sentry-test@1.0.0",
             "session.status": "init",
@@ -417,6 +422,7 @@ def test_session_metrics_processing(
         "unit": "second",
         "value": [1947.49],
         "tags": {
+            "sdk": "raven-node/2.6.3",
             "environment": "production",
             "release": "sentry-test@1.0.0",
             "session.status": "exited",

@@ -23,6 +23,7 @@ const METRIC_NAMESPACE: &str = "sessions";
 pub fn extract_session_metrics<T: SessionLike>(
     attributes: &SessionAttributes,
     session: &T,
+    client: Option<&str>,
     target: &mut Vec<Metric>,
 ) {
     let timestamp = match UnixTimestamp::from_datetime(session.started()) {
@@ -37,6 +38,9 @@ pub fn extract_session_metrics<T: SessionLike>(
     tags.insert("release".to_owned(), attributes.release.clone());
     if let Some(ref environment) = attributes.environment {
         tags.insert("environment".to_owned(), environment.clone());
+    }
+    if let Some(client) = client {
+        tags.insert("sdk".to_owned(), client.to_owned());
     }
 
     // Always capture with "init" tag for the first session update of a session. This is used
@@ -196,6 +200,7 @@ mod tests {
 
         let mut metrics = vec![];
 
+        let client = "sentry-test/1.0";
         let session = SessionUpdate::parse(
             r#"{
             "init": true,
@@ -209,7 +214,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session.attributes, &session, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, Some(client), &mut metrics);
 
         assert_eq!(metrics.len(), 2);
 
@@ -219,13 +224,15 @@ mod tests {
         assert!(matches!(session_metric.value, MetricValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(session_metric.tags["release"], "1.0.0");
+        assert_eq!(session_metric.tags["sdk"], client);
 
         let user_metric = &metrics[1];
-        assert_eq!(session_metric.timestamp, started());
+        assert_eq!(user_metric.timestamp, started());
         assert_eq!(user_metric.name, "s:sessions/user@none");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
-        assert_eq!(session_metric.tags["session.status"], "init");
+        assert_eq!(user_metric.tags["session.status"], "init");
         assert_eq!(user_metric.tags["release"], "1.0.0");
+        assert_eq!(user_metric.tags["sdk"], client);
     }
 
     #[test]
@@ -245,7 +252,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session.attributes, &session, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, None, &mut metrics);
 
         // A none-initial update will not trigger any metric if it's not errored/crashed
         assert_eq!(metrics.len(), 0);
@@ -280,7 +287,7 @@ mod tests {
             (update3, 2),
         ] {
             let mut metrics = vec![];
-            extract_session_metrics(&update.attributes, &update, &mut metrics);
+            extract_session_metrics(&update.attributes, &update, None, &mut metrics);
 
             assert_eq!(metrics.len(), expected_metrics);
 
@@ -291,7 +298,7 @@ mod tests {
             assert_eq!(session_metric.tags.len(), 1); // Only the release tag
 
             let user_metric = &metrics[expected_metrics - 1];
-            assert_eq!(session_metric.timestamp, started());
+            assert_eq!(user_metric.timestamp, started());
             assert_eq!(user_metric.name, "s:sessions/user@none");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "errored");
@@ -318,7 +325,7 @@ mod tests {
 
             let mut metrics = vec![];
 
-            extract_session_metrics(&session.attributes, &session, &mut metrics);
+            extract_session_metrics(&session.attributes, &session, None, &mut metrics);
 
             assert_eq!(metrics.len(), 4);
 
@@ -333,7 +340,7 @@ mod tests {
             assert_eq!(session_metric.tags["session.status"], status.to_string());
 
             let user_metric = &metrics[3];
-            assert_eq!(session_metric.timestamp, started());
+            assert_eq!(user_metric.timestamp, started());
             assert_eq!(user_metric.name, "s:sessions/user@none");
             assert!(matches!(user_metric.value, MetricValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], status.to_string());
@@ -359,7 +366,7 @@ mod tests {
         )
         .unwrap();
 
-        extract_session_metrics(&session.attributes, &session, &mut metrics);
+        extract_session_metrics(&session.attributes, &session, None, &mut metrics);
 
         assert_eq!(metrics.len(), 1);
 
@@ -375,6 +382,7 @@ mod tests {
     fn test_extract_session_metrics_aggregate() {
         let mut metrics = vec![];
 
+        let client = "sentry-test/1.0";
         let session = SessionAggregates::parse(
             r#"{
                 "aggregates": [
@@ -401,7 +409,7 @@ mod tests {
         .unwrap();
 
         for aggregate in &session.aggregates {
-            extract_session_metrics(&session.attributes, aggregate, &mut metrics);
+            extract_session_metrics(&session.attributes, aggregate, Some(client), &mut metrics);
         }
 
         insta::assert_debug_snapshot!(metrics, @r###"
@@ -416,6 +424,7 @@ mod tests {
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
                     "session.status": "init",
                 },
             },
@@ -429,6 +438,7 @@ mod tests {
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
                     "session.status": "abnormal",
                 },
             },
@@ -442,6 +452,7 @@ mod tests {
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
                     "session.status": "crashed",
                 },
             },
@@ -455,6 +466,7 @@ mod tests {
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
                     "session.status": "init",
                 },
             },
@@ -468,6 +480,7 @@ mod tests {
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
                     "session.status": "init",
                 },
             },
@@ -481,6 +494,7 @@ mod tests {
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
                     "session.status": "errored_preaggr",
                 },
             },
@@ -494,6 +508,7 @@ mod tests {
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
                     "session.status": "errored",
                 },
             },
