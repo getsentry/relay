@@ -85,7 +85,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
         public_key: matches.value_of("public_key").map(str::to_owned),
         secret_key: matches.value_of("secret_key").map(str::to_owned),
         outcome_source: matches.value_of("source_id").map(str::to_owned),
-        ..Default::default()
+        shutdown_timeout: matches.value_of("shutdown_timeout").map(str::to_owned),
     }
 }
 
@@ -102,7 +102,8 @@ pub fn extract_config_env_vars() -> OverridableConfig {
         id: env::var("RELAY_ID").ok(),
         public_key: env::var("RELAY_PUBLIC_KEY").ok(),
         secret_key: env::var("RELAY_SECRET_KEY").ok(),
-        ..Default::default()
+        outcome_source: None, //already extracted in params
+        shutdown_timeout: env::var("SHUTDOWN_TIMEOUT").ok(),
     }
 }
 

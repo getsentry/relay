@@ -244,7 +244,7 @@ pub struct OverridableConfig {
     /// Outcome source
     pub outcome_source: Option<String>,
     /// shutdown timeout
-    pub shutdown_timeout: Option<u64>,
+    pub shutdown_timeout: Option<String>,
 }
 
 /// The relay credentials
@@ -1427,7 +1427,9 @@ impl Config {
 
         let limits = &mut self.values.limits;
         if let Some(shutdown_timeout) = overrides.shutdown_timeout {
-            limits.shutdown_timeout = shutdown_timeout;
+            if let Some(shutdown_timeout) = shutdown_timeout.parse::<u64>().ok() {
+                limits.shutdown_timeout = shutdown_timeout;
+            }
         }
 
         Ok(self)
