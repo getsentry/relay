@@ -80,7 +80,7 @@ fn sample_transaction_internal(
     }
 
     let trace_context = envelope.trace_context();
-    let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
+    let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
 
     let trace_context = match (trace_context, transaction_item) {
         // we don't have what we need, can't sample the transactions in this envelope
@@ -93,7 +93,7 @@ fn sample_transaction_internal(
     if let SamplingResult::Drop(rule_id) = trace_context.should_keep(client_ip, sampling_config) {
         // remove transaction and dependent items
         if envelope
-            .take_item_by(|item| item.ty() == ItemType::Transaction)
+            .take_item_by(|item| item.ty() == &ItemType::Transaction)
             .is_some()
         {
             // we have removed the transaction from the envelope
@@ -134,7 +134,7 @@ pub fn sample_trace(
         Some(project) => project,
     };
     let trace_context = envelope.trace_context();
-    let transaction_item = envelope.get_item_by(|item| item.ty() == ItemType::Transaction);
+    let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
 
     // if there is no trace context or there are no transactions to sample return here
     if trace_context.is_none() || transaction_item.is_none() {

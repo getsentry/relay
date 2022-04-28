@@ -10,6 +10,7 @@
 **Bug Fixes**:
 
 - fix(metrics): Enforce metric name length limit. ([#1238](https://github.com/getsentry/relay/pull/1238))
+- Accept and forward unknown Envelope items. In processing mode, drop items individually rather than rejecting the entire request. This allows SDKs to send new data in combined Envelopes in the future. ([#1246](https://github.com/getsentry/relay/pull/1246))
 
 **Internal**:
 

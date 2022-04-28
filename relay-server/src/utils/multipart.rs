@@ -363,7 +363,7 @@ mod tests {
         writer.append("blub", "blub");
 
         let item = writer.into_item();
-        assert_eq!(item.ty(), ItemType::FormData);
+        assert_eq!(item.ty(), &ItemType::FormData);
 
         let payload = item.payload();
         let iter = FormDataIter::new(&payload);

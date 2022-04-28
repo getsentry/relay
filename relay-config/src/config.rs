@@ -576,6 +576,22 @@ impl Default for Limits {
     }
 }
 
+/// Controls traffic steering.
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Routing {
+    /// Accept and forward unknown Envelope items to the upstream.
+    ///
+    /// Forwarding unknown items should be enabled in most cases to allow proxying traffic for newer
+    /// SDK versions. The upstream in Sentry makes the final decision on which items are valid. If
+    /// this is disabled, just the unknown items are removed from Envelopes, and the rest is
+    /// processed as usual.
+    ///
+    /// Defaults to `true` for all Relay modes other than processing mode. In processing mode, this
+    /// is disabled by default since the item cannot be handled.
+    accept_unknown_items: Option<bool>,
+}
+
 /// Http content encoding for both incoming and outgoing web requests.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -1223,6 +1239,8 @@ struct ConfigValues {
     limits: Limits,
     #[serde(default)]
     logging: relay_log::LogConfig,
+    #[serde(default)]
+    routing: Routing,
     #[serde(default)]
     metrics: Metrics,
     #[serde(default)]
@@ -1939,6 +1957,12 @@ impl Config {
     /// Return the statically configured Relays.
     pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
         &self.values.auth.static_relays
+    }
+
+    /// Returns `true` if unknown items should be accepted and forwarded.
+    pub fn accept_unknown_items(&self) -> bool {
+        let forward = self.values.routing.accept_unknown_items;
+        forward.unwrap_or_else(|| !self.processing_enabled())
     }
 }
 
