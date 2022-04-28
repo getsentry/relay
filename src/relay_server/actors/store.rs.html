@@ -1498,7 +1498,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Slow items must be routed to the `Attachments` topic.</span>
 <span class="kw">fn</span> <span class="ident">is_slow_item</span>(<span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>) -&gt; <span class="ident">bool</span> {
-    <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Attachment</span> <span class="op">|</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::UserReport</span>
+    <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Attachment</span> <span class="op">|</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::UserReport</span>
 }
 
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">StoreEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">StoreForwarder</span> {
@@ -1523,7 +1523,7 @@
 
         <span class="kw">let</span> <span class="ident">topic</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="ident">is_slow_item</span>).<span class="ident">is_some</span>() {
             <span class="ident">KafkaTopic::Attachments</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">event_item</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">ty</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">ItemType::Transaction</span>) {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">event_item</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">ty</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">ItemType::Transaction</span>) {
             <span class="ident">KafkaTopic::Transactions</span>
         } <span class="kw">else</span> {
             <span class="ident">KafkaTopic::Events</span>

@@ -1998,6 +1998,30 @@
 <span id="1991">1991</span>
 <span id="1992">1992</span>
 <span id="1993">1993</span>
+<span id="1994">1994</span>
+<span id="1995">1995</span>
+<span id="1996">1996</span>
+<span id="1997">1997</span>
+<span id="1998">1998</span>
+<span id="1999">1999</span>
+<span id="2000">2000</span>
+<span id="2001">2001</span>
+<span id="2002">2002</span>
+<span id="2003">2003</span>
+<span id="2004">2004</span>
+<span id="2005">2005</span>
+<span id="2006">2006</span>
+<span id="2007">2007</span>
+<span id="2008">2008</span>
+<span id="2009">2009</span>
+<span id="2010">2010</span>
+<span id="2011">2011</span>
+<span id="2012">2012</span>
+<span id="2013">2013</span>
+<span id="2014">2014</span>
+<span id="2015">2015</span>
+<span id="2016">2016</span>
+<span id="2017">2017</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2574,6 +2598,22 @@
             <span class="ident">max_alloc_size</span>: <span class="prelude-val">None</span>,
         }
     }
+}
+
+<span class="doccomment">/// Controls traffic steering.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
+<span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Routing</span> {
+    <span class="doccomment">/// Accept and forward unknown Envelope items to the upstream.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Forwarding unknown items should be enabled in most cases to allow proxying traffic for newer</span>
+    <span class="doccomment">/// SDK versions. The upstream in Sentry makes the final decision on which items are valid. If</span>
+    <span class="doccomment">/// this is disabled, just the unknown items are removed from Envelopes, and the rest is</span>
+    <span class="doccomment">/// processed as usual.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Defaults to `true` for all Relay modes other than processing mode. In processing mode, this</span>
+    <span class="doccomment">/// is disabled by default since the item cannot be handled.</span>
+    <span class="ident">accept_unknown_items</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// Http content encoding for both incoming and outgoing web requests.</span>
@@ -3223,6 +3263,8 @@
     <span class="ident">limits</span>: <span class="ident">Limits</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="ident">logging</span>: <span class="ident">relay_log::LogConfig</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
+    <span class="ident">routing</span>: <span class="ident">Routing</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="ident">metrics</span>: <span class="ident">Metrics</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
@@ -3939,6 +3981,12 @@
     <span class="doccomment">/// Return the statically configured Relays.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">static_relays</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayInfo</span><span class="op">&gt;</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">auth</span>.<span class="ident">static_relays</span>
+    }
+
+    <span class="doccomment">/// Returns `true` if unknown items should be accepted and forwarded.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">accept_unknown_items</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
+        <span class="kw">let</span> <span class="ident">forward</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">routing</span>.<span class="ident">accept_unknown_items</span>;
+        <span class="ident">forward</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">processing_enabled</span>())
     }
 }
 

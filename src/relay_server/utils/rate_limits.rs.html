@@ -817,6 +817,7 @@
 <span id="810">810</span>
 <span id="811">811</span>
 <span id="812">812</span>
+<span id="813">813</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
 <span class="kw">use</span> <span class="ident">actix::SystemService</span>;
@@ -924,6 +925,7 @@
         <span class="ident">ItemType::UserReport</span> =&gt; <span class="prelude-val">None</span>,
         <span class="ident">ItemType::Profile</span> =&gt; <span class="prelude-val">None</span>,
         <span class="ident">ItemType::ClientReport</span> =&gt; <span class="prelude-val">None</span>,
+        <span class="ident">ItemType::Unknown</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
     }
 }
 
@@ -960,7 +962,7 @@
         <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">envelope</span>.<span class="ident">items</span>() {
             <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">creates_event</span>() {
                 <span class="ident">summary</span>.<span class="ident">infer_category</span>(<span class="ident">item</span>);
-            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Attachment</span> {
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Attachment</span> {
                 <span class="comment">// Plain attachments do not create events.</span>
                 <span class="ident">summary</span>.<span class="ident">has_plain_attachments</span> <span class="op">=</span> <span class="bool-val">true</span>;
             }
@@ -1230,7 +1232,7 @@
         }
 
         <span class="comment">// Remove attachments, except those required for processing</span>
-        <span class="kw">if</span> <span class="ident">enforcement</span>.<span class="ident">attachments</span>.<span class="ident">is_active</span>() <span class="op">&amp;&amp;</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Attachment</span> {
+        <span class="kw">if</span> <span class="ident">enforcement</span>.<span class="ident">attachments</span>.<span class="ident">is_active</span>() <span class="op">&amp;&amp;</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Attachment</span> {
             <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">creates_event</span>() {
                 <span class="ident">item</span>.<span class="ident">set_rate_limited</span>(<span class="bool-val">true</span>);
                 <span class="kw">return</span> <span class="bool-val">true</span>;
@@ -1240,7 +1242,7 @@
         }
 
         <span class="comment">// Remove sessions independently of events</span>
-        <span class="kw">if</span> <span class="ident">enforcement</span>.<span class="ident">sessions</span>.<span class="ident">is_active</span>() <span class="op">&amp;&amp;</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Session</span> {
+        <span class="kw">if</span> <span class="ident">enforcement</span>.<span class="ident">sessions</span>.<span class="ident">is_active</span>() <span class="op">&amp;&amp;</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Session</span> {
             <span class="kw">return</span> <span class="bool-val">false</span>;
         }
 

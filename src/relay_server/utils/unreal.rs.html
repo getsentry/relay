@@ -448,7 +448,7 @@
     <span class="kw">let</span> <span class="ident">crash</span> <span class="op">=</span> <span class="ident">Unreal4Crash::parse_with_limit</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>, <span class="ident">config</span>.<span class="ident">max_envelope_size</span>())<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">has_event</span> <span class="op">=</span> <span class="ident">envelope</span>
-        .<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Event</span>)
+        .<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Event</span>)
         .<span class="ident">is_some</span>();
 
     <span class="kw">for</span> <span class="ident">file</span> <span class="kw">in</span> <span class="ident">crash</span>.<span class="ident">files</span>() {

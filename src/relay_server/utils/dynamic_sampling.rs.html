@@ -455,7 +455,7 @@
     }
 
     <span class="kw">let</span> <span class="ident">trace_context</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">trace_context</span>();
-    <span class="kw">let</span> <span class="ident">transaction_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Transaction</span>);
+    <span class="kw">let</span> <span class="ident">transaction_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Transaction</span>);
 
     <span class="kw">let</span> <span class="ident">trace_context</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">trace_context</span>, <span class="ident">transaction_item</span>) {
         <span class="comment">// we don&#39;t have what we need, can&#39;t sample the transactions in this envelope</span>
@@ -468,7 +468,7 @@
     <span class="kw">if</span> <span class="kw">let</span> <span class="ident">SamplingResult::Drop</span>(<span class="ident">rule_id</span>) <span class="op">=</span> <span class="ident">trace_context</span>.<span class="ident">should_keep</span>(<span class="ident">client_ip</span>, <span class="ident">sampling_config</span>) {
         <span class="comment">// remove transaction and dependent items</span>
         <span class="kw">if</span> <span class="ident">envelope</span>
-            .<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Transaction</span>)
+            .<span class="ident">take_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Transaction</span>)
             .<span class="ident">is_some</span>()
         {
             <span class="comment">// we have removed the transaction from the envelope</span>
@@ -509,7 +509,7 @@
         <span class="prelude-val">Some</span>(<span class="ident">project</span>) =&gt; <span class="ident">project</span>,
     };
     <span class="kw">let</span> <span class="ident">trace_context</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">trace_context</span>();
-    <span class="kw">let</span> <span class="ident">transaction_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="ident">ItemType::Transaction</span>);
+    <span class="kw">let</span> <span class="ident">transaction_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Transaction</span>);
 
     <span class="comment">// if there is no trace context or there are no transactions to sample return here</span>
     <span class="kw">if</span> <span class="ident">trace_context</span>.<span class="ident">is_none</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">transaction_item</span>.<span class="ident">is_none</span>() {
