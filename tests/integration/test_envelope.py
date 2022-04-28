@@ -64,7 +64,7 @@ def test_unknown_item(mini_sentry, relay):
 
 
 def test_drop_unknown_item(mini_sentry, relay):
-    relay = relay(mini_sentry, {"routing": {"unknown_items": False}})
+    relay = relay(mini_sentry, {"routing": {"accept_unknown_items": False}})
     PROJECT_ID = 42
     mini_sentry.add_basic_project_config(PROJECT_ID)
 

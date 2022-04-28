@@ -589,7 +589,7 @@ pub struct Routing {
     ///
     /// Defaults to `true` for all Relay modes other than processing mode. In processing mode, this
     /// is disabled by default since the item cannot be handled.
-    unknown_items: Option<bool>,
+    accept_unknown_items: Option<bool>,
 }
 
 /// Http content encoding for both incoming and outgoing web requests.
@@ -1961,7 +1961,7 @@ impl Config {
 
     /// Returns `true` if unknown items should be accepted and forwarded.
     pub fn accept_unknown_items(&self) -> bool {
-        let forward = self.values.routing.unknown_items;
+        let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
     }
 }
