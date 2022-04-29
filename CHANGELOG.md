@@ -22,6 +22,7 @@
 - Remove the unused "internal" data category. ([#1245](https://github.com/getsentry/relay/pull/1245))
 - Add the client and version as `sdk` tag to extracted session metrics in the format `name/version`. ([#1248](https://github.com/getsentry/relay/pull/1248))
 - Expose `shutdown_timeout` in `OverridableConfig` ([#1247](https://github.com/getsentry/relay/pull/1247))
+- Normalize all profiles and reject invalid ones. ([#1250](https://github.com/getsentry/relay/pull/1250))
 
 ## 22.4.0
 
