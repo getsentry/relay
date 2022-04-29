@@ -51,7 +51,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, Upstr
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::metrics_extraction::sessions::extract_session_metrics;
+use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
@@ -368,8 +368,8 @@ struct ProcessEnvelopeState {
 
     /// Metrics extracted from items in the envelope.
     ///
-    /// This is controlled by [`Feature::MetricsExtraction`]. Relay extracts metrics for sessions
-    /// and transactions.
+    /// Relay can extract metrics for sessions and transactions, which is controlled by
+    /// configuration objects in the project config.
     extracted_metrics: Vec<Metric>,
 
     /// The state of the project that this envelope belongs to.
@@ -603,7 +603,7 @@ impl EnvelopeProcessor {
         received: DateTime<Utc>,
         client: Option<&str>,
         client_addr: Option<net::IpAddr>,
-        metrics_extraction_enabled: bool,
+        metrics_config: SessionMetricsConfig,
         clock_drift_processor: &ClockDriftProcessor,
         extracted_metrics: &mut Vec<Metric>,
     ) -> bool {
@@ -660,10 +660,15 @@ impl EnvelopeProcessor {
             }
         }
 
-        // Extract metrics
-        if metrics_extraction_enabled && !item.metrics_extracted() {
+        // Extract metrics if they haven't been extracted by a prior Relay
+        if metrics_config.is_enabled() && !item.metrics_extracted() {
             extract_session_metrics(&session.attributes, &session, client, extracted_metrics);
             item.set_metrics_extracted(true);
+        }
+
+        // Drop the session if metrics have been extracted in this or a prior Relay
+        if metrics_config.should_drop() && item.metrics_extracted() {
+            return false;
         }
 
         if changed {
@@ -688,7 +693,7 @@ impl EnvelopeProcessor {
         received: DateTime<Utc>,
         client: Option<&str>,
         client_addr: Option<net::IpAddr>,
-        metrics_extraction_enabled: bool,
+        metrics_config: SessionMetricsConfig,
         clock_drift_processor: &ClockDriftProcessor,
         extracted_metrics: &mut Vec<Metric>,
     ) -> bool {
@@ -729,12 +734,17 @@ impl EnvelopeProcessor {
             }
         }
 
-        // Extract metrics
-        if metrics_extraction_enabled && !item.metrics_extracted() {
+        // Extract metrics if they haven't been extracted by a prior Relay
+        if metrics_config.is_enabled() && !item.metrics_extracted() {
             for aggregate in &session.aggregates {
                 extract_session_metrics(&session.attributes, aggregate, client, extracted_metrics);
                 item.set_metrics_extracted(true);
             }
+        }
+
+        // Drop the aggregate if metrics have been extracted in this or a prior Relay
+        if metrics_config.should_drop() && item.metrics_extracted() {
+            return false;
         }
 
         if changed {
@@ -759,8 +769,7 @@ impl EnvelopeProcessor {
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.envelope_context.received_at;
         let extracted_metrics = &mut state.extracted_metrics;
-        let metrics_extraction_enabled =
-            state.project_state.has_feature(Feature::MetricsExtraction);
+        let metrics_config = state.project_state.config().session_metrics;
         let envelope = &mut state.envelope;
         let client = envelope.meta().client().map(|x| x.to_owned());
         let client_addr = envelope.meta().client_addr();
@@ -775,7 +784,7 @@ impl EnvelopeProcessor {
                     received,
                     client.as_deref(),
                     client_addr,
-                    metrics_extraction_enabled,
+                    metrics_config,
                     &clock_drift_processor,
                     extracted_metrics,
                 ),
@@ -784,7 +793,7 @@ impl EnvelopeProcessor {
                     received,
                     client.as_deref(),
                     client_addr,
-                    metrics_extraction_enabled,
+                    metrics_config,
                     &clock_drift_processor,
                     extracted_metrics,
                 ),
