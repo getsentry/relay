@@ -3,7 +3,6 @@ use std::collections::HashMap;
 
 use android_trace_log::AndroidTraceLog;
 use serde::{de, Deserialize, Serialize};
-use serde_aux::prelude::deserialize_number_from_string;
 use uuid::Uuid;
 
 use crate::envelope::{ContentType, Item};
@@ -104,8 +103,22 @@ where
         // https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
         Ok(address) => Ok(format!("{:#x}", address & 0x0000000FFFFFFFFF)),
         Err(err) => Err(de::Error::custom(format!(
-            "Failed to strip pointer authentication code: {}",
-            err
+            "failed to strip pointer authentication code: {}",
+            err,
+        ))),
+    }
+}
+
+pub fn deserialize_u64_from_string<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: de::Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer)?;
+    match s.parse::<u64>() {
+        Ok(n) => Ok(n),
+        Err(err) => Err(serde::de::Error::custom(format!(
+            "failed to deserialize u64: {}",
+            err,
         ))),
     }
 }
@@ -123,7 +136,7 @@ struct Sample {
     frames: Vec<Frame>,
     queue_address: Option<String>,
 
-    #[serde(deserialize_with = "deserialize_number_from_string")]
+    #[serde(deserialize_with = "deserialize_u64_from_string")]
     relative_timestamp_ns: u64,
 
     thread_id: u64,
