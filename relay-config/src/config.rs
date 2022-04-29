@@ -1427,7 +1427,7 @@ impl Config {
 
         let limits = &mut self.values.limits;
         if let Some(shutdown_timeout) = overrides.shutdown_timeout {
-            if let Some(shutdown_timeout) = shutdown_timeout.parse::<u64>().ok() {
+            if let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
         }
