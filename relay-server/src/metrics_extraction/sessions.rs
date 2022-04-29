@@ -6,6 +6,46 @@ use relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue};
 
 use super::utils::with_tag;
 
+/// Namespace of session metricsfor the MRI.
+const METRIC_NAMESPACE: &str = "sessions";
+
+/// Current version of metrics extraction.
+const EXTRACT_VERSION: u16 = 1;
+
+/// Configuration for metric extraction from sessions.
+#[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SessionMetricsConfig {
+    /// The revision of the extraction algorithm.
+    ///
+    /// Provided the revision is lower than or equal to the revision supported by this Relay,
+    /// metrics are extracted. If the revision is higher than what this Relay supports, it does not
+    /// extract metrics from sessions, and instead forwards them to the upstream.
+    ///
+    /// Version `0` (default) disables extraction.
+    version: u16,
+
+    /// Drop sessions after successfully extracting metrics.
+    drop: bool,
+}
+
+impl SessionMetricsConfig {
+    /// Returns `true` if session metrics is enabled and compatible.
+    pub fn is_enabled(&self) -> bool {
+        self.version > 0 && self.version <= EXTRACT_VERSION
+    }
+
+    /// Returns `true` if Relay should not extract metrics from sessions.
+    pub fn is_disabled(&self) -> bool {
+        !self.is_enabled()
+    }
+
+    /// Returns `true` if the session should be dropped after extracting metrics.
+    pub fn should_drop(&self) -> bool {
+        self.drop
+    }
+}
+
 /// Convert contained nil UUIDs to None
 fn nil_to_none(distinct_id: Option<&String>) -> Option<&String> {
     let distinct_id = distinct_id?;
@@ -17,8 +57,6 @@ fn nil_to_none(distinct_id: Option<&String>) -> Option<&String> {
 
     Some(distinct_id)
 }
-
-const METRIC_NAMESPACE: &str = "sessions";
 
 pub fn extract_session_metrics<T: SessionLike>(
     attributes: &SessionAttributes,

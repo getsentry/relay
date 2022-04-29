@@ -196,7 +196,7 @@ def test_session_metrics_non_processing(
 
     if extract_metrics:
         # enable metrics extraction for the project
-        extra_config = {"config": {"features": ["organizations:metrics-extraction"]}}
+        extra_config = {"config": {"sessionMetrics": {"version": 1}}}
     else:
         extra_config = {}
 
@@ -322,7 +322,7 @@ def test_metrics_extracted_only_once(
     )
 
     # enable metrics extraction for the project
-    extra_config = {"config": {"features": ["organizations:metrics-extraction"]}}
+    extra_config = {"config": {"sessionMetrics": {"version": 1}}}
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id, extra=extra_config)
@@ -358,7 +358,7 @@ def test_session_metrics_processing(
     project_id = 42
 
     # enable metrics extraction for the project
-    extra_config = {"config": {"features": ["organizations:metrics-extraction"]}}
+    extra_config = {"config": {"sessionMetrics": {"version": 1}}}
 
     mini_sentry.add_full_project_config(project_id, extra=extra_config)
 
@@ -466,7 +466,8 @@ def test_transaction_metrics(
     config = mini_sentry.project_configs[project_id]["config"]
     timestamp = datetime.now(tz=timezone.utc)
 
-    config["features"] = ["organizations:metrics-extraction"] if extract_metrics else []
+    if extract_metrics:
+        config["sessionMetrics"] = {"version": 1}
     config["breakdownsV2"] = {
         "span_ops": {"type": "spanOperations", "matches": ["react.mount"]}
     }
