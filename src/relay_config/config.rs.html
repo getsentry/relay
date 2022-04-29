@@ -2022,6 +2022,15 @@
 <span id="2015">2015</span>
 <span id="2016">2016</span>
 <span id="2017">2017</span>
+<span id="2018">2018</span>
+<span id="2019">2019</span>
+<span id="2020">2020</span>
+<span id="2021">2021</span>
+<span id="2022">2022</span>
+<span id="2023">2023</span>
+<span id="2024">2024</span>
+<span id="2025">2025</span>
+<span id="2026">2026</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2267,6 +2276,8 @@
     <span class="kw">pub</span> <span class="ident">public_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Outcome source</span>
     <span class="kw">pub</span> <span class="ident">outcome_source</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// shutdown timeout</span>
+    <span class="kw">pub</span> <span class="ident">shutdown_timeout</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// The relay credentials</span>
@@ -3462,6 +3473,13 @@
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ConfigError::new</span>(<span class="ident">ConfigErrorKind::InvalidValue</span>)
                         .<span class="ident">field</span>(<span class="string">&quot;incomplete credentials&quot;</span>));
                 }
+            }
+        }
+
+        <span class="kw">let</span> <span class="ident">limits</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">limits</span>;
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">shutdown_timeout</span>) <span class="op">=</span> <span class="ident">overrides</span>.<span class="ident">shutdown_timeout</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">shutdown_timeout</span>) <span class="op">=</span> <span class="ident">shutdown_timeout</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>() {
+                <span class="ident">limits</span>.<span class="ident">shutdown_timeout</span> <span class="op">=</span> <span class="ident">shutdown_timeout</span>;
             }
         }
 

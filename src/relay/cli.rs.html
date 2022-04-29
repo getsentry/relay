@@ -363,6 +363,8 @@
 <span id="356">356</span>
 <span id="357">357</span>
 <span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::io</span>;
 <span class="kw">use</span> <span class="ident">std::path</span>::{<span class="ident">Path</span>, <span class="ident">PathBuf</span>};
@@ -450,6 +452,7 @@
         <span class="ident">public_key</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;public_key&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
         <span class="ident">secret_key</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;secret_key&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
         <span class="ident">outcome_source</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;source_id&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
+        <span class="ident">shutdown_timeout</span>: <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;shutdown_timeout&quot;</span>).<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
     }
 }
 
@@ -467,6 +470,7 @@
         <span class="ident">public_key</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_PUBLIC_KEY&quot;</span>).<span class="ident">ok</span>(),
         <span class="ident">secret_key</span>: <span class="ident">env::var</span>(<span class="string">&quot;RELAY_SECRET_KEY&quot;</span>).<span class="ident">ok</span>(),
         <span class="ident">outcome_source</span>: <span class="prelude-val">None</span>, <span class="comment">//already extracted in params</span>
+        <span class="ident">shutdown_timeout</span>: <span class="ident">env::var</span>(<span class="string">&quot;SHUTDOWN_TIMEOUT&quot;</span>).<span class="ident">ok</span>(),
     }
 }
 
