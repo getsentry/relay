@@ -721,6 +721,16 @@
 <span id="714">714</span>
 <span id="715">715</span>
 <span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -752,6 +762,7 @@
 };
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::RequestMeta</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::sessions::SessionMetricsConfig</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::transactions::TransactionMetricsConfig</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
@@ -770,16 +781,21 @@
     <span class="ident">Expired</span>,
 }
 
-<span class="doccomment">/// Features exposed by project config</span>
+<span class="doccomment">/// Features exposed by project config.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Ord</span>, <span class="ident">Hash</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Feature</span> {
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;organizations:metrics-extraction&quot;</span>)]</span>
-    <span class="ident">MetricsExtraction</span>,
-
+    <span class="doccomment">/// Enables ingestion and normalization of profiles.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;organizations:profiling&quot;</span>)]</span>
     <span class="ident">Profiling</span>,
 
-    <span class="doccomment">/// forward compatibility</span>
+    <span class="doccomment">/// Unused.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This used to control the initial experimental metrics extraction for sessions and has been</span>
+    <span class="doccomment">/// discontinued.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;organizations:metrics-extraction&quot;</span>)]</span>
+    <span class="ident">Deprecated1</span>,
+
+    <span class="doccomment">/// Forward compatibility.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
     <span class="ident">Unknown</span>,
 }
@@ -814,7 +830,10 @@
     <span class="doccomment">/// Configuration for operation breakdown. Will be emitted only if present.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">breakdowns_v2</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BreakdownsConfig</span><span class="op">&gt;</span>,
-    <span class="doccomment">/// Configuration in relation to extracting metrics from transaction events.</span>
+    <span class="doccomment">/// Configuration for extracting metrics from sessions.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;SessionMetricsConfig::is_disabled&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">session_metrics</span>: <span class="ident">SessionMetricsConfig</span>,
+    <span class="doccomment">/// Configuration for extracting metrics from transaction events.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">transaction_metrics</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ErrorBoundary</span><span class="op">&lt;</span><span class="ident">TransactionMetricsConfig</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The span attributes configuration.</span>
@@ -840,6 +859,7 @@
             <span class="ident">quotas</span>: <span class="ident">Vec::new</span>(),
             <span class="ident">dynamic_sampling</span>: <span class="prelude-val">None</span>,
             <span class="ident">breakdowns_v2</span>: <span class="prelude-val">None</span>,
+            <span class="ident">session_metrics</span>: <span class="ident">SessionMetricsConfig::default</span>(),
             <span class="ident">transaction_metrics</span>: <span class="prelude-val">None</span>,
             <span class="ident">span_attributes</span>: <span class="ident">BTreeSet::new</span>(),
             <span class="ident">metric_conditional_tagging</span>: <span class="ident">Vec::new</span>(),

@@ -3316,6 +3316,15 @@
 <span id="3309">3309</span>
 <span id="3310">3310</span>
 <span id="3311">3311</span>
+<span id="3312">3312</span>
+<span id="3313">3313</span>
+<span id="3314">3314</span>
+<span id="3315">3315</span>
+<span id="3316">3316</span>
+<span id="3317">3317</span>
+<span id="3318">3318</span>
+<span id="3319">3319</span>
+<span id="3320">3320</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3369,7 +3378,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="self">self</span>, <span class="ident">AttachmentType</span>, <span class="ident">ContentType</span>, <span class="ident">Envelope</span>, <span class="ident">EnvelopeError</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors</span>::{<span class="ident">PartialDsn</span>, <span class="ident">RequestMeta</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::sessions::extract_session_metrics</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::sessions</span>::{<span class="ident">extract_session_metrics</span>, <span class="ident">SessionMetricsConfig</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServerError</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{
@@ -3686,8 +3695,8 @@
 
     <span class="doccomment">/// Metrics extracted from items in the envelope.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// This is controlled by [`Feature::MetricsExtraction`]. Relay extracts metrics for sessions</span>
-    <span class="doccomment">/// and transactions.</span>
+    <span class="doccomment">/// Relay can extract metrics for sessions and transactions, which is controlled by</span>
+    <span class="doccomment">/// configuration objects in the project config.</span>
     <span class="ident">extracted_metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// The state of the project that this envelope belongs to.</span>
@@ -3921,7 +3930,7 @@
         <span class="ident">received</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
         <span class="ident">client</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>,
         <span class="ident">client_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">net::IpAddr</span><span class="op">&gt;</span>,
-        <span class="ident">metrics_extraction_enabled</span>: <span class="ident">bool</span>,
+        <span class="ident">metrics_config</span>: <span class="ident">SessionMetricsConfig</span>,
         <span class="ident">clock_drift_processor</span>: <span class="kw-2">&amp;</span><span class="ident">ClockDriftProcessor</span>,
         <span class="ident">extracted_metrics</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
     ) -&gt; <span class="ident">bool</span> {
@@ -3978,10 +3987,15 @@
             }
         }
 
-        <span class="comment">// Extract metrics</span>
-        <span class="kw">if</span> <span class="ident">metrics_extraction_enabled</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">metrics_extracted</span>() {
+        <span class="comment">// Extract metrics if they haven&#39;t been extracted by a prior Relay</span>
+        <span class="kw">if</span> <span class="ident">metrics_config</span>.<span class="ident">is_enabled</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">metrics_extracted</span>() {
             <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="kw-2">&amp;</span><span class="ident">session</span>, <span class="ident">client</span>, <span class="ident">extracted_metrics</span>);
             <span class="ident">item</span>.<span class="ident">set_metrics_extracted</span>(<span class="bool-val">true</span>);
+        }
+
+        <span class="comment">// Drop the session if metrics have been extracted in this or a prior Relay</span>
+        <span class="kw">if</span> <span class="ident">metrics_config</span>.<span class="ident">should_drop</span>() <span class="op">&amp;&amp;</span> <span class="ident">item</span>.<span class="ident">metrics_extracted</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
         }
 
         <span class="kw">if</span> <span class="ident">changed</span> {
@@ -4006,7 +4020,7 @@
         <span class="ident">received</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>,
         <span class="ident">client</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>,
         <span class="ident">client_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">net::IpAddr</span><span class="op">&gt;</span>,
-        <span class="ident">metrics_extraction_enabled</span>: <span class="ident">bool</span>,
+        <span class="ident">metrics_config</span>: <span class="ident">SessionMetricsConfig</span>,
         <span class="ident">clock_drift_processor</span>: <span class="kw-2">&amp;</span><span class="ident">ClockDriftProcessor</span>,
         <span class="ident">extracted_metrics</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span>,
     ) -&gt; <span class="ident">bool</span> {
@@ -4047,12 +4061,17 @@
             }
         }
 
-        <span class="comment">// Extract metrics</span>
-        <span class="kw">if</span> <span class="ident">metrics_extraction_enabled</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">metrics_extracted</span>() {
+        <span class="comment">// Extract metrics if they haven&#39;t been extracted by a prior Relay</span>
+        <span class="kw">if</span> <span class="ident">metrics_config</span>.<span class="ident">is_enabled</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">item</span>.<span class="ident">metrics_extracted</span>() {
             <span class="kw">for</span> <span class="ident">aggregate</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">aggregates</span> {
                 <span class="ident">extract_session_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">session</span>.<span class="ident">attributes</span>, <span class="ident">aggregate</span>, <span class="ident">client</span>, <span class="ident">extracted_metrics</span>);
                 <span class="ident">item</span>.<span class="ident">set_metrics_extracted</span>(<span class="bool-val">true</span>);
             }
+        }
+
+        <span class="comment">// Drop the aggregate if metrics have been extracted in this or a prior Relay</span>
+        <span class="kw">if</span> <span class="ident">metrics_config</span>.<span class="ident">should_drop</span>() <span class="op">&amp;&amp;</span> <span class="ident">item</span>.<span class="ident">metrics_extracted</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
         }
 
         <span class="kw">if</span> <span class="ident">changed</span> {
@@ -4077,8 +4096,7 @@
     <span class="kw">fn</span> <span class="ident">process_sessions</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) {
         <span class="kw">let</span> <span class="ident">received</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">received_at</span>;
         <span class="kw">let</span> <span class="ident">extracted_metrics</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">state</span>.<span class="ident">extracted_metrics</span>;
-        <span class="kw">let</span> <span class="ident">metrics_extraction_enabled</span> <span class="op">=</span>
-            <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">has_feature</span>(<span class="ident">Feature::MetricsExtraction</span>);
+        <span class="kw">let</span> <span class="ident">metrics_config</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>().<span class="ident">session_metrics</span>;
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">to_owned</span>());
         <span class="kw">let</span> <span class="ident">client_addr</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
@@ -4093,7 +4111,7 @@
                     <span class="ident">received</span>,
                     <span class="ident">client</span>.<span class="ident">as_deref</span>(),
                     <span class="ident">client_addr</span>,
-                    <span class="ident">metrics_extraction_enabled</span>,
+                    <span class="ident">metrics_config</span>,
                     <span class="kw-2">&amp;</span><span class="ident">clock_drift_processor</span>,
                     <span class="ident">extracted_metrics</span>,
                 ),
@@ -4102,7 +4120,7 @@
                     <span class="ident">received</span>,
                     <span class="ident">client</span>.<span class="ident">as_deref</span>(),
                     <span class="ident">client_addr</span>,
-                    <span class="ident">metrics_extraction_enabled</span>,
+                    <span class="ident">metrics_config</span>,
                     <span class="kw-2">&amp;</span><span class="ident">clock_drift_processor</span>,
                     <span class="ident">extracted_metrics</span>,
                 ),
