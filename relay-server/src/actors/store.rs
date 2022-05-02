@@ -697,7 +697,7 @@ impl Message for StoreEnvelope {
 ///
 /// Slow items must be routed to the `Attachments` topic.
 fn is_slow_item(item: &Item) -> bool {
-    item.ty() == ItemType::Attachment || item.ty() == ItemType::UserReport
+    item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
 }
 
 fn is_replay_payload(item: &Item) -> bool {
@@ -726,7 +726,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
 
         let topic = if envelope.get_item_by(is_slow_item).is_some() {
             KafkaTopic::Attachments
-        } else if event_item.map(|x| x.ty()) == Some(ItemType::Transaction) {
+        } else if event_item.map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
         } else if envelope.get_item_by(is_replay_payload).is_some() {
             KafkaTopic::ReplayPayloads

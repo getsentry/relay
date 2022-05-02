@@ -29,6 +29,7 @@ use crate::actors::project_cache::{
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
+use crate::metrics_extraction::sessions::SessionMetricsConfig;
 use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
 use crate::statsd::RelayCounters;
@@ -47,16 +48,21 @@ pub enum Expiry {
     Expired,
 }
 
-/// Features exposed by project config
+/// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Feature {
-    #[serde(rename = "organizations:metrics-extraction")]
-    MetricsExtraction,
-
+    /// Enables ingestion and normalization of profiles.
     #[serde(rename = "organizations:profiling")]
     Profiling,
 
-    /// forward compatibility
+    /// Unused.
+    ///
+    /// This used to control the initial experimental metrics extraction for sessions and has been
+    /// discontinued.
+    #[serde(rename = "organizations:metrics-extraction")]
+    Deprecated1,
+
+    /// Forward compatibility.
     #[serde(other)]
     Unknown,
 }
@@ -91,7 +97,10 @@ pub struct ProjectConfig {
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
-    /// Configuration in relation to extracting metrics from transaction events.
+    /// Configuration for extracting metrics from sessions.
+    #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
+    pub session_metrics: SessionMetricsConfig,
+    /// Configuration for extracting metrics from transaction events.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
     /// The span attributes configuration.
@@ -117,6 +126,7 @@ impl Default for ProjectConfig {
             quotas: Vec::new(),
             dynamic_sampling: None,
             breakdowns_v2: None,
+            session_metrics: SessionMetricsConfig::default(),
             transaction_metrics: None,
             span_attributes: BTreeSet::new(),
             metric_conditional_tagging: Vec::new(),
@@ -132,9 +142,15 @@ pub struct LimitedProjectConfig {
     pub allowed_domains: Vec<String>,
     pub trusted_relays: Vec<PublicKey>,
     pub pii_config: Option<PiiConfig>,
+    #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic_sampling: Option<SamplingConfig>,
+    #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
+    pub session_metrics: SessionMetricsConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
 }
 

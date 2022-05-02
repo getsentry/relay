@@ -247,7 +247,7 @@ pub fn event_id_from_formdata(data: &[u8]) -> Result<Option<EventId>, BadStoreRe
 /// Extracting the event id from chunked formdata fields on the Minidump endpoint (`sentry__1`,
 /// `sentry__2`, ...) is not supported. In this case, `None` is returned.
 pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreRequest> {
-    if let Some(item) = items.iter().find(|item| item.ty() == ItemType::Event) {
+    if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::Event) {
         if let Some(event_id) = event_id_from_json(&item.payload())? {
             return Ok(Some(event_id));
         }
@@ -262,7 +262,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
         }
     }
 
-    if let Some(item) = items.iter().find(|item| item.ty() == ItemType::FormData) {
+    if let Some(item) = items.iter().find(|item| item.ty() == &ItemType::FormData) {
         // Swallow all other errors here since it is quite common to receive invalid secondary
         // payloads. `EnvelopeProcessor` also retains events in such cases.
         if let Ok(Some(event_id)) = event_id_from_formdata(&item.payload()) {
@@ -346,8 +346,14 @@ where
 
     let future = extract_envelope(&request, meta)
         .into_future()
-        .and_then(clone!(envelope_context, |envelope| {
+        .and_then(clone!(config, envelope_context, |mut envelope| {
             envelope_context.borrow_mut().update(&envelope);
+
+            // If configured, remove unknown items at the very beginning. If the envelope is
+            // empty, we fail the request with a special control flow error to skip checks and
+            // queueing, that still results in a `200 OK` response.
+            utils::remove_unknown_items(&config, &mut envelope);
+
             if envelope.is_empty() {
                 // envelope is empty, cannot send outcomes
                 Err(BadStoreRequest::EmptyEnvelope)
@@ -426,6 +432,11 @@ where
             let event_id = envelope_context.borrow().event_id();
 
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
+                return Ok(create_response(event_id));
+            }
+
+            // This is a control-flow error without a bad status code.
+            if matches!(error, BadStoreRequest::EmptyEnvelope) {
                 return Ok(create_response(event_id));
             }
 

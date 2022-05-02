@@ -51,7 +51,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, Upstr
 use crate::envelope::{self, AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::metrics_extraction::sessions::extract_session_metrics;
+use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
@@ -368,8 +368,8 @@ struct ProcessEnvelopeState {
 
     /// Metrics extracted from items in the envelope.
     ///
-    /// This is controlled by [`Feature::MetricsExtraction`]. Relay extracts metrics for sessions
-    /// and transactions.
+    /// Relay can extract metrics for sessions and transactions, which is controlled by
+    /// configuration objects in the project config.
     extracted_metrics: Vec<Metric>,
 
     /// The state of the project that this envelope belongs to.
@@ -574,17 +574,17 @@ impl EnvelopeProcessor {
 
     fn is_valid_session_timestamp(
         &self,
-        received: &DateTime<Utc>,
-        timestamp: &DateTime<Utc>,
+        received: DateTime<Utc>,
+        timestamp: DateTime<Utc>,
     ) -> bool {
         let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
-        if (*received - *timestamp) > max_age {
+        if (received - timestamp) > max_age {
             relay_log::trace!("skipping session older than {} days", max_age.num_days());
             return false;
         }
 
         let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
-        if (*timestamp - *received) > max_future {
+        if (timestamp - received) > max_future {
             relay_log::trace!(
                 "skipping session more than {}s in the future",
                 max_future.num_seconds()
@@ -596,13 +596,15 @@ impl EnvelopeProcessor {
     }
 
     /// Returns true if the item should be kept.
+    #[allow(clippy::too_many_arguments)]
     fn process_session(
         &self,
-        metrics_extraction_enabled: bool,
-        clock_drift_processor: &ClockDriftProcessor,
-        received: &DateTime<Utc>,
-        client_addr: &Option<net::IpAddr>,
         item: &mut Item,
+        received: DateTime<Utc>,
+        client: Option<&str>,
+        client_addr: Option<net::IpAddr>,
+        metrics_config: SessionMetricsConfig,
+        clock_drift_processor: &ClockDriftProcessor,
         extracted_metrics: &mut Vec<Metric>,
     ) -> bool {
         let mut changed = false;
@@ -635,7 +637,7 @@ impl EnvelopeProcessor {
         }
 
         // Log the timestamp delay for all sessions after clock drift correction.
-        let session_delay = *received - session.timestamp;
+        let session_delay = received - session.timestamp;
         if session_delay > SignedDuration::minutes(1) {
             metric!(
                 timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
@@ -644,24 +646,29 @@ impl EnvelopeProcessor {
         }
 
         // Validate timestamps
-        for t in &[&session.timestamp, &session.started] {
+        for t in [session.timestamp, session.started] {
             if !self.is_valid_session_timestamp(received, t) {
                 return false;
             }
         }
 
         // Validate attributes
-        match self.validate_attributes(client_addr, &mut session.attributes) {
+        match self.validate_attributes(&client_addr, &mut session.attributes) {
             Err(_) => return false,
             Ok(changed_attributes) => {
                 changed |= changed_attributes;
             }
         }
 
-        // Extract metrics
-        if metrics_extraction_enabled && !item.metrics_extracted() {
-            extract_session_metrics(&session.attributes, &session, extracted_metrics);
+        // Extract metrics if they haven't been extracted by a prior Relay
+        if metrics_config.is_enabled() && !item.metrics_extracted() {
+            extract_session_metrics(&session.attributes, &session, client, extracted_metrics);
             item.set_metrics_extracted(true);
+        }
+
+        // Drop the session if metrics have been extracted in this or a prior Relay
+        if metrics_config.should_drop() && item.metrics_extracted() {
+            return false;
         }
 
         if changed {
@@ -679,13 +686,15 @@ impl EnvelopeProcessor {
         true
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn process_session_aggregates(
         &self,
-        metrics_extraction_enabled: bool,
-        clock_drift_processor: &ClockDriftProcessor,
-        received: &DateTime<Utc>,
-        client_addr: &Option<net::IpAddr>,
         item: &mut Item,
+        received: DateTime<Utc>,
+        client: Option<&str>,
+        client_addr: Option<net::IpAddr>,
+        metrics_config: SessionMetricsConfig,
+        clock_drift_processor: &ClockDriftProcessor,
         extracted_metrics: &mut Vec<Metric>,
     ) -> bool {
         let mut changed = false;
@@ -710,7 +719,7 @@ impl EnvelopeProcessor {
         // Validate timestamps
         session
             .aggregates
-            .retain(|aggregate| self.is_valid_session_timestamp(received, &aggregate.started));
+            .retain(|aggregate| self.is_valid_session_timestamp(received, aggregate.started));
 
         // Aftter timestamp validation, aggregates could now be empty
         if session.aggregates.is_empty() {
@@ -718,19 +727,24 @@ impl EnvelopeProcessor {
         }
 
         // Validate attributes
-        match self.validate_attributes(client_addr, &mut session.attributes) {
+        match self.validate_attributes(&client_addr, &mut session.attributes) {
             Err(_) => return false,
             Ok(changed_attributes) => {
                 changed |= changed_attributes;
             }
         }
 
-        // Extract metrics
-        if metrics_extraction_enabled && !item.metrics_extracted() {
+        // Extract metrics if they haven't been extracted by a prior Relay
+        if metrics_config.is_enabled() && !item.metrics_extracted() {
             for aggregate in &session.aggregates {
-                extract_session_metrics(&session.attributes, aggregate, extracted_metrics);
+                extract_session_metrics(&session.attributes, aggregate, client, extracted_metrics);
                 item.set_metrics_extracted(true);
             }
+        }
+
+        // Drop the aggregate if metrics have been extracted in this or a prior Relay
+        if metrics_config.should_drop() && item.metrics_extracted() {
+            return false;
         }
 
         if changed {
@@ -755,9 +769,9 @@ impl EnvelopeProcessor {
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
         let received = state.envelope_context.received_at;
         let extracted_metrics = &mut state.extracted_metrics;
-        let metrics_extraction_enabled =
-            state.project_state.has_feature(Feature::MetricsExtraction);
+        let metrics_config = state.project_state.config().session_metrics;
         let envelope = &mut state.envelope;
+        let client = envelope.meta().client().map(|x| x.to_owned());
         let client_addr = envelope.meta().client_addr();
 
         let clock_drift_processor =
@@ -766,19 +780,21 @@ impl EnvelopeProcessor {
         envelope.retain_items(|item| {
             match item.ty() {
                 ItemType::Session => self.process_session(
-                    metrics_extraction_enabled,
-                    &clock_drift_processor,
-                    &received,
-                    &client_addr,
                     item,
+                    received,
+                    client.as_deref(),
+                    client_addr,
+                    metrics_config,
+                    &clock_drift_processor,
                     extracted_metrics,
                 ),
                 ItemType::Sessions => self.process_session_aggregates(
-                    metrics_extraction_enabled,
-                    &clock_drift_processor,
-                    &received,
-                    &client_addr,
                     item,
+                    received,
+                    client.as_deref(),
+                    client_addr,
+                    metrics_config,
+                    &clock_drift_processor,
                     extracted_metrics,
                 ),
                 _ => true, // Keep all other item types
@@ -793,7 +809,7 @@ impl EnvelopeProcessor {
     /// is written back into the item.
     fn process_user_reports(&self, state: &mut ProcessEnvelopeState) {
         state.envelope.retain_items(|item| {
-            if item.ty() != ItemType::UserReport {
+            if item.ty() != &ItemType::UserReport {
                 return true;
             };
 
@@ -831,7 +847,7 @@ impl EnvelopeProcessor {
             if self.config.processing_enabled() {
                 state
                     .envelope
-                    .retain_items(|item| item.ty() != ItemType::ClientReport);
+                    .retain_items(|item| item.ty() != &ItemType::ClientReport);
             }
             return;
         }
@@ -846,7 +862,7 @@ impl EnvelopeProcessor {
         // we're going through all client reports but we're effectively just merging
         // them into the first one.
         state.envelope.retain_items(|item| {
-            if item.ty() != ItemType::ClientReport {
+            if item.ty() != &ItemType::ClientReport {
                 return true;
             };
             match ClientReport::parse(&item.payload()) {
@@ -1038,7 +1054,7 @@ impl EnvelopeProcessor {
     fn expand_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let envelope = &mut state.envelope;
 
-        if let Some(item) = envelope.take_item_by(|item| item.ty() == ItemType::UnrealReport) {
+        if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
             utils::expand_unreal_envelope(item, envelope, &self.config)?;
         }
 
@@ -1275,7 +1291,7 @@ impl EnvelopeProcessor {
             ItemType::Attachment => false,
             ItemType::UserReport => false,
 
-            // aggregate data is never considered as part of deduplication
+            // Aggregate data is never considered as part of deduplication
             ItemType::Session => false,
             ItemType::Sessions => false,
             ItemType::Metrics => false,
@@ -1283,6 +1299,8 @@ impl EnvelopeProcessor {
             ItemType::ClientReport => false,
             ItemType::Profile => false,
             ItemType::ReplayPayload => false,
+            // Without knowing more, `Unknown` items are allowed to be repeated
+            ItemType::Unknown(_) => false,
         }
     }
 
@@ -1300,11 +1318,11 @@ impl EnvelopeProcessor {
         // Remove all items first, and then process them. After this function returns, only
         // attachments can remain in the envelope. The event will be added again at the end of
         // `process_event`.
-        let event_item = envelope.take_item_by(|item| item.ty() == ItemType::Event);
-        let transaction_item = envelope.take_item_by(|item| item.ty() == ItemType::Transaction);
-        let security_item = envelope.take_item_by(|item| item.ty() == ItemType::Security);
-        let raw_security_item = envelope.take_item_by(|item| item.ty() == ItemType::RawSecurity);
-        let form_item = envelope.take_item_by(|item| item.ty() == ItemType::FormData);
+        let event_item = envelope.take_item_by(|item| item.ty() == &ItemType::Event);
+        let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
+        let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
+        let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
+        let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
         let attachment_item = envelope
             .take_item_by(|item| item.attachment_type() == Some(AttachmentType::EventPayload));
         let breadcrumbs1 = envelope
@@ -1314,7 +1332,7 @@ impl EnvelopeProcessor {
 
         // Event items can never occur twice in an envelope.
         if let Some(duplicate) = envelope.get_item_by(|item| self.is_duplicate(item)) {
-            return Err(ProcessingError::DuplicateItem(duplicate.ty()));
+            return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
         }
 
         let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
@@ -2008,7 +2026,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 
         for item in items {
             let payload = item.payload();
-            if item.ty() == ItemType::Metrics {
+            if item.ty() == &ItemType::Metrics {
                 let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
                 clock_drift_processor.process_timestamp(&mut timestamp);
 
@@ -2025,7 +2043,7 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
                     relay_log::trace!("inserting metrics into project cache");
                     project_cache.do_send(InsertMetrics::new(public_key, metrics));
                 }
-            } else if item.ty() == ItemType::MetricBuckets {
+            } else if item.ty() == &ItemType::MetricBuckets {
                 match Bucket::parse_all(&payload) {
                     Ok(mut buckets) => {
                         for bucket in &mut buckets {
@@ -3038,7 +3056,7 @@ mod tests {
         let new_envelope = envelope_response.envelope.unwrap();
 
         assert_eq!(new_envelope.len(), 1);
-        assert_eq!(new_envelope.items().next().unwrap().ty(), ItemType::Event);
+        assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
     }
 
     #[test]
@@ -3151,7 +3169,7 @@ mod tests {
 
         let envelope = envelope_response.envelope.unwrap();
         let item = envelope.items().next().unwrap();
-        assert_eq!(item.ty(), ItemType::ClientReport);
+        assert_eq!(item.ty(), &ItemType::ClientReport);
     }
 
     #[test]
