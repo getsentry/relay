@@ -196,7 +196,7 @@ def test_session_metrics_non_processing(
 
     if extract_metrics:
         # enable metrics extraction for the project
-        extra_config = {"config": {"features": ["organizations:metrics-extraction"]}}
+        extra_config = {"config": {"sessionMetrics": {"version": 1}}}
     else:
         extra_config = {}
 
@@ -251,6 +251,7 @@ def test_session_metrics_non_processing(
             {
                 "name": "c:sessions/session@none",
                 "tags": {
+                    "sdk": "raven-node/2.6.3",
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
                     "session.status": "init",
@@ -263,6 +264,7 @@ def test_session_metrics_non_processing(
             {
                 "name": "d:sessions/duration@second",
                 "tags": {
+                    "sdk": "raven-node/2.6.3",
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
                     "session.status": "exited",
@@ -276,6 +278,7 @@ def test_session_metrics_non_processing(
             {
                 "name": "s:sessions/user@none",
                 "tags": {
+                    "sdk": "raven-node/2.6.3",
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
                     "session.status": "init",
@@ -319,7 +322,7 @@ def test_metrics_extracted_only_once(
     )
 
     # enable metrics extraction for the project
-    extra_config = {"config": {"features": ["organizations:metrics-extraction"]}}
+    extra_config = {"config": {"sessionMetrics": {"version": 1}}}
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id, extra=extra_config)
@@ -355,7 +358,7 @@ def test_session_metrics_processing(
     project_id = 42
 
     # enable metrics extraction for the project
-    extra_config = {"config": {"features": ["organizations:metrics-extraction"]}}
+    extra_config = {"config": {"sessionMetrics": {"version": 1}}}
 
     mini_sentry.add_full_project_config(project_id, extra=extra_config)
 
@@ -387,6 +390,7 @@ def test_session_metrics_processing(
         "unit": "none",
         "value": 1.0,
         "tags": {
+            "sdk": "raven-node/2.6.3",
             "environment": "production",
             "release": "sentry-test@1.0.0",
             "session.status": "init",
@@ -402,6 +406,7 @@ def test_session_metrics_processing(
         "unit": "none",
         "value": [1617781333],
         "tags": {
+            "sdk": "raven-node/2.6.3",
             "environment": "production",
             "release": "sentry-test@1.0.0",
             "session.status": "init",
@@ -417,6 +422,7 @@ def test_session_metrics_processing(
         "unit": "second",
         "value": [1947.49],
         "tags": {
+            "sdk": "raven-node/2.6.3",
             "environment": "production",
             "release": "sentry-test@1.0.0",
             "session.status": "exited",
@@ -460,7 +466,8 @@ def test_transaction_metrics(
     config = mini_sentry.project_configs[project_id]["config"]
     timestamp = datetime.now(tz=timezone.utc)
 
-    config["features"] = ["organizations:metrics-extraction"] if extract_metrics else []
+    if extract_metrics:
+        config["sessionMetrics"] = {"version": 1}
     config["breakdownsV2"] = {
         "span_ops": {"type": "spanOperations", "matches": ["react.mount"]}
     }

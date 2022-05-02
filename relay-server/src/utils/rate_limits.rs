@@ -107,6 +107,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::ReplayPayload => None,
         ItemType::ReplayEvent => None,
         ItemType::ClientReport => None,
+        ItemType::Unknown(_) => None,
     }
 }
 
@@ -143,7 +144,7 @@ impl EnvelopeSummary {
         for item in envelope.items() {
             if item.creates_event() {
                 summary.infer_category(item);
-            } else if item.ty() == ItemType::Attachment {
+            } else if item.ty() == &ItemType::Attachment {
                 // Plain attachments do not create events.
                 summary.has_plain_attachments = true;
             }
@@ -413,7 +414,7 @@ where
         }
 
         // Remove attachments, except those required for processing
-        if enforcement.attachments.is_active() && item.ty() == ItemType::Attachment {
+        if enforcement.attachments.is_active() && item.ty() == &ItemType::Attachment {
             if item.creates_event() {
                 item.set_rate_limited(true);
                 return true;
@@ -423,7 +424,7 @@ where
         }
 
         // Remove sessions independently of events
-        if enforcement.sessions.is_active() && item.ty() == ItemType::Session {
+        if enforcement.sessions.is_active() && item.ty() == &ItemType::Session {
             return false;
         }
 

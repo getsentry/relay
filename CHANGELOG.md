@@ -7,6 +7,12 @@
 - Add platform, op, http.method and status tag to all extracted transaction metrics. ([#1227](https://github.com/getsentry/relay/pull/1227))
 - Add units in built-in measurements. ([#1229](https://github.com/getsentry/relay/pull/1229))
 
+**Bug Fixes**:
+
+- fix(metrics): Enforce metric name length limit. ([#1238](https://github.com/getsentry/relay/pull/1238))
+- Accept and forward unknown Envelope items. In processing mode, drop items individually rather than rejecting the entire request. This allows SDKs to send new data in combined Envelopes in the future. ([#1246](https://github.com/getsentry/relay/pull/1246))
+- Stop extracting metrics with outdated names from sessions. ([#1251](https://github.com/getsentry/relay/pull/1251), [#1252](https://github.com/getsentry/relay/pull/1252))
+
 **Internal**:
 
 - Add sampling + tagging by event platform and transaction op. Some (unused) tagging rules from 22.4.0 have been renamed. ([#1231](https://github.com/getsentry/relay/pull/1231))
@@ -15,6 +21,8 @@
 - Remove the unused "internal" data category. ([#1245](https://github.com/getsentry/relay/pull/1245))
 - Add ReplayPayload ItemType. ([#1236](https://github.com/getsentry/relay/pull/1236))
 - Add ReplayEvent ItemType. ([#1239](https://github.com/getsentry/relay/pull/1239))
+- Add the client and version as `sdk` tag to extracted session metrics in the format `name/version`. ([#1248](https://github.com/getsentry/relay/pull/1248))
+- - Expose `shutdown_timeout` in `OverridableConfig` ([#1247](https://github.com/getsentry/relay/pull/1247))
 
 ## 22.4.0
 

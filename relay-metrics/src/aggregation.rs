@@ -715,7 +715,7 @@ impl Bucket {
 }
 
 /// Any error that may occur during aggregation.
-#[derive(Debug, Fail)]
+#[derive(Debug, Fail, PartialEq)]
 #[fail(display = "failed to aggregate metrics: {}", kind)]
 pub struct AggregateMetricsError {
     kind: AggregateMetricsErrorKind,
@@ -727,7 +727,7 @@ impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
     }
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Fail, PartialEq)]
 #[allow(clippy::enum_variant_names)]
 enum AggregateMetricsErrorKind {
     /// A metric bucket had invalid characters in the metric name.
@@ -739,6 +739,9 @@ enum AggregateMetricsErrorKind {
     /// Internal error: Attempted to merge two metric buckets of different types.
     #[fail(display = "found incompatible metric types")]
     InvalidTypes,
+    /// A metric bucket had a too long string (metric name or a tag key/value).
+    #[fail(display = "found invalid string")]
+    InvalidStringLength,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -807,6 +810,21 @@ pub struct AggregatorConfig {
     ///
     /// Defaults to 1 minute.
     pub max_secs_in_future: u64,
+
+    /// The length the name of a metric is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    pub max_name_length: usize,
+
+    /// The length the tag key is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    pub max_tag_key_length: usize,
+
+    /// The length the tag value is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    pub max_tag_value_length: usize,
 }
 
 impl AggregatorConfig {
@@ -903,6 +921,9 @@ impl Default for AggregatorConfig {
             debounce_delay: 10,
             max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
             max_secs_in_future: 60,             // 1 minute
+            max_name_length: 200,
+            max_tag_key_length: 200,
+            max_tag_value_length: 200,
         }
     }
 }
@@ -1066,10 +1087,45 @@ impl Aggregator {
         }
     }
 
-    /// Remove invalid characters from tags and metric names.
+    /// Validates the metric name and its tags are correct.
     ///
     /// Returns `Err` if the metric should be dropped.
-    fn validate_bucket_key(mut key: BucketKey) -> Result<BucketKey, AggregateMetricsError> {
+    fn validate_bucket_key(
+        mut key: BucketKey,
+        aggregator_config: &AggregatorConfig,
+    ) -> Result<BucketKey, AggregateMetricsError> {
+        key = Self::validate_metric_name(key, aggregator_config)?;
+        key = Self::validate_metric_tags(key, aggregator_config);
+        Ok(key)
+    }
+
+    /// Removes invalid characters from metric names.
+    ///
+    /// Returns `Err` if the metric must be dropped.
+    fn validate_metric_name(
+        key: BucketKey,
+        aggregator_config: &AggregatorConfig,
+    ) -> Result<BucketKey, AggregateMetricsError> {
+        let metric_name_length = key.metric_name.len();
+        if metric_name_length > aggregator_config.max_name_length {
+            relay_log::configure_scope(|scope| {
+                scope.set_extra(
+                    "bucket.project_key",
+                    key.project_key.as_str().to_owned().into(),
+                );
+                scope.set_extra("bucket.metric_name", key.metric_name.into());
+                scope.set_extra(
+                    "bucket.metric_name.length",
+                    metric_name_length.to_string().into(),
+                );
+                scope.set_extra(
+                    "aggregator_config.max_name_length",
+                    aggregator_config.max_name_length.to_string().into(),
+                );
+            });
+            return Err(AggregateMetricsErrorKind::InvalidStringLength.into());
+        }
+
         if !protocol::is_valid_mri(&key.metric_name) {
             relay_log::debug!("invalid metric name {:?}", key.metric_name);
             relay_log::configure_scope(|scope| {
@@ -1081,8 +1137,40 @@ impl Aggregator {
             });
             return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
         }
+        Ok(key)
+    }
 
-        key.tags.retain(|tag_key, _| {
+    /// Removes tags with invalid characters in the key, and validates tag values.
+    ///
+    /// Tag values are validated with `protocol::validate_tag_value`.
+    fn validate_metric_tags(mut key: BucketKey, aggregator_config: &AggregatorConfig) -> BucketKey {
+        let proj_key = key.project_key.as_str();
+        key.tags.retain(|tag_key, tag_value| {
+            if tag_key.len() > aggregator_config.max_tag_key_length {
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("bucket.project_key", proj_key.to_owned().into());
+                    scope.set_extra("bucket.metric.tag_key", tag_key.to_owned().into());
+                    scope.set_extra(
+                        "aggregator_config.max_tag_key_length",
+                        aggregator_config.max_tag_key_length.to_string().into(),
+                    );
+                });
+                relay_log::debug!("Invalid metric tag key");
+                return false;
+            }
+            if tag_value.len() > aggregator_config.max_tag_value_length {
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("bucket.project_key", proj_key.to_owned().into());
+                    scope.set_extra("bucket.metric.tag_value", tag_value.to_owned().into());
+                    scope.set_extra(
+                        "aggregator_config.max_tag_value_length",
+                        aggregator_config.max_tag_value_length.to_string().into(),
+                    );
+                });
+                relay_log::debug!("Invalid metric tag value");
+                return false;
+            }
+
             if protocol::is_valid_tag_key(tag_key) {
                 true
             } else {
@@ -1093,8 +1181,7 @@ impl Aggregator {
         for (_, tag_value) in key.tags.iter_mut() {
             protocol::validate_tag_value(tag_value);
         }
-
-        Ok(key)
+        key
     }
 
     /// Merges any mergeable value into the bucket at the given `key`.
@@ -1108,7 +1195,7 @@ impl Aggregator {
         let timestamp = key.timestamp;
         let project_key = key.project_key;
 
-        let key = Self::validate_bucket_key(key)?;
+        let key = Self::validate_bucket_key(key, &self.config)?;
 
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
@@ -1486,6 +1573,9 @@ mod tests {
             debounce_delay: 0,
             max_secs_in_past: 50 * 365 * 24 * 60 * 60,
             max_secs_in_future: 50 * 365 * 24 * 60 * 60,
+            max_name_length: 200,
+            max_tag_key_length: 200,
+            max_tag_value_length: 200,
         }
     }
 
@@ -2140,7 +2230,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_bucket_key() {
+    fn test_validate_bucket_key_chars() {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
         let bucket_key = BucketKey {
@@ -2171,8 +2261,10 @@ mod tests {
                 tags
             },
         };
+        let aggregator_config = test_config();
 
-        let mut bucket_key = Aggregator::validate_bucket_key(bucket_key).unwrap();
+        let mut bucket_key =
+            Aggregator::validate_bucket_key(bucket_key, &aggregator_config).unwrap();
 
         assert_eq!(bucket_key.tags.len(), 1);
         assert_eq!(
@@ -2182,6 +2274,63 @@ mod tests {
         assert_eq!(bucket_key.tags.get("another\0garbage"), None);
 
         bucket_key.metric_name = "hergus\0bergus".to_owned();
-        Aggregator::validate_bucket_key(bucket_key).unwrap_err();
+        Aggregator::validate_bucket_key(bucket_key, &aggregator_config).unwrap_err();
+    }
+
+    #[test]
+    fn test_validate_bucket_key_str_lens() {
+        relay_test::setup();
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let aggregator_config = test_config();
+
+        let short_metric = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:a_short_metric".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: BTreeMap::new(),
+        };
+        assert!(Aggregator::validate_bucket_key(short_metric, &aggregator_config).is_ok());
+
+        let long_metric = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: BTreeMap::new(),
+        };
+        let validation = Aggregator::validate_bucket_key(long_metric, &aggregator_config);
+
+        assert_eq!(
+            validation.unwrap_err(),
+            AggregateMetricsError::from(AggregateMetricsErrorKind::InvalidStringLength)
+        );
+
+        let short_metric_long_tag_key = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:a_short_metric_with_long_tag_key".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
+        };
+        let validation =
+            Aggregator::validate_bucket_key(short_metric_long_tag_key, &aggregator_config).unwrap();
+        assert_eq!(validation.tags.len(), 0);
+
+        let short_metric_long_tag_value = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:a_short_metric_with_long_tag_value".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+                tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
+        };
+        let validation =
+            Aggregator::validate_bucket_key(short_metric_long_tag_value, &aggregator_config)
+                .unwrap();
+        assert_eq!(validation.tags.len(), 0);
     }
 }

@@ -240,9 +240,9 @@
 //! deactivate envelopemanager
 //! ```
 //!
-//! <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+//! <script src="https://cdn.jsdelivr.net/npm/mermaid@8.8.4/dist/mermaid.min.js"></script>
 //! <script>
-//! mermaid.init({}, ".language-mermaid");
+//! mermaid.init({}, ".language-mermaid code");
 //! // Could not get dark mode in mermaid to work
 //! Array.from(document.getElementsByTagName('svg')).map(x => x.style.background = "white")
 //! </script>

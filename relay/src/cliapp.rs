@@ -123,6 +123,15 @@ pub fn make_app() -> App<'static, 'static> {
                         .long("source-id")
                         .env("RELAY_SOURCE_ID")
                         .help("Names the current relay in the outcome source."),
+                )
+                .arg(
+                    Arg::with_name("shutdown_timeout")
+                        .value_name("SHUTDOWN_TIMEOUT")
+                        .takes_value(true)
+                        .long("shutdown-timeout")
+                        .help(
+                            "Maximum number of seconds to wait for pending envelopes on shutdown.",
+                        ),
                 ),
         )
         .subcommand(
