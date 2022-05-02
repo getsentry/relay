@@ -991,7 +991,7 @@ impl EnvelopeProcessor {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         state.envelope.retain_items(|item| {
             match item.ty() {
-                ItemType::ReplayEvent => {
+                ItemType::ReplayEvent | ItemType::ReplayPayload => {
                     if !replays_enabled {
                         return false;
                     }

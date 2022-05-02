@@ -12,7 +12,9 @@ def test_payload(
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     relay = relay_with_processing()
-    mini_sentry.add_full_project_config(project_id)
+    mini_sentry.add_full_project_config(
+        project_id, extra={"config": {"features": ["organizations:session-replay"]}}
+    )
     replay_payloads_consumer = replay_payloads_consumer()
     outcomes_consumer = outcomes_consumer()
 
