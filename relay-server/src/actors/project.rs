@@ -56,6 +56,9 @@ pub enum Feature {
     #[serde(rename = "organizations:profiling")]
     Profiling,
 
+    #[serde(rename = "organizations:session-replay")]
+    Replays,
+
     /// forward compatibility
     #[serde(other)]
     Unknown,

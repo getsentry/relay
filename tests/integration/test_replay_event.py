@@ -55,7 +55,9 @@ def generate_replay_event():
 
 def test_replay_event(mini_sentry, relay_with_processing, replay_events_consumer):
     relay = relay_with_processing()
-    mini_sentry.add_basic_project_config(42)
+    mini_sentry.add_basic_project_config(
+        42, extra={"config": {"features": ["organizations:session-replay"]}}
+    )
 
     replay_events_consumer = replay_events_consumer()
 

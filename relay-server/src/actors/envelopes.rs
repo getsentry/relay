@@ -970,6 +970,22 @@ impl EnvelopeProcessor {
         });
     }
 
+    /// Remove replays if the feature flag is not enabled
+    fn process_replays(&self, state: &mut ProcessEnvelopeState) {
+        let replays_enabled = state.project_state.has_feature(Feature::Replays);
+        state.envelope.retain_items(|item| {
+            match item.ty() {
+                ItemType::ReplayEvent => {
+                    if !replays_enabled {
+                        return false;
+                    }
+                    true
+                }
+                _ => true, // Keep all other item types
+            }
+        });
+    }
+
     /// Creates and initializes the processing state.
     ///
     /// This applies defaults to the envelope and initializes empty rate limits.
@@ -1802,6 +1818,7 @@ impl EnvelopeProcessor {
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_profiles(state);
+        self.process_replays(state);
 
         if state.creates_event() {
             if_processing!({
