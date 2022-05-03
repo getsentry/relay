@@ -317,22 +317,22 @@ fn extract_transaction_metrics_inner(
     // Measurements
     if let Some(measurements) = event.measurements.value() {
         for (measurement_name, annotated) in measurements.iter() {
-            let measurement_object = match annotated.value() {
+            let measurement = match annotated.value() {
                 Some(m) => m,
                 None => continue,
             };
 
-            let measurement = match measurement_object.value.value() {
+            let value = match measurement.value.value() {
                 Some(value) => *value,
                 None => continue,
             };
 
             let mut tags_for_measurement = tags.clone();
-            if let Some(rating) = get_measurement_rating(measurement_name, measurement) {
+            if let Some(rating) = get_measurement_rating(measurement_name, value) {
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
-            let unit = match measurement_object.unit.value() {
+            let unit = match measurement.unit.value() {
                 Some(unit) => *unit,
                 None => get_metric_measurement_unit(measurement_name),
             };
@@ -341,7 +341,7 @@ fn extract_transaction_metrics_inner(
                 METRIC_NAMESPACE,
                 format_args!("measurements.{}", measurement_name),
                 unit,
-                MetricValue::Distribution(measurement),
+                MetricValue::Distribution(value),
                 unix_timestamp,
                 tags_for_measurement,
             ));
@@ -353,16 +353,23 @@ fn extract_transaction_metrics_inner(
         for (breakdown, measurements) in store::get_breakdown_measurements(event, breakdowns_config)
         {
             for (measurement_name, annotated) in measurements.iter() {
-                let measurement = match annotated.value().and_then(|m| m.value.value()) {
-                    Some(measurement) => *measurement,
+                let measurement = match annotated.value() {
+                    Some(m) => m,
                     None => continue,
                 };
+
+                let value = match measurement.value.value() {
+                    Some(value) => *value,
+                    None => continue,
+                };
+
+                let unit = measurement.unit.value();
 
                 push_metric(Metric::new_mri(
                     METRIC_NAMESPACE,
                     format_args!("breakdowns.{}.{}", breakdown, measurement_name),
-                    MetricUnit::None,
-                    MetricValue::Distribution(measurement),
+                    unit.copied().unwrap_or(MetricUnit::None),
+                    MetricValue::Distribution(value),
                     unix_timestamp,
                     tags.clone(),
                 ));
@@ -521,7 +528,7 @@ mod tests {
             "extractMetrics": [
                 "d:transactions/measurements.foo@none",
                 "d:transactions/measurements.lcp@millisecond",
-                "d:transactions/breakdowns.span_ops.ops.react.mount@none",
+                "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
                 "d:transactions/duration@millisecond",
                 "s:transactions/user@none"
             ],
@@ -548,8 +555,16 @@ mod tests {
             "d:transactions/measurements.lcp@millisecond"
         );
         assert_eq!(
+            metrics[2].unit,
+            MetricUnit::Duration(DurationUnit::MilliSecond)
+        );
+        assert_eq!(
             metrics[2].name,
-            "d:transactions/breakdowns.span_ops.ops.react.mount@none"
+            "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
+        );
+        assert_eq!(
+            metrics[2].unit,
+            MetricUnit::Duration(DurationUnit::MilliSecond)
         );
 
         let duration_metric = &metrics[3];
