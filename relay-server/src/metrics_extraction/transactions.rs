@@ -647,6 +647,43 @@ mod tests {
     }
 
     #[test]
+    fn test_metric_measurement_unit_overrides() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "measurements": {
+                "fcp": {"value": 1.1, "unit": "second"},
+                "lcp": {"value": 2.2, "unit": "none"}
+            }
+        }"#;
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"{
+                "extractMetrics": [
+                    "d:transactions/measurements.fcp@second",
+                    "d:transactions/measurements.lcp@none"
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 2);
+
+        assert_eq!(metrics[0].name, "d:transactions/measurements.fcp@second");
+        assert_eq!(metrics[0].unit, MetricUnit::Duration(DurationUnit::Second));
+
+        // None is an override, too.
+        assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@none");
+        assert_eq!(metrics[1].unit, MetricUnit::None);
+    }
+
+    #[test]
     fn test_transaction_duration() {
         let json = r#"
         {
