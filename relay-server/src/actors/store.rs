@@ -744,7 +744,7 @@ fn is_slow_item(item: &Item) -> bool {
 }
 
 fn is_replay_payload(item: &Item) -> bool {
-    item.ty() == ItemType::ReplayPayload
+    item.ty() == &ItemType::ReplayPayload
 }
 
 impl Handler<StoreEnvelope> for StoreForwarder {
