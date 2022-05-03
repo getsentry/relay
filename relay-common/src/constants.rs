@@ -107,6 +107,8 @@ pub enum DataCategory {
     Attachment = 4,
     /// Session updates. Quantity is the number of updates in the batch.
     Session = 5,
+    /// A profile
+    Profile = 6,
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
@@ -122,6 +124,7 @@ impl DataCategory {
             "security" => Self::Security,
             "attachment" => Self::Attachment,
             "session" => Self::Session,
+            "profile" => Self::Profile,
             _ => Self::Unknown,
         }
     }
@@ -135,6 +138,7 @@ impl DataCategory {
             Self::Security => "security",
             Self::Attachment => "attachment",
             Self::Session => "session",
+            Self::Profile => "profile",
             Self::Unknown => "unknown",
         }
     }

@@ -103,7 +103,8 @@ impl CategoryUnit {
             DataCategory::Default
             | DataCategory::Error
             | DataCategory::Transaction
-            | DataCategory::Security => Some(Self::Count),
+            | DataCategory::Security
+            | DataCategory::Profile => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
             DataCategory::Unknown => None,
