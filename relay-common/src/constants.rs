@@ -602,7 +602,7 @@ impl std::str::FromStr for MetricUnit {
             "ratio" => Self::Fraction(FractionUnit::Ratio),
             "percent" => Self::Fraction(FractionUnit::Percent),
 
-            "" | "unit" | "none" => Self::None,
+            "" | "none" => Self::None,
             _ => Self::Custom(CustomUnit::parse(s)?),
         })
     }
