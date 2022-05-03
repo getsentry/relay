@@ -1,13 +1,9 @@
-//! Defines an actor to control system run and shutdown.
-//!
-//! See the [`Controller`] struct for more information.
-
 use std::fmt;
 use std::time::Duration;
 
-use ::actix::actors::signal;
-use ::actix::fut;
-use ::actix::prelude::*;
+use actix::actors::signal;
+use actix::fut;
+use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 
@@ -26,8 +22,10 @@ use futures::prelude::*;
 ///
 /// ### Example
 ///
-/// ```ignore
-/// # use ::actix::prelude::*;
+/// ```
+/// use actix::prelude::*;
+/// use relay_system::{Controller, Shutdown};
+///
 /// struct MyActor;
 ///
 /// impl Actor for MyActor {
@@ -47,10 +45,12 @@ use futures::prelude::*;
 ///     }
 /// }
 ///
-/// Controller::run(|| {
+///
+/// Controller::run(|| -> Result<(), ()> {
 ///     MyActor.start();
-///     # System::current().stop()
-/// })
+///     # System::current().stop();
+///     Ok(())
+/// }).unwrap();
 /// ```
 pub struct Controller {
     /// Configured timeout for graceful shutdowns.

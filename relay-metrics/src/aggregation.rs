@@ -8,10 +8,10 @@ use actix::prelude::*;
 use failure::Fail;
 use float_ord::FloatOrd;
 use hash32::{FnvHasher, Hasher};
-use relay_common_actors::controller::{Controller, Shutdown};
 use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
+use relay_system::{Controller, Shutdown};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{protocol, Metric, MetricType, MetricUnit, MetricValue};

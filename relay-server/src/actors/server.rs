@@ -4,10 +4,10 @@ use futures::prelude::*;
 
 use relay_config::Config;
 use relay_statsd::metric;
+use relay_system::{Controller, Shutdown};
 
 use crate::service;
 use crate::statsd::RelayCounters;
-use relay_common_actors::controller::{Controller, Shutdown};
 
 pub use crate::service::ServerError;
 

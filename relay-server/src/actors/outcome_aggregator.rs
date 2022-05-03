@@ -1,19 +1,20 @@
 //! This module contains the outcomes aggregator, which collects similar outcomes into groups
 //! and flushed them periodically.
 
-use std::{collections::HashMap, net::IpAddr};
+use std::collections::HashMap;
+use std::net::IpAddr;
+use std::time::Duration;
 
 use actix::{Actor, AsyncContext, Context, Handler, Recipient, Supervised, SystemService};
+
 use relay_common::{DataCategory, UnixTimestamp};
-use relay_common_actors::controller::{Controller, Shutdown};
 use relay_config::{Config, EmitOutcomes};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use std::time::Duration;
+use relay_system::{Controller, Shutdown};
 
-use crate::{actors::outcome::DiscardReason, statsd::RelayTimers};
-
-use super::outcome::{Outcome, OutcomeError, TrackOutcome};
+use crate::actors::outcome::{DiscardReason, Outcome, OutcomeError, TrackOutcome};
+use crate::statsd::RelayTimers;
 
 /// Contains everything to construct a `TrackOutcome`, except quantity
 #[derive(Debug, PartialEq, Eq, Hash)]
