@@ -1,10 +1,7 @@
 //! Defines all actors of the relay.
 //!
-//! Actors require an actix system to run. The system can be started using the
-//! [`Controller`](relay_common_actors::controller::Controller) actor, which will also listen for shutdown signals and
-//! trigger a graceful shutdown. Note that actors must implement a handler for the
-//! [`Shutdown`](relay_common_actors::controller::Shutdown) message and register with the controller to receive this
-//! signal. See the struct level documentation for more information.
+//! Actors require an actix system to run, see [`relay_system`] and particularly
+//! [`Controller`](relay_system::Controller) for more information.
 //!
 //! The web server is wrapped by the [`Server`](server::Server) actor. It starts the actix http web
 //! server and relays the graceful shutdown signal. Internally, it creates several other actors
