@@ -47,7 +47,6 @@ pub fn execute() -> Result<(), Error> {
     config.apply_override(env_config)?;
 
     relay_log::init(config.logging(), config.sentry());
-    crate::alloc::set_max_alloc_size(config.max_alloc_size());
 
     if let Some(matches) = matches.subcommand_matches("config") {
         manage_config(&config, matches)
