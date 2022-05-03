@@ -317,8 +317,13 @@ fn extract_transaction_metrics_inner(
     // Measurements
     if let Some(measurements) = event.measurements.value() {
         for (measurement_name, annotated) in measurements.iter() {
-            let measurement = match annotated.value().and_then(|m| m.value.value()) {
-                Some(measurement) => *measurement,
+            let measurement_object = match annotated.value() {
+                Some(m) => m,
+                None => continue,
+            };
+
+            let measurement = match measurement_object.value.value() {
+                Some(value) => *value,
                 None => continue,
             };
 
@@ -327,10 +332,15 @@ fn extract_transaction_metrics_inner(
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
+            let unit = match measurement_object.unit.value() {
+                Some(unit) => *unit,
+                None => get_metric_measurement_unit(measurement_name),
+            };
+
             push_metric(Metric::new_mri(
                 METRIC_NAMESPACE,
                 format_args!("measurements.{}", measurement_name),
-                get_metric_measurement_unit(measurement_name),
+                unit,
                 MetricValue::Distribution(measurement),
                 unix_timestamp,
                 tags_for_measurement,

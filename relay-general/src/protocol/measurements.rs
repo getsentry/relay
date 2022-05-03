@@ -1,6 +1,54 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::types::{Annotated, Error, FromValue, Object, Value};
+use relay_common::MetricUnit;
+
+use crate::processor::ProcessValue;
+use crate::types::{
+    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
+};
+
+impl Empty for MetricUnit {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        // MetricUnit is never empty, even None carries significance over a missing unit.
+        false
+    }
+}
+
+impl FromValue for MetricUnit {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match String::from_value(value) {
+            Annotated(Some(value), mut meta) => match value.parse() {
+                Ok(unit) => Annotated(Some(unit), meta),
+                Err(_) => {
+                    meta.add_error(ErrorKind::InvalidData);
+                    meta.set_original_value(Some(value));
+                    Annotated(None, meta)
+                }
+            },
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
+}
+
+impl IntoValue for MetricUnit {
+    fn into_value(self) -> Value
+    where
+        Self: Sized,
+    {
+        Value::String(format!("{}", self))
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: serde::Serializer,
+    {
+        serde::Serialize::serialize(&self.to_string(), s)
+    }
+}
+
+impl ProcessValue for MetricUnit {}
 
 /// An individual observed measurement.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -8,6 +56,9 @@ pub struct Measurement {
     /// Value of observed measurement value.
     #[metastructure(required = "true", skip_serialization = "never")]
     pub value: Annotated<f64>,
+
+    /// The unit of this measurement, defaulting to no unit.
+    pub unit: Annotated<MetricUnit>,
 }
 
 /// A map of observed measurement values.
@@ -86,10 +137,11 @@ fn is_valid_measurement_name(name: &str) -> bool {
 #[test]
 fn test_measurements_serialization() {
     use crate::protocol::Event;
+    use relay_common::DurationUnit;
 
     let input = r#"{
     "measurements": {
-        "LCP": {"value": 420.69},
+        "LCP": {"value": 420.69, "unit": "millisecond"},
         "   lcp_final.element-Size123  ": {"value": 1},
         "fid": {"value": 2020},
         "cls": {"value": null},
@@ -112,7 +164,8 @@ fn test_measurements_serialization() {
       "value": null
     },
     "lcp": {
-      "value": 420.69
+      "value": 420.69,
+      "unit": "millisecond"
     },
     "lcp_final.element-size123": {
       "value": 1.0
@@ -175,24 +228,28 @@ fn test_measurements_serialization() {
             "cls".to_owned(),
             Annotated::new(Measurement {
                 value: Annotated::empty(),
+                unit: Annotated::empty(),
             }),
         );
         measurements.insert(
             "lcp".to_owned(),
             Annotated::new(Measurement {
                 value: Annotated::new(420.69),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
             }),
         );
         measurements.insert(
             "lcp_final.element-size123".to_owned(),
             Annotated::new(Measurement {
                 value: Annotated::new(1f64),
+                unit: Annotated::empty(),
             }),
         );
         measurements.insert(
             "fid".to_owned(),
             Annotated::new(Measurement {
                 value: Annotated::new(2020f64),
+                unit: Annotated::empty(),
             }),
         );
         measurements.insert(
@@ -202,6 +259,7 @@ fn test_measurements_serialization() {
                     Error::expected("a floating point number"),
                     Some("im a first paint".into()),
                 ),
+                unit: Annotated::empty(),
             }),
         );
 
