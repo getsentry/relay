@@ -20,7 +20,9 @@ jobs:
 
     steps:
       - name: Install libcurl-dev
-        run: sudo apt-get install -y libcurl4-openssl-dev
+        run: |
+          sudo apt update
+          sudo apt-get install -y libcurl4-openssl-dev
 
       - uses: actions/checkout@v2
         with:
@@ -117,7 +119,9 @@ jobs:
 
     steps:
       - name: Install libcurl-dev
-        run: sudo apt-get install -y libcurl4-openssl-dev
+        run: |
+          sudo apt update
+          sudo apt-get install -y libcurl4-openssl-dev
 
       - uses: actions/checkout@v2
         with:
@@ -216,7 +220,9 @@ jobs:
 
     steps:
       - name: Install libcurl-dev
-        run: sudo apt-get install -y libcurl4-openssl-dev
+        run: |
+          sudo apt update
+          sudo apt-get install -y libcurl4-openssl-dev
 
       - uses: actions/checkout@v2
         with:
