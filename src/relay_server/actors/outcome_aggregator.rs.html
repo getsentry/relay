@@ -209,22 +209,24 @@
 <span id="202">202</span>
 <span id="203">203</span>
 <span id="204">204</span>
+<span id="205">205</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the outcomes aggregator, which collects similar outcomes into groups</span>
 <span class="doccomment">//! and flushed them periodically.</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">collections::HashMap</span>, <span class="ident">net::IpAddr</span>};
+<span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
+<span class="kw">use</span> <span class="ident">std::net::IpAddr</span>;
+<span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 
 <span class="kw">use</span> <span class="ident">actix</span>::{<span class="ident">Actor</span>, <span class="ident">AsyncContext</span>, <span class="ident">Context</span>, <span class="ident">Handler</span>, <span class="ident">Recipient</span>, <span class="ident">Supervised</span>, <span class="ident">SystemService</span>};
+
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DataCategory</span>, <span class="ident">UnixTimestamp</span>};
-<span class="kw">use</span> <span class="ident">relay_common_actors::controller</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">EmitOutcomes</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas::Scoping</span>;
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
-<span class="kw">use</span> <span class="ident">std::time::Duration</span>;
+<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">actors::outcome::DiscardReason</span>, <span class="ident">statsd::RelayTimers</span>};
-
-<span class="kw">use</span> <span class="ident"><span class="kw">super</span>::outcome</span>::{<span class="ident">Outcome</span>, <span class="ident">OutcomeError</span>, <span class="ident">TrackOutcome</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">OutcomeError</span>, <span class="ident">TrackOutcome</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayTimers</span>;
 
 <span class="doccomment">/// Contains everything to construct a `TrackOutcome`, except quantity</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>)]</span>

@@ -2351,10 +2351,10 @@
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="kw">use</span> <span class="ident">float_ord::FloatOrd</span>;
 <span class="kw">use</span> <span class="ident">hash32</span>::{<span class="ident">FnvHasher</span>, <span class="ident">Hasher</span>};
-<span class="kw">use</span> <span class="ident">relay_common_actors::controller</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">MonotonicResult</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
+<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">MetricCounters</span>, <span class="ident">MetricGauges</span>, <span class="ident">MetricHistograms</span>, <span class="ident">MetricSets</span>, <span class="ident">MetricTimers</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">protocol</span>, <span class="ident">Metric</span>, <span class="ident">MetricType</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};

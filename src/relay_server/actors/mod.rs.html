@@ -51,16 +51,10 @@
 <span id="44">44</span>
 <span id="45">45</span>
 <span id="46">46</span>
-<span id="47">47</span>
-<span id="48">48</span>
-<span id="49">49</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Defines all actors of the relay.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! Actors require an actix system to run. The system can be started using the</span>
-<span class="doccomment">//! [`Controller`](relay_common_actors::controller::Controller) actor, which will also listen for shutdown signals and</span>
-<span class="doccomment">//! trigger a graceful shutdown. Note that actors must implement a handler for the</span>
-<span class="doccomment">//! [`Shutdown`](relay_common_actors::controller::Shutdown) message and register with the controller to receive this</span>
-<span class="doccomment">//! signal. See the struct level documentation for more information.</span>
+<span class="doccomment">//! Actors require an actix system to run, see [`relay_system`] and particularly</span>
+<span class="doccomment">//! [`Controller`](relay_system::Controller) for more information.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The web server is wrapped by the [`Server`](server::Server) actor. It starts the actix http web</span>
 <span class="doccomment">//! server and relays the graceful shutdown signal. Internally, it creates several other actors</span>

@@ -62,10 +62,10 @@
 
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
+<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
-<span class="kw">use</span> <span class="ident">relay_common_actors::controller</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServerError</span>;
 
