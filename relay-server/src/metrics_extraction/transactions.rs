@@ -229,33 +229,36 @@ fn extract_universal_tags(
     tags
 }
 
-/// Returns the unit of the provided metric. Defaults to None.
+/// Returns the unit of the provided metric.
+///
+/// For known measurements, this returns `Some(MetricUnit)`, which can also include
+/// `Some(MetricUnit::None)`. For unknown measurement names, this returns `None`.
 #[cfg(feature = "processing")]
-fn get_metric_measurement_unit(metric: &str) -> MetricUnit {
+fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
     match metric {
         // Web
-        "fcp" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "lcp" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "fid" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "fp" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "ttfb" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "ttfb.requesttime" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "cls" => MetricUnit::None,
+        "fcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "lcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "fid" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "fp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "ttfb" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "ttfb.requesttime" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "cls" => Some(MetricUnit::None),
 
         // Mobile
-        "app_start_cold" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "app_start_warm" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "frames_total" => MetricUnit::None,
-        "frames_slow" => MetricUnit::None,
-        "frames_frozen" => MetricUnit::None,
+        "app_start_cold" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "app_start_warm" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "frames_total" => Some(MetricUnit::None),
+        "frames_slow" => Some(MetricUnit::None),
+        "frames_frozen" => Some(MetricUnit::None),
 
         // React-Native
-        "stall_count" => MetricUnit::None,
-        "stall_total_time" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "stall_longest_time" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "stall_count" => Some(MetricUnit::None),
+        "stall_total_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "stall_longest_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
 
         // Default
-        _ => MetricUnit::None,
+        _ => None,
     }
 }
 
@@ -316,7 +319,7 @@ fn extract_transaction_metrics_inner(
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
-        for (measurement_name, annotated) in measurements.iter() {
+        for (name, annotated) in measurements.iter() {
             let measurement = match annotated.value() {
                 Some(m) => m,
                 None => continue,
@@ -328,19 +331,22 @@ fn extract_transaction_metrics_inner(
             };
 
             let mut tags_for_measurement = tags.clone();
-            if let Some(rating) = get_measurement_rating(measurement_name, value) {
+            if let Some(rating) = get_measurement_rating(name, value) {
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
             }
 
-            let unit = match measurement.unit.value() {
-                Some(unit) => *unit,
-                None => get_metric_measurement_unit(measurement_name),
-            };
+            let stated_unit = measurement.unit.value().copied();
+            let default_unit = get_metric_measurement_unit(name);
+            if let (Some(default), Some(stated)) = (default_unit, stated_unit) {
+                if default != stated {
+                    relay_log::error!("unit mismatch on measurements.{}: {}", name, stated);
+                }
+            }
 
             push_metric(Metric::new_mri(
                 METRIC_NAMESPACE,
-                format_args!("measurements.{}", measurement_name),
-                unit,
+                format_args!("measurements.{}", name),
+                stated_unit.or(default_unit).unwrap_or_default(),
                 MetricValue::Distribution(value),
                 unix_timestamp,
                 tags_for_measurement,
