@@ -173,6 +173,8 @@ impl std::str::FromStr for ItemType {
             "metric_buckets" => Self::MetricBuckets,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
+            "replay_payload" => Self::ReplayPayload,
+            "replay_event" => Self::ReplayEvent,
             other => Self::Unknown(other.to_owned()),
         })
     }
