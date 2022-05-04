@@ -7,6 +7,8 @@ use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
 
+use relay_common::{DurationUnit, MetricUnit};
+
 use crate::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
 use crate::types::Annotated;
 
@@ -162,6 +164,8 @@ impl EmitBreakdowns for SpanOperationsConfig {
         let mut total_time_spent = 0.0;
 
         for (operation_name, intervals) in intervals {
+            // TODO(ja): Convert measurements in here, use `Duration` as typed carrier.
+            // use `get_metric_measurement_unit` from metric extraction for this (move!)
             let op_time_spent = match get_op_time_spent(intervals) {
                 None => continue,
                 Some(op_time_spent) => op_time_spent,
@@ -176,6 +180,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
 
             let time_spent_measurement = Measurement {
                 value: Annotated::new(op_time_spent),
+                unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
             };
 
             let op_breakdown_name = format!("ops.{}", operation_name);
@@ -185,6 +190,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
 
         let total_time_spent_measurement = Measurement {
             value: Annotated::new(total_time_spent),
+            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
         };
         breakdown.insert(
             "total.time".to_string(),
@@ -298,6 +304,7 @@ mod tests {
                 "lcp".to_owned(),
                 Annotated::new(Measurement {
                     value: Annotated::new(420.69),
+                    unit: Annotated::empty(),
                 }),
             );
 
@@ -393,6 +400,7 @@ mod tests {
                 Annotated::new(Measurement {
                     // 1 hour in milliseconds
                     value: Annotated::new(3_600_000.0),
+                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
                 }),
             );
 
@@ -401,6 +409,7 @@ mod tests {
                 Annotated::new(Measurement {
                     // 2 hours in milliseconds
                     value: Annotated::new(7_200_000.0),
+                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
                 }),
             );
 
@@ -409,6 +418,7 @@ mod tests {
                 Annotated::new(Measurement {
                     // 4 hours and 10 microseconds in milliseconds
                     value: Annotated::new(14_400_000.01),
+                    unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
                 }),
             );
 

@@ -229,33 +229,36 @@ fn extract_universal_tags(
     tags
 }
 
-/// Returns the unit of the provided metric. Defaults to None.
+/// Returns the unit of the provided metric.
+///
+/// For known measurements, this returns `Some(MetricUnit)`, which can also include
+/// `Some(MetricUnit::None)`. For unknown measurement names, this returns `None`.
 #[cfg(feature = "processing")]
-fn get_metric_measurement_unit(metric: &str) -> MetricUnit {
+fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
     match metric {
         // Web
-        "fcp" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "lcp" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "fid" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "fp" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "ttfb" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "ttfb.requesttime" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "cls" => MetricUnit::None,
+        "fcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "lcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "fid" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "fp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "ttfb" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "ttfb.requesttime" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "cls" => Some(MetricUnit::None),
 
         // Mobile
-        "app_start_cold" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "app_start_warm" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "frames_total" => MetricUnit::None,
-        "frames_slow" => MetricUnit::None,
-        "frames_frozen" => MetricUnit::None,
+        "app_start_cold" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "app_start_warm" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "frames_total" => Some(MetricUnit::None),
+        "frames_slow" => Some(MetricUnit::None),
+        "frames_frozen" => Some(MetricUnit::None),
 
         // React-Native
-        "stall_count" => MetricUnit::None,
-        "stall_total_time" => MetricUnit::Duration(DurationUnit::MilliSecond),
-        "stall_longest_time" => MetricUnit::Duration(DurationUnit::MilliSecond),
+        "stall_count" => Some(MetricUnit::None),
+        "stall_total_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "stall_longest_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
 
         // Default
-        _ => MetricUnit::None,
+        _ => None,
     }
 }
 
@@ -316,22 +319,35 @@ fn extract_transaction_metrics_inner(
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
-        for (measurement_name, annotated) in measurements.iter() {
-            let measurement = match annotated.value().and_then(|m| m.value.value()) {
-                Some(measurement) => *measurement,
+        for (name, annotated) in measurements.iter() {
+            let measurement = match annotated.value() {
+                Some(m) => m,
+                None => continue,
+            };
+
+            let value = match measurement.value.value() {
+                Some(value) => *value,
                 None => continue,
             };
 
             let mut tags_for_measurement = tags.clone();
-            if let Some(rating) = get_measurement_rating(measurement_name, measurement) {
+            if let Some(rating) = get_measurement_rating(name, value) {
                 tags_for_measurement.insert("measurement_rating".to_owned(), rating);
+            }
+
+            let stated_unit = measurement.unit.value().copied();
+            let default_unit = get_metric_measurement_unit(name);
+            if let (Some(default), Some(stated)) = (default_unit, stated_unit) {
+                if default != stated {
+                    relay_log::error!("unit mismatch on measurements.{}: {}", name, stated);
+                }
             }
 
             push_metric(Metric::new_mri(
                 METRIC_NAMESPACE,
-                format_args!("measurements.{}", measurement_name),
-                get_metric_measurement_unit(measurement_name),
-                MetricValue::Distribution(measurement),
+                format_args!("measurements.{}", name),
+                stated_unit.or(default_unit).unwrap_or_default(),
+                MetricValue::Distribution(value),
                 unix_timestamp,
                 tags_for_measurement,
             ));
@@ -343,16 +359,23 @@ fn extract_transaction_metrics_inner(
         for (breakdown, measurements) in store::get_breakdown_measurements(event, breakdowns_config)
         {
             for (measurement_name, annotated) in measurements.iter() {
-                let measurement = match annotated.value().and_then(|m| m.value.value()) {
-                    Some(measurement) => *measurement,
+                let measurement = match annotated.value() {
+                    Some(m) => m,
                     None => continue,
                 };
+
+                let value = match measurement.value.value() {
+                    Some(value) => *value,
+                    None => continue,
+                };
+
+                let unit = measurement.unit.value();
 
                 push_metric(Metric::new_mri(
                     METRIC_NAMESPACE,
                     format_args!("breakdowns.{}.{}", breakdown, measurement_name),
-                    MetricUnit::None,
-                    MetricValue::Distribution(measurement),
+                    unit.copied().unwrap_or(MetricUnit::None),
+                    MetricValue::Distribution(value),
                     unix_timestamp,
                     tags.clone(),
                 ));
@@ -511,7 +534,7 @@ mod tests {
             "extractMetrics": [
                 "d:transactions/measurements.foo@none",
                 "d:transactions/measurements.lcp@millisecond",
-                "d:transactions/breakdowns.span_ops.ops.react.mount@none",
+                "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
                 "d:transactions/duration@millisecond",
                 "s:transactions/user@none"
             ],
@@ -538,8 +561,16 @@ mod tests {
             "d:transactions/measurements.lcp@millisecond"
         );
         assert_eq!(
+            metrics[2].unit,
+            MetricUnit::Duration(DurationUnit::MilliSecond)
+        );
+        assert_eq!(
             metrics[2].name,
-            "d:transactions/breakdowns.span_ops.ops.react.mount@none"
+            "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
+        );
+        assert_eq!(
+            metrics[2].unit,
+            MetricUnit::Duration(DurationUnit::MilliSecond)
         );
 
         let duration_metric = &metrics[3];
@@ -634,6 +665,43 @@ mod tests {
             metrics[2]
         );
         assert_eq!(metrics[2].unit, MetricUnit::None, "{:?}", metrics[2]);
+    }
+
+    #[test]
+    fn test_metric_measurement_unit_overrides() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "measurements": {
+                "fcp": {"value": 1.1, "unit": "second"},
+                "lcp": {"value": 2.2, "unit": "none"}
+            }
+        }"#;
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"{
+                "extractMetrics": [
+                    "d:transactions/measurements.fcp@second",
+                    "d:transactions/measurements.lcp@none"
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 2);
+
+        assert_eq!(metrics[0].name, "d:transactions/measurements.fcp@second");
+        assert_eq!(metrics[0].unit, MetricUnit::Duration(DurationUnit::Second));
+
+        // None is an override, too.
+        assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@none");
+        assert_eq!(metrics[1].unit, MetricUnit::None);
     }
 
     #[test]

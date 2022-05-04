@@ -491,8 +491,8 @@ def test_transaction_metrics(
             "extractMetrics": [
                 "d:transactions/measurements.foo@none",
                 "d:transactions/measurements.bar@none",
-                "d:transactions/breakdowns.span_ops.total.time@none",
-                "d:transactions/breakdowns.span_ops.ops.react.mount@none",
+                "d:transactions/breakdowns.span_ops.total.time@millisecond",
+                "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
             ]
         }
 
@@ -517,8 +517,8 @@ def test_transaction_metrics(
         event, _ = transactions_consumer.get_event()
         assert event["breakdowns"] == {
             "span_ops": {
-                "ops.react.mount": {"value": 9.910106},
-                "total.time": {"value": 9.910106},
+                "ops.react.mount": {"value": 9.910106, "unit": "millisecond"},
+                "total.time": {"value": 9.910106, "unit": "millisecond"},
             }
         }
 
@@ -556,19 +556,21 @@ def test_transaction_metrics(
         "value": [1.3],
     }
 
-    assert metrics["d:transactions/breakdowns.span_ops.ops.react.mount@none"] == {
+    assert metrics[
+        "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
+    ] == {
         **common,
-        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@none",
+        "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
         "type": "d",
-        "unit": "none",
+        "unit": "millisecond",
         "value": [9.910106, 9.910106],
     }
 
-    assert metrics["d:transactions/breakdowns.span_ops.total.time@none"] == {
+    assert metrics["d:transactions/breakdowns.span_ops.total.time@millisecond"] == {
         **common,
-        "name": "d:transactions/breakdowns.span_ops.total.time@none",
+        "name": "d:transactions/breakdowns.span_ops.total.time@millisecond",
         "type": "d",
-        "unit": "none",
+        "unit": "millisecond",
         "value": [9.910106, 9.910106],
     }
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add protocol support for custom units on transaction measurements. ([#1256](https://github.com/getsentry/relay/pull/1256))
+
 ## 0.8.10
 
 - Map Windows version from raw_description to version name (XP, Vista, 11, ...). ([#1219](https://github.com/getsentry/relay/pull/1219))

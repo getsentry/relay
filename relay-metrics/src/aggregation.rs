@@ -1509,7 +1509,7 @@ mod tests {
 
     use super::*;
 
-    use crate::{DurationUnit, MetricUnit};
+    use relay_common::{DurationUnit, MetricUnit};
 
     struct BucketCountInquiry;
 
