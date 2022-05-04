@@ -28,12 +28,30 @@ pub enum ProfileError {
 
 #[derive(Debug, Deserialize)]
 pub struct MinimalProfile {
-    #[serde(default)]
     pub platform: String,
 }
 
 pub fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError> {
     serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
+}
+
+pub fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    D: de::Deserializer<'de>,
+    T: FromStr + Deserialize<'de>,
+    <T as FromStr>::Err: Display,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrInt<T> {
+        String(String),
+        Number(T),
+    }
+
+    match StringOrInt::<T>::deserialize(deserializer)? {
+        StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+        StringOrInt::Number(i) => Ok(i),
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -47,7 +65,10 @@ struct AndroidProfile {
     device_model: String,
     device_os_name: String,
     device_os_version: String,
-    device_physical_memory_bytes: String,
+
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    device_physical_memory_bytes: u64,
+
     duration_ns: String,
     environment: Option<String>,
     platform: String,
@@ -100,28 +121,9 @@ fn strip_pointer_authentication_code<'de, D>(deserializer: D) -> Result<Addr, D:
 where
     D: de::Deserializer<'de>,
 {
-    let addr: u64 = Deserialize::deserialize(deserializer)?;
+    let addr: Addr = Deserialize::deserialize(deserializer)?;
     // https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
-    Ok(Addr(addr & 0x0000000FFFFFFFFF))
-}
-
-pub fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-where
-    D: de::Deserializer<'de>,
-    T: FromStr + Deserialize<'de>,
-    <T as FromStr>::Err: Display,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum StringOrInt<T> {
-        String(String),
-        Number(T),
-    }
-
-    match StringOrInt::<T>::deserialize(deserializer)? {
-        StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
-        StringOrInt::Number(i) => Ok(i),
-    }
+    Ok(Addr(addr.0 & 0x0000000FFFFFFFFF))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -135,6 +137,8 @@ struct Frame {
 #[derive(Debug, Serialize, Deserialize)]
 struct Sample {
     frames: Vec<Frame>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     queue_address: Option<String>,
 
     #[serde(deserialize_with = "deserialize_number_from_string")]
@@ -146,7 +150,8 @@ struct Sample {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ThreadMetadata {
-    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
     priority: u32,
 }
 
@@ -159,7 +164,9 @@ struct QueueMetadata {
 struct SampledProfile {
     samples: Vec<Sample>,
     thread_metadata: HashMap<String, ThreadMetadata>,
-    queue_metadata: HashMap<String, QueueMetadata>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    queue_metadata: Option<HashMap<String, QueueMetadata>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -176,7 +183,8 @@ struct Image {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     image_size: u64,
 
-    image_vmaddr: Addr,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_vmaddr: Option<Addr>,
     name: String,
 
     #[serde(rename = "type")]
@@ -188,7 +196,7 @@ struct Image {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DebugMeta {
-    images: Image,
+    images: Vec<Image>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
