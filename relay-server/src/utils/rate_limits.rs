@@ -103,7 +103,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::MetricBuckets => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
-        ItemType::Profile => Some(DataCategory::Profile),
+        ItemType::Profile => None,
         ItemType::ClientReport => None,
         ItemType::Unknown(_) => None,
     }
