@@ -204,105 +204,105 @@ impl Outcome {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[allow(dead_code)]
 pub enum DiscardReason {
-    /// [Post Processing] An event with the same id has already been processed for this project.
+    /// (Post Processing) An event with the same id has already been processed for this project.
     /// Sentry does not allow duplicate events and only stores the first one.
     Duplicate,
 
-    /// [Relay] There was no valid project id in the request or the required project does not exist.
+    /// (Relay) There was no valid project id in the request or the required project does not exist.
     ProjectId,
 
-    /// [Relay] The protocol version sent by the SDK is not supported and parts of the payload may
+    /// (Relay) The protocol version sent by the SDK is not supported and parts of the payload may
     /// be invalid.
     AuthVersion,
 
-    /// [Legacy] The SDK did not send a client identifier.
+    /// (Legacy) The SDK did not send a client identifier.
     ///
     /// In Relay, this is no longer required.
     AuthClient,
 
-    /// [Relay] The store request was missing an event payload.
+    /// (Relay) The store request was missing an event payload.
     NoData,
 
-    /// [Relay] The envelope contains no items.
+    /// (Relay) The envelope contains no items.
     EmptyEnvelope,
 
-    /// [Relay] The event payload exceeds the maximum size limit for the respective endpoint.
+    /// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.
     TooLarge,
 
-    /// [Legacy] A store request was received with an invalid method.
+    /// (Legacy) A store request was received with an invalid method.
     ///
     /// This outcome is no longer emitted by Relay, as HTTP method validation occurs before an event
     /// id or project id are extracted for a request.
     DisallowedMethod,
 
-    /// [Relay] The content type for a specific endpoint was not allowed.
+    /// (Relay) The content type for a specific endpoint was not allowed.
     ///
     /// While the standard store endpoint allows all content types, other endpoints may have
     /// stricter requirements.
     ContentType,
 
-    /// [Legacy] The project id in the URL does not match the one specified for the public key.
+    /// (Legacy) The project id in the URL does not match the one specified for the public key.
     ///
     /// This outcome is no longer emitted by Relay. Instead, Relay will emit a standard `ProjectId`
     /// since it resolves the project first, and then checks for the valid project key.
     MultiProjectId,
 
-    /// [Relay] A minidump file was missing for the minidump endpoint.
+    /// (Relay) A minidump file was missing for the minidump endpoint.
     MissingMinidumpUpload,
 
-    /// [Relay] The file submitted as minidump is not a valid minidump file.
+    /// (Relay) The file submitted as minidump is not a valid minidump file.
     InvalidMinidump,
 
-    /// [Relay] The security report was not recognized due to missing data.
+    /// (Relay) The security report was not recognized due to missing data.
     SecurityReportType,
 
-    /// [Relay] The security report did not pass schema validation.
+    /// (Relay) The security report did not pass schema validation.
     SecurityReport,
 
-    /// [Relay] The request origin is not allowed for the project.
+    /// (Relay) The request origin is not allowed for the project.
     Cors,
 
-    /// [Relay] Reading or decoding the payload from the socket failed for any reason.
+    /// (Relay) Reading or decoding the payload from the socket failed for any reason.
     Payload,
 
-    /// [Relay] Parsing the event JSON payload failed due to a syntax error.
+    /// (Relay) Parsing the event JSON payload failed due to a syntax error.
     InvalidJson,
 
-    /// [Relay] Parsing the event msgpack payload failed due to a syntax error.
+    /// (Relay) Parsing the event msgpack payload failed due to a syntax error.
     InvalidMsgpack,
 
-    /// [Relay] Parsing a multipart form-data request failed.
+    /// (Relay) Parsing a multipart form-data request failed.
     InvalidMultipart,
 
-    /// [Relay] The event is parseable but semantically invalid. This should only happen with
+    /// (Relay) The event is parseable but semantically invalid. This should only happen with
     /// transaction events.
     InvalidTransaction,
 
-    /// [Relay] Parsing an event envelope failed (likely missing a required header).
+    /// (Relay) Parsing an event envelope failed (likely missing a required header).
     InvalidEnvelope,
 
-    /// [Relay] A project state returned by the upstream could not be parsed.
+    /// (Relay) A project state returned by the upstream could not be parsed.
     ProjectState,
 
-    /// [Relay] An envelope was submitted with two items that need to be unique.
+    /// (Relay) An envelope was submitted with two items that need to be unique.
     DuplicateItem,
 
-    /// [Relay] An event envelope was submitted but no payload could be extracted.
+    /// (Relay) An event envelope was submitted but no payload could be extracted.
     NoEventPayload,
 
-    /// [All] An error in Relay caused event ingestion to fail. This is the catch-all and usually
+    /// (All) An error in Relay caused event ingestion to fail. This is the catch-all and usually
     /// indicates bugs in Relay, rather than an expected failure.
     Internal,
 
-    /// [Relay] Symbolic failed to extract an Unreal Crash report from a request sent to the
+    /// (Relay) Symbolic failed to extract an Unreal Crash report from a request sent to the
     /// Unreal endpoint
     ProcessUnreal,
 
-    /// [Relay] The envelope, which contained only a transaction, was discarded by the
+    /// (Relay) The envelope, which contained only a transaction, was discarded by the
     /// dynamic sampling rules.
     TransactionSampled,
 
-    /// [Relay] We failed to parse the profile so we discard the profile.
+    /// (Relay) We failed to parse the profile so we discard the profile.
     ProcessProfile,
 }
 

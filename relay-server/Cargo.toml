@@ -50,7 +50,6 @@ rdkafka-sys = { version = "2.1.0", optional = true }
 regex = "1.5.5"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
-relay-common-actors = { path = "../relay-common-actors" }
 relay-config = { path = "../relay-config" }
 relay-filter = { path = "../relay-filter" }
 relay-general = { path = "../relay-general" }
@@ -60,6 +59,7 @@ relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
 relay-sampling = { path = "../relay-sampling" }
 relay-statsd = { path = "../relay-statsd" }
+relay-system = { path = "../relay-system" }
 reqwest = { version = "0.11.1", features = ["gzip", "stream", "trust-dns", "native-tls-vendored"] }
 rmp-serde = "0.14.3"
 serde = { version = "1.0.114", features = ["derive"] }

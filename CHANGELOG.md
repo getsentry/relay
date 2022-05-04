@@ -6,6 +6,7 @@
 
 - Add platform, op, http.method and status tag to all extracted transaction metrics. ([#1227](https://github.com/getsentry/relay/pull/1227))
 - Add units in built-in measurements. ([#1229](https://github.com/getsentry/relay/pull/1229))
+- Add protocol support for custom units on transaction measurements. ([#1256](https://github.com/getsentry/relay/pull/1256))
 
 **Bug Fixes**:
 
@@ -22,7 +23,7 @@
 - Add ReplayPayload ItemType. ([#1236](https://github.com/getsentry/relay/pull/1236))
 - Add ReplayEvent ItemType. ([#1239](https://github.com/getsentry/relay/pull/1239))
 - Add the client and version as `sdk` tag to extracted session metrics in the format `name/version`. ([#1248](https://github.com/getsentry/relay/pull/1248))
-- - Expose `shutdown_timeout` in `OverridableConfig` ([#1247](https://github.com/getsentry/relay/pull/1247))
+- Expose `shutdown_timeout` in `OverridableConfig` ([#1247](https://github.com/getsentry/relay/pull/1247))
 
 ## 22.4.0
 

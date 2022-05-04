@@ -681,7 +681,7 @@ struct ExpectCtReportRaw {
 
 /// Object used in ExpectCt reports
 ///
-/// See https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1
+/// See <https://tools.ietf.org/html/draft-ietf-httpbis-expect-ct-07#section-3.1>.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SingleCertificateTimestamp {
     pub version: Annotated<i64>,

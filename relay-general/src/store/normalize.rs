@@ -177,7 +177,7 @@ impl<'a> NormalizeProcessor<'a> {
             Ok(())
         })?;
 
-        ClockDriftProcessor::new(sent_at.map(|x| *x), received_at)
+        ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
             .error_kind(error_kind)
             .process_event(event, meta, state)?;
 

@@ -46,6 +46,7 @@
 //!  - [`relay-sampling`]: Dynamic sampling functionality.
 //!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-server`]: Endpoints and services.
+//!  - [`relay-system`]: Foundational system components for Relay's services.
 //!  - [`relay-test`]: Helpers for testing the web server and services.
 //!
 //! # Tools
@@ -75,6 +76,7 @@
 //! [`relay-sampling`]: ../relay_sampling/index.html
 //! [`relay-statsd`]: ../relay_statsd/index.html
 //! [`relay-server`]: ../relay_server/index.html
+//! [`relay-system`]: ../relay_system/index.html
 //! [`relay-test`]: ../relay_test/index.html
 //! [`document-metrics`]: ../document_metrics/index.html
 //! [`generate-schema`]: ../generate_schema/index.html
@@ -86,7 +88,6 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-mod alloc;
 mod cli;
 mod cliapp;
 mod setup;

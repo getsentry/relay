@@ -266,9 +266,9 @@ mod statsd;
 mod utils;
 
 use relay_config::Config;
+use relay_system::Controller;
 
 use crate::actors::server::Server;
-use relay_common_actors::controller::Controller;
 
 pub use crate::service::ServerError;
 

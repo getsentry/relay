@@ -533,7 +533,7 @@ struct ChunkedAttachment {
 ///
 /// Cannot serialize bytes.
 ///
-/// See https://github.com/3Hren/msgpack-rust/pull/214
+/// See <https://github.com/3Hren/msgpack-rust/pull/214>
 fn serialize_attachment_type<S, T>(t: &T, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
