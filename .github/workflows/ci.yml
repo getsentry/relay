@@ -70,7 +70,7 @@ jobs:
           RUSTDOCFLAGS: -Dwarnings
         with:
           command: doc
-          args: --worspace --all-features --document-private-items --no-deps
+          args: --workspace --all-features --document-private-items --no-deps
 
   test:
     timeout-minutes: 25
