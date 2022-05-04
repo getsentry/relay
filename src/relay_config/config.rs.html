@@ -2016,21 +2016,6 @@
 <span id="2009">2009</span>
 <span id="2010">2010</span>
 <span id="2011">2011</span>
-<span id="2012">2012</span>
-<span id="2013">2013</span>
-<span id="2014">2014</span>
-<span id="2015">2015</span>
-<span id="2016">2016</span>
-<span id="2017">2017</span>
-<span id="2018">2018</span>
-<span id="2019">2019</span>
-<span id="2020">2020</span>
-<span id="2021">2021</span>
-<span id="2022">2022</span>
-<span id="2023">2023</span>
-<span id="2024">2024</span>
-<span id="2025">2025</span>
-<span id="2026">2026</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2578,11 +2563,6 @@
     <span class="doccomment">/// The maximum number of seconds to wait for pending envelopes after receiving a shutdown</span>
     <span class="doccomment">/// signal.</span>
     <span class="ident">shutdown_timeout</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// The maximum memory allocation Relay can make, in bytes.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Purposefully undocumented because we don&#39;t know yet how feasible this is.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;_max_alloc_size&quot;</span>)]</span>
-    <span class="ident">max_alloc_size</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ByteSize</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Limits</span> {
@@ -2606,7 +2586,6 @@
             <span class="ident">max_pending_connections</span>: <span class="number">2048</span>,
             <span class="ident">max_connections</span>: <span class="number">25_000</span>,
             <span class="ident">shutdown_timeout</span>: <span class="number">10</span>,
-            <span class="ident">max_alloc_size</span>: <span class="prelude-val">None</span>,
         }
     }
 }
@@ -3700,15 +3679,6 @@
     <span class="doccomment">/// Returns logging configuration.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sentry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">relay_log::SentryConfig</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">values</span>.<span class="ident">sentry</span>
-    }
-
-    <span class="doccomment">/// The maximum allocation size relay can make.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_alloc_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">values</span>
-            .<span class="ident">limits</span>
-            .<span class="ident">max_alloc_size</span>
-            .<span class="ident">as_ref</span>()
-            .<span class="ident">map</span>(<span class="ident">ByteSize::as_bytes</span>)
     }
 
     <span class="doccomment">/// Returns the socket addresses for statsd.</span>

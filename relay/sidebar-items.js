@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["main",""]],"mod":[["alloc",""],["cli",""],["cliapp",""],["setup",""],["utils",""]]});
+initSidebarItems({"fn":[["main",""]],"mod":[["cli",""],["cliapp",""],["setup",""],["utils",""]]});

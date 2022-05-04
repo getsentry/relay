@@ -2,7 +2,7 @@ var N = null;var sourcesIndex = {};
 sourcesIndex["document_metrics"] = {"name":"","files":["main.rs"]};
 sourcesIndex["generate_schema"] = {"name":"","files":["main.rs"]};
 sourcesIndex["process_event"] = {"name":"","files":["main.rs"]};
-sourcesIndex["relay"] = {"name":"","files":["alloc.rs","cli.rs","cliapp.rs","main.rs","setup.rs","utils.rs"]};
+sourcesIndex["relay"] = {"name":"","files":["cli.rs","cliapp.rs","main.rs","setup.rs","utils.rs"]};
 sourcesIndex["relay_auth"] = {"name":"","files":["lib.rs"]};
 sourcesIndex["relay_cabi"] = {"name":"","files":["auth.rs","constants.rs","core.rs","ffi.rs","lib.rs","processing.rs"]};
 sourcesIndex["relay_common"] = {"name":"","files":["cell.rs","constants.rs","glob.rs","lib.rs","macros.rs","project.rs","retry.rs","time.rs","utils.rs"]};
