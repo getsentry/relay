@@ -433,6 +433,16 @@
 <span id="426">426</span>
 <span id="427">427</span>
 <span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Contains the breakdowns normalization code</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This module is responsible for generating breakdowns for events, such as span operation breakdowns.</span>
@@ -441,6 +451,8 @@
 <span class="kw">use</span> <span class="ident">std::ops::Deref</span>;
 
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DurationUnit</span>, <span class="ident">MetricUnit</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Breakdowns</span>, <span class="ident">Event</span>, <span class="ident">Measurement</span>, <span class="ident">Measurements</span>, <span class="ident">Timestamp</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Annotated</span>;
@@ -597,6 +609,8 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_time_spent</span> <span class="op">=</span> <span class="number">0.0</span>;
 
         <span class="kw">for</span> (<span class="ident">operation_name</span>, <span class="ident">intervals</span>) <span class="kw">in</span> <span class="ident">intervals</span> {
+            <span class="comment">// TODO(ja): Convert measurements in here, use `Duration` as typed carrier.</span>
+            <span class="comment">// use `get_metric_measurement_unit` from metric extraction for this (move!)</span>
             <span class="kw">let</span> <span class="ident">op_time_spent</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">get_op_time_spent</span>(<span class="ident">intervals</span>) {
                 <span class="prelude-val">None</span> =&gt; <span class="kw">continue</span>,
                 <span class="prelude-val">Some</span>(<span class="ident">op_time_spent</span>) =&gt; <span class="ident">op_time_spent</span>,
@@ -611,6 +625,7 @@
 
             <span class="kw">let</span> <span class="ident">time_spent_measurement</span> <span class="op">=</span> <span class="ident">Measurement</span> {
                 <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="ident">op_time_spent</span>),
+                <span class="ident">unit</span>: <span class="ident">Annotated::new</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
             };
 
             <span class="kw">let</span> <span class="ident">op_breakdown_name</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;ops.{}&quot;</span>, <span class="ident">operation_name</span>);
@@ -620,6 +635,7 @@
 
         <span class="kw">let</span> <span class="ident">total_time_spent_measurement</span> <span class="op">=</span> <span class="ident">Measurement</span> {
             <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="ident">total_time_spent</span>),
+            <span class="ident">unit</span>: <span class="ident">Annotated::new</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
         };
         <span class="ident">breakdown</span>.<span class="ident">insert</span>(
             <span class="string">&quot;total.time&quot;</span>.<span class="ident">to_string</span>(),
@@ -733,6 +749,7 @@
                 <span class="string">&quot;lcp&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="ident">Annotated::new</span>(<span class="ident">Measurement</span> {
                     <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="number">420.69</span>),
+                    <span class="ident">unit</span>: <span class="ident">Annotated::empty</span>(),
                 }),
             );
 
@@ -828,6 +845,7 @@
                 <span class="ident">Annotated::new</span>(<span class="ident">Measurement</span> {
                     <span class="comment">// 1 hour in milliseconds</span>
                     <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="number">3_600_000.0</span>),
+                    <span class="ident">unit</span>: <span class="ident">Annotated::new</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
                 }),
             );
 
@@ -836,6 +854,7 @@
                 <span class="ident">Annotated::new</span>(<span class="ident">Measurement</span> {
                     <span class="comment">// 2 hours in milliseconds</span>
                     <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="number">7_200_000.0</span>),
+                    <span class="ident">unit</span>: <span class="ident">Annotated::new</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
                 }),
             );
 
@@ -844,6 +863,7 @@
                 <span class="ident">Annotated::new</span>(<span class="ident">Measurement</span> {
                     <span class="comment">// 4 hours and 10 microseconds in milliseconds</span>
                     <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="number">14_400_000.01</span>),
+                    <span class="ident">unit</span>: <span class="ident">Annotated::new</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
                 }),
             );
 
