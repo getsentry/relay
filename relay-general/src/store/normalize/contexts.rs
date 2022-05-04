@@ -77,7 +77,7 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
 }
 
 /// Parses the Windows build number from the description and maps it to a marketing name.
-/// Source: https://en.wikipedia.org/wiki/List_of_Microsoft_Windows_versions
+/// Source: <https://en.wikipedia.org/wiki/List_of_Microsoft_Windows_versions>.
 /// Note: We cannot distinguish between Windows Server and PC versions, so we map to the PC versions
 /// here.
 fn get_windows_version(description: &str) -> Option<(&str, &str)> {

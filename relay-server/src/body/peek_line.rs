@@ -17,6 +17,8 @@ use crate::extractors::{Decoder, SharedPayload};
 /// Resolves to `Some(Bytes)` if a newline is found within the size limit, or the entire payload is
 /// smaller than the size limit. Otherwise, resolves to `None`. Any errors on the underlying stream
 /// are returned without change.
+///
+/// [`Payload`]: actix_web::dev::Payload
 pub struct PeekLine {
     payload: SharedPayload,
     decoder: Decoder,

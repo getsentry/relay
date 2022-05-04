@@ -24,6 +24,8 @@ const DECODE_BUFFER_SIZE: usize = 8192;
 /// The sink will grow to the stated `limit` and then stop writing more data. When used in
 /// combination with [`Write::write_all`], this will result in [`ErrorKind::WriteZero`] when the
 /// sink overflows.
+///
+/// [`ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
 struct Sink {
     buffer: Vec<u8>,
     remaining: usize,

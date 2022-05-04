@@ -545,11 +545,6 @@ struct Limits {
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     shutdown_timeout: u64,
-    /// The maximum memory allocation Relay can make, in bytes.
-    ///
-    /// Purposefully undocumented because we don't know yet how feasible this is.
-    #[serde(rename = "_max_alloc_size")]
-    max_alloc_size: Option<ByteSize>,
 }
 
 impl Default for Limits {
@@ -573,7 +568,6 @@ impl Default for Limits {
             max_pending_connections: 2048,
             max_connections: 25_000,
             shutdown_timeout: 10,
-            max_alloc_size: None,
         }
     }
 }
@@ -1673,15 +1667,6 @@ impl Config {
     /// Returns logging configuration.
     pub fn sentry(&self) -> &relay_log::SentryConfig {
         &self.values.sentry
-    }
-
-    /// The maximum allocation size relay can make.
-    pub fn max_alloc_size(&self) -> Option<usize> {
-        self.values
-            .limits
-            .max_alloc_size
-            .as_ref()
-            .map(ByteSize::as_bytes)
     }
 
     /// Returns the socket addresses for statsd.

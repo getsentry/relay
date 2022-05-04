@@ -20,7 +20,9 @@ jobs:
 
     steps:
       - name: Install libcurl-dev
-        run: sudo apt-get install -y libcurl4-openssl-dev
+        run: |
+          sudo apt update
+          sudo apt-get install -y libcurl4-openssl-dev
 
       - uses: actions/checkout@v2
         with:
@@ -43,7 +45,7 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-          components: clippy, rustfmt
+          components: clippy, rustfmt, rust-docs
           override: true
 
       - uses: swatinem/rust-cache@v1
@@ -61,6 +63,14 @@ jobs:
         with:
           command: clippy
           args: --workspace --all-features --tests -- -D clippy::all
+
+      - name: Rust Doc Comments
+        uses: actions-rs/cargo@v1
+        env:
+          RUSTDOCFLAGS: -Dwarnings
+        with:
+          command: doc
+          args: --workspace --all-features --document-private-items --no-deps
 
   test:
     timeout-minutes: 25
@@ -117,7 +127,9 @@ jobs:
 
     steps:
       - name: Install libcurl-dev
-        run: sudo apt-get install -y libcurl4-openssl-dev
+        run: |
+          sudo apt update
+          sudo apt-get install -y libcurl4-openssl-dev
 
       - uses: actions/checkout@v2
         with:
@@ -216,7 +228,9 @@ jobs:
 
     steps:
       - name: Install libcurl-dev
-        run: sudo apt-get install -y libcurl4-openssl-dev
+        run: |
+          sudo apt update
+          sudo apt-get install -y libcurl4-openssl-dev
 
       - uses: actions/checkout@v2
         with:

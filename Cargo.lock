@@ -3256,16 +3256,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-common-actors"
-version = "22.4.0"
-dependencies = [
- "actix",
- "failure",
- "futures 0.1.29",
- "relay-log",
-]
-
-[[package]]
 name = "relay-config"
 version = "22.4.0"
 dependencies = [
@@ -3405,9 +3395,9 @@ dependencies = [
  "insta",
  "lazy_static",
  "relay-common",
- "relay-common-actors",
  "relay-log",
  "relay-statsd",
+ "relay-system",
  "relay-test",
  "serde",
  "serde_json",
@@ -3485,7 +3475,6 @@ dependencies = [
  "regex",
  "relay-auth",
  "relay-common",
- "relay-common-actors",
  "relay-config",
  "relay-filter",
  "relay-general",
@@ -3495,6 +3484,7 @@ dependencies = [
  "relay-redis",
  "relay-sampling",
  "relay-statsd",
+ "relay-system",
  "relay-test",
  "reqwest",
  "rmp-serde",
@@ -3518,6 +3508,16 @@ dependencies = [
  "lazy_static",
  "parking_lot 0.10.2",
  "rand 0.7.3",
+ "relay-log",
+]
+
+[[package]]
+name = "relay-system"
+version = "22.4.0"
+dependencies = [
+ "actix",
+ "failure",
+ "futures 0.1.29",
  "relay-log",
 ]
 
