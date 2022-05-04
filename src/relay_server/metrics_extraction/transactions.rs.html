@@ -1062,15 +1062,6 @@
 <span id="1055">1055</span>
 <span id="1056">1056</span>
 <span id="1057">1057</span>
-<span id="1058">1058</span>
-<span id="1059">1059</span>
-<span id="1060">1060</span>
-<span id="1061">1061</span>
-<span id="1062">1062</span>
-<span id="1063">1063</span>
-<span id="1064">1064</span>
-<span id="1065">1065</span>
-<span id="1066">1066</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>};
 
@@ -1204,23 +1195,14 @@
     }
 }
 
-<span class="doccomment">/// Get duration from timestamp and `start_timestamp`.</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">fn</span> <span class="ident">get_duration_millis</span>(<span class="ident">start</span>: <span class="kw-2">&amp;</span><span class="ident">Timestamp</span>, <span class="ident">end</span>: <span class="kw-2">&amp;</span><span class="ident">Timestamp</span>) -&gt; <span class="ident">f64</span> {
-    <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">start</span>.<span class="ident">timestamp_millis</span>();
-    <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">end</span>.<span class="ident">timestamp_millis</span>();
-
-    <span class="ident">end</span>.<span class="ident">saturating_sub</span>(<span class="ident">start</span>) <span class="kw">as</span> <span class="ident">f64</span>
-}
-
 <span class="doccomment">/// Extract the the satisfaction value depending on the actual measurement/duration value</span>
 <span class="doccomment">/// and the configured threshold.</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">fn</span> <span class="ident">extract_user_satisfaction</span>(
     <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SatisfactionConfig</span><span class="op">&gt;</span>,
     <span class="ident">transaction</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
-    <span class="ident">start_timestamp</span>: <span class="kw-2">&amp;</span><span class="ident">Timestamp</span>,
-    <span class="ident">end_timestamp</span>: <span class="kw-2">&amp;</span><span class="ident">Timestamp</span>,
+    <span class="ident">start_timestamp</span>: <span class="ident">Timestamp</span>,
+    <span class="ident">end_timestamp</span>: <span class="ident">Timestamp</span>,
 ) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">UserSatisfaction</span><span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">config</span>) <span class="op">=</span> <span class="ident">config</span> {
         <span class="kw">let</span> <span class="ident">threshold</span> <span class="op">=</span> <span class="ident">transaction</span>
@@ -1229,9 +1211,9 @@
             .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">name</span><span class="op">|</span> <span class="ident">config</span>.<span class="ident">transaction_thresholds</span>.<span class="ident">get</span>(<span class="ident">name</span>))
             .<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>.<span class="ident">project_threshold</span>);
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">threshold</span>.<span class="ident">metric</span> {
-            <span class="ident">SatisfactionMetric::Duration</span> =&gt; {
-                <span class="prelude-val">Some</span>(<span class="ident">get_duration_millis</span>(<span class="ident">start_timestamp</span>, <span class="ident">end_timestamp</span>))
-            }
+            <span class="ident">SatisfactionMetric::Duration</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">relay_common::chrono_to_positive_millis</span>(
+                <span class="ident">end_timestamp</span> <span class="op">-</span> <span class="ident">start_timestamp</span>,
+            )),
             <span class="ident">SatisfactionMetric::Lcp</span> =&gt; <span class="ident">store::get_measurement</span>(<span class="ident">transaction</span>, <span class="string">&quot;lcp&quot;</span>),
             <span class="ident">SatisfactionMetric::Unknown</span> =&gt; <span class="prelude-val">None</span>,
         } {
@@ -1468,7 +1450,7 @@
     };
 
     <span class="comment">// Duration</span>
-    <span class="kw">let</span> <span class="ident">duration_millis</span> <span class="op">=</span> <span class="ident">get_duration_millis</span>(<span class="ident">start_timestamp</span>, <span class="ident">end_timestamp</span>);
+    <span class="kw">let</span> <span class="ident">duration_millis</span> <span class="op">=</span> <span class="ident">relay_common::chrono_to_positive_millis</span>(<span class="ident">end_timestamp</span> <span class="op">-</span> <span class="ident">start_timestamp</span>);
 
     <span class="ident">push_metric</span>(<span class="ident">Metric::new_mri</span>(
         <span class="ident">METRIC_NAMESPACE</span>,

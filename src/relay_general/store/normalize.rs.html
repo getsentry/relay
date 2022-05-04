@@ -1816,7 +1816,7 @@
             <span class="prelude-val">Ok</span>(())
         })<span class="question-mark">?</span>;
 
-        <span class="ident">ClockDriftProcessor::new</span>(<span class="ident">sent_at</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">x</span>), <span class="ident">received_at</span>)
+        <span class="ident">ClockDriftProcessor::new</span>(<span class="ident">sent_at</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">ts</span><span class="op">|</span> <span class="ident">ts</span>.<span class="ident">into_inner</span>()), <span class="ident">received_at</span>)
             .<span class="ident">error_kind</span>(<span class="ident">error_kind</span>)
             .<span class="ident">process_event</span>(<span class="ident">event</span>, <span class="ident">meta</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
 
