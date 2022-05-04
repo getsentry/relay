@@ -321,7 +321,7 @@ impl<'a> FusedIterator for WStrSegmentIter<'a> {}
 /// An encoded string segment in a larger data block.
 ///
 /// The slice of data will contain the entire block which will be valid according to the
-/// encoding.  This will be a unique sub-slice of the data in [MutSegmentiter] as the
+/// encoding.  This will be a unique sub-slice of the data in [`WStrSegmentIter`] as the
 /// iterator will not yield overlapping slices.
 ///
 /// While the `data` field is mutable, after mutating this the string in `decoded` will no

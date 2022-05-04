@@ -45,7 +45,7 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-          components: clippy, rustfmt
+          components: clippy, rustfmt, rust-docs
           override: true
 
       - uses: swatinem/rust-cache@v1
@@ -63,6 +63,14 @@ jobs:
         with:
           command: clippy
           args: --workspace --all-features --tests -- -D clippy::all
+
+      - name: Rust Doc Comments
+        uses: actions-rs/cargo@v1
+        env:
+          RUSTDOCFLAGS: -Dwarnings
+        with:
+          command: doc
+          args: --worspace --all-features --document-private-items --no-deps
 
   test:
     timeout-minutes: 25
