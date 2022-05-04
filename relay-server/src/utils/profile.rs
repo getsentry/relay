@@ -1,11 +1,14 @@
 use failure::Fail;
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::str::FromStr;
 
 use android_trace_log::AndroidTraceLog;
 use serde::{de, Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::envelope::{ContentType, Item};
+use relay_general::protocol::{Addr, DebugId};
 
 #[derive(Debug, Fail)]
 pub enum ProfileError {
@@ -93,33 +96,31 @@ pub fn parse_android_profile(item: &mut Item) -> Result<(), ProfileError> {
     Ok(())
 }
 
-fn strip_pointer_authentication_code<'de, D>(deserializer: D) -> Result<String, D::Error>
+fn strip_pointer_authentication_code<'de, D>(deserializer: D) -> Result<Addr, D::Error>
 where
     D: de::Deserializer<'de>,
 {
-    let s: String = Deserialize::deserialize(deserializer)?;
-    let address_without_prefix = s.trim_start_matches("0x");
-    match u64::from_str_radix(address_without_prefix, 16) {
-        // https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
-        Ok(address) => Ok(format!("{:#x}", address & 0x0000000FFFFFFFFF)),
-        Err(err) => Err(de::Error::custom(format!(
-            "failed to strip pointer authentication code: {}",
-            err,
-        ))),
-    }
+    let addr: u64 = Deserialize::deserialize(deserializer)?;
+    // https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
+    Ok(Addr(addr & 0x0000000FFFFFFFFF))
 }
 
-pub fn deserialize_u64_from_string<'de, D>(deserializer: D) -> Result<u64, D::Error>
+pub fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
     D: de::Deserializer<'de>,
+    T: FromStr + Deserialize<'de>,
+    <T as FromStr>::Err: Display,
 {
-    let s: String = Deserialize::deserialize(deserializer)?;
-    match s.parse::<u64>() {
-        Ok(n) => Ok(n),
-        Err(err) => Err(serde::de::Error::custom(format!(
-            "failed to deserialize u64: {}",
-            err,
-        ))),
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrInt<T> {
+        String(String),
+        Number(T),
+    }
+
+    match StringOrInt::<T>::deserialize(deserializer)? {
+        StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+        StringOrInt::Number(i) => Ok(i),
     }
 }
 
@@ -128,7 +129,7 @@ struct Frame {
     function: String,
 
     #[serde(deserialize_with = "strip_pointer_authentication_code")]
-    instruction_addr: String,
+    instruction_addr: Addr,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -136,9 +137,10 @@ struct Sample {
     frames: Vec<Frame>,
     queue_address: Option<String>,
 
-    #[serde(deserialize_with = "deserialize_u64_from_string")]
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     relative_timestamp_ns: u64,
 
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     thread_id: u64,
 }
 
@@ -162,16 +164,19 @@ struct SampledProfile {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Image {
-    image_addr: String,
-    image_size: u32,
-    image_vmaddr: String,
+    image_addr: Addr,
+
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    image_size: u64,
+
+    image_vmaddr: Addr,
     name: String,
 
     #[serde(rename = "type")]
     image_type: String,
 
     #[serde(rename(serialize = "debug_id"))]
-    uuid: Uuid,
+    uuid: DebugId,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
