@@ -158,6 +158,8 @@
 <span id="151">151</span>
 <span id="152">152</span>
 <span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">actix_web::HttpRequest</span>;
 <span class="kw">use</span> <span class="ident">bytes::Bytes</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">Async</span>, <span class="ident">Future</span>, <span class="ident">Poll</span>, <span class="ident">Stream</span>};
@@ -177,6 +179,8 @@
 <span class="doccomment">/// Resolves to `Some(Bytes)` if a newline is found within the size limit, or the entire payload is</span>
 <span class="doccomment">/// smaller than the size limit. Otherwise, resolves to `None`. Any errors on the underlying stream</span>
 <span class="doccomment">/// are returned without change.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`Payload`]: actix_web::dev::Payload</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PeekLine</span> {
     <span class="ident">payload</span>: <span class="ident">SharedPayload</span>,
     <span class="ident">decoder</span>: <span class="ident">Decoder</span>,

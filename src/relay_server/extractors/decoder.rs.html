@@ -265,6 +265,8 @@
 <span id="258">258</span>
 <span id="259">259</span>
 <span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
@@ -291,6 +293,8 @@
 <span class="doccomment">/// The sink will grow to the stated `limit` and then stop writing more data. When used in</span>
 <span class="doccomment">/// combination with [`Write::write_all`], this will result in [`ErrorKind::WriteZero`] when the</span>
 <span class="doccomment">/// sink overflows.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero</span>
 <span class="kw">struct</span> <span class="ident">Sink</span> {
     <span class="ident">buffer</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
     <span class="ident">remaining</span>: <span class="ident">usize</span>,

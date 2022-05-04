@@ -2341,6 +2341,9 @@
 <span id="2334">2334</span>
 <span id="2335">2335</span>
 <span id="2336">2336</span>
+<span id="2337">2337</span>
+<span id="2338">2338</span>
+<span id="2339">2339</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -3106,6 +3109,7 @@
     <span class="doccomment">/// while we could implement it directly for [`BucketKey`] the documentation advises us not to</span>
     <span class="doccomment">/// interact with this trait.</span>
     <span class="doccomment">///</span>
+    <span class="doccomment">/// [`cadence::ext::ToSetValue`]: https://docs.rs/cadence/*/cadence/ext/trait.ToSetValue.html</span>
     <span class="kw">fn</span> <span class="ident">as_integer_lossy</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">i64</span> {
         <span class="comment">// XXX: The way this hasher is used may be platform-dependent. If we want to produce the</span>
         <span class="comment">// same hash across platforms, the `deterministic_hash` crate may be useful.</span>
@@ -3275,6 +3279,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// This type implements an inverted total ordering. The maximum queued bucket has the lowest flush</span>
 <span class="doccomment">/// time, which is suitable for using it in a [`BinaryHeap`].</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`BinaryHeap`]: std::collections::BinaryHeap</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">struct</span> <span class="ident">QueuedBucket</span> {
     <span class="ident">flush_at</span>: <span class="ident">Instant</span>,
@@ -3364,7 +3370,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Each metric is dispatched into the a [`Bucket`] depending on its project key (DSN), name, type,</span>
 <span class="doccomment">/// unit, tags and timestamp. The bucket timestamp is rounded to the precision declared by the</span>
-<span class="doccomment">/// [`bucket_interval`](AggregatorConfig::bucket_interval) configuration.</span>
+<span class="doccomment">/// `bucket_interval` field on the [AggregatorConfig] configuration.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Each bucket stores the accumulated value of submitted metrics:</span>
 <span class="doccomment">///</span>

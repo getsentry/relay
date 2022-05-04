@@ -1536,6 +1536,14 @@
 <span id="1529">1529</span>
 <span id="1530">1530</span>
 <span id="1531">1531</span>
+<span id="1532">1532</span>
+<span id="1533">1533</span>
+<span id="1534">1534</span>
+<span id="1535">1535</span>
+<span id="1536">1536</span>
+<span id="1537">1537</span>
+<span id="1538">1538</span>
+<span id="1539">1539</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data</span>
@@ -1881,12 +1889,20 @@
     <span class="ident">Breadcrumbs</span>,
 
     <span class="doccomment">/// This is a binary attachment present in Unreal 4 events containing event context information.</span>
-    <span class="doccomment">/// This can be deserialized using the `symbolic` crate see [unreal::Unreal4Context]</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This can be deserialized using the `symbolic` crate see</span>
+    <span class="doccomment">/// [`symbolic::unreal::Unreal4Context`].</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [`symbolic::unreal::Unreal4Context`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4Context.html</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;unreal.context&quot;</span>)]</span>
     <span class="ident">UnrealContext</span>,
 
     <span class="doccomment">/// This is a binary attachment present in Unreal 4 events containing event Logs.</span>
-    <span class="doccomment">/// This can be deserialized using the `symbolic` crate see [unreal::Unreal4LogEntry]</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This can be deserialized using the `symbolic` crate see</span>
+    <span class="doccomment">/// [`symbolic::unreal::Unreal4LogEntry`].</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [`symbolic::unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;unreal.logs&quot;</span>)]</span>
     <span class="ident">UnrealLogs</span>,
 }

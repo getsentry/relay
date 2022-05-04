@@ -1039,105 +1039,105 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">DiscardReason</span> {
-    <span class="doccomment">/// [Post Processing] An event with the same id has already been processed for this project.</span>
+    <span class="doccomment">/// (Post Processing) An event with the same id has already been processed for this project.</span>
     <span class="doccomment">/// Sentry does not allow duplicate events and only stores the first one.</span>
     <span class="ident">Duplicate</span>,
 
-    <span class="doccomment">/// [Relay] There was no valid project id in the request or the required project does not exist.</span>
+    <span class="doccomment">/// (Relay) There was no valid project id in the request or the required project does not exist.</span>
     <span class="ident">ProjectId</span>,
 
-    <span class="doccomment">/// [Relay] The protocol version sent by the SDK is not supported and parts of the payload may</span>
+    <span class="doccomment">/// (Relay) The protocol version sent by the SDK is not supported and parts of the payload may</span>
     <span class="doccomment">/// be invalid.</span>
     <span class="ident">AuthVersion</span>,
 
-    <span class="doccomment">/// [Legacy] The SDK did not send a client identifier.</span>
+    <span class="doccomment">/// (Legacy) The SDK did not send a client identifier.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// In Relay, this is no longer required.</span>
     <span class="ident">AuthClient</span>,
 
-    <span class="doccomment">/// [Relay] The store request was missing an event payload.</span>
+    <span class="doccomment">/// (Relay) The store request was missing an event payload.</span>
     <span class="ident">NoData</span>,
 
-    <span class="doccomment">/// [Relay] The envelope contains no items.</span>
+    <span class="doccomment">/// (Relay) The envelope contains no items.</span>
     <span class="ident">EmptyEnvelope</span>,
 
-    <span class="doccomment">/// [Relay] The event payload exceeds the maximum size limit for the respective endpoint.</span>
+    <span class="doccomment">/// (Relay) The event payload exceeds the maximum size limit for the respective endpoint.</span>
     <span class="ident">TooLarge</span>,
 
-    <span class="doccomment">/// [Legacy] A store request was received with an invalid method.</span>
+    <span class="doccomment">/// (Legacy) A store request was received with an invalid method.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This outcome is no longer emitted by Relay, as HTTP method validation occurs before an event</span>
     <span class="doccomment">/// id or project id are extracted for a request.</span>
     <span class="ident">DisallowedMethod</span>,
 
-    <span class="doccomment">/// [Relay] The content type for a specific endpoint was not allowed.</span>
+    <span class="doccomment">/// (Relay) The content type for a specific endpoint was not allowed.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// While the standard store endpoint allows all content types, other endpoints may have</span>
     <span class="doccomment">/// stricter requirements.</span>
     <span class="ident">ContentType</span>,
 
-    <span class="doccomment">/// [Legacy] The project id in the URL does not match the one specified for the public key.</span>
+    <span class="doccomment">/// (Legacy) The project id in the URL does not match the one specified for the public key.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This outcome is no longer emitted by Relay. Instead, Relay will emit a standard `ProjectId`</span>
     <span class="doccomment">/// since it resolves the project first, and then checks for the valid project key.</span>
     <span class="ident">MultiProjectId</span>,
 
-    <span class="doccomment">/// [Relay] A minidump file was missing for the minidump endpoint.</span>
+    <span class="doccomment">/// (Relay) A minidump file was missing for the minidump endpoint.</span>
     <span class="ident">MissingMinidumpUpload</span>,
 
-    <span class="doccomment">/// [Relay] The file submitted as minidump is not a valid minidump file.</span>
+    <span class="doccomment">/// (Relay) The file submitted as minidump is not a valid minidump file.</span>
     <span class="ident">InvalidMinidump</span>,
 
-    <span class="doccomment">/// [Relay] The security report was not recognized due to missing data.</span>
+    <span class="doccomment">/// (Relay) The security report was not recognized due to missing data.</span>
     <span class="ident">SecurityReportType</span>,
 
-    <span class="doccomment">/// [Relay] The security report did not pass schema validation.</span>
+    <span class="doccomment">/// (Relay) The security report did not pass schema validation.</span>
     <span class="ident">SecurityReport</span>,
 
-    <span class="doccomment">/// [Relay] The request origin is not allowed for the project.</span>
+    <span class="doccomment">/// (Relay) The request origin is not allowed for the project.</span>
     <span class="ident">Cors</span>,
 
-    <span class="doccomment">/// [Relay] Reading or decoding the payload from the socket failed for any reason.</span>
+    <span class="doccomment">/// (Relay) Reading or decoding the payload from the socket failed for any reason.</span>
     <span class="ident">Payload</span>,
 
-    <span class="doccomment">/// [Relay] Parsing the event JSON payload failed due to a syntax error.</span>
+    <span class="doccomment">/// (Relay) Parsing the event JSON payload failed due to a syntax error.</span>
     <span class="ident">InvalidJson</span>,
 
-    <span class="doccomment">/// [Relay] Parsing the event msgpack payload failed due to a syntax error.</span>
+    <span class="doccomment">/// (Relay) Parsing the event msgpack payload failed due to a syntax error.</span>
     <span class="ident">InvalidMsgpack</span>,
 
-    <span class="doccomment">/// [Relay] Parsing a multipart form-data request failed.</span>
+    <span class="doccomment">/// (Relay) Parsing a multipart form-data request failed.</span>
     <span class="ident">InvalidMultipart</span>,
 
-    <span class="doccomment">/// [Relay] The event is parseable but semantically invalid. This should only happen with</span>
+    <span class="doccomment">/// (Relay) The event is parseable but semantically invalid. This should only happen with</span>
     <span class="doccomment">/// transaction events.</span>
     <span class="ident">InvalidTransaction</span>,
 
-    <span class="doccomment">/// [Relay] Parsing an event envelope failed (likely missing a required header).</span>
+    <span class="doccomment">/// (Relay) Parsing an event envelope failed (likely missing a required header).</span>
     <span class="ident">InvalidEnvelope</span>,
 
-    <span class="doccomment">/// [Relay] A project state returned by the upstream could not be parsed.</span>
+    <span class="doccomment">/// (Relay) A project state returned by the upstream could not be parsed.</span>
     <span class="ident">ProjectState</span>,
 
-    <span class="doccomment">/// [Relay] An envelope was submitted with two items that need to be unique.</span>
+    <span class="doccomment">/// (Relay) An envelope was submitted with two items that need to be unique.</span>
     <span class="ident">DuplicateItem</span>,
 
-    <span class="doccomment">/// [Relay] An event envelope was submitted but no payload could be extracted.</span>
+    <span class="doccomment">/// (Relay) An event envelope was submitted but no payload could be extracted.</span>
     <span class="ident">NoEventPayload</span>,
 
-    <span class="doccomment">/// [All] An error in Relay caused event ingestion to fail. This is the catch-all and usually</span>
+    <span class="doccomment">/// (All) An error in Relay caused event ingestion to fail. This is the catch-all and usually</span>
     <span class="doccomment">/// indicates bugs in Relay, rather than an expected failure.</span>
     <span class="ident">Internal</span>,
 
-    <span class="doccomment">/// [Relay] Symbolic failed to extract an Unreal Crash report from a request sent to the</span>
+    <span class="doccomment">/// (Relay) Symbolic failed to extract an Unreal Crash report from a request sent to the</span>
     <span class="doccomment">/// Unreal endpoint</span>
     <span class="ident">ProcessUnreal</span>,
 
-    <span class="doccomment">/// [Relay] The envelope, which contained only a transaction, was discarded by the</span>
+    <span class="doccomment">/// (Relay) The envelope, which contained only a transaction, was discarded by the</span>
     <span class="doccomment">/// dynamic sampling rules.</span>
     <span class="ident">TransactionSampled</span>,
 
-    <span class="doccomment">/// [Relay] We failed to parse the profile so we discard the profile.</span>
+    <span class="doccomment">/// (Relay) We failed to parse the profile so we discard the profile.</span>
     <span class="ident">ProcessProfile</span>,
 }
 

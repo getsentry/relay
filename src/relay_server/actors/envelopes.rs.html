@@ -5707,7 +5707,7 @@
 <span class="doccomment">/// - Metrics are directly sent to the `EnvelopeProcessor`, bypassing the manager&#39;s queue and going</span>
 <span class="doccomment">///   straight into metrics aggregation. See [`ProcessMetrics`] for a full description.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// Queueing can fail if the queue exceeds [`Config::event_buffer_size`]. In this case, `Err` is</span>
+<span class="doccomment">/// Queueing can fail if the queue exceeds [`Config::envelope_buffer_size`]. In this case, `Err` is</span>
 <span class="doccomment">/// returned and the envelope is not queued. Otherwise, this message responds with `Ok`. If it</span>
 <span class="doccomment">/// contained an event-related item, such as an event payload or an attachment, this contains</span>
 <span class="doccomment">/// `Some(EventId)`.</span>
