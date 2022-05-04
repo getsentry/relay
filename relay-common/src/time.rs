@@ -16,6 +16,42 @@ pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
     instant_to_system_time(instant).into()
 }
 
+/// Returns the number of milliseconds contained by this `Duration` as `f64`.
+///
+/// The returned value does include the fractional (nanosecond) part of the duration. Precision of
+/// returned numbers is capped at microseconds to prevent rounding artifacts.
+///
+/// # Example
+///
+/// ```
+/// use std::time::Duration;
+///
+/// let duration = Duration::from_nanos(2_125_000);
+/// let millis = relay_common::duration_to_millis(duration);
+/// assert_eq!(millis, 2.125);
+/// ```
+pub fn duration_to_millis(duration: Duration) -> f64 {
+    (duration.as_secs_f64() * 1_000_000f64).round() / 1_000f64
+}
+
+/// Returns the positive number of milliseconds contained by this `Duration` as `f64`.
+///
+/// The returned value does include the fractional (nanosecond) part of the duration. If the
+/// duration is negative, this returns `0.0`;
+///
+/// # Example
+///
+/// ```
+/// use chrono::Duration;
+///
+/// let duration = Duration::nanoseconds(2_125_000);
+/// let millis = relay_common::signed_duration_to_millis(duration);
+/// assert_eq!(millis, 2.125);
+/// ```
+pub fn signed_duration_to_millis(duration: chrono::Duration) -> f64 {
+    duration_to_millis(duration.to_std().unwrap_or_default())
+}
+
 /// The conversion result of [`UnixTimestamp::to_instant`].
 ///
 /// If the time is outside of what can be represented in an [`Instant`], this is `Past` or

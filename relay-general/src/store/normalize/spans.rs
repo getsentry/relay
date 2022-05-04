@@ -1,106 +1,34 @@
-use std::collections::BTreeSet;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+use std::time::Duration;
 
-use crate::protocol::{Context, ContextInner, Contexts, Event, Span, SpanId, Timestamp};
-use crate::types::Annotated;
-use crate::types::SpanAttribute;
-
+use crate::protocol::{Context, ContextInner, Contexts, Event, Span, SpanId};
 use crate::store::normalize::breakdowns::TimeWindowSpan;
-
-/// Merge a list of intervals into a list of non overlapping intervals.
-/// Assumes that the input intervals are sorted by start time.
-fn merge_non_overlapping_intervals(intervals: &mut [TimeWindowSpan]) -> Vec<TimeWindowSpan> {
-    let mut non_overlapping_intervals = Vec::new();
-
-    // Make sure that there is at least 1 interval present.
-    if intervals.is_empty() {
-        return non_overlapping_intervals;
-    }
-
-    let mut previous = intervals[0].clone();
-
-    // The first interval is stored in `previous`, so make sure to skip it.
-    for current in intervals.iter().skip(1) {
-        if current.end < previous.end {
-            // The current interval is completely contained within the
-            // previous interval, nothing to be done here.
-            continue;
-        } else if current.start < previous.end {
-            // The head of the current interval overlaps with the tail of
-            // the previous interval, merge the two intervals into one.
-            previous.end = current.end;
-        } else {
-            // The current interval does not intersect with the previous
-            // interval, finished with the previous interval, and use the
-            // current interval as the reference going forwards
-            non_overlapping_intervals.push(previous);
-            previous = current.clone();
-        }
-    }
-
-    // Make sure to include the final interval.
-    non_overlapping_intervals.push(previous);
-
-    non_overlapping_intervals
-}
+use crate::types::{Annotated, SpanAttribute};
 
 /// Computes the exclusive time of the source interval after subtracting the
 /// list of intervals.
+///
 /// Assumes that the input intervals are sorted by start time.
-fn interval_exclusive_time(source: &TimeWindowSpan, intervals: &[TimeWindowSpan]) -> f64 {
-    let mut exclusive_time = 0.0;
-
-    let mut remaining = source.clone();
+fn interval_exclusive_time(mut parent: TimeWindowSpan, intervals: &[TimeWindowSpan]) -> Duration {
+    let mut exclusive_time = Duration::new(0, 0);
 
     for interval in intervals {
-        if interval.end < remaining.start {
-            // The interval is entirely to the left of the remaining interval,
-            // so nothing to be done here.
-            continue;
-        } else if interval.start >= remaining.end {
-            // The interval is entirely to the right of the remaining interval,
-            // so nothing to be done here.
-            //
-            // Additionally, since intervals are sorted by start time, all
-            // intervals afterwards can be skipped.
+        // Exit early to avoid adding zeros
+        if interval.start >= parent.end {
             break;
-        } else {
-            // The interval must intersect with the remaining interval in some way.
-
-            if interval.start > remaining.start {
-                // The interval begins within the remaining interval, there is a
-                // portion to its left that should be added to the results.
-                exclusive_time += TimeWindowSpan::new(remaining.start, interval.start).duration();
-            }
-
-            if interval.end < remaining.end {
-                // The interval ends within the remaining interval, so the
-                // tail of the interval interesects with the head of the remaining
-                // interval.
-                //
-                // Subtract the intersection by shifting the start of the remaining
-                // interval.
-                remaining.start = interval.end;
-            } else {
-                // The interval ends to the right of the remaining interval, so
-                // the interval intersects with the entirety of the remaining
-                // interval. So zero out the interval.
-                remaining.start = remaining.end;
-
-                // There is nothing remaining to be checked.
-                break;
-            }
         }
+
+        // Add time in the parent before the start of the current interval to the exclusive time
+        let start = interval.start.min(parent.end);
+        if let Ok(start_offset) = (start - parent.start).to_std() {
+            exclusive_time += start_offset;
+        }
+
+        parent.start = interval.end.clamp(parent.start, parent.end);
     }
 
-    // make sure to add the remaining interval
-    exclusive_time + remaining.duration()
-}
-
-fn get_span_interval(span: &Span) -> Option<TimeWindowSpan> {
-    let start = *span.start_timestamp.value()?;
-    let end = *span.timestamp.value()?;
-    Some(TimeWindowSpan::new(start, end))
+    // Add the remaining duration after the last interval ended
+    exclusive_time + parent.duration()
 }
 
 pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<SpanAttribute>) {
@@ -113,13 +41,10 @@ pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<SpanAttribute>) 
 }
 
 fn set_event_exclusive_time(
-    start: Timestamp,
-    end: Timestamp,
+    event_interval: TimeWindowSpan,
     contexts: &mut Contexts,
-    span_map: &mut HashMap<SpanId, Vec<TimeWindowSpan>>,
+    span_map: &HashMap<SpanId, Vec<TimeWindowSpan>>,
 ) {
-    let span_interval = TimeWindowSpan::new(start, end);
-
     let trace_context = match contexts.get_mut("trace").map(Annotated::value_mut) {
         Some(Some(ContextInner(Context::Trace(trace_context)))) => trace_context,
         _ => return,
@@ -130,18 +55,41 @@ fn set_event_exclusive_time(
         _ => return,
     };
 
-    let child_intervals = match span_map.get_mut(span_id) {
-        Some(intervals) => {
-            // Make sure that the intervals are sorted by start time.
-            intervals.sort_unstable_by_key(|interval| interval.start);
-            merge_non_overlapping_intervals(intervals)
-        }
-        None => Vec::new(),
+    let child_intervals = span_map
+        .get(span_id)
+        .map(|vec| vec.as_slice())
+        .unwrap_or_default();
+
+    let exclusive_time = interval_exclusive_time(event_interval, child_intervals);
+    trace_context.exclusive_time = Annotated::new(relay_common::duration_to_millis(exclusive_time));
+}
+
+fn set_span_exclusive_time(
+    span: &mut Annotated<Span>,
+    span_map: &HashMap<SpanId, Vec<TimeWindowSpan>>,
+) {
+    let mut span = match span.value_mut() {
+        None => return,
+        Some(span) => span,
     };
 
-    let exclusive_time = interval_exclusive_time(&span_interval, &child_intervals);
+    let span_id = match span.span_id.value() {
+        None => return,
+        Some(span_id) => span_id,
+    };
 
-    trace_context.exclusive_time = Annotated::new(exclusive_time);
+    let span_interval = match (span.start_timestamp.value(), span.timestamp.value()) {
+        (Some(start), Some(end)) => TimeWindowSpan::new(*start, *end),
+        _ => return,
+    };
+
+    let child_intervals = span_map
+        .get(span_id)
+        .map(|vec| vec.as_slice())
+        .unwrap_or_default();
+
+    let exclusive_time = interval_exclusive_time(span_interval, child_intervals);
+    span.exclusive_time = Annotated::new(relay_common::duration_to_millis(exclusive_time));
 }
 
 fn compute_span_exclusive_time(event: &mut Event) {
@@ -150,20 +98,14 @@ fn compute_span_exclusive_time(event: &mut Event) {
         _ => return,
     };
 
-    let start = match event.start_timestamp.value() {
-        Some(timestamp) => *timestamp,
-        _ => return,
-    };
-
-    let end = match event.timestamp.value() {
-        Some(timestamp) => *timestamp,
+    let event_interval = match (event.start_timestamp.value(), event.timestamp.value()) {
+        (Some(start), Some(end)) => TimeWindowSpan::new(*start, *end),
         _ => return,
     };
 
     let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
     let mut span_map = HashMap::new();
-
     for span in spans.iter() {
         let span = match span.value() {
             None => continue,
@@ -175,9 +117,9 @@ fn compute_span_exclusive_time(event: &mut Event) {
             Some(parent_span_id) => parent_span_id.clone(),
         };
 
-        let interval = match get_span_interval(span) {
-            None => continue,
-            Some(interval) => interval,
+        let interval = match (span.start_timestamp.value(), span.timestamp.value()) {
+            (Some(start), Some(end)) => TimeWindowSpan::new(*start, *end),
+            _ => continue,
         };
 
         span_map
@@ -186,35 +128,15 @@ fn compute_span_exclusive_time(event: &mut Event) {
             .push(interval)
     }
 
-    set_event_exclusive_time(start, end, contexts, &mut span_map);
+    // Sort intervals to fulfill precondition of `interval_exclusive_time`
+    for intervals in span_map.values_mut() {
+        intervals.sort_unstable_by_key(|interval| interval.start);
+    }
+
+    set_event_exclusive_time(event_interval, contexts, &span_map);
 
     for span in spans.iter_mut() {
-        let mut span = match span.value_mut() {
-            None => continue,
-            Some(span) => span,
-        };
-
-        let span_id = match span.span_id.value() {
-            None => continue,
-            Some(span_id) => span_id,
-        };
-
-        let span_interval = match get_span_interval(span) {
-            None => continue,
-            Some(interval) => interval,
-        };
-
-        let child_intervals = match span_map.get_mut(span_id) {
-            Some(intervals) => {
-                // Make sure that the intervals are sorted by start time.
-                intervals.sort_unstable_by_key(|interval| interval.start);
-                merge_non_overlapping_intervals(intervals)
-            }
-            None => Vec::new(),
-        };
-
-        let exclusive_time = interval_exclusive_time(&span_interval, &child_intervals);
-        span.exclusive_time = Annotated::new(exclusive_time);
+        set_span_exclusive_time(span, &span_map);
     }
 }
 

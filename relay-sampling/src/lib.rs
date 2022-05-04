@@ -434,10 +434,10 @@ impl FieldValueProvider for Event {
             },
             "event.duration" => match (self.ty.value(), store::validate_timestamps(self)) {
                 (Some(&EventType::Transaction), Ok((start, end))) => {
-                    let start = start.timestamp_millis();
-                    let end = end.timestamp_millis();
-
-                    Value::Number(end.saturating_sub(start).into())
+                    match Number::from_f64(relay_common::signed_duration_to_millis(end - start)) {
+                        Some(num) => Value::Number(num),
+                        None => Value::Null,
+                    }
                 }
                 _ => Value::Null,
             },
