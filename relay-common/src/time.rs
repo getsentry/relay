@@ -18,8 +18,7 @@ pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
 
 /// Returns the number of milliseconds contained by this `Duration` as `f64`.
 ///
-/// The returned value does include the fractional (nanosecond) part of the duration. Precision of
-/// returned numbers is capped at microseconds to prevent rounding artifacts.
+/// The returned value does include the fractional (nanosecond) part of the duration.
 ///
 /// # Example
 ///
@@ -31,7 +30,7 @@ pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
 /// assert_eq!(millis, 2.125);
 /// ```
 pub fn duration_to_millis(duration: Duration) -> f64 {
-    (duration.as_secs_f64() * 1_000_000f64).round() / 1_000f64
+    (duration.as_secs_f64() * 1_000_000_000f64).round() / 1_000_000f64
 }
 
 /// Returns the positive number of milliseconds contained by this `Duration` as `f64`.
@@ -49,7 +48,7 @@ pub fn duration_to_millis(duration: Duration) -> f64 {
 /// assert_eq!(millis, 2.125);
 /// ```
 ///
-/// Negative durations are clamped to `0`:
+/// Negative durations are clamped to `0.0`:
 ///
 /// ```
 /// use chrono::Duration;
