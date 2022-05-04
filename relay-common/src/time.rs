@@ -48,6 +48,16 @@ pub fn duration_to_millis(duration: Duration) -> f64 {
 /// let millis = relay_common::signed_duration_to_millis(duration);
 /// assert_eq!(millis, 2.125);
 /// ```
+///
+/// Negative durations are clamped to `0`:
+///
+/// ```
+/// use chrono::Duration;
+///
+/// let duration = Duration::nanoseconds(-2_125_000);
+/// let millis = relay_common::signed_duration_to_millis(duration);
+/// assert_eq!(millis, 0.0);
+/// ```
 pub fn signed_duration_to_millis(duration: chrono::Duration) -> f64 {
     duration_to_millis(duration.to_std().unwrap_or_default())
 }
