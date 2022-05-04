@@ -1024,7 +1024,7 @@ enum AggregatorState {
 ///
 /// Each metric is dispatched into the a [`Bucket`] depending on its project key (DSN), name, type,
 /// unit, tags and timestamp. The bucket timestamp is rounded to the precision declared by the
-/// [`bucket_interval`](AggregatorConfig::bucket_interval) configuration.
+/// `bucket_interval` field on the [AggregatorConfig] configuration.
 ///
 /// Each bucket stores the accumulated value of submitted metrics:
 ///
