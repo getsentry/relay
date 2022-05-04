@@ -19,8 +19,7 @@ fn interval_exclusive_time(mut parent: TimeWindowSpan, intervals: &[TimeWindowSp
         }
 
         // Add time in the parent before the start of the current interval to the exclusive time
-        let start = interval.start.min(parent.end);
-        if let Ok(start_offset) = (start - parent.start).to_std() {
+        if let Ok(start_offset) = (interval.start - parent.start).to_std() {
             exclusive_time += start_offset;
         }
 
