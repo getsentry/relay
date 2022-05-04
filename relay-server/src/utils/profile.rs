@@ -163,6 +163,13 @@ struct SampledProfile {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum ImageType {
+    Macho,
+    Apple,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct Image {
     image_addr: Addr,
 
@@ -173,7 +180,7 @@ struct Image {
     name: String,
 
     #[serde(rename = "type")]
-    image_type: String,
+    image_type: ImageType,
 
     #[serde(rename(serialize = "debug_id"))]
     uuid: DebugId,
