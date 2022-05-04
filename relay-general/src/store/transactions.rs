@@ -23,13 +23,13 @@ pub fn get_transaction_op(transaction: &Event) -> Option<&str> {
 /// Returns start and end timestamps if they are both set and start <= end.
 pub fn validate_timestamps(
     transaction_event: &Event,
-) -> Result<(&Timestamp, &Timestamp), ProcessingAction> {
+) -> Result<(Timestamp, Timestamp), ProcessingAction> {
     match (
         transaction_event.start_timestamp.value(),
         transaction_event.timestamp.value(),
     ) {
-        (Some(start), Some(end)) => {
-            if *end < *start {
+        (Some(&start), Some(&end)) => {
+            if end < start {
                 return Err(ProcessingAction::InvalidTransaction(
                     "end timestamp is smaller than start timestamp",
                 ));
