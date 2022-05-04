@@ -647,7 +647,7 @@ impl Item {
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
-            ItemType::Profile => false,
+            ItemType::Profile => true,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
