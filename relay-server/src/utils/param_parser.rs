@@ -34,7 +34,7 @@ where
 /// Merge two serde values.
 ///
 /// Taken (with small changes) from stack overflow answer:
-/// https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust
+/// <https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust>.
 pub fn merge_values(a: &mut Value, b: Value) {
     match (a, b) {
         //recursively merge dicts

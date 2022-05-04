@@ -255,7 +255,7 @@ where
     }
 }
 
-/// Request objects queued inside the [`Upstream`] actor.
+/// Request objects queued inside the [`UpstreamRelay`] actor.
 ///
 /// The objects are transformed into HTTP requests, and sent to upstream as HTTP connections
 /// become available.

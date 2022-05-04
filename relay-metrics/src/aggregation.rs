@@ -763,6 +763,7 @@ impl BucketKey {
     /// while we could implement it directly for [`BucketKey`] the documentation advises us not to
     /// interact with this trait.
     ///
+    /// [`cadence::ext::ToSetValue`]: https://docs.rs/cadence/*/cadence/ext/trait.ToSetValue.html
     fn as_integer_lossy(&self) -> i64 {
         // XXX: The way this hasher is used may be platform-dependent. If we want to produce the
         // same hash across platforms, the `deterministic_hash` crate may be useful.
@@ -932,6 +933,8 @@ impl Default for AggregatorConfig {
 ///
 /// This type implements an inverted total ordering. The maximum queued bucket has the lowest flush
 /// time, which is suitable for using it in a [`BinaryHeap`].
+///
+/// [`BinaryHeap`]: std::collections::BinaryHeap
 #[derive(Debug)]
 struct QueuedBucket {
     flush_at: Instant,
@@ -1021,7 +1024,7 @@ enum AggregatorState {
 ///
 /// Each metric is dispatched into the a [`Bucket`] depending on its project key (DSN), name, type,
 /// unit, tags and timestamp. The bucket timestamp is rounded to the precision declared by the
-/// [`bucket_interval`](AggregatorConfig::bucket_interval) configuration.
+/// `bucket_interval` field on the [AggregatorConfig] configuration.
 ///
 /// Each bucket stores the accumulated value of submitted metrics:
 ///

@@ -86,7 +86,7 @@ fn extract_dist(transaction: &Event) -> Option<String> {
 }
 
 /// Extract HTTP method
-/// See https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67
+/// See <https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67>.
 #[cfg(feature = "processing")]
 fn extract_http_method(transaction: &Event) -> Option<String> {
     let request = transaction.request.value()?;
@@ -95,7 +95,7 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
 }
 
 /// Satisfaction value used for Apdex and User Misery
-/// https://docs.sentry.io/product/performance/metrics/#apdex
+/// <https://docs.sentry.io/product/performance/metrics/#apdex>
 #[cfg(feature = "processing")]
 enum UserSatisfaction {
     Satisfied,
@@ -117,7 +117,7 @@ impl fmt::Display for UserSatisfaction {
 #[cfg(feature = "processing")]
 impl UserSatisfaction {
     /// The frustration threshold is always four times the threshold
-    /// (see https://docs.sentry.io/product/performance/metrics/#apdex)
+    /// (see <https://docs.sentry.io/product/performance/metrics/#apdex>)
     const FRUSTRATION_FACTOR: f64 = 4.0;
 
     fn from_value(value: f64, threshold: f64) -> Self {
