@@ -44,7 +44,7 @@ pub fn duration_to_millis(duration: Duration) -> f64 {
 /// use chrono::Duration;
 ///
 /// let duration = Duration::nanoseconds(2_125_000);
-/// let millis = relay_common::signed_duration_to_millis(duration);
+/// let millis = relay_common::chrono_to_positive_millis(duration);
 /// assert_eq!(millis, 2.125);
 /// ```
 ///
@@ -54,10 +54,10 @@ pub fn duration_to_millis(duration: Duration) -> f64 {
 /// use chrono::Duration;
 ///
 /// let duration = Duration::nanoseconds(-2_125_000);
-/// let millis = relay_common::signed_duration_to_millis(duration);
+/// let millis = relay_common::chrono_to_positive_millis(duration);
 /// assert_eq!(millis, 0.0);
 /// ```
-pub fn signed_duration_to_millis(duration: chrono::Duration) -> f64 {
+pub fn chrono_to_positive_millis(duration: chrono::Duration) -> f64 {
     duration_to_millis(duration.to_std().unwrap_or_default())
 }
 

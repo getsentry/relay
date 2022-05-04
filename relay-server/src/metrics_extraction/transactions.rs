@@ -147,7 +147,7 @@ fn extract_user_satisfaction(
             .and_then(|name| config.transaction_thresholds.get(name))
             .unwrap_or(&config.project_threshold);
         if let Some(value) = match threshold.metric {
-            SatisfactionMetric::Duration => Some(relay_common::signed_duration_to_millis(
+            SatisfactionMetric::Duration => Some(relay_common::chrono_to_positive_millis(
                 end_timestamp - start_timestamp,
             )),
             SatisfactionMetric::Lcp => store::get_measurement(transaction, "lcp"),
@@ -386,7 +386,7 @@ fn extract_transaction_metrics_inner(
     };
 
     // Duration
-    let duration_millis = relay_common::signed_duration_to_millis(end_timestamp - start_timestamp);
+    let duration_millis = relay_common::chrono_to_positive_millis(end_timestamp - start_timestamp);
 
     push_metric(Metric::new_mri(
         METRIC_NAMESPACE,
