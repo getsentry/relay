@@ -833,6 +833,10 @@
 <span id="826">826</span>
 <span id="827">827</span>
 <span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Outcomes describe the final &quot;fate&quot; of an event. As such, for every event exactly one outcome</span>
@@ -1116,6 +1120,9 @@
     <span class="doccomment">/// (Relay) Parsing an event envelope failed (likely missing a required header).</span>
     <span class="ident">InvalidEnvelope</span>,
 
+    <span class="doccomment">/// (Relay) The payload had an invalid compression stream.</span>
+    <span class="ident">InvalidCompression</span>,
+
     <span class="doccomment">/// (Relay) A project state returned by the upstream could not be parsed.</span>
     <span class="ident">ProjectState</span>,
 
@@ -1168,6 +1175,7 @@
             <span class="ident">DiscardReason::InvalidMsgpack</span> =&gt; <span class="string">&quot;invalid_msgpack&quot;</span>,
             <span class="ident">DiscardReason::InvalidTransaction</span> =&gt; <span class="string">&quot;invalid_transaction&quot;</span>,
             <span class="ident">DiscardReason::InvalidEnvelope</span> =&gt; <span class="string">&quot;invalid_envelope&quot;</span>,
+            <span class="ident">DiscardReason::InvalidCompression</span> =&gt; <span class="string">&quot;invalid_compression&quot;</span>,
             <span class="ident">DiscardReason::ProjectState</span> =&gt; <span class="string">&quot;project_state&quot;</span>,
             <span class="ident">DiscardReason::DuplicateItem</span> =&gt; <span class="string">&quot;duplicate_item&quot;</span>,
             <span class="ident">DiscardReason::NoEventPayload</span> =&gt; <span class="string">&quot;no_event_payload&quot;</span>,

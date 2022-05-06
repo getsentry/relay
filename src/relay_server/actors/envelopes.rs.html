@@ -3325,6 +3325,12 @@
 <span id="3318">3318</span>
 <span id="3319">3319</span>
 <span id="3320">3320</span>
+<span id="3321">3321</span>
+<span id="3322">3322</span>
+<span id="3323">3323</span>
+<span id="3324">3324</span>
+<span id="3325">3325</span>
+<span id="3326">3326</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3507,6 +3513,12 @@
             <span class="ident"><span class="self">Self</span>::NoEventPayload</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::NoEventPayload</span>)),
 
             <span class="comment">// Processing-only outcomes (Sentry-internal Relays)</span>
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident"><span class="self">Self</span>::InvalidUnrealReport</span>(<span class="kw-2">ref</span> <span class="ident">err</span>)
+                <span class="kw">if</span> <span class="ident">err</span>.<span class="ident">kind</span>() <span class="op">==</span> <span class="ident">Unreal4ErrorKind::BadCompression</span> =&gt;
+            {
+                <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidCompression</span>))
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident"><span class="self">Self</span>::InvalidUnrealReport</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessUnreal</span>)),
 
