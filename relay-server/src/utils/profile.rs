@@ -165,14 +165,14 @@ struct SampledProfile {
     queue_metadata: Option<HashMap<String, QueueMetadata>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum ImageType {
     Macho,
     Apple,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct Image {
     image_addr: Addr,
 
@@ -186,6 +186,15 @@ struct Image {
 
     #[serde(alias = "debug_id", rename(serialize = "debug_id"))]
     uuid: DebugId,
+
+    #[serde(default)]
+    arch: String,
+
+    #[serde(default)]
+    cpu_type: u64,
+
+    #[serde(default)]
+    cpu_subtype: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -245,8 +254,12 @@ pub fn parse_typescript_profile(item: &mut Item) -> Result<(), ProfileError> {
 mod tests {
     use bytes::Bytes;
 
+    use super::*;
+
+    use relay_general::protocol::{AppleDebugImage, DebugImage};
+    use relay_general::types::{Annotated, Object, Value};
+
     use crate::envelope::{ContentType, Item, ItemType};
-    use crate::utils::{parse_android_profile, parse_cocoa_profile};
 
     #[test]
     fn test_roundtrip_cocoa() {
@@ -274,5 +287,39 @@ mod tests {
         item.set_payload(ContentType::Json, item.payload());
 
         assert!(parse_android_profile(&mut item).is_ok());
+    }
+
+    #[test]
+    fn test_debug_image_compatibility() {
+        let image_json = r#"{"name":"libBacktraceRecording.dylib","image_vmaddr":"0x00000001c95ce000","image_addr":"0x00000001c95ce000","type":"apple","image_size":32768,"uuid":"f9f85c3c-1a22-374c-b78c-b494f6a8f9f3","cpu_type":1233,"cpu_subtype":3,"arch":"arm64e"}"#;
+        let image: Image = serde_json::from_str(image_json).unwrap();
+        let json = serde_json::to_string(&image).unwrap();
+
+        println!("{:#?}", json);
+
+        let annotated = Annotated::from_json(&json[..]).unwrap();
+        assert_eq!(
+            Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
+                arch: Annotated::new("arm64e".to_string()),
+                cpu_type: Annotated::new(1233),
+                cpu_subtype: Annotated::new(3),
+                name: Annotated::new("libBacktraceRecording.dylib".to_string()),
+                uuid: Annotated::empty(),
+                image_addr: Annotated::new(Addr(7673274368)),
+                image_size: Annotated::new(32768),
+                image_vmaddr: Annotated::new(Addr(7673274368)),
+                other: {
+                    let mut map = Object::new();
+                    map.insert(
+                        "debug_id".to_string(),
+                        Annotated::new(Value::String(
+                            "f9f85c3c-1a22-374c-b78c-b494f6a8f9f3".parse().unwrap(),
+                        )),
+                    );
+                    map
+                },
+            }))),
+            annotated
+        );
     }
 }
