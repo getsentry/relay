@@ -25,12 +25,13 @@ use crate::utils::{self, ErrorBoundary};
 mod _macro {
     /// The current version of the project states endpoint.
     ///
-    /// Only this version is supported by Relay. All other versions are forwarded to the Upstream.
-    /// The endpoint version is added as `version` query parameter to every outgoing request.
+    /// This is the version that will be used to query Upstream.  See
+    /// [`crate::endpoints::project_configs`] for the version that will be accepted by
+    /// relay.
     #[macro_export]
     macro_rules! project_states_version {
         () => {
-            2
+            3
         };
     }
 }
@@ -52,6 +53,8 @@ pub struct GetProjectStates {
 pub struct GetProjectStatesResponse {
     #[serde(default)]
     pub configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    #[serde(default)]
+    pub pending: Vec<ProjectKey>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -246,6 +249,10 @@ impl UpstreamProjectSource {
                                     response.configs.len() as u64
                             );
                             for (key, channel) in channels_batch {
+                                if response.pending.contains(&key) {
+                                    slf.state_channels.insert(key, channel);
+                                    continue;
+                                }
                                 let state = response
                                     .configs
                                     .remove(&key)
