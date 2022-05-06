@@ -181,6 +181,12 @@ impl ProcessingError {
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
+            Self::InvalidUnrealReport(ref err)
+                if err.kind() == Unreal4ErrorKind::BadCompression =>
+            {
+                Some(Outcome::Invalid(DiscardReason::InvalidCompression))
+            }
+            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
 
             #[cfg(feature = "processing")]
