@@ -336,6 +336,42 @@ impl Handler<GetProjectState> for ProjectCache {
     }
 }
 
+#[derive(Debug)]
+pub struct GetProjectStateOrPending {
+    project_key: ProjectKey,
+    no_cache: bool,
+}
+
+impl GetProjectStateOrPending {
+    /// Fetches the project state and uses the cached version if up-to-date.
+    pub fn new(project_key: ProjectKey) -> Self {
+        Self {
+            project_key,
+            no_cache: false,
+        }
+    }
+
+    /// Fetches the project state and conditionally skips the cache.
+    pub fn no_cache(mut self, no_cache: bool) -> Self {
+        self.no_cache = no_cache;
+        self
+    }
+}
+
+impl Message for GetProjectStateOrPending {
+    type Result = Result<Option<Arc<ProjectState>>, ProjectError>;
+}
+
+impl Handler<GetProjectState> for ProjectCache {
+    type Result = Response<Option<Arc<ProjectState>>, ProjectError>;
+
+    fn handle(&mut self, message: GetProjectState, _context: &mut Context<Self>) -> Self::Result {
+        let project = self.get_or_create_project(message.project_key);
+        // TODO: right method
+        project.get_or_fetch_state(message.no_cache)
+    }
+}
+
 /// Returns the project state if it is already cached.
 ///
 /// This is used for cases when we only want to perform operations that do

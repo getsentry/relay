@@ -48,6 +48,10 @@ pub struct GetProjectStates {
     pub no_cache: bool,
 }
 
+/// The response of the projects states requests.
+///
+/// A [`ProjectKey`] is either pending or has a result, it can not appear in both and doing
+/// so is undefined.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
