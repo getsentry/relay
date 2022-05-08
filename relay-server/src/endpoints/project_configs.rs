@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use relay_common::ProjectKey;
 
 use crate::actors::project::{LimitedProjectState, ProjectState};
-use crate::actors::project_cache::{GetProjectState, ProjectCache};
+use crate::actors::project_cache::{
+    GetCachedProjectState, GetProjectState, ProjectCache, UpdateProjectState,
+};
 use crate::extractors::SignedJson;
 use crate::project_states_version;
 use crate::service::ServiceApp;
@@ -159,8 +161,11 @@ fn get_project_configs(
     }))
 }
 
-// TODO: not complete
-// maybe GetCachedProjectState folowed by
+enum StateResult {
+    Cached(ProjectKey, Option<ProjectState>),
+    Pending(ProjectKey),
+}
+
 fn get_project_configs_with_pending(
     body: SignedJson<GetProjectStatesRequest>,
 ) -> ResponseFuture<Json<GetProjectStatesResponseWrapperWithPending>, Error> {
@@ -173,47 +178,62 @@ fn get_project_configs_with_pending(
 
     let futures = valid_keys.map(move |project_key| {
         let relay = relay.clone();
-        // TODO: This somewhere returns a relay_server::utils::actix::Response and we need
-        // to only get the Ready variants and return pending for the Future variants.
-        ProjectCache::from_registry()
-            .send(GetProjectStateOrPending::new(project_key).no_cache(no_cache))
-            .map_err(Error::from)
-            .map(move |project_state| {
-                let project_state = project_state.ok()?;
-                // If public key is known (even if rate-limited, which is Some(false)), it has
-                // access to the project config
-                if relay.internal
-                    || project_state
-                        .config
-                        .trusted_relays
-                        .contains(&relay.public_key)
-                {
-                    Some((*project_state).clone())
-                } else {
-                    relay_log::debug!(
-                        "Relay {} does not have access to project key {}",
-                        relay.public_key,
-                        project_key
-                    );
-                    None
-                }
-            })
-            .map(move |project_state| (project_key, project_state))
+        if !no_cache {
+            ProjectCache::from_registry().do_send(UpdateProjectState::new(project_key, no_cache));
+            // TODO: maybe future::Either to fix this up?
+            future::ok(StateResult::Pending(project_key))
+        } else {
+            ProjectCache::from_registry()
+                .send(GetCachedProjectState::new(project_key))
+                .map_err(Error::from)
+                .map(move |maybe_state| {
+                    match maybe_state {
+                        Some(project_state) => {
+                            // If public key is known (even if rate-limited, which is
+                            // Some(false)), it has access to the project config
+                            let project_state = if relay.internal
+                                || project_state
+                                    .config
+                                    .trusted_relays
+                                    .contains(&relay.public_key)
+                            {
+                                Some((*project_state).clone())
+                            } else {
+                                relay_log::debug!(
+                                    "Relay {} does not have access to project key {}",
+                                    relay.public_key,
+                                    project_key
+                                );
+                                None
+                            };
+                            StateResult::Cached(project_key, project_state)
+                        }
+                        None => {
+                            ProjectCache::from_registry()
+                                .do_send(UpdateProjectState::new(project_key, no_cache));
+                            StateResult::Pending(project_key)
+                        }
+                    }
+                })
+        }
     });
 
     Box::new(future::join_all(futures).map(move |mut project_states| {
-        let configs = project_states
-            .drain(..)
-            .filter(|(_, state)| !state.as_ref().map_or(false, |s| s.invalid()))
-            .map(|(key, state)| {
-                (
-                    key,
-                    state.map(|s| ProjectStateWrapperWithPending::new(s, full)),
-                )
-            })
-            .collect();
-
-        Json(GetProjectStatesResponseWrapper { configs })
+        let mut configs = HashMap::with_capacity(body.inner.public_keys.len());
+        let mut pending = Vec::with_capacity(body.inner.public_keys.len());
+        for state_result in project_states {
+            match state_result {
+                StateResult::Cached(project_key, project_state) => {
+                    if project_state.map_or(false, |s| s.invalid()) {
+                        continue;
+                    }
+                    let project_state = ProjectStateWrapper::new(project_state, full);
+                    configs.insert(project_key, project_state);
+                }
+                StateResult::Pending(project_key) => pending.push(project_key),
+            }
+        }
+        Json(GetProjectStatesResponseWrapperWithPending { configs, pending })
     }))
 }
 
