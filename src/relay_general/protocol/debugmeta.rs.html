@@ -895,7 +895,7 @@
 <span class="doccomment">/// be stripped liberally because it would break processing for certain platforms.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Those strings get special treatment in our PII processor to avoid stripping the basename.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Empty</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Empty</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>, <span class="ident">derive</span>(<span class="ident">JsonSchema</span>))]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NativeImagePath</span>(<span class="kw">pub</span> <span class="ident">String</span>);
 

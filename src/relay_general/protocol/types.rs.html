@@ -1278,6 +1278,7 @@
 <span id="1271">1271</span>
 <span id="1272">1272</span>
 <span id="1273">1273</span>
+<span id="1274">1274</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Common types of the protocol.</span>
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::Ordering</span>;
@@ -1747,6 +1748,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Addr</span>(<span class="kw">pub</span> <span class="ident">u64</span>);
 
 <span class="macro">hex_metrastructure!</span>(<span class="ident">Addr</span>, <span class="string">&quot;address&quot;</span>);
+<span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">Addr</span>, <span class="string">&quot;an address&quot;</span>);
 
 <span class="doccomment">/// An ip address.</span>
 <span class="attribute">#[<span class="ident">derive</span>(
