@@ -8,6 +8,7 @@ use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
 
 use enumset::EnumSet;
+use failure::Fail;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -35,6 +36,24 @@ impl NativeImagePath {
 impl<T: Into<String>> From<T> for NativeImagePath {
     fn from(value: T) -> NativeImagePath {
         NativeImagePath(value.into())
+    }
+}
+
+#[derive(Debug, Fail)]
+#[fail(display = "invalid native image path")]
+pub struct ParseNativeImagePathError;
+
+impl FromStr for NativeImagePath {
+    type Err = ParseNativeImagePathError;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        Ok(NativeImagePath(string.into()))
+    }
+}
+
+impl fmt::Display for NativeImagePath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -74,6 +93,8 @@ impl ProcessValue for NativeImagePath {
         Ok(())
     }
 }
+
+relay_common::impl_str_serde!(NativeImagePath, "a native image path");
 
 /// Holds information about the system SDK.
 ///
