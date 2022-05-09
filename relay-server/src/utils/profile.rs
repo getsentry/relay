@@ -57,7 +57,10 @@ where
 #[derive(Debug, Serialize, Deserialize)]
 struct AndroidProfile {
     android_api_level: u16,
-    build_id: Option<Uuid>,
+
+    #[serde(default, skip_serializing_if = "Uuid::is_nil")]
+    build_id: Uuid,
+
     device_cpu_frequencies: Vec<u32>,
     device_is_emulator: bool,
     device_locale: String,
@@ -69,8 +72,12 @@ struct AndroidProfile {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     device_physical_memory_bytes: u64,
 
-    duration_ns: String,
-    environment: Option<String>,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    duration_ns: u64,
+
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    environment: String,
+
     platform: String,
     profile_id: Uuid,
     trace_id: Uuid,
@@ -79,8 +86,10 @@ struct AndroidProfile {
     version_code: String,
     version_name: String,
 
-    #[serde(skip_serializing, default)]
+    #[serde(default, skip_serializing)]
     sampled_profile: String,
+
+    #[serde(default)]
     profile: Option<AndroidTraceLog>,
 }
 
@@ -102,9 +111,11 @@ pub fn parse_android_profile(item: &mut Item) -> Result<(), ProfileError> {
     let mut profile: AndroidProfile =
         serde_json::from_slice(&item.payload()).map_err(ProfileError::InvalidJson)?;
 
-    if !profile.sampled_profile.is_empty() {
-        profile.parse()?;
+    if profile.sampled_profile.is_empty() {
+        return Ok(());
     }
+
+    profile.parse()?;
 
     if profile.profile.as_ref().unwrap().events.len() < 2 {
         return Err(ProfileError::NotEnoughSamples);
@@ -136,7 +147,9 @@ struct Frame {
 #[derive(Debug, Serialize, Deserialize)]
 struct Sample {
     frames: Vec<Frame>,
-    queue_address: Option<String>,
+
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    queue_address: String,
 
     #[serde(deserialize_with = "deserialize_number_from_string")]
     relative_timestamp_ns: u64,
@@ -147,7 +160,8 @@ struct Sample {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ThreadMetadata {
-    name: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    name: String,
     priority: u32,
 }
 
@@ -159,8 +173,12 @@ struct QueueMetadata {
 #[derive(Debug, Serialize, Deserialize)]
 struct SampledProfile {
     samples: Vec<Sample>,
+
+    #[serde(default)]
     thread_metadata: HashMap<String, ThreadMetadata>,
-    queue_metadata: Option<HashMap<String, QueueMetadata>>,
+
+    #[serde(default)]
+    queue_metadata: HashMap<String, QueueMetadata>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -174,7 +192,9 @@ struct MachOImage {
     code_file: NativeImagePath,
     debug_id: DebugId,
     image_addr: Addr,
-    image_vmaddr: Option<Addr>,
+
+    #[serde(default)]
+    image_vmaddr: Addr,
 
     #[serde(deserialize_with = "deserialize_number_from_string")]
     image_size: u64,
@@ -202,7 +222,9 @@ struct CocoaProfile {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     duration_ns: u64,
 
-    environment: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    environment: String,
+
     platform: String,
     profile_id: Uuid,
     sampled_profile: SampledProfile,
@@ -268,6 +290,7 @@ mod tests {
         let mut item = Item::new(ItemType::Profile);
         let payload =
             Bytes::from(&include_bytes!("../../tests/fixtures/profiles/android.json")[..]);
+
         item.set_payload(ContentType::Json, payload);
 
         assert!(parse_android_profile(&mut item).is_ok());
