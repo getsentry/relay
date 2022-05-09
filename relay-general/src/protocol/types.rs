@@ -467,6 +467,7 @@ hex_metrastructure!(RegVal, "register value");
 pub struct Addr(pub u64);
 
 hex_metrastructure!(Addr, "address");
+relay_common::impl_str_serde!(Addr, "an address");
 
 /// An ip address.
 #[derive(
