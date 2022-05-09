@@ -773,6 +773,7 @@
 <span id="766">766</span>
 <span id="767">767</span>
 <span id="768">768</span>
+<span id="769">769</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
 
@@ -878,7 +879,8 @@
             <span class="ident">DataCategory::Default</span>
             <span class="op">|</span> <span class="ident">DataCategory::Error</span>
             <span class="op">|</span> <span class="ident">DataCategory::Transaction</span>
-            <span class="op">|</span> <span class="ident">DataCategory::Security</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident"><span class="self">Self</span>::Count</span>),
+            <span class="op">|</span> <span class="ident">DataCategory::Security</span>
+            <span class="op">|</span> <span class="ident">DataCategory::Profile</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident"><span class="self">Self</span>::Count</span>),
             <span class="ident">DataCategory::Attachment</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident"><span class="self">Self</span>::Bytes</span>),
             <span class="ident">DataCategory::Session</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident"><span class="self">Self</span>::Batched</span>),
             <span class="ident">DataCategory::Unknown</span> =&gt; <span class="prelude-val">None</span>,

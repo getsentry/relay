@@ -818,6 +818,23 @@
 <span id="811">811</span>
 <span id="812">812</span>
 <span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
 <span class="kw">use</span> <span class="ident">actix::SystemService</span>;
@@ -945,6 +962,9 @@
     <span class="doccomment">/// The number of all session updates.</span>
     <span class="kw">pub</span> <span class="ident">session_quantity</span>: <span class="ident">usize</span>,
 
+    <span class="doccomment">/// The number of profiles.</span>
+    <span class="kw">pub</span> <span class="ident">profile_quantity</span>: <span class="ident">usize</span>,
+
     <span class="doccomment">/// Indicates that the envelope contains regular attachments that do not create event payloads.</span>
     <span class="kw">pub</span> <span class="ident">has_plain_attachments</span>: <span class="ident">bool</span>,
 }
@@ -976,6 +996,7 @@
             <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
                 <span class="ident">ItemType::Attachment</span> =&gt; <span class="ident">summary</span>.<span class="ident">attachment_quantity</span> <span class="op">+</span><span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>().<span class="ident">max</span>(<span class="number">1</span>),
                 <span class="ident">ItemType::Session</span> =&gt; <span class="ident">summary</span>.<span class="ident">session_quantity</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+                <span class="ident">ItemType::Profile</span> =&gt; <span class="ident">summary</span>.<span class="ident">profile_quantity</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                 <span class="kw">_</span> =&gt; (),
             }
         }
@@ -1048,6 +1069,8 @@
     <span class="ident">attachments</span>: <span class="ident">CategoryLimit</span>,
     <span class="doccomment">/// The combined session item rate limit.</span>
     <span class="ident">sessions</span>: <span class="ident">CategoryLimit</span>,
+    <span class="doccomment">/// The combined profile item rate limit.</span>
+    <span class="ident">profiles</span>: <span class="ident">CategoryLimit</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Enforcement</span> {
@@ -1220,6 +1243,17 @@
                 <span class="ident">session_limits</span>.<span class="ident">longest</span>(),
             );
             <span class="ident">rate_limits</span>.<span class="ident">merge</span>(<span class="ident">session_limits</span>);
+        }
+
+        <span class="kw">if</span> <span class="ident">summary</span>.<span class="ident">profile_quantity</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="kw">let</span> <span class="ident">item_scoping</span> <span class="op">=</span> <span class="ident">scoping</span>.<span class="ident">item</span>(<span class="ident">DataCategory::Profile</span>);
+            <span class="kw">let</span> <span class="ident">profile_limits</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">check</span>)(<span class="ident">item_scoping</span>, <span class="ident">summary</span>.<span class="ident">profile_quantity</span>)<span class="question-mark">?</span>;
+            <span class="ident">enforcement</span>.<span class="ident">profiles</span> <span class="op">=</span> <span class="ident">CategoryLimit::new</span>(
+                <span class="ident">DataCategory::Profile</span>,
+                <span class="ident">summary</span>.<span class="ident">profile_quantity</span>,
+                <span class="ident">profile_limits</span>.<span class="ident">longest</span>(),
+            );
+            <span class="ident">rate_limits</span>.<span class="ident">merge</span>(<span class="ident">profile_limits</span>);
         }
 
         <span class="prelude-val">Ok</span>((<span class="ident">enforcement</span>, <span class="ident">rate_limits</span>))
