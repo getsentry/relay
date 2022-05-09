@@ -125,6 +125,9 @@ pub struct EnvelopeSummary {
     /// The number of all session updates.
     pub session_quantity: usize,
 
+    /// The number of profiles.
+    pub profile_quantity: usize,
+
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
 }
@@ -156,6 +159,7 @@ impl EnvelopeSummary {
             match item.ty() {
                 ItemType::Attachment => summary.attachment_quantity += item.len().max(1),
                 ItemType::Session => summary.session_quantity += 1,
+                ItemType::Profile => summary.profile_quantity += 1,
                 _ => (),
             }
         }
@@ -228,6 +232,8 @@ pub struct Enforcement {
     attachments: CategoryLimit,
     /// The combined session item rate limit.
     sessions: CategoryLimit,
+    /// The combined profile item rate limit.
+    profiles: CategoryLimit,
 }
 
 impl Enforcement {
@@ -400,6 +406,17 @@ where
                 session_limits.longest(),
             );
             rate_limits.merge(session_limits);
+        }
+
+        if summary.profile_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::Profile);
+            let profile_limits = (self.check)(item_scoping, summary.profile_quantity)?;
+            enforcement.profiles = CategoryLimit::new(
+                DataCategory::Profile,
+                summary.profile_quantity,
+                profile_limits.longest(),
+            );
+            rate_limits.merge(profile_limits);
         }
 
         Ok((enforcement, rate_limits))
