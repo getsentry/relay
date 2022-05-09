@@ -86,7 +86,7 @@ fn extract_dist(transaction: &Event) -> Option<String> {
 }
 
 /// Extract HTTP method
-/// See https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67
+/// See <https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67>.
 #[cfg(feature = "processing")]
 fn extract_http_method(transaction: &Event) -> Option<String> {
     let request = transaction.request.value()?;
@@ -95,7 +95,7 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
 }
 
 /// Satisfaction value used for Apdex and User Misery
-/// https://docs.sentry.io/product/performance/metrics/#apdex
+/// <https://docs.sentry.io/product/performance/metrics/#apdex>
 #[cfg(feature = "processing")]
 enum UserSatisfaction {
     Satisfied,
@@ -117,7 +117,7 @@ impl fmt::Display for UserSatisfaction {
 #[cfg(feature = "processing")]
 impl UserSatisfaction {
     /// The frustration threshold is always four times the threshold
-    /// (see https://docs.sentry.io/product/performance/metrics/#apdex)
+    /// (see <https://docs.sentry.io/product/performance/metrics/#apdex>)
     const FRUSTRATION_FACTOR: f64 = 4.0;
 
     fn from_value(value: f64, threshold: f64) -> Self {
@@ -131,23 +131,14 @@ impl UserSatisfaction {
     }
 }
 
-/// Get duration from timestamp and `start_timestamp`.
-#[cfg(feature = "processing")]
-fn get_duration_millis(start: &Timestamp, end: &Timestamp) -> f64 {
-    let start = start.timestamp_millis();
-    let end = end.timestamp_millis();
-
-    end.saturating_sub(start) as f64
-}
-
 /// Extract the the satisfaction value depending on the actual measurement/duration value
 /// and the configured threshold.
 #[cfg(feature = "processing")]
 fn extract_user_satisfaction(
     config: &Option<SatisfactionConfig>,
     transaction: &Event,
-    start_timestamp: &Timestamp,
-    end_timestamp: &Timestamp,
+    start_timestamp: Timestamp,
+    end_timestamp: Timestamp,
 ) -> Option<UserSatisfaction> {
     if let Some(config) = config {
         let threshold = transaction
@@ -156,9 +147,9 @@ fn extract_user_satisfaction(
             .and_then(|name| config.transaction_thresholds.get(name))
             .unwrap_or(&config.project_threshold);
         if let Some(value) = match threshold.metric {
-            SatisfactionMetric::Duration => {
-                Some(get_duration_millis(start_timestamp, end_timestamp))
-            }
+            SatisfactionMetric::Duration => Some(relay_common::chrono_to_positive_millis(
+                end_timestamp - start_timestamp,
+            )),
             SatisfactionMetric::Lcp => store::get_measurement(transaction, "lcp"),
             SatisfactionMetric::Unknown => None,
         } {
@@ -395,7 +386,7 @@ fn extract_transaction_metrics_inner(
     };
 
     // Duration
-    let duration_millis = get_duration_millis(start_timestamp, end_timestamp);
+    let duration_millis = relay_common::chrono_to_positive_millis(end_timestamp - start_timestamp);
 
     push_metric(Metric::new_mri(
         METRIC_NAMESPACE,

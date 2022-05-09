@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::iter::{FromIterator, IntoIterator};
 use std::net;
-use std::ops::{Add, Deref, DerefMut};
+use std::ops::{Add, Sub};
 use std::str::FromStr;
 
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
@@ -893,25 +893,19 @@ impl From<DateTime<Utc>> for Timestamp {
     }
 }
 
-impl Deref for Timestamp {
-    type Target = DateTime<Utc>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Timestamp {
-    fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
-        &mut self.0
-    }
-}
-
 impl Add<Duration> for Timestamp {
     type Output = Self;
 
     fn add(self, duration: Duration) -> Self::Output {
         Timestamp(self.0 + duration)
+    }
+}
+
+impl Sub<Timestamp> for Timestamp {
+    type Output = chrono::Duration;
+
+    fn sub(self, rhs: Timestamp) -> Self::Output {
+        self.into_inner() - rhs.into_inner()
     }
 }
 

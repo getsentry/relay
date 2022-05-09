@@ -181,6 +181,12 @@ impl ProcessingError {
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
+            Self::InvalidUnrealReport(ref err)
+                if err.kind() == Unreal4ErrorKind::BadCompression =>
+            {
+                Some(Outcome::Invalid(DiscardReason::InvalidCompression))
+            }
+            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
 
             #[cfg(feature = "processing")]
@@ -2382,7 +2388,7 @@ impl Default for EnvelopeManager {
 /// - Metrics are directly sent to the `EnvelopeProcessor`, bypassing the manager's queue and going
 ///   straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
 ///
-/// Queueing can fail if the queue exceeds [`Config::event_buffer_size`]. In this case, `Err` is
+/// Queueing can fail if the queue exceeds [`Config::envelope_buffer_size`]. In this case, `Err` is
 /// returned and the envelope is not queued. Otherwise, this message responds with `Ok`. If it
 /// contained an event-related item, such as an event payload or an attachment, this contains
 /// `Some(EventId)`.
