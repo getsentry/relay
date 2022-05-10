@@ -23,6 +23,9 @@
 - Add ReplayPayload ItemType. ([#1236](https://github.com/getsentry/relay/pull/1236))
 - Add the client and version as `sdk` tag to extracted session metrics in the format `name/version`. ([#1248](https://github.com/getsentry/relay/pull/1248))
 - Expose `shutdown_timeout` in `OverridableConfig` ([#1247](https://github.com/getsentry/relay/pull/1247))
+- Normalize all profiles and reject invalid ones. ([#1250](https://github.com/getsentry/relay/pull/1250))
+- Raise a new InvalidCompression Outcome for invalid Unreal compression. ([#1237](https://github.com/getsentry/relay/pull/1237))
+- Add a profile data category and count profiles in an envelope to apply rate limits. ([#1259](https://github.com/getsentry/relay/pull/1259))
 
 ## 22.4.0
 

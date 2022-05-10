@@ -181,6 +181,12 @@ impl ProcessingError {
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
+            Self::InvalidUnrealReport(ref err)
+                if err.kind() == Unreal4ErrorKind::BadCompression =>
+            {
+                Some(Outcome::Invalid(DiscardReason::InvalidCompression))
+            }
+            #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
 
             #[cfg(feature = "processing")]
@@ -1063,10 +1069,12 @@ impl EnvelopeProcessor {
 
     fn parse_profile(&self, item: &mut Item) -> Result<(), ProfileError> {
         let minimal_profile: MinimalProfile = utils::minimal_profile_from_json(&item.payload())?;
-        if minimal_profile.platform != "android" {
-            return Ok(());
+        match minimal_profile.platform.as_str() {
+            "android" => utils::parse_android_profile(item),
+            "cocoa" => utils::parse_cocoa_profile(item),
+            "typescript" => utils::parse_typescript_profile(item),
+            _ => Err(ProfileError::PlatformNotSupported),
         }
-        utils::parse_android_profile(item)
     }
 
     fn event_from_json_payload(
