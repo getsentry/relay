@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.11
 
 - Add protocol support for custom units on transaction measurements. ([#1256](https://github.com/getsentry/relay/pull/1256))
 - Add a profile data category and count profiles in an envelope to apply rate limits. ([#1259](https://github.com/getsentry/relay/pull/1259))
