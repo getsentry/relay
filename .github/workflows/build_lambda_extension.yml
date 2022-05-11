@@ -16,9 +16,7 @@ jobs:
 
       - name: Build Binary
         run: |
-          cd sentry-lambda-extension/
-          ./scripts/build-in-docker.sh
-          cd ..
+          ./scripts/docker-build-lambda-extension.sh
 
       - uses: actions/upload-artifact@v2
         with:
