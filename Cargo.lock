@@ -3492,7 +3492,8 @@ dependencies = [
  "serde_json",
  "serde_urlencoded 0.7.0",
  "smallvec 1.4.0",
- "symbolic",
+ "symbolic-common",
+ "symbolic-unreal",
  "take_mut",
  "tokio 1.0.1",
  "tokio-timer",
@@ -4210,16 +4211,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "502d53007c02d7605a05df1c1a73ee436952781653da5d0bf57ad608f66932c1"
 
 [[package]]
-name = "symbolic"
-version = "8.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d106718e554ccee68ddf0aba37a583ae993965946e78f3f3525ae73a5f8034af"
-dependencies = [
- "symbolic-common",
- "symbolic-unreal",
-]
-
-[[package]]
 name = "symbolic-common"
 version = "8.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4227,7 +4218,6 @@ checksum = "65098afa1f1ca8991e4c6f4a6c03a661838e8f464c8bbafab9c2f1a3fa913b7f"
 dependencies = [
  "debugid",
  "memmap2",
- "serde",
  "stable_deref_trait",
  "uuid 0.8.1",
 ]

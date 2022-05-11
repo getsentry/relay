@@ -68,7 +68,7 @@ use {
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
-    symbolic::unreal::{Unreal4Error, Unreal4ErrorKind},
+    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 /// The minimum clock drift for correction to apply.

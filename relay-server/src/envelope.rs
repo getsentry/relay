@@ -345,18 +345,18 @@ pub enum AttachmentType {
     /// This is a binary attachment present in Unreal 4 events containing event context information.
     ///
     /// This can be deserialized using the `symbolic` crate see
-    /// [`symbolic::unreal::Unreal4Context`].
+    /// [`symbolic_unreal::Unreal4Context`].
     ///
-    /// [`symbolic::unreal::Unreal4Context`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4Context.html
+    /// [`symbolic_unreal::Unreal4Context`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4Context.html
     #[serde(rename = "unreal.context")]
     UnrealContext,
 
     /// This is a binary attachment present in Unreal 4 events containing event Logs.
     ///
     /// This can be deserialized using the `symbolic` crate see
-    /// [`symbolic::unreal::Unreal4LogEntry`].
+    /// [`symbolic_unreal::Unreal4LogEntry`].
     ///
-    /// [`symbolic::unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html
+    /// [`symbolic_unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html
     #[serde(rename = "unreal.logs")]
     UnrealLogs,
 }
