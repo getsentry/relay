@@ -1836,6 +1836,102 @@
 <span id="1829">1829</span>
 <span id="1830">1830</span>
 <span id="1831">1831</span>
+<span id="1832">1832</span>
+<span id="1833">1833</span>
+<span id="1834">1834</span>
+<span id="1835">1835</span>
+<span id="1836">1836</span>
+<span id="1837">1837</span>
+<span id="1838">1838</span>
+<span id="1839">1839</span>
+<span id="1840">1840</span>
+<span id="1841">1841</span>
+<span id="1842">1842</span>
+<span id="1843">1843</span>
+<span id="1844">1844</span>
+<span id="1845">1845</span>
+<span id="1846">1846</span>
+<span id="1847">1847</span>
+<span id="1848">1848</span>
+<span id="1849">1849</span>
+<span id="1850">1850</span>
+<span id="1851">1851</span>
+<span id="1852">1852</span>
+<span id="1853">1853</span>
+<span id="1854">1854</span>
+<span id="1855">1855</span>
+<span id="1856">1856</span>
+<span id="1857">1857</span>
+<span id="1858">1858</span>
+<span id="1859">1859</span>
+<span id="1860">1860</span>
+<span id="1861">1861</span>
+<span id="1862">1862</span>
+<span id="1863">1863</span>
+<span id="1864">1864</span>
+<span id="1865">1865</span>
+<span id="1866">1866</span>
+<span id="1867">1867</span>
+<span id="1868">1868</span>
+<span id="1869">1869</span>
+<span id="1870">1870</span>
+<span id="1871">1871</span>
+<span id="1872">1872</span>
+<span id="1873">1873</span>
+<span id="1874">1874</span>
+<span id="1875">1875</span>
+<span id="1876">1876</span>
+<span id="1877">1877</span>
+<span id="1878">1878</span>
+<span id="1879">1879</span>
+<span id="1880">1880</span>
+<span id="1881">1881</span>
+<span id="1882">1882</span>
+<span id="1883">1883</span>
+<span id="1884">1884</span>
+<span id="1885">1885</span>
+<span id="1886">1886</span>
+<span id="1887">1887</span>
+<span id="1888">1888</span>
+<span id="1889">1889</span>
+<span id="1890">1890</span>
+<span id="1891">1891</span>
+<span id="1892">1892</span>
+<span id="1893">1893</span>
+<span id="1894">1894</span>
+<span id="1895">1895</span>
+<span id="1896">1896</span>
+<span id="1897">1897</span>
+<span id="1898">1898</span>
+<span id="1899">1899</span>
+<span id="1900">1900</span>
+<span id="1901">1901</span>
+<span id="1902">1902</span>
+<span id="1903">1903</span>
+<span id="1904">1904</span>
+<span id="1905">1905</span>
+<span id="1906">1906</span>
+<span id="1907">1907</span>
+<span id="1908">1908</span>
+<span id="1909">1909</span>
+<span id="1910">1910</span>
+<span id="1911">1911</span>
+<span id="1912">1912</span>
+<span id="1913">1913</span>
+<span id="1914">1914</span>
+<span id="1915">1915</span>
+<span id="1916">1916</span>
+<span id="1917">1917</span>
+<span id="1918">1918</span>
+<span id="1919">1919</span>
+<span id="1920">1920</span>
+<span id="1921">1921</span>
+<span id="1922">1922</span>
+<span id="1923">1923</span>
+<span id="1924">1924</span>
+<span id="1925">1925</span>
+<span id="1926">1926</span>
+<span id="1927">1927</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.</span>
 <span class="attribute">#![<span class="ident">doc</span>(
     <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
@@ -1853,7 +1949,7 @@
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">EventType</span>, <span class="ident">ProjectKey</span>, <span class="ident">Uuid</span>};
 <span class="kw">use</span> <span class="ident">relay_filter::GlobPatterns</span>;
-<span class="kw">use</span> <span class="ident">relay_general::protocol::Event</span>;
+<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Context</span>, <span class="ident">Event</span>};
 <span class="kw">use</span> <span class="ident">relay_general::store</span>;
 
 <span class="doccomment">/// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.</span>
@@ -2234,16 +2330,32 @@
 
 <span class="kw">impl</span> <span class="ident">FieldValueProvider</span> <span class="kw">for</span> <span class="ident">Event</span> {
     <span class="kw">fn</span> <span class="ident">get_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Value</span> {
+        <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">field_name</span>.<span class="ident">strip_prefix</span>(<span class="string">&quot;event.&quot;</span>) {
+            <span class="prelude-val">Some</span>(<span class="ident">stripped</span>) =&gt; <span class="ident">stripped</span>,
+            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="ident">Value::Null</span>,
+        };
+
         <span class="kw">match</span> <span class="ident">field_name</span> {
-            <span class="string">&quot;event.release&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">release</span>.<span class="ident">value</span>() {
+            <span class="comment">// Simple fields</span>
+            <span class="string">&quot;release&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">release</span>.<span class="ident">value</span>() {
                 <span class="prelude-val">None</span> =&gt; <span class="ident">Value::Null</span>,
                 <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
             },
-            <span class="string">&quot;event.environment&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">environment</span>.<span class="ident">value</span>() {
+            <span class="string">&quot;environment&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">environment</span>.<span class="ident">value</span>() {
                 <span class="prelude-val">None</span> =&gt; <span class="ident">Value::Null</span>,
                 <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
             },
-            <span class="string">&quot;event.user.id&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
+            <span class="string">&quot;transaction&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">transaction</span>.<span class="ident">value</span>() {
+                <span class="prelude-val">None</span> =&gt; <span class="ident">Value::Null</span>,
+                <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
+            },
+            <span class="string">&quot;platform&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">platform</span>.<span class="ident">value</span>() {
+                <span class="prelude-val">Some</span>(<span class="ident">platform</span>) <span class="kw">if</span> <span class="ident">store::is_valid_platform</span>(<span class="ident">platform</span>) =&gt; {
+                    <span class="ident">Value::String</span>(<span class="ident">platform</span>.<span class="ident">clone</span>())
+                }
+                <span class="kw">_</span> =&gt; <span class="ident">Value::from</span>(<span class="string">&quot;other&quot;</span>),
+            },
+            <span class="string">&quot;user.id&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
                 <span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">id</span><span class="op">|</span> {
                     <span class="kw">if</span> <span class="ident">id</span>.<span class="ident">is_empty</span>() {
                         <span class="ident">Value::Null</span> <span class="comment">// we don&#39;t serialize empty values but check it anyway</span>
@@ -2252,7 +2364,7 @@
                     }
                 })
             }),
-            <span class="string">&quot;event.user.segment&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
+            <span class="string">&quot;user.segment&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">user</span><span class="op">|</span> {
                 <span class="ident">user</span>.<span class="ident">segment</span>.<span class="ident">value</span>().<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="op">|</span><span class="ident">segment</span><span class="op">|</span> {
                     <span class="kw">if</span> <span class="ident">segment</span>.<span class="ident">is_empty</span>() {
                         <span class="ident">Value::Null</span>
@@ -2261,16 +2373,55 @@
                     }
                 })
             }),
-            <span class="string">&quot;event.is_local_ip&quot;</span> =&gt; <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::localhost::matches</span>(<span class="self">self</span>)),
-            <span class="string">&quot;event.has_bad_browser_extensions&quot;</span> =&gt; {
-                <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::browser_extensions::matches</span>(<span class="self">self</span>))
-            }
-            <span class="string">&quot;event.web_crawlers&quot;</span> =&gt; <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::web_crawlers::matches</span>(<span class="self">self</span>)),
-            <span class="string">&quot;event.transaction&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">transaction</span>.<span class="ident">value</span>() {
-                <span class="prelude-val">None</span> =&gt; <span class="ident">Value::Null</span>,
-                <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_str</span>().<span class="ident">into</span>(),
+
+            <span class="comment">// Partial implementation of contexts.</span>
+            <span class="string">&quot;contexts.device.name&quot;</span> =&gt; <span class="self">self</span>
+                .<span class="ident">contexts</span>
+                .<span class="ident">value</span>()
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">contexts</span><span class="op">|</span> <span class="ident">contexts</span>.<span class="ident">get</span>(<span class="string">&quot;device&quot;</span>))
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">annotated</span><span class="op">|</span> <span class="ident">annotated</span>.<span class="ident">value</span>())
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">context</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">context</span>.<span class="number">0</span> {
+                    <span class="ident">Context::Device</span>(<span class="kw-2">ref</span> <span class="ident">device</span>) =&gt; <span class="ident">device</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(),
+                    <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+                })
+                .<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="ident">Value::from</span>),
+            <span class="string">&quot;contexts.device.family&quot;</span> =&gt; <span class="self">self</span>
+                .<span class="ident">contexts</span>
+                .<span class="ident">value</span>()
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">contexts</span><span class="op">|</span> <span class="ident">contexts</span>.<span class="ident">get</span>(<span class="string">&quot;device&quot;</span>))
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">annotated</span><span class="op">|</span> <span class="ident">annotated</span>.<span class="ident">value</span>())
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">context</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">context</span>.<span class="number">0</span> {
+                    <span class="ident">Context::Device</span>(<span class="kw-2">ref</span> <span class="ident">device</span>) =&gt; <span class="ident">device</span>.<span class="ident">family</span>.<span class="ident">as_str</span>(),
+                    <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+                })
+                .<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="ident">Value::from</span>),
+            <span class="string">&quot;contexts.os.name&quot;</span> =&gt; <span class="self">self</span>
+                .<span class="ident">contexts</span>
+                .<span class="ident">value</span>()
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">contexts</span><span class="op">|</span> <span class="ident">contexts</span>.<span class="ident">get</span>(<span class="string">&quot;os&quot;</span>))
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">annotated</span><span class="op">|</span> <span class="ident">annotated</span>.<span class="ident">value</span>())
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">context</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">context</span>.<span class="number">0</span> {
+                    <span class="ident">Context::Os</span>(<span class="kw-2">ref</span> <span class="ident">os</span>) =&gt; <span class="ident">os</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(),
+                    <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+                })
+                .<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="ident">Value::from</span>),
+            <span class="string">&quot;contexts.os.version&quot;</span> =&gt; <span class="self">self</span>
+                .<span class="ident">contexts</span>
+                .<span class="ident">value</span>()
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">contexts</span><span class="op">|</span> <span class="ident">contexts</span>.<span class="ident">get</span>(<span class="string">&quot;os&quot;</span>))
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">annotated</span><span class="op">|</span> <span class="ident">annotated</span>.<span class="ident">value</span>())
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">context</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">context</span>.<span class="number">0</span> {
+                    <span class="ident">Context::Os</span>(<span class="kw-2">ref</span> <span class="ident">os</span>) =&gt; <span class="ident">os</span>.<span class="ident">version</span>.<span class="ident">as_str</span>(),
+                    <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+                })
+                .<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="ident">Value::from</span>),
+            <span class="string">&quot;contexts.trace.op&quot;</span> =&gt; <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">ty</span>.<span class="ident">value</span>(), <span class="ident">store::get_transaction_op</span>(<span class="self">self</span>)) {
+                (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">EventType::Transaction</span>), <span class="prelude-val">Some</span>(<span class="ident">op_name</span>)) =&gt; <span class="ident">Value::String</span>(<span class="ident">op_name</span>.<span class="ident">to_owned</span>()),
+                <span class="kw">_</span> =&gt; <span class="ident">Value::Null</span>,
             },
-            <span class="string">&quot;event.duration&quot;</span> =&gt; <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">ty</span>.<span class="ident">value</span>(), <span class="ident">store::validate_timestamps</span>(<span class="self">self</span>)) {
+
+            <span class="comment">// Computed fields (see Discover)</span>
+            <span class="string">&quot;duration&quot;</span> =&gt; <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">ty</span>.<span class="ident">value</span>(), <span class="ident">store::validate_timestamps</span>(<span class="self">self</span>)) {
                 (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">EventType::Transaction</span>), <span class="prelude-val">Ok</span>((<span class="ident">start</span>, <span class="ident">end</span>))) =&gt; {
                     <span class="kw">match</span> <span class="ident">Number::from_f64</span>(<span class="ident">relay_common::chrono_to_positive_millis</span>(<span class="ident">end</span> <span class="op">-</span> <span class="ident">start</span>)) {
                         <span class="prelude-val">Some</span>(<span class="ident">num</span>) =&gt; <span class="ident">Value::Number</span>(<span class="ident">num</span>),
@@ -2279,29 +2430,33 @@
                 }
                 <span class="kw">_</span> =&gt; <span class="ident">Value::Null</span>,
             },
-            <span class="string">&quot;event.contexts.trace.op&quot;</span> =&gt; <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">ty</span>.<span class="ident">value</span>(), <span class="ident">store::get_transaction_op</span>(<span class="self">self</span>)) {
-                (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">EventType::Transaction</span>), <span class="prelude-val">Some</span>(<span class="ident">op_name</span>)) =&gt; <span class="ident">Value::String</span>(<span class="ident">op_name</span>.<span class="ident">to_owned</span>()),
-                <span class="kw">_</span> =&gt; <span class="ident">Value::Null</span>,
-            },
-            <span class="string">&quot;event.platform&quot;</span> =&gt; <span class="kw">match</span> <span class="self">self</span>.<span class="ident">platform</span>.<span class="ident">value</span>() {
-                <span class="prelude-val">Some</span>(<span class="ident">platform</span>) <span class="kw">if</span> <span class="ident">store::is_valid_platform</span>(<span class="ident">platform</span>) =&gt; {
-                    <span class="ident">Value::String</span>(<span class="ident">platform</span>.<span class="ident">to_owned</span>())
-                }
-                <span class="kw">_</span> =&gt; <span class="ident">Value::String</span>(<span class="string">&quot;other&quot;</span>.<span class="ident">to_owned</span>()),
-            },
-            <span class="ident">field_name</span>
-                <span class="kw">if</span> <span class="ident">field_name</span>.<span class="ident">starts_with</span>(<span class="string">&quot;event.measurements.&quot;</span>)
-                    <span class="op">&amp;&amp;</span> <span class="ident">field_name</span>.<span class="ident">ends_with</span>(<span class="string">&quot;.value&quot;</span>) =&gt;
-            {
-                <span class="ident">field_name</span>
-                    .<span class="ident">get</span>(<span class="string">&quot;event.measurements.&quot;</span>.<span class="ident">len</span>()..<span class="ident">field_name</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="string">&quot;.value&quot;</span>.<span class="ident">len</span>())
-                    .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">measurement_name</span><span class="op">|</span> <span class="op">!</span><span class="ident">measurement_name</span>.<span class="ident">is_empty</span>())
-                    .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">measurement_name</span><span class="op">|</span> <span class="ident">store::get_measurement</span>(<span class="self">self</span>, <span class="ident">measurement_name</span>))
-                    .<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="ident">Into::into</span>)
+
+            <span class="comment">// Inbound filter functions represented as fields</span>
+            <span class="string">&quot;is_local_ip&quot;</span> =&gt; <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::localhost::matches</span>(<span class="self">self</span>)),
+            <span class="string">&quot;has_bad_browser_extensions&quot;</span> =&gt; {
+                <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::browser_extensions::matches</span>(<span class="self">self</span>))
             }
-            <span class="kw">_</span> =&gt; <span class="ident">Value::Null</span>,
+            <span class="string">&quot;web_crawlers&quot;</span> =&gt; <span class="ident">Value::Bool</span>(<span class="ident">relay_filter::web_crawlers::matches</span>(<span class="self">self</span>)),
+
+            <span class="comment">// Dynamic access to certain data bags</span>
+            <span class="kw">_</span> =&gt; {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rest</span>) <span class="op">=</span> <span class="ident">field_name</span>.<span class="ident">strip_prefix</span>(<span class="string">&quot;measurements.&quot;</span>) {
+                    <span class="ident">rest</span>.<span class="ident">strip_suffix</span>(<span class="string">&quot;.value&quot;</span>)
+                        .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">measurement_name</span><span class="op">|</span> <span class="op">!</span><span class="ident">measurement_name</span>.<span class="ident">is_empty</span>())
+                        .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">measurement_name</span><span class="op">|</span> <span class="ident">store::get_measurement</span>(<span class="self">self</span>, <span class="ident">measurement_name</span>))
+                        .<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="ident">Value::from</span>)
+                } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rest</span>) <span class="op">=</span> <span class="ident">field_name</span>.<span class="ident">strip_prefix</span>(<span class="string">&quot;tags.&quot;</span>) {
+                    <span class="self">self</span>.<span class="ident">tags</span>
+                        .<span class="ident">value</span>()
+                        .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">tags</span><span class="op">|</span> <span class="ident">tags</span>.<span class="ident">get</span>(<span class="ident">rest</span>))
+                        .<span class="ident">map_or</span>(<span class="ident">Value::Null</span>, <span class="ident">Value::from</span>)
+                } <span class="kw">else</span> {
+                    <span class="ident">Value::Null</span>
+                }
+            }
         }
     }
+
     <span class="kw">fn</span> <span class="ident">get_rule_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RuleType</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ty</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">ty</span>.<span class="ident">value</span>() {
             <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">ty</span> <span class="op">==</span> <span class="ident">EventType::Transaction</span> {
@@ -2310,6 +2465,7 @@
         }
         <span class="ident">RuleType::Error</span>
     }
+
     <span class="kw">fn</span> <span class="ident">get_custom_operator</span>(
         <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
     ) -&gt; <span class="kw">fn</span>(<span class="ident">condition</span>: <span class="kw-2">&amp;</span><span class="ident">CustomCondition</span>, <span class="ident">slf</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
@@ -2419,6 +2575,7 @@
             <span class="kw">_</span> =&gt; <span class="ident">Value::Null</span>,
         }
     }
+
     <span class="kw">fn</span> <span class="ident">get_rule_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">RuleType</span> {
         <span class="ident">RuleType::Trace</span>
     }
@@ -2556,8 +2713,8 @@
     <span class="kw">use</span> <span class="ident">insta::assert_ron_snapshot</span>;
 
     <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
-        <span class="ident">Csp</span>, <span class="ident">Exception</span>, <span class="ident">Headers</span>, <span class="ident">IpAddr</span>, <span class="ident">JsonLenientString</span>, <span class="ident">LenientString</span>, <span class="ident">LogEntry</span>, <span class="ident">PairList</span>,
-        <span class="ident">Request</span>, <span class="ident">User</span>, <span class="ident">Values</span>,
+        <span class="ident">Contexts</span>, <span class="ident">Csp</span>, <span class="ident">DeviceContext</span>, <span class="ident">Exception</span>, <span class="ident">Headers</span>, <span class="ident">IpAddr</span>, <span class="ident">JsonLenientString</span>, <span class="ident">LenientString</span>,
+        <span class="ident">LogEntry</span>, <span class="ident">OsContext</span>, <span class="ident">PairList</span>, <span class="ident">Request</span>, <span class="ident">TagEntry</span>, <span class="ident">Tags</span>, <span class="ident">User</span>, <span class="ident">Values</span>,
     };
     <span class="kw">use</span> <span class="ident">relay_general::types::Annotated</span>;
 
@@ -2608,8 +2765,8 @@
         })
     }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="doccomment">/// test extraction of field values from event with everything</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_field_value_provider_event_filled</span>() {
         <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Event</span> {
             <span class="ident">release</span>: <span class="ident">Annotated::new</span>(<span class="ident">LenientString</span>(<span class="string">&quot;1.1.1&quot;</span>.<span class="ident">to_owned</span>())),
@@ -2637,24 +2794,38 @@
                 ..<span class="ident">Default::default</span>()
             }),
             <span class="ident">transaction</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;some-transaction&quot;</span>.<span class="ident">into</span>()),
+            <span class="ident">tags</span>: {
+                <span class="kw">let</span> <span class="ident">items</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
+                    <span class="ident">Annotated::new</span>(<span class="string">&quot;custom&quot;</span>.<span class="ident">to_string</span>()),
+                    <span class="ident">Annotated::new</span>(<span class="string">&quot;custom-value&quot;</span>.<span class="ident">to_string</span>()),
+                ))];
+                <span class="ident">Annotated::new</span>(<span class="ident">Tags</span>(<span class="ident">items</span>.<span class="ident">into</span>()))
+            },
+            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>({
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Contexts::new</span>();
+                <span class="ident">contexts</span>.<span class="ident">add</span>(<span class="ident">Context::Device</span>(<span class="ident">Box::new</span>(<span class="ident">DeviceContext</span> {
+                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone&quot;</span>.<span class="ident">to_string</span>()),
+                    <span class="ident">family</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone-fam&quot;</span>.<span class="ident">to_string</span>()),
+                    <span class="ident">model</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone7,3&quot;</span>.<span class="ident">to_string</span>()),
+                    ..<span class="ident">DeviceContext::default</span>()
+                })));
+                <span class="ident">contexts</span>.<span class="ident">add</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
+                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iOS&quot;</span>.<span class="ident">to_string</span>()),
+                    <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;11.4.2&quot;</span>.<span class="ident">to_string</span>()),
+                    <span class="ident">kernel_version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;17.4.0&quot;</span>.<span class="ident">to_string</span>()),
+                    ..<span class="ident">OsContext::default</span>()
+                })));
+                <span class="ident">contexts</span>
+            }),
             ..<span class="ident">Default::default</span>()
         };
 
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;1.1.1&quot;</span>), <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.release&quot;</span>).<span class="ident">as_str</span>());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;prod&quot;</span>), <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.environment&quot;</span>).<span class="ident">as_str</span>());
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;user-id&quot;</span>), <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.user.id&quot;</span>).<span class="ident">as_str</span>());
         <span class="macro">assert_eq!</span>(
-            <span class="ident">Value::String</span>(<span class="string">&quot;1.1.1&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.release&quot;</span>)
-        );
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">Value::String</span>(<span class="string">&quot;prod&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.environment&quot;</span>)
-        );
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">Value::String</span>(<span class="string">&quot;user-id&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.user.id&quot;</span>)
-        );
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">Value::String</span>(<span class="string">&quot;user-seg&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.user.segment&quot;</span>)
+            <span class="prelude-val">Some</span>(<span class="string">&quot;user-seg&quot;</span>),
+            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.user.segment&quot;</span>).<span class="ident">as_str</span>()
         );
         <span class="macro">assert_eq!</span>(<span class="ident">Value::Bool</span>(<span class="bool-val">true</span>), <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.is_local_ip&quot;</span>),);
         <span class="macro">assert_eq!</span>(
@@ -2663,9 +2834,30 @@
         );
         <span class="macro">assert_eq!</span>(<span class="ident">Value::Bool</span>(<span class="bool-val">true</span>), <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.web_crawlers&quot;</span>));
         <span class="macro">assert_eq!</span>(
-            <span class="ident">Value::String</span>(<span class="string">&quot;some-transaction&quot;</span>.<span class="ident">into</span>()),
-            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.transaction&quot;</span>)
+            <span class="prelude-val">Some</span>(<span class="string">&quot;some-transaction&quot;</span>),
+            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.transaction&quot;</span>).<span class="ident">as_str</span>()
         );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(<span class="string">&quot;iphone&quot;</span>),
+            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.contexts.device.name&quot;</span>).<span class="ident">as_str</span>()
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(<span class="string">&quot;iphone-fam&quot;</span>),
+            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.contexts.device.family&quot;</span>).<span class="ident">as_str</span>()
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(<span class="string">&quot;iOS&quot;</span>),
+            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.contexts.os.name&quot;</span>).<span class="ident">as_str</span>()
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(<span class="string">&quot;11.4.2&quot;</span>),
+            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.contexts.os.version&quot;</span>).<span class="ident">as_str</span>()
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(<span class="string">&quot;custom-value&quot;</span>),
+            <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.tags.custom&quot;</span>).<span class="ident">as_str</span>()
+        );
+        <span class="macro">assert_eq!</span>(<span class="ident">Value::Null</span>, <span class="ident">event</span>.<span class="ident">get_value</span>(<span class="string">&quot;event.tags.doesntexist&quot;</span>));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
