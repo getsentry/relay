@@ -15,7 +15,7 @@ use serde_json::{Number, Value};
 
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
-use relay_general::protocol::Event;
+use relay_general::protocol::{Context, Event};
 use relay_general::store;
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
@@ -396,16 +396,32 @@ fn no_match<T>(_condition: &CustomCondition, _slf: &T, _ip_addr: Option<IpAddr>)
 
 impl FieldValueProvider for Event {
     fn get_value(&self, field_name: &str) -> Value {
+        let field_name = match field_name.strip_prefix("event.") {
+            Some(stripped) => stripped,
+            None => return Value::Null,
+        };
+
         match field_name {
-            "event.release" => match self.release.value() {
+            // Simple fields
+            "release" => match self.release.value() {
                 None => Value::Null,
                 Some(s) => s.as_str().into(),
             },
-            "event.environment" => match self.environment.value() {
+            "environment" => match self.environment.value() {
                 None => Value::Null,
                 Some(s) => s.as_str().into(),
             },
-            "event.user.id" => self.user.value().map_or(Value::Null, |user| {
+            "transaction" => match self.transaction.value() {
+                None => Value::Null,
+                Some(s) => s.as_str().into(),
+            },
+            "platform" => match self.platform.value() {
+                Some(platform) if store::is_valid_platform(platform) => {
+                    Value::String(platform.clone())
+                }
+                _ => Value::from("other"),
+            },
+            "user.id" => self.user.value().map_or(Value::Null, |user| {
                 user.id.value().map_or(Value::Null, |id| {
                     if id.is_empty() {
                         Value::Null // we don't serialize empty values but check it anyway
@@ -414,7 +430,7 @@ impl FieldValueProvider for Event {
                     }
                 })
             }),
-            "event.user.segment" => self.user.value().map_or(Value::Null, |user| {
+            "user.segment" => self.user.value().map_or(Value::Null, |user| {
                 user.segment.value().map_or(Value::Null, |segment| {
                     if segment.is_empty() {
                         Value::Null
@@ -423,16 +439,55 @@ impl FieldValueProvider for Event {
                     }
                 })
             }),
-            "event.is_local_ip" => Value::Bool(relay_filter::localhost::matches(self)),
-            "event.has_bad_browser_extensions" => {
-                Value::Bool(relay_filter::browser_extensions::matches(self))
-            }
-            "event.web_crawlers" => Value::Bool(relay_filter::web_crawlers::matches(self)),
-            "event.transaction" => match self.transaction.value() {
-                None => Value::Null,
-                Some(s) => s.as_str().into(),
+
+            // Partial implementation of contexts.
+            "contexts.device.name" => self
+                .contexts
+                .value()
+                .and_then(|contexts| contexts.get("device"))
+                .and_then(|annotated| annotated.value())
+                .and_then(|context| match context.0 {
+                    Context::Device(ref device) => device.name.as_str(),
+                    _ => None,
+                })
+                .map_or(Value::Null, Value::from),
+            "contexts.device.family" => self
+                .contexts
+                .value()
+                .and_then(|contexts| contexts.get("device"))
+                .and_then(|annotated| annotated.value())
+                .and_then(|context| match context.0 {
+                    Context::Device(ref device) => device.family.as_str(),
+                    _ => None,
+                })
+                .map_or(Value::Null, Value::from),
+            "contexts.os.name" => self
+                .contexts
+                .value()
+                .and_then(|contexts| contexts.get("os"))
+                .and_then(|annotated| annotated.value())
+                .and_then(|context| match context.0 {
+                    Context::Os(ref os) => os.name.as_str(),
+                    _ => None,
+                })
+                .map_or(Value::Null, Value::from),
+            "contexts.os.version" => self
+                .contexts
+                .value()
+                .and_then(|contexts| contexts.get("os"))
+                .and_then(|annotated| annotated.value())
+                .and_then(|context| match context.0 {
+                    Context::Os(ref os) => os.version.as_str(),
+                    _ => None,
+                })
+                .map_or(Value::Null, Value::from),
+            "contexts.trace.op" => match (self.ty.value(), store::get_transaction_op(self)) {
+                (Some(&EventType::Transaction), Some(op_name)) => Value::String(op_name.to_owned()),
+                _ => Value::Null,
             },
-            "event.duration" => match (self.ty.value(), store::validate_timestamps(self)) {
+
+            // Computed fields (see Discover)
+            "duration" => match (self.ty.value(), store::validate_timestamps(self)) {
                 (Some(&EventType::Transaction), Ok((start, end))) => {
                     match Number::from_f64(relay_common::chrono_to_positive_millis(end - start)) {
                         Some(num) => Value::Number(num),
@@ -441,29 +496,33 @@ impl FieldValueProvider for Event {
                 }
                 _ => Value::Null,
             },
-            "event.contexts.trace.op" => match (self.ty.value(), store::get_transaction_op(self)) {
-                (Some(&EventType::Transaction), Some(op_name)) => Value::String(op_name.to_owned()),
-                _ => Value::Null,
-            },
-            "event.platform" => match self.platform.value() {
-                Some(platform) if store::is_valid_platform(platform) => {
-                    Value::String(platform.to_owned())
-                }
-                _ => Value::String("other".to_owned()),
-            },
-            field_name
-                if field_name.starts_with("event.measurements.")
-                    && field_name.ends_with(".value") =>
-            {
-                field_name
-                    .get("event.measurements.".len()..field_name.len() - ".value".len())
-                    .filter(|measurement_name| !measurement_name.is_empty())
-                    .and_then(|measurement_name| store::get_measurement(self, measurement_name))
-                    .map_or(Value::Null, Into::into)
+
+            // Inbound filter functions represented as fields
+            "is_local_ip" => Value::Bool(relay_filter::localhost::matches(self)),
+            "has_bad_browser_extensions" => {
+                Value::Bool(relay_filter::browser_extensions::matches(self))
             }
-            _ => Value::Null,
+            "web_crawlers" => Value::Bool(relay_filter::web_crawlers::matches(self)),
+
+            // Dynamic access to certain data bags
+            _ => {
+                if let Some(rest) = field_name.strip_prefix("measurements.") {
+                    rest.strip_suffix(".value")
+                        .filter(|measurement_name| !measurement_name.is_empty())
+                        .and_then(|measurement_name| store::get_measurement(self, measurement_name))
+                        .map_or(Value::Null, Value::from)
+                } else if let Some(rest) = field_name.strip_prefix("tags.") {
+                    self.tags
+                        .value()
+                        .and_then(|tags| tags.get(rest))
+                        .map_or(Value::Null, Value::from)
+                } else {
+                    Value::Null
+                }
+            }
         }
     }
+
     fn get_rule_type(&self) -> RuleType {
         if let Some(ty) = self.ty.value() {
             if *ty == EventType::Transaction {
@@ -472,6 +531,7 @@ impl FieldValueProvider for Event {
         }
         RuleType::Error
     }
+
     fn get_custom_operator(
         name: &str,
     ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
@@ -581,6 +641,7 @@ impl FieldValueProvider for TraceContext {
             _ => Value::Null,
         }
     }
+
     fn get_rule_type(&self) -> RuleType {
         RuleType::Trace
     }
@@ -718,8 +779,8 @@ mod tests {
     use insta::assert_ron_snapshot;
 
     use relay_general::protocol::{
-        Csp, Exception, Headers, IpAddr, JsonLenientString, LenientString, LogEntry, PairList,
-        Request, User, Values,
+        Contexts, Csp, DeviceContext, Exception, Headers, IpAddr, JsonLenientString, LenientString,
+        LogEntry, OsContext, PairList, Request, TagEntry, Tags, User, Values,
     };
     use relay_general::types::Annotated;
 
@@ -770,8 +831,8 @@ mod tests {
         })
     }
 
-    #[test]
     /// test extraction of field values from event with everything
+    #[test]
     fn test_field_value_provider_event_filled() {
         let event = Event {
             release: Annotated::new(LenientString("1.1.1".to_owned())),
@@ -799,24 +860,38 @@ mod tests {
                 ..Default::default()
             }),
             transaction: Annotated::new("some-transaction".into()),
+            tags: {
+                let items = vec![Annotated::new(TagEntry(
+                    Annotated::new("custom".to_string()),
+                    Annotated::new("custom-value".to_string()),
+                ))];
+                Annotated::new(Tags(items.into()))
+            },
+            contexts: Annotated::new({
+                let mut contexts = Contexts::new();
+                contexts.add(Context::Device(Box::new(DeviceContext {
+                    name: Annotated::new("iphone".to_string()),
+                    family: Annotated::new("iphone-fam".to_string()),
+                    model: Annotated::new("iphone7,3".to_string()),
+                    ..DeviceContext::default()
+                })));
+                contexts.add(Context::Os(Box::new(OsContext {
+                    name: Annotated::new("iOS".to_string()),
+                    version: Annotated::new("11.4.2".to_string()),
+                    kernel_version: Annotated::new("17.4.0".to_string()),
+                    ..OsContext::default()
+                })));
+                contexts
+            }),
             ..Default::default()
         };
 
+        assert_eq!(Some("1.1.1"), event.get_value("event.release").as_str());
+        assert_eq!(Some("prod"), event.get_value("event.environment").as_str());
+        assert_eq!(Some("user-id"), event.get_value("event.user.id").as_str());
         assert_eq!(
-            Value::String("1.1.1".into()),
-            event.get_value("event.release")
-        );
-        assert_eq!(
-            Value::String("prod".into()),
-            event.get_value("event.environment")
-        );
-        assert_eq!(
-            Value::String("user-id".into()),
-            event.get_value("event.user.id")
-        );
-        assert_eq!(
-            Value::String("user-seg".into()),
-            event.get_value("event.user.segment")
+            Some("user-seg"),
+            event.get_value("event.user.segment").as_str()
         );
         assert_eq!(Value::Bool(true), event.get_value("event.is_local_ip"),);
         assert_eq!(
@@ -825,9 +900,30 @@ mod tests {
         );
         assert_eq!(Value::Bool(true), event.get_value("event.web_crawlers"));
         assert_eq!(
-            Value::String("some-transaction".into()),
-            event.get_value("event.transaction")
+            Some("some-transaction"),
+            event.get_value("event.transaction").as_str()
         );
+        assert_eq!(
+            Some("iphone"),
+            event.get_value("event.contexts.device.name").as_str()
+        );
+        assert_eq!(
+            Some("iphone-fam"),
+            event.get_value("event.contexts.device.family").as_str()
+        );
+        assert_eq!(
+            Some("iOS"),
+            event.get_value("event.contexts.os.name").as_str()
+        );
+        assert_eq!(
+            Some("11.4.2"),
+            event.get_value("event.contexts.os.version").as_str()
+        );
+        assert_eq!(
+            Some("custom-value"),
+            event.get_value("event.tags.custom").as_str()
+        );
+        assert_eq!(Value::Null, event.get_value("event.tags.doesntexist"));
     }
 
     #[test]

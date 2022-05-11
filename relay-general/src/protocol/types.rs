@@ -211,6 +211,33 @@ where
             .position(|entry| entry.as_pair().0.as_str() == Some(key))
     }
 
+    /// Returns a reference to the annotated value corresponding to the key.
+    ///
+    /// The key may be any borrowed form of the pairlist's key type. If there are multiple entries
+    /// with the same key, the first is returned.
+    pub fn get<'a, Q>(&'a self, key: Q) -> Option<&Annotated<V>>
+    where
+        Q: AsRef<str>,
+        K: 'a,
+    {
+        self.position(key)
+            .and_then(|pos| self.0.get(pos))
+            .and_then(Annotated::value)
+            .map(|pair| pair.as_pair().1)
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    ///
+    /// The key may be any borrowed form of the pairlist's key type. If there are multiple entries
+    /// with the same key, the first is returned.
+    pub fn get_value<'a, Q>(&'a self, key: Q) -> Option<&V>
+    where
+        Q: AsRef<str>,
+        K: 'a,
+    {
+        self.get(key).and_then(Annotated::value)
+    }
+
     /// Returns `true` if the pair list contains a value for the specified key.
     pub fn contains<Q>(&self, key: Q) -> bool
     where
