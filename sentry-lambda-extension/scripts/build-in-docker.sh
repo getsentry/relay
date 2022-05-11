@@ -13,5 +13,9 @@ DOCKER_RUN_OPTS="
   -v $(pwd):/work
   $BUILD_IMAGE
 "
+
+#docker run $DOCKER_RUN_OPTS \
+#  cargo build --release --locked --target=x86_64-unknown-linux-gnu
+
 docker run $DOCKER_RUN_OPTS \
-  cargo build --release --locked --target=x86_64-unknown-linux-gnu
+  echo "TODO: add real build command here! ;-)"

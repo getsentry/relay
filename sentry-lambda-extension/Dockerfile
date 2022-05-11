@@ -8,4 +8,4 @@ RUN curl https://sh.rustup.rs -sSf | \
 
 ENV PATH=/root/.cargo/bin:$PATH
 
-COPY .. .
+COPY . .
