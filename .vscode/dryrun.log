@@ -1,0 +1,23 @@
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory `/Users/antonpirker/code/relay'
+rustup component add rustfmt --toolchain stable 2> /dev/null
+cargo +stable fmt --all -- --check
+rm -rf .venv
+# --copies is necessary because OS X make checks the mtime of the symlink
+# target (/usr/local/bin/python), which is always much older than the
+# Makefile, and then proceeds to unconditionally rebuild the venv.
+$RELAY_PYTHON_VERSION -m venv --copies .venv
+.venv/bin/pip install -U -r requirements-dev.txt
+.venv/bin/black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
+cd .git/hooks && ln -sf ../../scripts/git-precommit-hook pre-commit
+git submodule update --init --recursive
+rustup component add clippy --toolchain stable 2> /dev/null
+cargo +stable clippy --workspace --all-features --tests -- -D clippy::all
+.venv/bin/flake8 py
+cargo test --workspace --all-features
+RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
+.venv/bin/pytest -v py
+cargo +stable build --all-features
+.venv/bin/pytest tests -n auto -v
+make: Leaving directory `/Users/antonpirker/code/relay'
+ 

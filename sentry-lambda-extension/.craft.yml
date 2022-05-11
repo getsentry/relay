@@ -1,0 +1,25 @@
+---
+changelogPolicy: auto
+releaseBranchPrefix: release-lambda-extension
+
+targets:
+  - name: github
+    includeNames: /^sentry-lambda-extension$/i
+  - name: registry
+    apps:
+      app:sentry-lambda-extension:
+        urlTemplate: https://downloads.sentry-cdn.com/sentry-lambda-extension/{{version}}/{{file}}
+        includeNames: /^sentry-lambda-extension$/i
+  - name: gcs
+    bucket: sentry-sdk-assets
+    includeNames: /^sentry-lambda-extension$/i
+    paths:
+      - path: /sentry-lambda-extension/{{version}}/
+        metadata:
+          cacheControl: public, max-age=2592000
+      - path: /sentry-lambda-extension/latest/
+        metadata:
+          cacheControl: public, max-age=600
+
+requireNames:
+  - /^sentry-lambda-extension$/

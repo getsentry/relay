@@ -1,0 +1,26 @@
+name: Lambda Extension Release Build
+
+on:
+  push:
+    branches:
+      - release-lambda-extension/**
+      - antonpirker/** # remove this!
+
+jobs:
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build Binary
+        run: |
+          cd sentry-lambda-extension/
+          ./scripts/build-in-docker.sh
+          cd ..
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: target/x86_64-unknown-linux-gnu/release/sentry-lambda-extension

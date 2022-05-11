@@ -1,0 +1,562 @@
+make all --print-data-base --no-builtin-variables --no-builtin-rules --question
+# GNU Make 3.81
+# Copyright (C) 2006  Free Software Foundation, Inc.
+# This is free software; see the source for copying conditions.
+# There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE.
+
+# This program built for i386-apple-darwin11.3.0
+ 
+
+# Make data base, printed on Wed May 11 11:31:03 2022
+
+# Variables
+
+# automatic
+<D = $(patsubst %/,%,$(dir $<))
+# environment
+RUBY_VERSION = ruby-3.0.0
+# automatic
+?F = $(notdir $?)
+# environment
+VSCODE_LOG_NATIVE = false
+# automatic
+?D = $(patsubst %/,%,$(dir $?))
+# environment
+rvm_path = /Users/antonpirker/.rvm
+# automatic
+@D = $(patsubst %/,%,$(dir $@))
+# automatic
+@F = $(notdir $@)
+# makefile
+CURDIR := /Users/antonpirker/code/relay
+# makefile (from `Makefile', line 1)
+SHELL = /bin/bash
+# environment
+VSCODE_NLS_CONFIG = {"locale":"en-gb","availableLanguages":{},"_languagePackSupport":true}
+# environment
+_ = /usr/bin/make
+# environment
+VSCODE_PID = 58736
+# makefile (from `Makefile', line 1)
+MAKEFILE_LIST :=  Makefile
+# environment
+VSCODE_VERBOSE_LOGGING = true
+# environment
+__CFBundleIdentifier = com.microsoft.VSCode
+# environment
+INFOPATH = /opt/homebrew/share/info:
+# environment
+SENTRY_SPA_DSN = https://863de587a34a48c4a4ef1a9238fdb0b1@o19635.ingest.sentry.io/5270453
+# environment
+VSCODE_IPC_HOOK_EXTHOST = /var/folders/3g/wppgmmyj16z44c39x7gyp1fc0000gn/T/vscode-ipc-7e0371de-a414-43ba-88d5-72415f967b34.sock
+# environment
+VSCODE_CWD = /
+# environment
+PATH = /Users/antonpirker/.rvm/gems/ruby-3.0.0/bin:/Users/antonpirker/.rvm/gems/ruby-3.0.0@global/bin:/Users/antonpirker/.rvm/rubies/ruby-3.0.0/bin:/opt/homebrew/opt/openssl@3/bin:/Users/antonpirker/.volta/bin:/Users/antonpirker/.pyenv/shims:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/MacGPG2/bin:/Users/antonpirker/.cargo/bin:/Users/antonpirker/.rvm/bin
+# environment
+LSCOLORS = Gxfxcxdxbxegedabagacad
+# environment
+CPATH = /opt/homebrew/Cellar/librdkafka/1.8.2/include
+# environment
+SENTRY_INSTRUMENTATION = 1
+# environment
+VSCODE_LOG_STACK = false
+# environment
+ELECTRON_RUN_AS_NODE = 1
+# environment
+LDFLAGS = -L/opt/homebrew/Cellar/gettext/0.21/lib
+# default
+.FEATURES := target-specific order-only second-expansion else-if archives jobserver check-symlink
+# environment
+SSH_AUTH_SOCK = /private/tmp/com.apple.launchd.8DBCrBi9LR/Listeners
+# automatic
+%F = $(notdir $%)
+# environment
+VSCODE_PIPE_LOGGING = true
+# environment
+rvm_bin_path = /Users/antonpirker/.rvm/bin
+# environment
+PWD = /Users/antonpirker/code/relay
+# environment
+HOMEBREW_CELLAR = /opt/homebrew/Cellar
+# environment
+GEM_HOME = /Users/antonpirker/.rvm/gems/ruby-3.0.0
+# environment
+ORIGINAL_XDG_CURRENT_DESKTOP = undefined
+# environment
+MANPATH = /opt/homebrew/share/man::
+# environment
+VSCODE_AMD_ENTRYPOINT = vs/workbench/api/node/extensionHostProcess
+# environment
+HOME = /Users/antonpirker
+# default
+MAKEFILEPATH = $(shell /usr/bin/xcode-select -print-path 2>/dev/null || echo /Developer)/Makefiles
+# environment
+VSCODE_CODE_CACHE_PATH = /Users/antonpirker/Library/Application Support/Code/CachedData/57fd6d0195bb9b9d1b49f6da5db789060795de47
+# environment
+LOGNAME = antonpirker
+# environment
+APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL = true
+# environment
+ZSH = /Users/antonpirker/.oh-my-zsh
+# environment
+VSCODE_HANDLES_UNCAUGHT_ERRORS = true
+# automatic
+^D = $(patsubst %/,%,$(dir $^))
+# environment
+GEM_PATH = /Users/antonpirker/.rvm/gems/ruby-3.0.0:/Users/antonpirker/.rvm/gems/ruby-3.0.0@global
+# environment
+XPC_FLAGS = 0x0
+# default
+MAKE = $(MAKE_COMMAND)
+# default
+MAKECMDGOALS := all
+# environment
+IRBRC = /Users/antonpirker/.rvm/rubies/ruby-3.0.0/.irbrc
+# environment
+SHLVL = 1
+# environment
+VOLTA_HOME = /Users/antonpirker/.volta
+# default
+MAKE_VERSION := 3.81
+# environment
+USER = antonpirker
+# makefile
+.DEFAULT_GOAL := all
+# makefile (from `Makefile', line 3)
+RELAY_FEATURES := ssl
+# environment
+rvm_version = 1.29.12 (latest)
+# environment
+LESS = -R
+# automatic
+%D = $(patsubst %/,%,$(dir $%))
+# default
+MAKE_COMMAND := /Library/Developer/CommandLineTools/usr/bin/make
+# default
+.VARIABLES := 
+# environment
+TMPDIR = /var/folders/3g/wppgmmyj16z44c39x7gyp1fc0000gn/T/
+# automatic
+*F = $(notdir $*)
+# environment
+VSCODE_IPC_HOOK = /Users/antonpirker/Library/Application Support/Code/1.67.0-main.sock
+# makefile
+MAKEFLAGS = Rrqp
+# environment
+MFLAGS = -Rrqp
+# automatic
+*D = $(patsubst %/,%,$(dir $*))
+# environment
+XPC_SERVICE_NAME = application.com.microsoft.VSCode.16365734.16365740
+# environment
+HOMEBREW_PREFIX = /opt/homebrew
+# automatic
++D = $(patsubst %/,%,$(dir $+))
+# automatic
++F = $(notdir $+)
+# environment
+HOMEBREW_REPOSITORY = /opt/homebrew
+# environment
+__CF_USER_TEXT_ENCODING = 0x1F5:0x0:0x0
+# environment
+COMMAND_MODE = unix2003
+# default
+MAKEFILES := 
+# makefile (from `Makefile', line 2)
+RELAY_PYTHON_VERSION := python3
+# automatic
+<F = $(notdir $<)
+# environment
+PAGER = less
+# environment
+LC_ALL = C
+# automatic
+^F = $(notdir $^)
+# environment
+rvm_prefix = /Users/antonpirker
+# default
+SUFFIXES := 
+# environment
+MAKELEVEL := 0
+# environment
+GPG_TTY = not a tty
+# environment
+LANG = C
+# environment
+SENTRY_POST_MERGE_AUTO_UPDATE = 1
+# environment
+MY_RUBY_HOME = /Users/antonpirker/.rvm/rubies/ruby-3.0.0
+# variable set hash-table stats:
+# Load=88/1024=9%, Rehash=0, Collisions=3/114=3%
+
+# Pattern-specific Variable Values
+
+# No pattern-specific variable values.
+
+# Directories
+
+# . (device 16777232, inode 7236698): 57 files, no impossibilities.
+
+# 57 files, no impossibilities in 1 directories.
+
+# Implicit Rules
+
+# No implicit rules.
+
+# Files
+
+setup: setup-git setup-venv
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+
+all: check test
+#  Phony target (prerequisite of .PHONY).
+#  Command-line target.
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has been updated.
+#  Needs to be updated (-q is set).
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/2=0%
+
+.git/hooks/pre-commit:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 154):
+	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook pre-commit
+	
+
+.PHONY: all check clean build release build-linux-release sdist wheel wheel-manylinux test test-rust test-rust-all test-python test-integration doc-api doc-api style style-rust style-python lint lint-rust lint-python format format-rust format-python setup init-submodules setup-git setup-venv devserver clean-target-dir
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+doc-api: setup-git
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 73):
+	cargo doc --workspace --all-features --no-deps
+	
+
+clean-target-dir:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 138):
+	if [ "$$(du -s target/ | cut -f 1)" -gt 4000000 ]; then \
+	rm -rf target/; \
+	fi
+	
+
+wheel-manylinux: setup-git
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 42):
+	@scripts/docker-manylinux.sh
+	
+
+init-submodules:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 124):
+	@git submodule update --init --recursive
+	
+
+format-python: setup-venv
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 115):
+	.venv/bin/black py tests scripts --exclude '\.eggs|sentry_relay/_lowlevel.*'
+	
+
+style-python: setup-venv
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 87):
+	.venv/bin/black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
+	
+
+test-python: setup-git setup-venv
+#  Phony target (prerequisite of .PHONY).
+ 
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 59):
+	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
+	.venv/bin/pytest -v py
+	
+
+# Not a target:
+.SUFFIXES:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+wheel: setup-git setup-venv
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 38):
+	cd py && ../.venv/bin/python setup.py bdist_wheel
+	
+
+style: style-rust style-python
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has been updated.
+#  Needs to be updated (-q is set).
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/2=0%
+
+format: format-rust format-python
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+
+# Not a target:
+Makefile:
+#  Implicit rule search has been done.
+#  Last modified 2022-03-04 17:34:46
+#  File has been updated.
+#  Successfully updated.
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/0=0%
+
+lint-rust: setup-git
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 96):
+	@rustup component add clippy --toolchain stable 2> /dev/null
+	cargo +stable clippy --workspace --all-features --tests -- -D clippy::all
+	
+
+test: test-rust-all test-python test-integration
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+
+build: setup-git
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 19):
+	cargo +stable build --all-features
+	
+
+setup-venv: .venv/bin/python
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+
+sdist: setup-git setup-venv
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 34):
+	cd py && ../.venv/bin/python setup.py sdist --format=zip
+	
+
+release: setup-git
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 23):
+	@cd relay && cargo +stable build --release --locked --features ${RELAY_FEATURES}
+	
+
+# Not a target:
+.DEFAULT:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+.venv/bin/python: Makefile
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 146):
+	rm -rf .venv
+	@# --copies is necessary because OS X make checks the mtime of the symlink
+	@# target (/usr/local/bin/python), which is always much older than the
+	@# Makefile, and then proceeds to unconditionally rebuild the venv.
+	$$RELAY_PYTHON_VERSION -m venv --copies .venv
+	.venv/bin/pip install -U -r requirements-dev.txt
+	
+
+devserver:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 134):
+	@systemfd --no-pid -s http::3000 -- cargo watch -x "run -- run"
+	
+
+clean:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 12):
+	cargo clean
+	rm -rf .venv
+	
+
+build-linux-release: setup-git
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 27):
+	cd relay && cargo build --release --locked --features ${RELAY_FEATURES} --target=${TARGET}
+	objcopy --only-keep-debug target/${TARGET}/release/relay{,.debug}
+	objcopy --strip-debug --strip-unneeded target/${TARGET}/release/relay
+	objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
+	
+
+format-rust:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 110):
+	@rustup component add rustfmt --toolchain stable 2> /dev/null
+	cargo +stable fmt --all
+	
+
+style-rust:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  Implicit/static pattern stem: `'
+#  File does not exist.
+#  File has been updated.
+#  Needs to be updated (-q is set).
+# automatic
+# @ := style-rust
+# automatic
+# % := 
+# automatic
+# * := 
+# automatic
+# + := 
+# automatic
+# | := 
+# automatic
+# < := 
+# automatic
+# ^ := 
+# automatic
+# ? := 
+# variable set hash-table stats:
+# Load=8/32=25%, Rehash=0, Collisions=1/10=10%
+#  commands to execute (from `Makefile', line 82):
+	@rustup component add rustfmt --toolchain stable 2> /dev/null
+	cargo +stable fmt --all -- --check
+	
+
+lint-python: setup-venv
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 101):
+	.venv/bin/flake8 py
+	
+
+test-rust: setup-git
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 51):
+	cargo test --workspace
+	
+
+setup-git: .git/hooks/pre-commit init-submodules
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+
+lint: lint-rust lint-python
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+
+test-rust-all: setup-git
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+ 
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 55):
+	cargo test --workspace --all-features
+	
+
+check: style lint
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has been updated.
+#  Needs to be updated (-q is set).
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/2=0%
+
+test-integration: build setup-venv
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  commands to execute (from `Makefile', line 64):
+	.venv/bin/pytest tests -n auto -v
+	
+
+doc: doc-api
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+# files hash-table stats:
+# Load=37/1024=4%, Rehash=0, Collisions=3/151=2%
+# VPATH Search Paths
+
+# No `vpath' search paths.
+
+# No general (`VPATH' variable) search path.
+
+# # of strings in strcache: 1
+# # of strcache buffers: 1
+# strcache size: total = 4096 / max = 4096 / min = 4096 / avg = 4096
+# strcache free: total = 4087 / max = 4087 / min = 4087 / avg = 4087
+
+# Finished Make data base on Wed May 11 11:31:03 2022
+
+ 
