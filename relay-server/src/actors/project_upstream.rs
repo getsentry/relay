@@ -25,9 +25,9 @@ use crate::utils::{self, ErrorBoundary};
 mod _macro {
     /// The current version of the project states endpoint.
     ///
-    /// This is the version that will be used to query Upstream.  See
-    /// [`crate::endpoints::project_configs`] for the version that will be accepted by
-    /// relay.
+    /// This is the version that will be used to query Upstream. The endpoint version is added as
+    /// `version` query parameter to every outgoing request. See the `projectconfigs` endpoint for
+    /// the versions that will be accepted by Relay.
     #[macro_export]
     macro_rules! project_states_version {
         () => {
