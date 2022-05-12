@@ -36,8 +36,6 @@ pub enum EventType {
     ExpectStaple,
     /// Performance monitoring transactions carrying spans.
     Transaction,
-    /// Replay Events for session replays
-    ReplayEvent,
     /// All events that do not qualify as any other type.
     #[serde(other)]
     Default,
@@ -88,7 +86,6 @@ impl fmt::Display for EventType {
             EventType::ExpectCt => write!(f, "expectct"),
             EventType::ExpectStaple => write!(f, "expectstaple"),
             EventType::Transaction => write!(f, "transaction"),
-            EventType::ReplayEvent => write!(f, "replay_event"),
         }
     }
 }
@@ -182,7 +179,6 @@ impl From<EventType> for DataCategory {
         match ty {
             EventType::Default | EventType::Error => Self::Error,
             EventType::Transaction => Self::Transaction,
-            EventType::ReplayEvent => Self::ReplayEvent,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 Self::Security
             }

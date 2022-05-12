@@ -290,9 +290,7 @@ fn extract_transaction_metrics_inner(
     event: &Event,
     mut push_metric: impl FnMut(Metric),
 ) {
-    if event.ty.value() != Some(&EventType::Transaction)
-        && event.ty.value() != Some(&EventType::ReplayEvent)
-    {
+    if event.ty.value() != Some(&EventType::Transaction) {
         return;
     }
 

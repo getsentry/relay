@@ -114,10 +114,7 @@ impl<'a> NormalizeProcessor<'a> {
 
     /// Ensure measurements interface is only present for transaction events
     fn normalize_measurements(&self, event: &mut Event) {
-        if !matches!(
-            event.ty.value(),
-            Some(&EventType::Transaction | &EventType::ReplayEvent)
-        ) {
+        if event.ty.value() != Some(&EventType::Transaction) {
             // Only transaction/replay events may have a measurements interface
             event.measurements = Annotated::empty();
         }
@@ -132,10 +129,7 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     fn normalize_spans(&self, event: &mut Event) {
-        if matches!(
-            event.ty.value(),
-            Some(&EventType::Transaction | &EventType::ReplayEvent)
-        ) {
+        if event.ty.value() != Some(&EventType::Transaction) {
             spans::normalize_spans(event, &self.config.span_attributes);
         }
     }
@@ -265,9 +259,6 @@ impl<'a> NormalizeProcessor<'a> {
         // the time being, this is only implemented for transactions, so be specific:
         if event.ty.value() == Some(&EventType::Transaction) {
             return EventType::Transaction;
-        }
-        if event.ty.value() == Some(&EventType::ReplayEvent) {
-            return EventType::ReplayEvent;
         }
 
         // The SDKs do not describe event types, and we must infer them from available attributes.
