@@ -302,13 +302,13 @@ def mini_sentry(request):
 
         rv = {}
         version = flask_request.args.get("version")
-        if version in (None, "1"):
+        if version in [None, "1"]:
             for project_id in flask_request.json["projects"]:
                 project_config = sentry.project_configs[int(project_id)]
                 if is_trusted(relay_id, project_config):
                     rv[project_id] = project_config
 
-        elif version in ("2", "3"):
+        elif version in ["2", "3"]:
             for public_key in flask_request.json["publicKeys"]:
                 # We store projects by id, but need to return by key
                 for project_config in sentry.project_configs.values():
