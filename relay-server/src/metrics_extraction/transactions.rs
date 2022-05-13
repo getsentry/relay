@@ -131,23 +131,14 @@ impl UserSatisfaction {
     }
 }
 
-/// Get duration from timestamp and `start_timestamp`.
-#[cfg(feature = "processing")]
-fn get_duration_millis(start: &Timestamp, end: &Timestamp) -> f64 {
-    let start = start.timestamp_millis();
-    let end = end.timestamp_millis();
-
-    end.saturating_sub(start) as f64
-}
-
 /// Extract the the satisfaction value depending on the actual measurement/duration value
 /// and the configured threshold.
 #[cfg(feature = "processing")]
 fn extract_user_satisfaction(
     config: &Option<SatisfactionConfig>,
     transaction: &Event,
-    start_timestamp: &Timestamp,
-    end_timestamp: &Timestamp,
+    start_timestamp: Timestamp,
+    end_timestamp: Timestamp,
 ) -> Option<UserSatisfaction> {
     if let Some(config) = config {
         let threshold = transaction
@@ -156,9 +147,9 @@ fn extract_user_satisfaction(
             .and_then(|name| config.transaction_thresholds.get(name))
             .unwrap_or(&config.project_threshold);
         if let Some(value) = match threshold.metric {
-            SatisfactionMetric::Duration => {
-                Some(get_duration_millis(start_timestamp, end_timestamp))
-            }
+            SatisfactionMetric::Duration => Some(relay_common::chrono_to_positive_millis(
+                end_timestamp - start_timestamp,
+            )),
             SatisfactionMetric::Lcp => store::get_measurement(transaction, "lcp"),
             SatisfactionMetric::Unknown => None,
         } {
@@ -395,7 +386,7 @@ fn extract_transaction_metrics_inner(
     };
 
     // Duration
-    let duration_millis = get_duration_millis(start_timestamp, end_timestamp);
+    let duration_millis = relay_common::chrono_to_positive_millis(end_timestamp - start_timestamp);
 
     push_metric(Metric::new_mri(
         METRIC_NAMESPACE,

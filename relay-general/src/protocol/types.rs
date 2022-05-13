@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::iter::{FromIterator, IntoIterator};
 use std::net;
-use std::ops::{Add, Deref, DerefMut};
+use std::ops::{Add, Sub};
 use std::str::FromStr;
 
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
@@ -209,6 +209,33 @@ where
             .iter()
             .filter_map(Annotated::value)
             .position(|entry| entry.as_pair().0.as_str() == Some(key))
+    }
+
+    /// Returns a reference to the annotated value corresponding to the key.
+    ///
+    /// The key may be any borrowed form of the pairlist's key type. If there are multiple entries
+    /// with the same key, the first is returned.
+    pub fn get<'a, Q>(&'a self, key: Q) -> Option<&Annotated<V>>
+    where
+        Q: AsRef<str>,
+        K: 'a,
+    {
+        self.position(key)
+            .and_then(|pos| self.0.get(pos))
+            .and_then(Annotated::value)
+            .map(|pair| pair.as_pair().1)
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    ///
+    /// The key may be any borrowed form of the pairlist's key type. If there are multiple entries
+    /// with the same key, the first is returned.
+    pub fn get_value<'a, Q>(&'a self, key: Q) -> Option<&V>
+    where
+        Q: AsRef<str>,
+        K: 'a,
+    {
+        self.get(key).and_then(Annotated::value)
     }
 
     /// Returns `true` if the pair list contains a value for the specified key.
@@ -467,6 +494,7 @@ hex_metrastructure!(RegVal, "register value");
 pub struct Addr(pub u64);
 
 hex_metrastructure!(Addr, "address");
+relay_common::impl_str_serde!(Addr, "an address");
 
 /// An ip address.
 #[derive(
@@ -892,25 +920,19 @@ impl From<DateTime<Utc>> for Timestamp {
     }
 }
 
-impl Deref for Timestamp {
-    type Target = DateTime<Utc>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Timestamp {
-    fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
-        &mut self.0
-    }
-}
-
 impl Add<Duration> for Timestamp {
     type Output = Self;
 
     fn add(self, duration: Duration) -> Self::Output {
         Timestamp(self.0 + duration)
+    }
+}
+
+impl Sub<Timestamp> for Timestamp {
+    type Output = chrono::Duration;
+
+    fn sub(self, rhs: Timestamp) -> Self::Output {
+        self.into_inner() - rhs.into_inner()
     }
 }
 

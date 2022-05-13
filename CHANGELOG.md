@@ -13,6 +13,7 @@
 - fix(metrics): Enforce metric name length limit. ([#1238](https://github.com/getsentry/relay/pull/1238))
 - Accept and forward unknown Envelope items. In processing mode, drop items individually rather than rejecting the entire request. This allows SDKs to send new data in combined Envelopes in the future. ([#1246](https://github.com/getsentry/relay/pull/1246))
 - Stop extracting metrics with outdated names from sessions. ([#1251](https://github.com/getsentry/relay/pull/1251), [#1252](https://github.com/getsentry/relay/pull/1252))
+- Update symbolic to pull in fixed Unreal parser that now correctly handles zero-length files. ([#1266](https://github.com/getsentry/relay/pull/1266))
 
 **Internal**:
 
@@ -22,6 +23,10 @@
 - Remove the unused "internal" data category. ([#1245](https://github.com/getsentry/relay/pull/1245))
 - Add the client and version as `sdk` tag to extracted session metrics in the format `name/version`. ([#1248](https://github.com/getsentry/relay/pull/1248))
 - Expose `shutdown_timeout` in `OverridableConfig` ([#1247](https://github.com/getsentry/relay/pull/1247))
+- Normalize all profiles and reject invalid ones. ([#1250](https://github.com/getsentry/relay/pull/1250))
+- Raise a new InvalidCompression Outcome for invalid Unreal compression. ([#1237](https://github.com/getsentry/relay/pull/1237))
+- Add a profile data category and count profiles in an envelope to apply rate limits. ([#1259](https://github.com/getsentry/relay/pull/1259))
+- Support dynamic sampling by custom tags, operating system name and version, as well as device name and family. ([#1268](https://github.com/getsentry/relay/pull/1268))
 
 ## 22.4.0
 

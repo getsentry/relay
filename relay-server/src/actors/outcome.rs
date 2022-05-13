@@ -281,6 +281,9 @@ pub enum DiscardReason {
     /// (Relay) Parsing an event envelope failed (likely missing a required header).
     InvalidEnvelope,
 
+    /// (Relay) The payload had an invalid compression stream.
+    InvalidCompression,
+
     /// (Relay) A project state returned by the upstream could not be parsed.
     ProjectState,
 
@@ -333,6 +336,7 @@ impl DiscardReason {
             DiscardReason::InvalidMsgpack => "invalid_msgpack",
             DiscardReason::InvalidTransaction => "invalid_transaction",
             DiscardReason::InvalidEnvelope => "invalid_envelope",
+            DiscardReason::InvalidCompression => "invalid_compression",
             DiscardReason::ProjectState => "project_state",
             DiscardReason::DuplicateItem => "duplicate_item",
             DiscardReason::NoEventPayload => "no_event_payload",

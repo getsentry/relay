@@ -3219,7 +3219,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.10"
+version = "0.8.11"
 dependencies = [
  "chrono",
  "failure",
@@ -3492,7 +3492,8 @@ dependencies = [
  "serde_json",
  "serde_urlencoded 0.7.0",
  "smallvec 1.4.0",
- "symbolic",
+ "symbolic-common",
+ "symbolic-unreal",
  "take_mut",
  "tokio 1.0.1",
  "tokio-timer",
@@ -4210,33 +4211,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "502d53007c02d7605a05df1c1a73ee436952781653da5d0bf57ad608f66932c1"
 
 [[package]]
-name = "symbolic"
-version = "8.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fb7f79d0216069be1326a604e8cc483c3c2c08bf8ac6061db40e9f4a2319d91"
-dependencies = [
- "symbolic-common",
- "symbolic-unreal",
-]
-
-[[package]]
 name = "symbolic-common"
-version = "8.7.0"
+version = "8.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac6aac7b803adc9ee75344af7681969f76d4b38e4723c6eaacf3b28f5f1d87ff"
+checksum = "65098afa1f1ca8991e4c6f4a6c03a661838e8f464c8bbafab9c2f1a3fa913b7f"
 dependencies = [
  "debugid",
  "memmap2",
- "serde",
  "stable_deref_trait",
  "uuid 0.8.1",
 ]
 
 [[package]]
 name = "symbolic-unreal"
-version = "8.7.0"
+version = "8.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57e355e20fa321130ba3aba0027a8933d923d3eeff25c93c48bbe041a460d9b1"
+checksum = "26122a242f752060f8844a583c9ef085fe214ac708adb0053ccd02b29a64726b"
 dependencies = [
  "anylog",
  "bytes 1.1.0",

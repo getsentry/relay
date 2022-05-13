@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::ops::Deref;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -12,76 +13,50 @@ use relay_common::{DurationUnit, MetricUnit};
 use crate::protocol::{Breakdowns, Event, Measurement, Measurements, Timestamp};
 use crate::types::Annotated;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct TimeWindowSpan {
     pub start: Timestamp,
     pub end: Timestamp,
 }
 
 impl TimeWindowSpan {
-    pub fn new(start: Timestamp, end: Timestamp) -> Self {
+    pub fn new(mut start: Timestamp, mut end: Timestamp) -> Self {
         if end < start {
-            return TimeWindowSpan {
-                start: end,
-                end: start,
-            };
+            std::mem::swap(&mut start, &mut end);
         }
 
         TimeWindowSpan { start, end }
     }
 
-    pub fn duration(&self) -> f64 {
-        let delta: f64 = (self.end.timestamp_nanos() - self.start.timestamp_nanos()) as f64;
-        // convert to milliseconds (1 ms = 1,000,000 nanoseconds)
-        (delta / 1_000_000.00).abs()
+    pub fn duration(&self) -> Duration {
+        // Cannot fail since durations are ordered in the constructor
+        (self.end - self.start).to_std().unwrap_or_default()
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Debug, Eq, Hash, PartialEq)]
 enum OperationBreakdown<'a> {
     Emit(&'a str),
     DoNotEmit(&'a str),
 }
 
-fn get_op_time_spent(mut intervals: Vec<TimeWindowSpan>) -> Option<f64> {
-    if intervals.is_empty() {
-        return None;
-    }
-
-    // sort by start timestamp in ascending order
+fn get_operation_duration(mut intervals: Vec<TimeWindowSpan>) -> Duration {
     intervals.sort_unstable_by_key(|span| span.start);
 
-    let mut op_time_spent = 0.0;
-    let mut previous_interval: Option<TimeWindowSpan> = None;
+    let mut duration = Duration::new(0, 0);
+    let mut last_end = None;
 
-    for current_interval in intervals.into_iter() {
-        match previous_interval.as_mut() {
-            Some(last_interval) => {
-                if last_interval.end < current_interval.start {
-                    // if current_interval does not overlap with last_interval,
-                    // then add last_interval to op_time_spent
-                    op_time_spent += last_interval.duration();
-                    previous_interval = Some(current_interval);
-                    continue;
-                }
+    for mut interval in intervals {
+        if let Some(cutoff) = last_end {
+            // ensure the current interval doesn't overlap with the last one
+            interval = TimeWindowSpan::new(interval.start.max(cutoff), interval.end.max(cutoff));
+        }
 
-                // current_interval and last_interval overlaps; so we merge these intervals
-
-                // invariant: last_interval.start <= current_interval.start
-
-                last_interval.end = std::cmp::max(last_interval.end, current_interval.end);
-            }
-            None => {
-                previous_interval = Some(current_interval);
-            }
-        };
+        duration += interval.duration();
+        last_end = Some(interval.end);
     }
 
-    if let Some(remaining_interval) = previous_interval {
-        op_time_spent += remaining_interval.duration();
-    }
-
-    Some(op_time_spent)
+    duration
 }
 
 /// Emit breakdowns that are derived using information from the given event.
@@ -101,9 +76,7 @@ pub struct SpanOperationsConfig {
 
 impl EmitBreakdowns for SpanOperationsConfig {
     fn emit_breakdowns(&self, event: &Event) -> Option<Measurements> {
-        let operation_name_breakdowns = &self.matches;
-
-        if operation_name_breakdowns.is_empty() {
+        if self.matches.is_empty() {
             return None;
         }
 
@@ -121,38 +94,22 @@ impl EmitBreakdowns for SpanOperationsConfig {
                 Some(span) => span,
             };
 
-            let operation_name = match span.op.value() {
+            let name = match span.op.as_str() {
                 None => continue,
                 Some(span_op) => span_op,
             };
 
-            let start = match span.start_timestamp.value() {
-                None => continue,
-                Some(start) => start,
+            let interval = match (span.start_timestamp.value(), span.timestamp.value()) {
+                (Some(start), Some(end)) => TimeWindowSpan::new(*start, *end),
+                _ => continue,
             };
 
-            let end = match span.timestamp.value() {
-                None => continue,
-                Some(end) => end,
+            let key = match self.matches.iter().find(|n| name.starts_with(*n)) {
+                Some(op_name) => OperationBreakdown::Emit(op_name),
+                None => OperationBreakdown::DoNotEmit(name),
             };
 
-            let cover = TimeWindowSpan::new(*start, *end);
-
-            // Only emit an operation breakdown measurement if the operation name matches any
-            // entries in operation_name_breakdown.
-            let results = operation_name_breakdowns
-                .iter()
-                .find(|maybe| operation_name.starts_with(*maybe));
-
-            let operation_name = match results {
-                None => OperationBreakdown::DoNotEmit(operation_name),
-                Some(operation_name) => OperationBreakdown::Emit(operation_name),
-            };
-
-            intervals
-                .entry(operation_name)
-                .or_insert_with(Vec::new)
-                .push(cover);
+            intervals.entry(key).or_insert_with(Vec::new).push(interval);
         }
 
         if intervals.is_empty() {
@@ -160,42 +117,35 @@ impl EmitBreakdowns for SpanOperationsConfig {
         }
 
         let mut breakdown = Measurements::default();
+        let mut total_time = Duration::new(0, 0);
 
-        let mut total_time_spent = 0.0;
+        for (key, intervals) in intervals {
+            if intervals.is_empty() {
+                continue;
+            }
 
-        for (operation_name, intervals) in intervals {
-            // TODO(ja): Convert measurements in here, use `Duration` as typed carrier.
-            // use `get_metric_measurement_unit` from metric extraction for this (move!)
-            let op_time_spent = match get_op_time_spent(intervals) {
-                None => continue,
-                Some(op_time_spent) => op_time_spent,
-            };
+            let op_duration = get_operation_duration(intervals);
+            total_time += op_duration;
 
-            total_time_spent += op_time_spent;
-
-            let operation_name = match operation_name {
+            let operation_name = match key {
+                OperationBreakdown::Emit(name) => name,
                 OperationBreakdown::DoNotEmit(_) => continue,
-                OperationBreakdown::Emit(operation_name) => operation_name,
             };
 
-            let time_spent_measurement = Measurement {
-                value: Annotated::new(op_time_spent),
+            let op_value = Measurement {
+                value: Annotated::new(relay_common::duration_to_millis(op_duration)),
                 unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
             };
 
             let op_breakdown_name = format!("ops.{}", operation_name);
-
-            breakdown.insert(op_breakdown_name, Annotated::new(time_spent_measurement));
+            breakdown.insert(op_breakdown_name, Annotated::new(op_value));
         }
 
-        let total_time_spent_measurement = Measurement {
-            value: Annotated::new(total_time_spent),
+        let total_time_value = Annotated::new(Measurement {
+            value: Annotated::new(relay_common::duration_to_millis(total_time)),
             unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        };
-        breakdown.insert(
-            "total.time".to_string(),
-            Annotated::new(total_time_spent_measurement),
-        );
+        });
+        breakdown.insert("total.time".to_string(), total_time_value);
 
         Some(breakdown)
     }
