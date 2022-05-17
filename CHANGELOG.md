@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Emit specific event type tags for "processing.event.produced" metric. ([#1270](https://github.com/getsentry/relay/pull/1270))
+
 ## 22.5.0
 
 **Features**:
