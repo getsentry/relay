@@ -611,6 +611,7 @@
 <span id="604">604</span>
 <span id="605">605</span>
 <span id="606">606</span>
+<span id="607">607</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
@@ -976,8 +977,9 @@
         <span class="ident">message</span>: <span class="ident">GetCachedProjectState</span>,
         <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>,
     ) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>)
-            .<span class="ident">state_clone</span>()
+        <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
+        <span class="ident">project</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>);
+        <span class="ident">project</span>.<span class="ident">state_clone</span>()
     }
 }
 
