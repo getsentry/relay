@@ -321,7 +321,7 @@ impl EnvelopeContext {
             outcome_aggregator.do_send(TrackOutcome {
                 timestamp: self.received_at,
                 scoping: self.scoping,
-                outcome,
+                outcome: outcome.clone(),
                 event_id: self.event_id,
                 remote_addr: self.remote_addr,
                 category: DataCategory::Attachment,
@@ -330,6 +330,18 @@ impl EnvelopeContext {
                 // do 32.
                 quantity: self.summary.attachment_quantity as u32,
             });
+        }
+
+        if self.summary.profile_quantity > 0 {
+            outcome_aggregator.do_send(TrackOutcome {
+                timestamp: self.received_at,
+                scoping: self.scoping,
+                outcome,
+                event_id: self.event_id,
+                remote_addr: self.remote_addr,
+                category: DataCategory::Profile,
+                quantity: self.summary.profile_quantity as u32,
+            })
         }
     }
 }
@@ -976,6 +988,7 @@ impl EnvelopeProcessor {
     /// Remove profiles if the feature flag is not enabled
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+        let context = state.envelope_context;
         state.envelope.retain_items(|item| {
             match item.ty() {
                 ItemType::Profile => {
@@ -983,7 +996,22 @@ impl EnvelopeProcessor {
                         return false;
                     }
                     if self.config.processing_enabled() {
-                        return self.parse_profile(item).is_ok();
+                        if self.parse_profile(item).is_err() {
+                            let outcome_aggregator = OutcomeAggregator::from_registry();
+                       
+                            outcome_aggregator.do_send(TrackOutcome {
+                                timestamp: context.received_at,
+                                scoping: context.scoping,
+                                outcome: Outcome::Invalid(DiscardReason::ProcessProfile),
+                                event_id: context.event_id,
+                                remote_addr: context.remote_addr,
+                                category:DataCategory::Profile,
+                                quantity: 1,
+                            });
+
+                            return false;
+                        }
+                        true;
                     }
                     true
                 }
