@@ -61,6 +61,7 @@ relay-redis = { path = "../relay-redis" }
 relay-sampling = { path = "../relay-sampling" }
 relay-statsd = { path = "../relay-statsd" }
 relay-system = { path = "../relay-system" }
+relay-aws-extension = { path = "../relay-aws-extension" }
 reqwest = { version = "0.11.1", features = ["gzip", "stream", "trust-dns", "native-tls-vendored"] }
 rmp-serde = "0.14.3"
 serde = { version = "1.0.114", features = ["derive"] }

@@ -1,0 +1,16 @@
+[package]
+name = "relay-aws-extension"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Actor implementing relay AWS Extension"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "22.5.0"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+actix = "0.7.9"
+relay-common = { path = "../relay-common" }
+relay-log = { path = "../relay-log" }
+relay-system = { path = "../relay-system" }

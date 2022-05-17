@@ -7,6 +7,7 @@ use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
 
+use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
@@ -142,6 +143,9 @@ impl ServiceState {
 
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
         registry.set(outcome_aggregator.start());
+
+        //TODO(neel) - conditional on config/ENV
+        registry.set(Arbiter::start(|_| AwsExtension {}));
 
         Ok(ServiceState { config })
     }

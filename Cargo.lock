@@ -3218,6 +3218,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-aws-extension"
+version = "22.5.0"
+dependencies = [
+ "actix",
+ "relay-common",
+ "relay-log",
+ "relay-system",
+]
+
+[[package]]
 name = "relay-cabi"
 version = "0.8.11"
 dependencies = [
@@ -3474,6 +3484,7 @@ dependencies = [
  "rdkafka-sys",
  "regex",
  "relay-auth",
+ "relay-aws-extension",
  "relay-common",
  "relay-config",
  "relay-filter",
