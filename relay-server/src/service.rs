@@ -145,7 +145,7 @@ impl ServiceState {
         registry.set(outcome_aggregator.start());
 
         //TODO(neel) - conditional on config/ENV
-        registry.set(Arbiter::start(|_| AwsExtension {}));
+        registry.set(Arbiter::start(|_| AwsExtension::new()));
 
         Ok(ServiceState { config })
     }
