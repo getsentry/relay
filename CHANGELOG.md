@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Compatibility:** This version of Relay requires Sentry server `22.6.0` or newer.
+
+**Internal**:
+
+- Add version 3 to the project configs endpoint. This allows returning pending results which need to be polled later and avoids blocking batched requests on single slow entries. ([#1263](https://github.com/getsentry/relay/pull/1263))
+
 ## 22.5.0
 
 **Features**:
@@ -7,7 +15,6 @@
 - Add platform, op, http.method and status tag to all extracted transaction metrics. ([#1227](https://github.com/getsentry/relay/pull/1227))
 - Add units in built-in measurements. ([#1229](https://github.com/getsentry/relay/pull/1229))
 - Add protocol support for custom units on transaction measurements. ([#1256](https://github.com/getsentry/relay/pull/1256))
-- Add v3 to projectconfigs endpoint, this allows returning pending results which need to be polled later. ([#1263](https://github.com/getsentry/relay/pull/1263))
 
 **Bug Fixes**:
 
