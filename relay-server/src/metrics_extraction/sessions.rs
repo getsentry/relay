@@ -106,7 +106,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     }
 
     // Mark the session as errored, which includes fatal sessions.
-    if let Some(errors) = session.errors() {
+    if let Some(errors) = session.all_errors() {
         target.push(match errors {
             SessionErrored::Individual(session_id) => Metric::new_mri(
                 METRIC_NAMESPACE,
@@ -464,6 +464,20 @@ mod tests {
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "init",
+                },
+            },
+            Metric {
+                name: "c:sessions/session@none",
+                unit: None,
+                value: Counter(
+                    12.0,
+                ),
+                timestamp: UnixTimestamp(1581084960),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
+                    "session.status": "errored_preaggr",
                 },
             },
             Metric {
