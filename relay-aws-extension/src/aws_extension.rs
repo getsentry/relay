@@ -1,4 +1,6 @@
+use actix::actors::signal::{Signal, SignalType};
 use actix::prelude::*;
+use relay_system::Controller;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
@@ -150,7 +152,8 @@ impl Handler<NextEvent> for AwsExtension {
                 shutdown_reason, ..
             } => {
                 relay_log::debug!("Received SHUTDOWN: reason {}", shutdown_reason);
-                //TODO-neel send shutdown to system
+                // need to kill the whole system here, not sure if this is the right way
+                Controller::from_registry().do_send(Signal(SignalType::Term));
             }
         }
     }

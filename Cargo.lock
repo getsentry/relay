@@ -3222,7 +3222,6 @@ name = "relay-aws-extension"
 version = "22.5.0"
 dependencies = [
  "actix",
- "relay-common",
  "relay-log",
  "relay-system",
  "reqwest",
