@@ -429,7 +429,7 @@ mod tests {
 
         extract_session_metrics(&session.attributes, &session, None, &mut metrics);
 
-        assert_eq!(metrics.len(), 1);
+        assert_eq!(metrics.len(), 2); // duration and user ID
 
         let duration_metric = &metrics[0];
         assert_eq!(duration_metric.name, "d:sessions/duration@second");
@@ -437,6 +437,11 @@ mod tests {
             duration_metric.value,
             MetricValue::Distribution(_)
         ));
+
+        let user_metric = &metrics[1];
+        assert_eq!(user_metric.name, "s:sessions/user@none");
+        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+        assert_eq!(user_metric.tags["session.status"], "ok");
     }
 
     #[test]
