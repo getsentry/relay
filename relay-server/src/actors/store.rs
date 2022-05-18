@@ -780,7 +780,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             self.produce(topic, event_message)?;
             metric!(
                 counter(RelayCounters::ProcessingMessageProduced) += 1,
-                event_type = "event"
+                event_type = &event_item.ty().to_string()
             );
         } else if !attachments.is_empty() {
             relay_log::trace!("Sending individual attachments of envelope to kafka");
