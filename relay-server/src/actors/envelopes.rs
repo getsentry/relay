@@ -998,20 +998,20 @@ impl EnvelopeProcessor {
                     if self.config.processing_enabled() {
                         if self.parse_profile(item).is_err() {
                             let outcome_aggregator = OutcomeAggregator::from_registry();
-                       
+
                             outcome_aggregator.do_send(TrackOutcome {
                                 timestamp: context.received_at,
                                 scoping: context.scoping,
                                 outcome: Outcome::Invalid(DiscardReason::ProcessProfile),
                                 event_id: context.event_id,
                                 remote_addr: context.remote_addr,
-                                category:DataCategory::Profile,
+                                category: DataCategory::Profile,
                                 quantity: 1,
                             });
 
                             return false;
                         }
-                        true;
+                        return true;
                     }
                     true
                 }
