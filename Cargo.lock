@@ -3226,6 +3226,8 @@ dependencies = [
  "relay-log",
  "relay-system",
  "reqwest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

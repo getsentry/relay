@@ -1,4 +1,5 @@
 use actix::prelude::*;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
 use std::thread;
@@ -8,6 +9,15 @@ const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";
 const EXTENSION_ID_HEADER: &str = "Lambda-Extension-Identifier";
 // const SHUTDOWN_TIMEOUT: u64 = 2;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+struct RegisterResponse {
+    pub function_name: String,
+    pub function_version: String,
+    pub handler: String,
+}
 
 pub struct AwsExtension {
     base_url: String,
@@ -49,6 +59,8 @@ impl AwsExtension {
             .json(&map)
             .send()
             .unwrap();
+
+        // let register_response: RegisterResponse = res.json().unwrap();
 
         let extension_id = res
             .headers()
