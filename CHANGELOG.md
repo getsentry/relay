@@ -6,6 +6,10 @@
 
 **Features**:
 
+- Session metrics extraction: Always extract distinct_id. ([#1275](https://github.com/getsentry/relay/pull/1275))
+
+**Bug Fixes**:
+
 - Session metrics extraction: Count crashed+abnormal towards errored_preaggr. ([#1274](https://github.com/getsentry/relay/pull/1274))
 
 **Internal**:
