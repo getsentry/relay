@@ -4,6 +4,10 @@
 
 **Compatibility:** This version of Relay requires Sentry server `22.6.0` or newer.
 
+**Features**:
+
+- Session metrics extraction: Count crashed+abnormal towards errored_preaggr. ([#1274](https://github.com/getsentry/relay/pull/1274))
+
 **Internal**:
 
 - Add version 3 to the project configs endpoint. This allows returning pending results which need to be polled later and avoids blocking batched requests on single slow entries. ([#1263](https://github.com/getsentry/relay/pull/1263))
