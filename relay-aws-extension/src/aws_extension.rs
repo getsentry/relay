@@ -2,8 +2,6 @@ use actix::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
-use std::thread;
-use std::time;
 
 const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";
@@ -17,6 +15,32 @@ struct RegisterResponse {
     pub function_name: String,
     pub function_version: String,
     pub handler: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+struct Tracing {
+    pub r#type: String,
+    pub value: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+#[serde(rename_all = "UPPERCASE", tag = "eventType")]
+enum NextEventResponse {
+    #[serde(rename_all = "camelCase")]
+    Invoke {
+        deadline_ms: u64,
+        request_id: String,
+        invoked_function_arn: String,
+        tracing: Tracing,
+    },
+    #[serde(rename_all = "camelCase")]
+    Shutdown {
+        shutdown_reason: String,
+        deadline_ms: u64,
+    },
 }
 
 pub struct AwsExtension {
@@ -44,10 +68,6 @@ impl AwsExtension {
         }
     }
 
-    fn set_extension_id(&mut self, extension_id: String) {
-        self.extension_id = Some(extension_id);
-    }
-
     fn register(&mut self) {
         let url = format!("{}/register", self.base_url);
         let map = HashMap::from([("events", ["INVOKE", "SHUTDOWN"])]);
@@ -69,7 +89,21 @@ impl AwsExtension {
             .to_str()
             .unwrap();
 
-        self.set_extension_id(extension_id.to_string());
+        self.extension_id = Some(extension_id.to_string());
+        relay_log::info!("AWS extension successfully registered");
+    }
+
+    fn next_event(&self) -> NextEventResponse {
+        let url = format!("{}/event/next", self.base_url);
+        let extension_id = self.extension_id.as_ref().unwrap();
+
+        self.reqwest_client
+            .get(&url)
+            .header(EXTENSION_ID_HEADER, extension_id)
+            .send()
+            .unwrap()
+            .json()
+            .unwrap()
     }
 }
 
@@ -107,8 +141,17 @@ impl Handler<NextEvent> for AwsExtension {
     type Result = ();
 
     fn handle(&mut self, _message: NextEvent, context: &mut Self::Context) -> Self::Result {
-        relay_log::info!("Handling next event");
-        thread::sleep(time::Duration::from_secs(1));
-        context.notify(NextEvent);
+        match self.next_event() {
+            NextEventResponse::Invoke { request_id, .. } => {
+                relay_log::debug!("Received INVOKE: request_id {}", request_id);
+                context.notify(NextEvent);
+            }
+            NextEventResponse::Shutdown {
+                shutdown_reason, ..
+            } => {
+                relay_log::debug!("Received SHUTDOWN: reason {}", shutdown_reason);
+                //TODO-neel send shutdown to system
+            }
+        }
     }
 }

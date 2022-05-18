@@ -12,7 +12,7 @@ HEADERS = {
 }
 
 next_counter = 0
-SHUTDOWN_MODE = False
+SHUTDOWN_MODE = True
 SHUTDOWN_MAX = 5
 
 

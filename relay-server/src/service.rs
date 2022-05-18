@@ -144,7 +144,7 @@ impl ServiceState {
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
         registry.set(outcome_aggregator.start());
 
-        //TODO(neel) - conditional on config/ENV
+        //TODO-neel - conditional on config/ENV
         registry.set(Arbiter::start(|_| AwsExtension::new()));
 
         Ok(ServiceState { config })
