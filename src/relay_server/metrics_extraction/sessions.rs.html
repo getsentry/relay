@@ -561,6 +561,20 @@
 <span id="554">554</span>
 <span id="555">555</span>
 <span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
@@ -669,7 +683,7 @@
     }
 
     <span class="comment">// Mark the session as errored, which includes fatal sessions.</span>
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">errors</span>) <span class="op">=</span> <span class="ident">session</span>.<span class="ident">errors</span>() {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">errors</span>) <span class="op">=</span> <span class="ident">session</span>.<span class="ident">all_errors</span>() {
         <span class="ident">target</span>.<span class="ident">push</span>(<span class="kw">match</span> <span class="ident">errors</span> {
             <span class="ident">SessionErrored::Individual</span>(<span class="ident">session_id</span>) =&gt; <span class="ident">Metric::new_mri</span>(
                 <span class="ident">METRIC_NAMESPACE</span>,
@@ -1027,6 +1041,20 @@
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
                     &quot;sdk&quot;: &quot;sentry-test/1.0&quot;,
                     &quot;session.status&quot;: &quot;init&quot;,
+                },
+            },
+            Metric {
+                name: &quot;c:sessions/session@none&quot;,
+                unit: None,
+                value: Counter(
+                    12.0,
+                ),
+                timestamp: UnixTimestamp(1581084960),
+                tags: {
+                    &quot;environment&quot;: &quot;development&quot;,
+                    &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
+                    &quot;sdk&quot;: &quot;sentry-test/1.0&quot;,
+                    &quot;session.status&quot;: &quot;errored_preaggr&quot;,
                 },
             },
             Metric {

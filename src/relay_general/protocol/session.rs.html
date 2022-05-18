@@ -419,6 +419,10 @@
 <span id="412">412</span>
 <span id="413">413</span>
 <span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::time::SystemTime</span>;
 
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Utc</span>};
@@ -517,7 +521,8 @@
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">SessionErrored</span> {
     <span class="doccomment">/// Contains the UUID for a single errored session.</span>
     <span class="ident">Individual</span>(<span class="ident">Uuid</span>),
-    <span class="doccomment">/// Contains the number of errored sessions in an aggregate.</span>
+    <span class="doccomment">/// Contains the number of all errored sessions in an aggregate.</span>
+    <span class="doccomment">/// errored, crashed, abnormal all count towards errored sessions.</span>
     <span class="ident">Aggregated</span>(<span class="ident">u32</span>),
 }
 
@@ -528,7 +533,7 @@
     <span class="kw">fn</span> <span class="ident">total_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span>;
     <span class="kw">fn</span> <span class="ident">abnormal_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span>;
     <span class="kw">fn</span> <span class="ident">crashed_count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">u32</span>;
-    <span class="kw">fn</span> <span class="ident">errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">all_errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span>;
     <span class="kw">fn</span> <span class="ident">final_duration</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">f64</span>, <span class="ident">SessionStatus</span>)<span class="op">&gt;</span>;
 }
 
@@ -617,7 +622,7 @@
         <span class="prelude-val">None</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">all_errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">errors</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">status</span>.<span class="ident">is_error</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">SessionErrored::Individual</span>(<span class="self">self</span>.<span class="ident">session_id</span>))
         } <span class="kw">else</span> {
@@ -677,9 +682,12 @@
         <span class="prelude-val">None</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">errored</span> <span class="op">&gt;</span> <span class="number">0</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">SessionErrored::Aggregated</span>(<span class="self">self</span>.<span class="ident">errored</span>))
+    <span class="kw">fn</span> <span class="ident">all_errors</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SessionErrored</span><span class="op">&gt;</span> {
+        <span class="comment">// Errors contain crashed &amp; abnormal as well.</span>
+        <span class="comment">// See https://github.com/getsentry/snuba/blob/c45f2a8636f9ea3dfada4e2d0ae5efef6c6248de/snuba/migrations/snuba_migrations/sessions/0003_sessions_matview.py#L80-L81</span>
+        <span class="kw">let</span> <span class="ident">all_errored</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">abnormal</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">crashed</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">errored</span>;
+        <span class="kw">if</span> <span class="ident">all_errored</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">SessionErrored::Aggregated</span>(<span class="ident">all_errored</span>))
         } <span class="kw">else</span> {
             <span class="prelude-val">None</span>
         }
