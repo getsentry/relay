@@ -7,6 +7,7 @@
 **Features**:
 
 - Session metrics extraction: Count crashed+abnormal towards errored_preaggr. ([#1274](https://github.com/getsentry/relay/pull/1274))
+- Implement AWS extension as an actor. ([#1277](https://github.com/getsentry/relay/pull/1277))
 
 **Internal**:
 
