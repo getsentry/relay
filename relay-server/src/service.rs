@@ -1,3 +1,4 @@
+use std::env;
 use std::fmt;
 use std::sync::Arc;
 
@@ -144,8 +145,11 @@ impl ServiceState {
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
         registry.set(outcome_aggregator.start());
 
-        //TODO-neel - conditional on config/ENV
-        registry.set(Arbiter::start(|_| AwsExtension::new()));
+        if let Ok(aws_runtime_api) = env::var("AWS_LAMBDA_RUNTIME_API") {
+            if let Ok(aws_extension) = AwsExtension::new(aws_runtime_api) {
+                registry.set(Arbiter::start(|_| aws_extension));
+            }
+        }
 
         Ok(ServiceState { config })
     }

@@ -1,9 +1,11 @@
 use actix::actors::signal::{Signal, SignalType};
 use actix::prelude::*;
+use failure::Fail;
 use relay_system::Controller;
+use reqwest::blocking::Client;
+use reqwest::StatusCode;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::env;
 
 const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";
@@ -44,32 +46,35 @@ enum NextEventResponse {
     },
 }
 
+#[derive(Debug, Fail)]
+#[fail(display = "aws extension error")]
+pub struct AwsExtensionError;
+
+/// The reqwest client needs to be blocking and with 0 timeout
+/// because the container might get frozen if lambda is unused
 pub struct AwsExtension {
     base_url: String,
-    reqwest_client: reqwest::blocking::Client,
+    reqwest_client: Client,
     extension_id: Option<String>,
 }
 
 impl AwsExtension {
-    pub fn new() -> Self {
-        let base_url = format!(
-            "http://{}/2020-01-01/extension",
-            env::var("AWS_LAMBDA_RUNTIME_API").unwrap()
-        );
+    pub fn new(aws_runtime_api: String) -> Result<Self, AwsExtensionError> {
+        let base_url = format!("http://{}/2020-01-01/extension", aws_runtime_api);
 
         let reqwest_client = reqwest::blocking::Client::builder()
             .timeout(None)
             .build()
-            .unwrap();
+            .map_err(|_| AwsExtensionError)?;
 
-        AwsExtension {
+        Ok(AwsExtension {
             base_url,
             reqwest_client,
             extension_id: None,
-        }
+        })
     }
 
-    fn register(&mut self) {
+    fn register(&mut self) -> Result<(), AwsExtensionError> {
         let url = format!("{}/register", self.base_url);
         let map = HashMap::from([("events", ["INVOKE", "SHUTDOWN"])]);
 
@@ -79,32 +84,40 @@ impl AwsExtension {
             .header(EXTENSION_NAME_HEADER, EXTENSION_NAME)
             .json(&map)
             .send()
-            .unwrap();
+            .map_err(|_| AwsExtensionError)?;
+
+        if res.status() != StatusCode::OK {
+            return Err(AwsExtensionError);
+        }
 
         // let register_response: RegisterResponse = res.json().unwrap();
 
         let extension_id = res
             .headers()
             .get(EXTENSION_ID_HEADER)
-            .unwrap()
-            .to_str()
-            .unwrap();
+            .and_then(|h| h.to_str().ok())
+            .map(|h| h.to_string())
+            .ok_or(AwsExtensionError)?;
 
-        self.extension_id = Some(extension_id.to_string());
+        self.extension_id = Some(extension_id);
         relay_log::info!("AWS extension successfully registered");
+        Ok(())
     }
 
-    fn next_event(&self) -> NextEventResponse {
-        let url = format!("{}/event/next", self.base_url);
-        let extension_id = self.extension_id.as_ref().unwrap();
+    fn next_event(&self) -> Result<NextEventResponse, AwsExtensionError> {
+        match self.extension_id.as_ref() {
+            Some(extension_id) => {
+                let url = format!("{}/event/next", self.base_url);
 
-        self.reqwest_client
-            .get(&url)
-            .header(EXTENSION_ID_HEADER, extension_id)
-            .send()
-            .unwrap()
-            .json()
-            .unwrap()
+                self.reqwest_client
+                    .get(&url)
+                    .header(EXTENSION_ID_HEADER, extension_id)
+                    .send()
+                    .and_then(|r| r.json())
+                    .map_err(|_| AwsExtensionError)
+            }
+            None => Err(AwsExtensionError),
+        }
     }
 }
 
@@ -113,8 +126,11 @@ impl Actor for AwsExtension {
 
     fn started(&mut self, context: &mut Self::Context) {
         relay_log::info!("AWS extension started");
-        self.register();
-        context.notify(NextEvent);
+
+        match self.register() {
+            Ok(_) => context.notify(NextEvent),
+            Err(_) => relay_log::info!("AWS extension registration failed"),
+        }
     }
 
     fn stopped(&mut self, _context: &mut Self::Context) {
@@ -132,7 +148,7 @@ impl Supervised for AwsExtension {}
 
 impl SystemService for AwsExtension {}
 
-pub struct NextEvent;
+struct NextEvent;
 
 impl Message for NextEvent {
     type Result = ();
@@ -143,16 +159,20 @@ impl Handler<NextEvent> for AwsExtension {
 
     fn handle(&mut self, _message: NextEvent, context: &mut Self::Context) -> Self::Result {
         match self.next_event() {
-            NextEventResponse::Invoke { request_id, .. } => {
+            Ok(NextEventResponse::Invoke { request_id, .. }) => {
                 relay_log::debug!("Received INVOKE: request_id {}", request_id);
                 context.notify(NextEvent);
             }
-            NextEventResponse::Shutdown {
+            Ok(NextEventResponse::Shutdown {
                 shutdown_reason, ..
-            } => {
+            }) => {
                 relay_log::debug!("Received SHUTDOWN: reason {}", shutdown_reason);
                 // need to kill the whole system here, not sure if this is the right way
                 Controller::from_registry().do_send(Signal(SignalType::Term));
+            }
+            _ => {
+                relay_log::debug!("Next event request failed");
+                context.notify(NextEvent);
             }
         }
     }
