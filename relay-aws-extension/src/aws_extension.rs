@@ -48,17 +48,31 @@ enum NextEventResponse {
 
 #[derive(Debug, Fail)]
 #[fail(display = "aws extension error")]
+/// Generic error in an AWS extension context
 pub struct AwsExtensionError;
 
-/// The reqwest client needs to be blocking and with 0 timeout
-/// because the container might get frozen if lambda is unused
+/// Actor implementing an AWS extension
+///
+/// Spawns an actor that
+/// * registers with the AWS extensions API
+/// * sends blocking NextEvent calls to the extensions API to get the next invocation
+///
+/// Each finished invocation immediately polls for the next event. Note that AWS might
+/// freeze the container indefinitely for unused lambdas and this request will also wait
+/// till things are active again.
 pub struct AwsExtension {
+    /// The base url for the AWS Extensions API
     base_url: String,
+    /// The reqwest client needs to be blocking and with 0 timeout
+    /// because the container might get frozen if lambda is unused
     reqwest_client: Client,
+    /// The extension id that will be retrieved on register and used
+    /// for subsequent requests
     extension_id: Option<String>,
 }
 
 impl AwsExtension {
+    /// Creates a new `AwsExtension` instance.
     pub fn new(aws_runtime_api: String) -> Result<Self, AwsExtensionError> {
         let base_url = format!("http://{}/2020-01-01/extension", aws_runtime_api);
 
