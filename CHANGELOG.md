@@ -4,11 +4,9 @@
 
 **Compatibility:** This version of Relay requires Sentry server `22.6.0` or newer.
 
-**Features**:
-
-- Session metrics extraction: Always extract distinct_id. ([#1275](https://github.com/getsentry/relay/pull/1275))
-
 **Bug Fixes**:
+
+- Session metrics extraction: Count distinct_ids from all session updates to prevent undercounting users. ([#1275](https://github.com/getsentry/relay/pull/1275))
 
 - Session metrics extraction: Count crashed+abnormal towards errored_preaggr. ([#1274](https://github.com/getsentry/relay/pull/1274))
 
