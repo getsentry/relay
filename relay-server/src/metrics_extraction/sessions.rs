@@ -203,7 +203,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     // We could also add the user ID to the "init" tag, but collecting it under a separate "ok" tag
     // might help us with validation / debugging.
     if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-        if session.total_count() == 0 && matches!(session.all_errors(), None) {
+        if session.total_count() == 0 && session.all_errors().is_none() {
             // Assuming that aggregate items always have a total_count > 0,
             // this is a session update to a healthy, individual session (init == false).
             target.push(Metric::new_mri(
