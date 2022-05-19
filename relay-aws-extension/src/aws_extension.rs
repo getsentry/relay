@@ -8,7 +8,6 @@ use std::env;
 const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";
 const EXTENSION_ID_HEADER: &str = "Lambda-Extension-Identifier";
-// const SHUTDOWN_TIMEOUT: u64 = 2;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
