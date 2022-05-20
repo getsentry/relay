@@ -160,10 +160,6 @@ enum ProcessingError {
 
     #[fail(display = "event dropped by sampling rule {}", _0)]
     EventSampled(RuleId),
-
-    #[cfg(feature = "processing")]
-    #[fail(display = "invalid profile")]
-    InvalidProfile(#[cause] ProfileError),
 }
 
 impl ProcessingError {
@@ -188,9 +184,6 @@ impl ProcessingError {
             }
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
-
-            #[cfg(feature = "processing")]
-            Self::InvalidProfile(_) => Some(Outcome::Invalid(DiscardReason::ProcessProfile)),
 
             // Internal errors
             Self::SerializeFailed(_)
@@ -231,13 +224,6 @@ impl From<Unreal4Error> for ProcessingError {
             Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
             _ => ProcessingError::InvalidUnrealReport(err),
         }
-    }
-}
-
-#[cfg(feature = "processing")]
-impl From<ProfileError> for ProcessingError {
-    fn from(err: ProfileError) -> Self {
-        ProcessingError::InvalidProfile(err)
     }
 }
 
