@@ -24,7 +24,8 @@ struct RegisterResponse {
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 struct Tracing {
-    pub r#type: String,
+    #[serde(rename = "type")
+    pub ty: String,
     pub value: String,
 }
 
