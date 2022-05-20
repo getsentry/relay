@@ -1,11 +1,13 @@
+use std::collections::HashMap;
+
 use actix::actors::signal::{Signal, SignalType};
 use actix::prelude::*;
 use failure::Fail;
-use relay_system::Controller;
 use reqwest::blocking::Client;
 use reqwest::StatusCode;
 use serde::Deserialize;
-use std::collections::HashMap;
+
+use relay_system::Controller;
 
 const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";
