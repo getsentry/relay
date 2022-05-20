@@ -16,7 +16,7 @@ ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
 
 RUN yum -y update \
     && yum -y install epel-release \
-    && yum -y install cmake3 curl gcc git make zip \
+    && yum -y install cmake3 curl gcc gcc-c++ git make zip \
     # below required for sentry-native
     clang libcurl-devel \
     && yum clean all \
