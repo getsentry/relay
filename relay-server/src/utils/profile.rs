@@ -8,7 +8,7 @@ use serde::{de, Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::envelope::{ContentType, Item};
-use relay_general::protocol::{Addr, DebugId, NativeImagePath};
+use relay_general::protocol::{Addr, DebugId, EventId, NativeImagePath};
 
 #[derive(Debug, Fail)]
 pub enum ProfileError {
@@ -81,7 +81,7 @@ struct AndroidProfile {
     platform: String,
     profile_id: Uuid,
     trace_id: Uuid,
-    transaction_id: Uuid,
+    transaction_id: EventId,
     transaction_name: String,
     version_code: String,
     version_name: String,
@@ -229,7 +229,7 @@ struct CocoaProfile {
     profile_id: Uuid,
     sampled_profile: SampledProfile,
     trace_id: Uuid,
-    transaction_id: Uuid,
+    transaction_id: EventId,
     transaction_name: String,
     version_code: String,
     version_name: String,
