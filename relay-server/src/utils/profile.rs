@@ -5,7 +5,6 @@ use std::str::FromStr;
 
 use android_trace_log::AndroidTraceLog;
 use serde::{de, Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::envelope::{ContentType, Item};
 use relay_general::protocol::{Addr, DebugId, EventId, NativeImagePath};
@@ -58,8 +57,8 @@ where
 struct AndroidProfile {
     android_api_level: u16,
 
-    #[serde(default, skip_serializing_if = "Uuid::is_nil")]
-    build_id: Uuid,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    build_id: String,
 
     device_cpu_frequencies: Vec<u32>,
     device_is_emulator: bool,
@@ -79,8 +78,8 @@ struct AndroidProfile {
     environment: String,
 
     platform: String,
-    profile_id: Uuid,
-    trace_id: Uuid,
+    profile_id: EventId,
+    trace_id: EventId,
     transaction_id: EventId,
     transaction_name: String,
     version_code: String,
@@ -226,9 +225,9 @@ struct CocoaProfile {
     environment: String,
 
     platform: String,
-    profile_id: Uuid,
+    profile_id: EventId,
     sampled_profile: SampledProfile,
-    trace_id: Uuid,
+    trace_id: EventId,
     transaction_id: EventId,
     transaction_name: String,
     version_code: String,
