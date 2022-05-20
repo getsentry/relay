@@ -4,7 +4,7 @@ ARG DOCKER_ARCH=amd64
 ### Deps stage ###
 ##################
 
-FROM $DOCKER_ARCH/rust:slim-buster AS relay-deps
+FROM $DOCKER_ARCH/centos:7 AS relay-deps
 
 ARG DOCKER_ARCH
 ARG BUILD_ARCH=x86_64
@@ -14,13 +14,18 @@ ENV BUILD_ARCH=${BUILD_ARCH}
 
 ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
 
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y \
-    curl build-essential git zip cmake \
+RUN yum -y update \
+    && yum -y install cmake curl gcc git make zip \
     # below required for sentry-native
-    clang libcurl4-openssl-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    clang libcurl-devel \
+    && yum clean all \
+    && rm -rf /var/cache/yum
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 
 WORKDIR /work
 
