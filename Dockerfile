@@ -15,11 +15,13 @@ ENV BUILD_ARCH=${BUILD_ARCH}
 ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
 
 RUN yum -y update \
-    && yum -y install cmake curl gcc git make zip \
+    && yum -y install epel-release \
+    && yum -y install cmake3 curl gcc git make zip \
     # below required for sentry-native
     clang libcurl-devel \
     && yum clean all \
-    && rm -rf /var/cache/yum
+    && rm -rf /var/cache/yum \
+    && ln -s /usr/bin/cmake3 /usr/bin/cmake
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
