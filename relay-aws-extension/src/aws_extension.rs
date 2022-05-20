@@ -11,40 +11,91 @@ const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";
 const EXTENSION_ID_HEADER: &str = "Lambda-Extension-Identifier";
 
+/// Response received from the register API
+///
+/// Example response body
+/// ```json
+/// {
+///    "functionName": "helloWorld",
+///    "functionVersion": "$LATEST",
+///    "handler": "lambda_function.lambda_handler"
+/// }
+/// ```
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-struct RegisterResponse {
+pub struct RegisterResponse {
+    /// the name of the lambda function
     pub function_name: String,
+    /// the version of the lambda function
     pub function_version: String,
+    /// the handler that the labmda function invokes
     pub handler: String,
 }
 
+/// Tracing headers from an INVOKE response
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-struct Tracing {
-    #[serde(rename = "type")
+pub struct Tracing {
+    /// type of tracing header
+    #[serde(rename = "type")]
     pub ty: String,
+    /// tracing header value
     pub value: String,
 }
 
+/// Response received from the next event API on an INVOKE event
+///
+/// Example response body
+/// ```json
+/// {
+///     "eventType": "INVOKE",
+///     "deadlineMs": 676051,
+///     "requestId": "3da1f2dc-3222-475e-9205-e2e6c6318895",
+///     "invokedFunctionArn": "arn:aws:lambda:us-east-1:123456789012:function:ExtensionTest",
+///     "tracing": {
+///         "type": "X-Amzn-Trace-Id",
+///         "value": "Root=1-5f35ae12-0c0fec141ab77a00bc047aa2;Parent=2be948a625588e32;Sampled=1"
+///     }
+/// }
+/// ```
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[serde(rename_all = "camelCase")]
+pub struct InvokeResponse {
+    /// the time till the lambda function times out in Unix milliseconds
+    pub deadline_ms: u64,
+    /// unique request identifier
+    pub request_id: String,
+    /// the invoked lambda function's ARN (Amazon Resource Name)
+    pub invoked_function_arn: String,
+    /// tracing headers
+    pub tracing: Tracing,
+}
+
+/// Response received from the next event API on an SHUTDOWN event
+///
+/// Example response body
+///
+/// ```json
+/// {
+///   "eventType": "SHUTDOWN",
+///   "shutdownReason": "TIMEOUT",
+///   "deadlineMs": 42069
+/// }
+/// ```
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShutdownResponse {
+    /// the reason for the shutdown
+    pub shutdown_reason: String,
+    /// the time till the lambda function times out in Unix milliseconds
+    pub deadline_ms: u64,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "UPPERCASE", tag = "eventType")]
 enum NextEventResponse {
-    #[serde(rename_all = "camelCase")]
-    Invoke {
-        deadline_ms: u64,
-        request_id: String,
-        invoked_function_arn: String,
-        tracing: Tracing,
-    },
-    #[serde(rename_all = "camelCase")]
-    Shutdown {
-        shutdown_reason: String,
-        deadline_ms: u64,
-    },
+    Invoke(InvokeResponse),
+    Shutdown(ShutdownResponse),
 }
 
 #[derive(Debug, Fail)]
@@ -174,14 +225,15 @@ impl Handler<NextEvent> for AwsExtension {
 
     fn handle(&mut self, _message: NextEvent, context: &mut Self::Context) -> Self::Result {
         match self.next_event() {
-            Ok(NextEventResponse::Invoke { request_id, .. }) => {
-                relay_log::debug!("Received INVOKE: request_id {}", request_id);
+            Ok(NextEventResponse::Invoke(invoke_response)) => {
+                relay_log::debug!("Received INVOKE: request_id {}", invoke_response.request_id);
                 context.notify(NextEvent);
             }
-            Ok(NextEventResponse::Shutdown {
-                shutdown_reason, ..
-            }) => {
-                relay_log::debug!("Received SHUTDOWN: reason {}", shutdown_reason);
+            Ok(NextEventResponse::Shutdown(shutdown_response)) => {
+                relay_log::debug!(
+                    "Received SHUTDOWN: reason {}",
+                    shutdown_response.shutdown_reason
+                );
                 // need to kill the whole system here, not sure if this is the right way
                 Controller::from_registry().do_send(Signal(SignalType::Term));
             }
