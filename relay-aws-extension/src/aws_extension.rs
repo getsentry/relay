@@ -206,16 +206,6 @@ impl Actor for AwsExtension {
     }
 }
 
-impl Default for AwsExtension {
-    fn default() -> Self {
-        unimplemented!("register with the SystemRegistry instead")
-    }
-}
-
-impl Supervised for AwsExtension {}
-
-impl SystemService for AwsExtension {}
-
 struct NextEvent;
 
 impl Message for NextEvent {

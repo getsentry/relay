@@ -147,7 +147,7 @@ impl ServiceState {
 
         if let Ok(aws_runtime_api) = env::var("AWS_LAMBDA_RUNTIME_API") {
             if let Ok(aws_extension) = AwsExtension::new(aws_runtime_api) {
-                registry.set(Arbiter::start(|_| aws_extension));
+                Arbiter::start(|_| aws_extension);
             }
         }
 
