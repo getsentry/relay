@@ -3333,6 +3333,20 @@
 <span id="3326">3326</span>
 <span id="3327">3327</span>
 <span id="3328">3328</span>
+<span id="3329">3329</span>
+<span id="3330">3330</span>
+<span id="3331">3331</span>
+<span id="3332">3332</span>
+<span id="3333">3333</span>
+<span id="3334">3334</span>
+<span id="3335">3335</span>
+<span id="3336">3336</span>
+<span id="3337">3337</span>
+<span id="3338">3338</span>
+<span id="3339">3339</span>
+<span id="3340">3340</span>
+<span id="3341">3341</span>
+<span id="3342">3342</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3495,10 +3509,6 @@
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;event dropped by sampling rule {}&quot;</span>, <span class="ident">_0</span>)]</span>
     <span class="ident">EventSampled</span>(<span class="ident">RuleId</span>),
-
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;invalid profile&quot;</span>)]</span>
-    <span class="ident">InvalidProfile</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">ProfileError</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">ProcessingError</span> {
@@ -3523,9 +3533,6 @@
             }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident"><span class="self">Self</span>::InvalidUnrealReport</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessUnreal</span>)),
-
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident"><span class="self">Self</span>::InvalidProfile</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessProfile</span>)),
 
             <span class="comment">// Internal errors</span>
             <span class="ident"><span class="self">Self</span>::SerializeFailed</span>(<span class="kw">_</span>)
@@ -3566,13 +3573,6 @@
             <span class="ident">Unreal4ErrorKind::TooLarge</span> =&gt; <span class="ident"><span class="self">Self</span>::PayloadTooLarge</span>,
             <span class="kw">_</span> =&gt; <span class="ident">ProcessingError::InvalidUnrealReport</span>(<span class="ident">err</span>),
         }
-    }
-}
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">ProfileError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProcessingError</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">ProfileError</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">ProcessingError::InvalidProfile</span>(<span class="ident">err</span>)
     }
 }
 
@@ -3656,7 +3656,7 @@
             <span class="ident">outcome_aggregator</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
                 <span class="ident">timestamp</span>: <span class="self">self</span>.<span class="ident">received_at</span>,
                 <span class="ident">scoping</span>: <span class="self">self</span>.<span class="ident">scoping</span>,
-                <span class="ident">outcome</span>,
+                <span class="ident">outcome</span>: <span class="ident">outcome</span>.<span class="ident">clone</span>(),
                 <span class="ident">event_id</span>: <span class="self">self</span>.<span class="ident">event_id</span>,
                 <span class="ident">remote_addr</span>: <span class="self">self</span>.<span class="ident">remote_addr</span>,
                 <span class="ident">category</span>: <span class="ident">DataCategory::Attachment</span>,
@@ -3665,6 +3665,18 @@
                 <span class="comment">// do 32.</span>
                 <span class="ident">quantity</span>: <span class="self">self</span>.<span class="ident">summary</span>.<span class="ident">attachment_quantity</span> <span class="kw">as</span> <span class="ident">u32</span>,
             });
+        }
+
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">summary</span>.<span class="ident">profile_quantity</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="ident">outcome_aggregator</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
+                <span class="ident">timestamp</span>: <span class="self">self</span>.<span class="ident">received_at</span>,
+                <span class="ident">scoping</span>: <span class="self">self</span>.<span class="ident">scoping</span>,
+                <span class="ident">outcome</span>,
+                <span class="ident">event_id</span>: <span class="self">self</span>.<span class="ident">event_id</span>,
+                <span class="ident">remote_addr</span>: <span class="self">self</span>.<span class="ident">remote_addr</span>,
+                <span class="ident">category</span>: <span class="ident">DataCategory::Profile</span>,
+                <span class="ident">quantity</span>: <span class="self">self</span>.<span class="ident">summary</span>.<span class="ident">profile_quantity</span> <span class="kw">as</span> <span class="ident">u32</span>,
+            })
         }
     }
 }
@@ -4311,6 +4323,7 @@
     <span class="doccomment">/// Remove profiles if the feature flag is not enabled</span>
     <span class="kw">fn</span> <span class="ident">process_profiles</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) {
         <span class="kw">let</span> <span class="ident">profiling_enabled</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">has_feature</span>(<span class="ident">Feature::Profiling</span>);
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope_context</span>;
         <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">retain_items</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
             <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
                 <span class="ident">ItemType::Profile</span> =&gt; {
@@ -4318,7 +4331,22 @@
                         <span class="kw">return</span> <span class="bool-val">false</span>;
                     }
                     <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
-                        <span class="kw">return</span> <span class="self">self</span>.<span class="ident">parse_profile</span>(<span class="ident">item</span>).<span class="ident">is_ok</span>();
+                        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">parse_profile</span>(<span class="ident">item</span>).<span class="ident">is_err</span>() {
+                            <span class="kw">let</span> <span class="ident">outcome_aggregator</span> <span class="op">=</span> <span class="ident">OutcomeAggregator::from_registry</span>();
+
+                            <span class="ident">outcome_aggregator</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
+                                <span class="ident">timestamp</span>: <span class="ident">context</span>.<span class="ident">received_at</span>,
+                                <span class="ident">scoping</span>: <span class="ident">context</span>.<span class="ident">scoping</span>,
+                                <span class="ident">outcome</span>: <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessProfile</span>),
+                                <span class="ident">event_id</span>: <span class="ident">context</span>.<span class="ident">event_id</span>,
+                                <span class="ident">remote_addr</span>: <span class="ident">context</span>.<span class="ident">remote_addr</span>,
+                                <span class="ident">category</span>: <span class="ident">DataCategory::Profile</span>,
+                                <span class="ident">quantity</span>: <span class="number">1</span>,
+                            });
+
+                            <span class="kw">return</span> <span class="bool-val">false</span>;
+                        }
+                        <span class="kw">return</span> <span class="bool-val">true</span>;
                     }
                     <span class="bool-val">true</span>
                 }

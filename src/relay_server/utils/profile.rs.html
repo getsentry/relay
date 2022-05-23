@@ -326,7 +326,6 @@
 <span id="319">319</span>
 <span id="320">320</span>
 <span id="321">321</span>
-<span id="322">322</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 <span class="kw">use</span> <span class="ident">std::fmt::Display</span>;
@@ -334,10 +333,9 @@
 
 <span class="kw">use</span> <span class="ident">android_trace_log::AndroidTraceLog</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">uuid::Uuid</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">ContentType</span>, <span class="ident">Item</span>};
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Addr</span>, <span class="ident">DebugId</span>, <span class="ident">NativeImagePath</span>};
+<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Addr</span>, <span class="ident">DebugId</span>, <span class="ident">EventId</span>, <span class="ident">NativeImagePath</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ProfileError</span> {
@@ -387,8 +385,8 @@
 <span class="kw">struct</span> <span class="ident">AndroidProfile</span> {
     <span class="ident">android_api_level</span>: <span class="ident">u16</span>,
 
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Uuid::is_nil&quot;</span>)]</span>
-    <span class="ident">build_id</span>: <span class="ident">Uuid</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;String::is_empty&quot;</span>)]</span>
+    <span class="ident">build_id</span>: <span class="ident">String</span>,
 
     <span class="ident">device_cpu_frequencies</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
     <span class="ident">device_is_emulator</span>: <span class="ident">bool</span>,
@@ -408,9 +406,9 @@
     <span class="ident">environment</span>: <span class="ident">String</span>,
 
     <span class="ident">platform</span>: <span class="ident">String</span>,
-    <span class="ident">profile_id</span>: <span class="ident">Uuid</span>,
-    <span class="ident">trace_id</span>: <span class="ident">Uuid</span>,
-    <span class="ident">transaction_id</span>: <span class="ident">Uuid</span>,
+    <span class="ident">profile_id</span>: <span class="ident">EventId</span>,
+    <span class="ident">trace_id</span>: <span class="ident">EventId</span>,
+    <span class="ident">transaction_id</span>: <span class="ident">EventId</span>,
     <span class="ident">transaction_name</span>: <span class="ident">String</span>,
     <span class="ident">version_code</span>: <span class="ident">String</span>,
     <span class="ident">version_name</span>: <span class="ident">String</span>,
@@ -555,10 +553,10 @@
     <span class="ident">environment</span>: <span class="ident">String</span>,
 
     <span class="ident">platform</span>: <span class="ident">String</span>,
-    <span class="ident">profile_id</span>: <span class="ident">Uuid</span>,
+    <span class="ident">profile_id</span>: <span class="ident">EventId</span>,
     <span class="ident">sampled_profile</span>: <span class="ident">SampledProfile</span>,
-    <span class="ident">trace_id</span>: <span class="ident">Uuid</span>,
-    <span class="ident">transaction_id</span>: <span class="ident">Uuid</span>,
+    <span class="ident">trace_id</span>: <span class="ident">EventId</span>,
+    <span class="ident">transaction_id</span>: <span class="ident">EventId</span>,
     <span class="ident">transaction_name</span>: <span class="ident">String</span>,
     <span class="ident">version_code</span>: <span class="ident">String</span>,
     <span class="ident">version_name</span>: <span class="ident">String</span>,

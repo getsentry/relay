@@ -1079,7 +1079,7 @@
     <span class="doccomment">/// Relay generally does not emit outcomes for sessions, so those are skipped.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">track_outcomes</span>(<span class="self">self</span>, <span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>, <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span>) {
         <span class="comment">// Do not report outcomes for sessions.</span>
-        <span class="kw">for</span> <span class="ident">limit</span> <span class="kw">in</span> [<span class="self">self</span>.<span class="ident">event</span>, <span class="self">self</span>.<span class="ident">attachments</span>] {
+        <span class="kw">for</span> <span class="ident">limit</span> <span class="kw">in</span> [<span class="self">self</span>.<span class="ident">event</span>, <span class="self">self</span>.<span class="ident">attachments</span>, <span class="self">self</span>.<span class="ident">profiles</span>] {
             <span class="kw">if</span> <span class="ident">limit</span>.<span class="ident">is_active</span>() {
                 <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">start_time</span>());
                 <span class="ident">OutcomeAggregator::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
