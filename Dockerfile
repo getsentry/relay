@@ -4,6 +4,7 @@ ARG DOCKER_ARCH=amd64
 ### Deps stage ###
 ##################
 
+FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM $DOCKER_ARCH/centos:7 AS relay-deps
 
 ARG DOCKER_ARCH
@@ -30,19 +31,19 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 
+COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
+
 WORKDIR /work
 
 #####################
 ### Builder stage ###
 #####################
 
-FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM relay-deps AS relay-builder
 
 ARG RELAY_FEATURES=ssl,processing,crash-handler
 ENV RELAY_FEATURES=${RELAY_FEATURES}
 
-COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 COPY . .
 
 # Build with the modern compiler toolchain enabled
