@@ -420,12 +420,14 @@ impl StoreForwarder {
         &self,
         organization_id: u64,
         project_id: ProjectId,
+        key_id: Option<u64>,
         start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfileKafkaMessage {
             organization_id,
             project_id,
+            key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
@@ -607,6 +609,7 @@ struct MetricKafkaMessage {
 struct ProfileKafkaMessage {
     organization_id: u64,
     project_id: ProjectId,
+    key_id: Option<u64>,
     received: u64,
     payload: Bytes,
 }
@@ -759,6 +762,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
+                    scoping.key_id,
                     start_time,
                     item,
                 )?,
