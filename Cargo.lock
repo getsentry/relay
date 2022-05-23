@@ -3223,11 +3223,13 @@ version = "22.5.0"
 dependencies = [
  "actix",
  "failure",
+ "futures 0.1.29",
  "relay-log",
  "relay-system",
  "reqwest",
  "serde",
  "serde_json",
+ "tokio 1.0.1",
 ]
 
 [[package]]
