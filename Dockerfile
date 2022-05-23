@@ -15,10 +15,11 @@ ENV BUILD_ARCH=${BUILD_ARCH}
 ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
 
 RUN yum -y update \
-    && yum -y install epel-release \
-    && yum -y install cmake3 curl gcc gcc-c++ git make zip \
+    && yum -y install centos-release-scl epel-release \
+    # install a modern compiler toolchain
+    && yum -y install cmake3 devtoolset-10 git \
     # below required for sentry-native
-    clang libcurl-devel \
+    llvm-toolset-7.0-clang-devel \
     && yum clean all \
     && rm -rf /var/cache/yum \
     && ln -s /usr/bin/cmake3 /usr/bin/cmake
@@ -44,8 +45,11 @@ ENV RELAY_FEATURES=${RELAY_FEATURES}
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 COPY . .
 
-# BUILD IT!
-RUN make build-linux-release TARGET=${BUILD_TARGET} RELAY_FEATURES=${RELAY_FEATURES}
+# Build with the modern compiler toolchain enabled
+RUN scl enable devtoolset-10 llvm-toolset-7.0 -- \
+    make build-linux-release \
+    TARGET=${BUILD_TARGET} \
+    RELAY_FEATURES=${RELAY_FEATURES}
 
 RUN cp ./target/$BUILD_TARGET/release/relay /bin/relay \
     && zip /opt/relay-debug.zip target/$BUILD_TARGET/release/relay.debug
