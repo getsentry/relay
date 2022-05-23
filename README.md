@@ -68,8 +68,9 @@ requires an up-to-date Sentry development environment.
 
 ### Building and Running
 
-The easiest way to rebuild and run Relay is using `cargo`. Depending on the
-configuration, you may need to have a local instance of Sentry running.
+The easiest way to rebuild and run Relay for development is using `cargo`.
+Depending on the configuration, you may need to have a local instance of Sentry
+running.
 
 ```bash
 # Initialize Relay for the first time
@@ -108,6 +109,10 @@ used for Relays operating as proxys. There are two optional features:
   will perform full event normalization, filtering, and rate limiting.
 
 - **`ssl`**: Enables SSL support in the Server.
+
+- **`crash-handler`**: Allows native crash reporting for segfaults and
+  out-of-memory situations when internal error reporting to Sentry is enabled.
+  This requires `curl` development headers and libraries on the build system.
 
 To enable a feature, pass it to the cargo invocation. For example, to run tests
 across all workspace crates with the `processing` feature enabled, run:
