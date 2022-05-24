@@ -184,6 +184,7 @@ impl AwsExtension {
             .into_actor(self)
             .and_then(|res, slf, ctx| {
                 if res.status() != StatusCode::OK {
+                    relay_log::info!("AWS extension registration failed");
                     return fut::err(AwsExtensionError);
                 }
 

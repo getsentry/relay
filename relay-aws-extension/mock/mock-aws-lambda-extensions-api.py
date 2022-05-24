@@ -29,7 +29,9 @@ def main():
 
 @app.route(f"{base_url}/register", methods=["POST"])
 def register():
+    request_headers = request.headers
     request_body = request.get_json()
+    print(f"Register request headers: {request_headers}")
     print(f"Register request body: {request_body}")
 
     data = {
@@ -44,6 +46,10 @@ def register():
 def next_event():
     global next_counter
     next_counter += 1
+
+    request_headers = request.headers
+    print(f"Next request headers: {request_headers}")
+
     if SHUTDOWN_MODE and next_counter == SHUTDOWN_MAX:
         data = {
             "eventType": "SHUTDOWN",
