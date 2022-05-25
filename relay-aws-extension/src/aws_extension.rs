@@ -94,10 +94,13 @@ pub struct ShutdownResponse {
     pub deadline_ms: u64,
 }
 
+/// All possible next event responses
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "UPPERCASE", tag = "eventType")]
-enum NextEventResponse {
+pub enum NextEventResponse {
+    /// INVOKE response
     Invoke(InvokeResponse),
+    /// SHUTDOWN response
     Shutdown(ShutdownResponse),
 }
 
@@ -110,11 +113,14 @@ pub struct AwsExtensionError;
 ///
 /// Spawns an actor that
 /// * registers with the AWS extensions API
-/// * sends blocking NextEvent calls to the extensions API to get the next invocation
+/// * sends blocking (0 timeout) NextEvent calls to the extensions API to get the next invocation
 ///
 /// Each finished invocation immediately polls for the next event. Note that AWS might
 /// freeze the container indefinitely for unused lambdas and this request will also wait
 /// till things are active again.
+///
+/// The actual requests are done in a separate tokio runtime with 1 worker thread with a oneshot
+/// channel being used for communicating the necessary responses.
 #[derive(Debug)]
 pub struct AwsExtension {
     /// The base url for the AWS Extensions API
