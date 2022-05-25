@@ -74,7 +74,7 @@ take_mut = "0.2.2"
 tokio = { version = "1.0", features = ["rt-multi-thread"] } # in sync with reqwest
 tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }
-uuid = { version = "0.8.1", features = ["v5", "serde"] }
+uuid = { version = "0.8.1", features = ["v5"] }
 
 [target."cfg(not(windows))".dependencies]
 libc = "0.2.71"

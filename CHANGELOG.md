@@ -6,6 +6,12 @@
 
 **Features**:
 
+- Relay is now compatible with CentOS 7 and Red Hat Enterprise Linux 7 onward (kernel version _2.6.32_), depending on _glibc 2.17_ or newer. The `crash-handler` feature, which is currently enabled in the build published to DockerHub, additionally requires _curl 7.29_ or newer. ([#1279](https://github.com/getsentry/relay/pull/1279))
+
+**Bug Fixes**:
+
+- Session metrics extraction: Count distinct_ids from all session updates to prevent undercounting users. ([#1275](https://github.com/getsentry/relay/pull/1275))
+
 - Session metrics extraction: Count crashed+abnormal towards errored_preaggr. ([#1274](https://github.com/getsentry/relay/pull/1274))
 - Implement AWS extension as an actor. ([#1277](https://github.com/getsentry/relay/pull/1277))
 
@@ -13,6 +19,7 @@
 
 - Add version 3 to the project configs endpoint. This allows returning pending results which need to be polled later and avoids blocking batched requests on single slow entries. ([#1263](https://github.com/getsentry/relay/pull/1263))
 - Emit specific event type tags for "processing.event.produced" metric. ([#1270](https://github.com/getsentry/relay/pull/1270))
+- Add support for profile outcomes. ([#1272](https://github.com/getsentry/relay/pull/1272))
 
 ## 22.5.0
 
