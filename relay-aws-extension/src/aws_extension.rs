@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use actix::actors::signal::{Signal, SignalType};
 use actix::fut;
 use actix::prelude::*;
 use failure::Fail;
@@ -9,7 +8,7 @@ use reqwest::{Client, ClientBuilder, StatusCode};
 use serde::Deserialize;
 use tokio::runtime::{Builder as RuntimeBuilder, Runtime};
 
-use relay_system::Controller;
+use relay_system::{Controller, Signal, SignalType};
 
 const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";
