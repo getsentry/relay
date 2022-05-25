@@ -5,7 +5,7 @@ use actix::fut;
 use actix::prelude::*;
 use failure::Fail;
 use futures::{prelude::*, sync::oneshot};
-use reqwest::{Client, ClientBuilder, RequestBuilder, StatusCode};
+use reqwest::{Client, ClientBuilder, StatusCode};
 use serde::Deserialize;
 use tokio::runtime::{Builder as RuntimeBuilder, Runtime};
 
@@ -14,8 +14,6 @@ use relay_system::Controller;
 const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";
 const EXTENSION_ID_HEADER: &str = "Lambda-Extension-Identifier";
-
-type OneshotResponse = oneshot::Receiver<Result<reqwest::Response, AwsExtensionError>>;
 
 /// Response received from the register API
 ///
@@ -157,17 +155,6 @@ impl AwsExtension {
         })
     }
 
-    fn make_request(&self, request: RequestBuilder) -> OneshotResponse {
-        let (tx, rx) = oneshot::channel();
-
-        self.reqwest_runtime.spawn(async move {
-            let res = request.send().await.map_err(|_| AwsExtensionError);
-            tx.send(res)
-        });
-
-        rx
-    }
-
     fn register(&mut self, context: &mut Context<Self>) {
         let url = format!("{}/register", self.base_url);
         let body = HashMap::from([("events", ["INVOKE", "SHUTDOWN"])]);
@@ -178,34 +165,35 @@ impl AwsExtension {
             .header(EXTENSION_NAME_HEADER, EXTENSION_NAME)
             .json(&body);
 
-        self.make_request(request)
-            .map_err(|_| AwsExtensionError)
-            .flatten()
-            .into_actor(self)
-            .and_then(|res, slf, ctx| {
+        let (tx, rx) = oneshot::channel();
+
+        self.reqwest_runtime.spawn(async move {
+            let res = request.send().await;
+
+            let extension_id = res.map_err(|_| AwsExtensionError).and_then(|res| {
                 if res.status() != StatusCode::OK {
-                    relay_log::info!("AWS extension registration failed");
-                    return fut::err(AwsExtensionError);
+                    return Err(AwsExtensionError);
                 }
 
-                let extension_id = res
-                    .headers()
+                res.headers()
                     .get(EXTENSION_ID_HEADER)
                     .and_then(|h| h.to_str().ok())
-                    .map(|h| h.to_string());
+                    .map(|h| h.to_string())
+                    .ok_or(AwsExtensionError)
+            });
 
-                match extension_id {
-                    Some(extension_id) => {
-                        slf.extension_id = Some(extension_id);
-                        relay_log::info!("AWS extension successfully registered");
-                        ctx.notify(NextEvent);
-                        fut::ok(())
-                    }
-                    None => {
-                        relay_log::info!("AWS extension registration failed");
-                        fut::err(AwsExtensionError)
-                    }
-                }
+            tx.send(extension_id)
+        });
+
+        rx.map_err(|_| AwsExtensionError)
+            .flatten()
+            .map_err(|_| relay_log::info!("AWS extension registration failed"))
+            .into_actor(self)
+            .and_then(|extension_id, slf, ctx| {
+                slf.extension_id = Some(extension_id);
+                relay_log::info!("AWS extension successfully registered");
+                ctx.notify(NextEvent);
+                fut::ok(())
             })
             .drop_err()
             .spawn(context)
