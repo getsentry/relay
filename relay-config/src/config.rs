@@ -245,6 +245,8 @@ pub struct OverridableConfig {
     pub outcome_source: Option<String>,
     /// shutdown timeout
     pub shutdown_timeout: Option<String>,
+    /// AWS Extensions API URL
+    pub aws_api_url: Option<String>,
 }
 
 /// The relay credentials
@@ -1223,6 +1225,15 @@ pub struct AuthConfig {
     pub static_relays: HashMap<RelayId, RelayInfo>,
 }
 
+/// AWS extension config.
+// TODO(neel) add upstream DSN
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct AwsConfig {
+    /// The Extensions API base URL, found in the `AWS_LAMBDA_RUNTIME_API`
+    /// env variable in a Lambda Runtime.
+    pub api_url: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1249,6 +1260,8 @@ struct ConfigValues {
     aggregator: AggregatorConfig,
     #[serde(default)]
     auth: AuthConfig,
+    #[serde(default)]
+    aws: AwsConfig,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1442,6 +1455,11 @@ impl Config {
             if let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
+        }
+
+        let aws = &mut self.values.aws;
+        if let Some(aws_api_url) = overrides.aws_api_url {
+            aws.api_url = Some(aws_api_url);
         }
 
         Ok(self)
@@ -1957,6 +1975,11 @@ impl Config {
     pub fn accept_unknown_items(&self) -> bool {
         let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
+    }
+
+    /// Returns the AWS api url
+    pub fn aws_api_url(&self) -> Option<&str> {
+        self.values.aws.api_url.as_deref()
     }
 }
 

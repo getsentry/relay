@@ -138,8 +138,8 @@ pub struct AwsExtension {
 
 impl AwsExtension {
     /// Creates a new `AwsExtension` instance.
-    pub fn new(aws_runtime_api: String) -> Result<Self, AwsExtensionError> {
-        let base_url = format!("http://{}/2020-01-01/extension", aws_runtime_api);
+    pub fn new(aws_api_url: &str) -> Result<Self, AwsExtensionError> {
+        let base_url = format!("http://{}/2020-01-01/extension", aws_api_url);
 
         let reqwest_runtime = RuntimeBuilder::new_multi_thread()
             .worker_threads(1)

@@ -1,4 +1,3 @@
-use std::env;
 use std::fmt;
 use std::sync::Arc;
 
@@ -145,8 +144,8 @@ impl ServiceState {
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
         registry.set(outcome_aggregator.start());
 
-        if let Ok(aws_runtime_api) = env::var("AWS_LAMBDA_RUNTIME_API") {
-            if let Ok(aws_extension) = AwsExtension::new(aws_runtime_api) {
+        if let Some(aws_api_url) = config.aws_api_url() {
+            if let Ok(aws_extension) = AwsExtension::new(aws_api_url) {
                 Arbiter::start(|_| aws_extension);
             }
         }

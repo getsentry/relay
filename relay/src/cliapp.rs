@@ -132,6 +132,13 @@ pub fn make_app() -> App<'static, 'static> {
                         .help(
                             "Maximum number of seconds to wait for pending envelopes on shutdown.",
                         ),
+                )
+                .arg(
+                    Arg::with_name("aws_api_url")
+                        .value_name("$AWS_LAMBDA_RUNTIME_API")
+                        .takes_value(true)
+                        .long("aws-api-url")
+                        .help("Start the AwsExtension actor with this base url."),
                 ),
         )
         .subcommand(
