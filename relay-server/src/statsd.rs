@@ -89,6 +89,8 @@ pub enum RelayHistograms {
     ///
     /// See `project_cache.size` for more description of the project cache.
     ProjectStateReceived,
+    /// Number of attempts required to fetch the config for a given project key.
+    ProjectStateAttempts,
     /// Number of project states currently held in the in-memory project cache.
     ///
     /// The cache duration for project states can be configured with the following options:
@@ -150,6 +152,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::RequestSizeBytesRaw => "event.size_bytes.raw",
             RelayHistograms::RequestSizeBytesUncompressed => "event.size_bytes.uncompressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
+            RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
             RelayHistograms::ProjectStateReceived => "project_state.received",
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
