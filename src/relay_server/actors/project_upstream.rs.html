@@ -377,6 +377,14 @@
 <span id="370">370</span>
 <span id="371">371</span>
 <span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -469,6 +477,7 @@
     <span class="ident">receiver</span>: <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">deadline</span>: <span class="ident">Instant</span>,
     <span class="ident">no_cache</span>: <span class="ident">bool</span>,
+    <span class="ident">attempts</span>: <span class="ident">u64</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ProjectStateChannel</span> {
@@ -480,6 +489,7 @@
             <span class="ident">receiver</span>: <span class="ident">receiver</span>.<span class="ident">shared</span>(),
             <span class="ident">deadline</span>: <span class="ident">Instant::now</span>() <span class="op">+</span> <span class="ident">timeout</span>,
             <span class="ident">no_cache</span>: <span class="bool-val">false</span>,
+            <span class="ident">attempts</span>: <span class="number">0</span>,
         }
     }
 
@@ -575,7 +585,10 @@
         <span class="kw">let</span> <span class="ident">requests</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="ident">cache_batches</span>.<span class="ident">into_iter</span>())
             .<span class="ident">chain</span>(<span class="ident">nocache_batches</span>.<span class="ident">into_iter</span>())
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">channels_batch</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">channels_batch</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">channels_batch</span>.<span class="ident">collect</span>();
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">channels_batch</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">channels_batch</span>.<span class="ident">collect</span>();
+                <span class="kw">for</span> <span class="ident">channel</span> <span class="kw">in</span> <span class="ident">channels_batch</span>.<span class="ident">values_mut</span>() {
+                    <span class="ident">channel</span>.<span class="ident">attempts</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+                }
                 <span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending request of size {}&quot;</span>, <span class="ident">channels_batch</span>.<span class="ident">len</span>());
                 <span class="macro">metric!</span>(
                     <span class="ident">histogram</span>(<span class="ident">RelayHistograms::ProjectStateRequestBatchSize</span>) <span class="op">=</span>
@@ -640,7 +653,10 @@
                                         <span class="prelude-val">Some</span>(<span class="ident">ProjectState::err</span>())
                                     })
                                     .<span class="ident">unwrap_or_else</span>(<span class="ident">ProjectState::missing</span>);
-
+                                <span class="macro">metric!</span>(
+                                    <span class="ident">histogram</span>(<span class="ident">RelayHistograms::ProjectStateAttempts</span>) <span class="op">=</span>
+                                        <span class="ident">channel</span>.<span class="ident">attempts</span>
+                                );
                                 <span class="ident">channel</span>.<span class="ident">send</span>(<span class="ident">state</span>.<span class="ident">sanitize</span>());
                             }
                         }
