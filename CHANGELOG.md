@@ -13,7 +13,7 @@
 - Session metrics extraction: Count distinct_ids from all session updates to prevent undercounting users. ([#1275](https://github.com/getsentry/relay/pull/1275))
 
 - Session metrics extraction: Count crashed+abnormal towards errored_preaggr. ([#1274](https://github.com/getsentry/relay/pull/1274))
-- Implement AWS extension as an actor. ([#1277](https://github.com/getsentry/relay/pull/1277))
+- Add a new runtime mode `--aws-api-url=$AWS_LAMBDA_RUNTIME_API` that starts a new `AwsExtension` Actor living in a new `relay-aws-extension` crate that implements the AWS Extensions API lifecycle. ([#1277](https://github.com/getsentry/relay/pull/1277))
 
 **Internal**:
 
