@@ -85,7 +85,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
         secret_key: matches.value_of("secret_key").map(str::to_owned),
         outcome_source: matches.value_of("source_id").map(str::to_owned),
         shutdown_timeout: matches.value_of("shutdown_timeout").map(str::to_owned),
-        aws_api_url: matches.value_of("aws_api_url").map(str::to_owned),
+        aws_runtime_api: matches.value_of("aws_runtime_api").map(str::to_owned),
     }
 }
 
@@ -104,7 +104,7 @@ pub fn extract_config_env_vars() -> OverridableConfig {
         secret_key: env::var("RELAY_SECRET_KEY").ok(),
         outcome_source: None, //already extracted in params
         shutdown_timeout: env::var("SHUTDOWN_TIMEOUT").ok(),
-        aws_api_url: None,
+        aws_runtime_api: None,
     }
 }
 

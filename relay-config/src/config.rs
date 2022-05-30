@@ -246,7 +246,7 @@ pub struct OverridableConfig {
     /// shutdown timeout
     pub shutdown_timeout: Option<String>,
     /// AWS Extensions API URL
-    pub aws_api_url: Option<String>,
+    pub aws_runtime_api: Option<String>,
 }
 
 /// The relay credentials
@@ -1226,12 +1226,14 @@ pub struct AuthConfig {
 }
 
 /// AWS extension config.
-// TODO(neel) add upstream DSN
+// TODO(neel): add upstream DSN
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct AwsConfig {
-    /// The Extensions API base URL, found in the `AWS_LAMBDA_RUNTIME_API`
-    /// env variable in a Lambda Runtime.
-    pub api_url: Option<String>,
+    /// The host and port of the AWS lambda extensions API.
+    ///
+    /// This value can be found in the `AWS_LAMBDA_RUNTIME_API` environment variable in a Lambda
+    /// Runtime and contains a socket address, usually `"127.0.0.1:9001"`.
+    pub runtime_api: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -1458,8 +1460,8 @@ impl Config {
         }
 
         let aws = &mut self.values.aws;
-        if let Some(aws_api_url) = overrides.aws_api_url {
-            aws.api_url = Some(aws_api_url);
+        if let Some(aws_runtime_api) = overrides.aws_runtime_api {
+            aws.runtime_api = Some(aws_runtime_api);
         }
 
         Ok(self)
@@ -1977,9 +1979,9 @@ impl Config {
         forward.unwrap_or_else(|| !self.processing_enabled())
     }
 
-    /// Returns the AWS api url
-    pub fn aws_api_url(&self) -> Option<&str> {
-        self.values.aws.api_url.as_deref()
+    /// Returns the host and port of the AWS lambda runtime API.
+    pub fn aws_runtime_api(&self) -> Option<&str> {
+        self.values.aws.runtime_api.as_deref()
     }
 }
 

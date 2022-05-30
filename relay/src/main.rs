@@ -31,7 +31,7 @@
 //!
 //!  - `relay`: Main entry point and command line interface.
 //!  - [`relay-auth`]: Authentication and crypto.
-//!  - [`relay-aws-extension`]: Actor implementing an AWS Lambda Extension.
+//!  - [`relay-aws-extension`]: AWS extension implementation for Sentry's AWS Lambda layer.
 //!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Configuration for the CLI and server.

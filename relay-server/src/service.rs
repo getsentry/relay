@@ -144,8 +144,8 @@ impl ServiceState {
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
         registry.set(outcome_aggregator.start());
 
-        if let Some(aws_api_url) = config.aws_api_url() {
-            if let Ok(aws_extension) = AwsExtension::new(aws_api_url) {
+        if let Some(aws_api) = config.aws_runtime_api() {
+            if let Ok(aws_extension) = AwsExtension::new(aws_api) {
                 Arbiter::start(|_| aws_extension);
             }
         }

@@ -1,7 +1,7 @@
 [package]
 name = "relay-aws-extension"
 authors = ["Sentry <oss@sentry.io>"]
-description = "Actor implementing relay AWS Extension"
+description = "AWS extension implementation for Sentry's AWS Lambda layer"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 version = "22.5.0"

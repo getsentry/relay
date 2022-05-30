@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
-use actix::fut;
-use actix::prelude::*;
+use actix::{fut, prelude::*};
 use failure::Fail;
 use futures::{prelude::*, sync::oneshot};
-use reqwest::{Client, ClientBuilder, StatusCode};
+use reqwest::{Client, ClientBuilder, StatusCode, Url};
 use serde::Deserialize;
 use tokio::runtime::{Builder as RuntimeBuilder, Runtime};
 
@@ -14,9 +13,10 @@ const EXTENSION_NAME: &str = "sentry-lambda-extension";
 const EXTENSION_NAME_HEADER: &str = "Lambda-Extension-Name";
 const EXTENSION_ID_HEADER: &str = "Lambda-Extension-Identifier";
 
-/// Response received from the register API
+/// Response received from the register API.
 ///
-/// Example response body
+/// # Example
+///
 /// ```json
 /// {
 ///    "functionName": "helloWorld",
@@ -27,15 +27,15 @@ const EXTENSION_ID_HEADER: &str = "Lambda-Extension-Identifier";
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterResponse {
-    /// the name of the lambda function
+    /// The name of the lambda function.
     pub function_name: String,
-    /// the version of the lambda function
+    /// The version of the lambda function.
     pub function_version: String,
-    /// the handler that the labmda function invokes
+    /// The handler that the labmda function invokes.
     pub handler: String,
 }
 
-/// Tracing headers from an INVOKE response
+/// Tracing headers from an [`InvokeResponse`].
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Tracing {
@@ -46,9 +46,12 @@ pub struct Tracing {
     pub value: String,
 }
 
-/// Response received from the next event API on an INVOKE event
+/// Response received from the next event API on an `INVOKE` event.
 ///
-/// Example response body
+/// See [Invoke Phase] for more information.
+///
+/// # Example
+///
 /// ```json
 /// {
 ///     "eventType": "INVOKE",
@@ -61,22 +64,26 @@ pub struct Tracing {
 ///     }
 /// }
 /// ```
+///
+/// [invoke phase]: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html#runtimes-lifecycle-invoke
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InvokeResponse {
-    /// the time till the lambda function times out in Unix milliseconds
+    /// The time and date when the lambda function times out in Unix time milliseconds.
     pub deadline_ms: u64,
-    /// unique request identifier
+    /// Unique request identifier.
     pub request_id: String,
-    /// the invoked lambda function's ARN (Amazon Resource Name)
+    /// The invoked lambda function's ARN (Amazon Resource Name).
     pub invoked_function_arn: String,
-    /// tracing headers
+    /// Tracing headers.
     pub tracing: Tracing,
 }
 
-/// Response received from the next event API on an SHUTDOWN event
+/// Response received from the next event API on a `SHUTDOWN` event.
 ///
-/// Example response body
+/// See [Shutdown Phase] for more information.
+///
+/// # Example
 ///
 /// ```json
 /// {
@@ -85,72 +92,78 @@ pub struct InvokeResponse {
 ///   "deadlineMs": 42069
 /// }
 /// ```
+///
+/// [shutdown phase]: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-extensions-api.html#runtimes-lifecycle-shutdown
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownResponse {
-    /// the reason for the shutdown
+    /// The reason for the shutdown.
     pub shutdown_reason: String,
-    /// the time till the lambda function times out in Unix milliseconds
+    /// The time and date when the lambda function times out in Unix time milliseconds.
     pub deadline_ms: u64,
 }
 
-/// All possible next event responses
+/// All possible next event responses.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "UPPERCASE", tag = "eventType")]
 pub enum NextEventResponse {
-    /// INVOKE response
+    /// `INVOKE` response.
     Invoke(InvokeResponse),
-    /// SHUTDOWN response
+    /// `SHUTDOWN` response.
     Shutdown(ShutdownResponse),
 }
 
-/// Generic error in an AWS extension context
+/// Generic error in an AWS extension context.
 #[derive(Debug, Fail)]
 #[fail(display = "aws extension error")]
-pub struct AwsExtensionError;
+pub struct AwsExtensionError(());
 
-/// Actor implementing an AWS extension
+/// Actor implementing an AWS extension.
 ///
-/// Spawns an actor that
+/// Spawns an actor that:
+///
 /// * registers with the AWS extensions API
 /// * sends blocking (0 timeout) NextEvent calls to the extensions API to get the next invocation
 ///
-/// Each finished invocation immediately polls for the next event. Note that AWS might
-/// freeze the container indefinitely for unused lambdas and this request will also wait
-/// till things are active again.
+/// Each finished invocation immediately polls for the next event. Note that AWS might freeze the
+/// container indefinitely for unused lambdas and this request will also wait until things are
+/// active again.
 ///
-/// The actual requests are done in a separate tokio runtime with 1 worker thread with a oneshot
+/// The actual requests are done in a separate tokio runtime with one worker thread with a oneshot
 /// channel being used for communicating the necessary responses.
 #[derive(Debug)]
 pub struct AwsExtension {
-    /// The base url for the AWS Extensions API
-    base_url: String,
-    /// The extension id that will be retrieved on register and used
-    /// for subsequent requests
+    /// The base url for the AWS Extensions API.
+    base_url: Url,
+    /// The extension id that will be retrieved on register and used for subsequent requests.
     extension_id: Option<String>,
     /// The reqwest client to make Extensions API requests with.
-    /// Note that all timeouts need to be 0 because the container might
-    /// get frozen if lambda is idle.
+    ///
+    /// Note that all timeouts need to be 0 because the container might get frozen if lambda is
+    /// idle.
     reqwest_client: Client,
-    /// The tokio runtime used to spawn reqwest futures
+    /// The tokio runtime used to spawn reqwest futures.
     reqwest_runtime: Runtime,
 }
 
 impl AwsExtension {
     /// Creates a new `AwsExtension` instance.
-    pub fn new(aws_api_url: &str) -> Result<Self, AwsExtensionError> {
-        let base_url = format!("http://{}/2020-01-01/extension", aws_api_url);
+    pub fn new(aws_runtime_api: &str) -> Result<Self, AwsExtensionError> {
+        let base_url = format!("http://{}/2020-01-01/extension/", aws_runtime_api)
+            .parse()
+            .map_err(|_| AwsExtensionError(()))?;
 
         let reqwest_runtime = RuntimeBuilder::new_multi_thread()
             .worker_threads(1)
+            .thread_name("aws-reqwest-runtime")
             .enable_all()
             .build()
-            .map_err(|_| AwsExtensionError)?;
+            .map_err(|_| AwsExtensionError(()))?;
 
         let reqwest_client = ClientBuilder::new()
             .pool_idle_timeout(None)
             .build()
-            .map_err(|_| AwsExtensionError)?;
+            .map_err(|_| AwsExtensionError(()))?;
 
         Ok(AwsExtension {
             base_url,
@@ -175,22 +188,22 @@ impl AwsExtension {
         self.reqwest_runtime.spawn(async move {
             let res = request.send().await;
 
-            let extension_id = res.map_err(|_| AwsExtensionError).and_then(|res| {
+            let extension_id = res.map_err(|_| AwsExtensionError(())).and_then(|res| {
                 if res.status() != StatusCode::OK {
-                    return Err(AwsExtensionError);
+                    return Err(AwsExtensionError(()));
                 }
 
                 res.headers()
                     .get(EXTENSION_ID_HEADER)
                     .and_then(|h| h.to_str().ok())
                     .map(|h| h.to_string())
-                    .ok_or(AwsExtensionError)
+                    .ok_or(AwsExtensionError(()))
             });
 
             tx.send(extension_id)
         });
 
-        rx.map_err(|_| AwsExtensionError)
+        rx.map_err(|_| AwsExtensionError(()))
             .flatten()
             .map_err(|_| relay_log::info!("AWS extension registration failed"))
             .into_actor(self)
@@ -223,15 +236,15 @@ impl AwsExtension {
                     let json = res
                         .json::<NextEventResponse>()
                         .await
-                        .map_err(|_| AwsExtensionError);
+                        .map_err(|_| AwsExtensionError(()));
 
                     tx.send(json)
                 }
-                Err(_) => tx.send(Err(AwsExtensionError)),
+                Err(_) => tx.send(Err(AwsExtensionError(()))),
             }
         });
 
-        rx.map_err(|_| AwsExtensionError)
+        rx.map_err(|_| AwsExtensionError(()))
             .flatten()
             .into_actor(self)
             .and_then(|next_event, _slf, ctx| {

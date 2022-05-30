@@ -134,11 +134,15 @@ pub fn make_app() -> App<'static, 'static> {
                         ),
                 )
                 .arg(
-                    Arg::with_name("aws_api_url")
+                    Arg::with_name("aws_runtime_api")
                         .value_name("$AWS_LAMBDA_RUNTIME_API")
                         .takes_value(true)
-                        .long("aws-api-url")
-                        .help("Start the AwsExtension actor with this base url."),
+                        .long("aws-runtime-api")
+                        .help(
+                            "Host and port of the AWS lambda extensions API, usually provided in \
+                            the AWS_LAMBDA_RUNTIME_API environment variable. This integrates Relay \
+                            with the lambda execution environment lifecycle.",
+                        ),
                 ),
         )
         .subcommand(
