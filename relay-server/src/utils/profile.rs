@@ -1,7 +1,6 @@
 use failure::Fail;
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::str;
 use std::str::FromStr;
 
 use android_trace_log::AndroidTraceLog;
