@@ -20,6 +20,7 @@
 - Emit specific event type tags for "processing.event.produced" metric. ([#1270](https://github.com/getsentry/relay/pull/1270))
 - Add support for profile outcomes. ([#1272](https://github.com/getsentry/relay/pull/1272))
 - Avoid potential panics when scrubbing minidumps. ([#1282](https://github.com/getsentry/relay/pull/1282))
+- Fix typescript profile validation. ([#1283](https://github.com/getsentry/relay/pull/1283))
 
 ## 22.5.0
 
