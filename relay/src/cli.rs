@@ -86,6 +86,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
         outcome_source: matches.value_of("source_id").map(str::to_owned),
         shutdown_timeout: matches.value_of("shutdown_timeout").map(str::to_owned),
         aws_runtime_api: matches.value_of("aws_runtime_api").map(str::to_owned),
+        aws_upstream_dsn: matches.value_of("aws_upstream_dsn").map(str::to_owned),
     }
 }
 
@@ -105,6 +106,7 @@ pub fn extract_config_env_vars() -> OverridableConfig {
         outcome_source: None, //already extracted in params
         shutdown_timeout: env::var("SHUTDOWN_TIMEOUT").ok(),
         aws_runtime_api: None,
+        aws_upstream_dsn: None,
     }
 }
 

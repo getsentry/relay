@@ -135,13 +135,23 @@ pub fn make_app() -> App<'static, 'static> {
                 )
                 .arg(
                     Arg::with_name("aws_runtime_api")
-                        .value_name("$AWS_LAMBDA_RUNTIME_API")
+                        .value_name("AWS_LAMBDA_RUNTIME_API")
                         .takes_value(true)
                         .long("aws-runtime-api")
                         .help(
                             "Host and port of the AWS lambda extensions API, usually provided in \
                             the AWS_LAMBDA_RUNTIME_API environment variable. This integrates Relay \
                             with the lambda execution environment lifecycle.",
+                        ),
+                )
+                .arg(
+                    Arg::with_name("aws_upstream_dsn")
+                        .value_name("AWS_UPSTREAM_DSN")
+                        .takes_value(true)
+                        .long("aws-upstream-dsn")
+                        .help(
+                            "The upstream DSN for sending the user's envelopes to, usually \
+                            found in the SENTRY_DSN environment variable in Sentry's AWS Layers.",
                         ),
                 ),
         )

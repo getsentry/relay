@@ -14,7 +14,7 @@ use serde::de::{Unexpected, Visitor};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use relay_common::Uuid;
+use relay_common::{Dsn, Uuid};
 use relay_metrics::AggregatorConfig;
 use relay_redis::RedisConfig;
 
@@ -247,6 +247,8 @@ pub struct OverridableConfig {
     pub shutdown_timeout: Option<String>,
     /// AWS Extensions API URL
     pub aws_runtime_api: Option<String>,
+    /// AWS upstream DSN
+    pub aws_upstream_dsn: Option<String>,
 }
 
 /// The relay credentials
@@ -1234,6 +1236,11 @@ pub struct AwsConfig {
     /// This value can be found in the `AWS_LAMBDA_RUNTIME_API` environment variable in a Lambda
     /// Runtime and contains a socket address, usually `"127.0.0.1:9001"`.
     pub runtime_api: Option<String>,
+    /// The upstream DSN that the user's lambda function sends envelopes to.
+    ///
+    /// We pass it explicitly since the `SENTRY_DSN` environment variable is already used
+    /// internally in relay.
+    pub upstream_dsn: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -1346,6 +1353,11 @@ impl Config {
             relay.upstream = upstream
                 .parse::<UpstreamDescriptor>()
                 .map_err(|err| ConfigError::for_field(err, "upstream"))?;
+        } else if let Some(aws_upstream_dsn) = overrides.aws_upstream_dsn {
+            relay.upstream = aws_upstream_dsn
+                .parse::<Dsn>()
+                .map(|dsn| UpstreamDescriptor::from_dsn(&dsn).into_owned())
+                .map_err(|err| ConfigError::for_field(err, "aws_upstream_dsn"))?;
         }
 
         if let Some(host) = overrides.host {
