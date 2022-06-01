@@ -250,10 +250,37 @@ pub fn parse_cocoa_profile(item: &mut Item) -> Result<(), ProfileError> {
     Ok(())
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct TypescriptProfile {
+    device_is_emulator: bool,
+    device_locale: String,
+    device_manufacturer: String,
+    device_model: String,
+    device_os_build_number: Option<String>,
+    device_os_name: String,
+    device_os_version: String,
+
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    duration_ns: u64,
+
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    environment: String,
+
+    platform: String,
+    profile_id: EventId,
+    profile: Vec<serde_json::Value>,
+    trace_id: EventId,
+    transaction_id: EventId,
+    transaction_name: String,
+    version_code: String,
+    version_name: String,
+}
+
 pub fn parse_typescript_profile(item: &mut Item) -> Result<(), ProfileError> {
-    let profile: Vec<serde_json::Value> =
+    let profile: TypescriptProfile =
         serde_json::from_slice(&item.payload()).map_err(ProfileError::InvalidJson)?;
-    if profile.is_empty() {
+
+    if profile.profile.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
     }
 
@@ -297,6 +324,20 @@ mod tests {
         item.set_payload(ContentType::Json, item.payload());
 
         assert!(parse_android_profile(&mut item).is_ok());
+    }
+
+    #[test]
+    fn test_roundtrip_typescript() {
+        let mut item = Item::new(ItemType::Profile);
+        let payload =
+            Bytes::from(&include_bytes!("../../tests/fixtures/profiles/typescript.json")[..]);
+        item.set_payload(ContentType::Json, payload);
+
+        assert!(parse_typescript_profile(&mut item).is_ok());
+
+        item.set_payload(ContentType::Json, item.payload());
+
+        assert!(parse_typescript_profile(&mut item).is_ok());
     }
 
     #[test]
