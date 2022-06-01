@@ -104,7 +104,7 @@ pub enum ItemType {
     /// Profile event payload encoded in JSON
     Profile,
     /// Replay Payload blob payload
-    ReplayPayload,
+    ReplayRecording,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -144,7 +144,7 @@ impl fmt::Display for ItemType {
             Self::MetricBuckets => write!(f, "metric_buckets"),
             Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
-            Self::ReplayPayload => write!(f, "replay_payload"),
+            Self::ReplayRecording => write!(f, "replay_recording"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -624,7 +624,7 @@ impl Item {
             | ItemType::Metrics
             | ItemType::MetricBuckets
             | ItemType::ClientReport
-            | ItemType::ReplayPayload
+            | ItemType::ReplayRecording
             | ItemType::Profile => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
@@ -651,7 +651,7 @@ impl Item {
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
-            ItemType::ReplayPayload => false,
+            ItemType::ReplayRecording => false,
             ItemType::Profile => true,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know

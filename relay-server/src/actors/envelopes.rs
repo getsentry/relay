@@ -1320,7 +1320,7 @@ impl EnvelopeProcessor {
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::Profile => false,
-            ItemType::ReplayPayload => false,
+            ItemType::ReplayRecording => false,
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
         }

@@ -779,8 +779,8 @@ pub enum KafkaTopic {
     Metrics,
     /// Profiles
     Profiles,
-    /// ReplayPayloads, large blobs sent by the replay sdk
-    ReplayPayloads,
+    /// ReplayRecording, large blobs sent by the replay sdk
+    ReplayRecordings,
 }
 
 /// Configuration for topics.
@@ -804,7 +804,7 @@ pub struct TopicAssignments {
     /// Stacktrace topic name
     pub profiles: TopicAssignment,
     /// Payloads topic name.
-    pub replay_payloads: TopicAssignment,
+    pub replay_recordings: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -819,7 +819,7 @@ impl TopicAssignments {
             KafkaTopic::Sessions => &self.sessions,
             KafkaTopic::Metrics => &self.metrics,
             KafkaTopic::Profiles => &self.profiles,
-            KafkaTopic::ReplayPayloads => &self.replay_payloads,
+            KafkaTopic::ReplayRecordings => &self.replay_recordings,
         }
     }
 }
@@ -835,7 +835,7 @@ impl Default for TopicAssignments {
             sessions: "ingest-sessions".to_owned().into(),
             metrics: "ingest-metrics".to_owned().into(),
             profiles: "profiles".to_owned().into(),
-            replay_payloads: "ingest-replay-payloads".to_owned().into(),
+            replay_recordings: "ingest-replay-recordings".to_owned().into(),
         }
     }
 }
