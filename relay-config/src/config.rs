@@ -1228,7 +1228,6 @@ pub struct AuthConfig {
 }
 
 /// AWS extension config.
-// TODO(neel): add upstream DSN
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct AwsConfig {
     /// The host and port of the AWS lambda extensions API.
