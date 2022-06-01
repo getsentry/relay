@@ -136,7 +136,7 @@ fn write_crashpad_annotations(
         // context type must be set explicitly in this case, which will render in Sentry as
         // "Module.dll (crashpad)".
         let code_file = module.code_file();
-        let (_, module_name) = symbolic::common::split_path(&code_file);
+        let (_, module_name) = symbolic_common::split_path(&code_file);
 
         let mut module_context = BTreeMap::new();
         module_context.insert(

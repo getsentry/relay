@@ -96,7 +96,8 @@ fn is_false(val: &bool) -> bool {
 pub enum SessionErrored {
     /// Contains the UUID for a single errored session.
     Individual(Uuid),
-    /// Contains the number of errored sessions in an aggregate.
+    /// Contains the number of all errored sessions in an aggregate.
+    /// errored, crashed, abnormal all count towards errored sessions.
     Aggregated(u32),
 }
 
@@ -107,7 +108,7 @@ pub trait SessionLike {
     fn total_count(&self) -> u32;
     fn abnormal_count(&self) -> u32;
     fn crashed_count(&self) -> u32;
-    fn errors(&self) -> Option<SessionErrored>;
+    fn all_errors(&self) -> Option<SessionErrored>;
     fn final_duration(&self) -> Option<(f64, SessionStatus)>;
 }
 
@@ -196,7 +197,7 @@ impl SessionLike for SessionUpdate {
         None
     }
 
-    fn errors(&self) -> Option<SessionErrored> {
+    fn all_errors(&self) -> Option<SessionErrored> {
         if self.errors > 0 || self.status.is_error() {
             Some(SessionErrored::Individual(self.session_id))
         } else {
@@ -256,9 +257,12 @@ impl SessionLike for SessionAggregateItem {
         None
     }
 
-    fn errors(&self) -> Option<SessionErrored> {
-        if self.errored > 0 {
-            Some(SessionErrored::Aggregated(self.errored))
+    fn all_errors(&self) -> Option<SessionErrored> {
+        // Errors contain crashed & abnormal as well.
+        // See https://github.com/getsentry/snuba/blob/c45f2a8636f9ea3dfada4e2d0ae5efef6c6248de/snuba/migrations/snuba_migrations/sessions/0003_sessions_matview.py#L80-L81
+        let all_errored = self.abnormal + self.crashed + self.errored;
+        if all_errored > 0 {
+            Some(SessionErrored::Aggregated(all_errored))
         } else {
             None
         }

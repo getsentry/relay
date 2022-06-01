@@ -190,7 +190,11 @@ impl<'a> MinidumpData<'a> {
             } else {
                 rvas.push(rva);
             }
-            let len: usize = u32_from_bytes(&self.data[rva..], self.minidump.endian)?.try_into()?;
+            let len_bytes = self
+                .data
+                .get(rva..)
+                .ok_or(ScrubMinidumpError::InvalidAddress)?;
+            let len: usize = u32_from_bytes(len_bytes, self.minidump.endian)?.try_into()?;
             let start: usize = rva + 4;
             items.push(MinidumpItem::CodeModuleName(start..start + len));
 
@@ -198,7 +202,11 @@ impl<'a> MinidumpData<'a> {
             let codeview_loc = module.raw.cv_record;
             let cv_start: usize = codeview_loc.rva.try_into()?;
             let cv_len: usize = codeview_loc.data_size.try_into()?;
-            let signature = u32_from_bytes(&self.data[cv_start..], self.minidump.endian)?;
+            let signature_bytes = self
+                .data
+                .get(cv_start..)
+                .ok_or(ScrubMinidumpError::InvalidAddress)?;
+            let signature = u32_from_bytes(signature_bytes, self.minidump.endian)?;
             match CvSignature::from_u32(signature) {
                 Some(CvSignature::Pdb70) => {
                     let offset: usize = 4 + (4 + 2 + 2 + 8) + 4; // cv_sig + sig GUID + age

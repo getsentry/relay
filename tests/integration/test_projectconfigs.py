@@ -5,6 +5,7 @@ Tests the project_configs endpoint (/api/0/relays/projectconfigs/)
 import json
 import uuid
 import pytest
+import time
 from collections import namedtuple
 
 from sentry_relay import PublicKey, SecretKey, generate_key_pair
@@ -157,3 +158,46 @@ def test_broken_projectkey(mini_sentry, relay):
 
     assert response.ok
     assert public_key in response.json()["configs"]
+
+
+def test_pending_projects(mini_sentry, relay):
+    # V3 requests will never return a projectconfig on the first request, only some
+    # subsequent request will contain the response.  However if the machine executing this
+    # test is very slow this could still be a flaky test.
+    relay = relay(mini_sentry, wait_healthcheck=True)
+    project = mini_sentry.add_basic_project_config(42)
+    public_key = mini_sentry.get_dsn_public_key(42)
+
+    body = {"publicKeys": [public_key]}
+    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
+
+    def request_config():
+        return relay.post(
+            "/api/0/relays/projectconfigs/?version=3",
+            data=packed,
+            headers={
+                "X-Sentry-Relay-Id": relay.relay_id,
+                "X-Sentry-Relay-Signature": signature,
+            },
+        )
+
+    response = request_config()
+
+    assert response.ok
+    data = response.json()
+    print(data)
+    assert public_key in data["pending"]
+    assert public_key not in data["configs"]
+
+    deadline = time.monotonic() + 15
+    while time.monotonic() <= deadline:
+        response = request_config()
+        assert response.ok
+        data = response.json()
+        if data["configs"]:
+            break
+    else:
+        print("Relay did still not receive a project config from minisentry")
+    print(data)
+    assert public_key in data["configs"]
+    assert data.get("pending") is None

@@ -106,7 +106,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     }
 
     // Mark the session as errored, which includes fatal sessions.
-    if let Some(errors) = session.errors() {
+    if let Some(errors) = session.all_errors() {
         target.push(match errors {
             SessionErrored::Individual(session_id) => Metric::new_mri(
                 METRIC_NAMESPACE,
@@ -196,6 +196,25 @@ pub fn extract_session_metrics<T: SessionLike>(
             timestamp,
             with_tag(&tags, "session.status", status),
         ));
+    }
+
+    // Some SDKs only provide user information on subsequent updates (not when init==true), so
+    // collect the user ID here as well.
+    // We could also add the user ID to the "init" tag, but collecting it under a separate "ok" tag
+    // might help us with validation / debugging.
+    if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
+        if session.total_count() == 0 && session.all_errors().is_none() {
+            // Assuming that aggregate items always have a total_count > 0,
+            // this is a session update to a healthy, individual session (init == false).
+            target.push(Metric::new_mri(
+                METRIC_NAMESPACE,
+                "user",
+                MetricUnit::None,
+                MetricValue::set_from_str(distinct_id),
+                timestamp,
+                with_tag(&tags, "session.status", SessionStatus::Ok),
+            ));
+        }
     }
 }
 
@@ -292,8 +311,12 @@ mod tests {
 
         extract_session_metrics(&session.attributes, &session, None, &mut metrics);
 
-        // A none-initial update will not trigger any metric if it's not errored/crashed
-        assert_eq!(metrics.len(), 0);
+        // A none-initial update which is not errored/crashed/abnormal will only emit a user metric.
+        assert_eq!(metrics.len(), 1);
+        let user_metric = &metrics[0];
+        assert_eq!(user_metric.name, "s:sessions/user@none");
+        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+        assert_eq!(user_metric.tags["session.status"], "ok");
     }
 
     #[test]
@@ -406,7 +429,7 @@ mod tests {
 
         extract_session_metrics(&session.attributes, &session, None, &mut metrics);
 
-        assert_eq!(metrics.len(), 1);
+        assert_eq!(metrics.len(), 2); // duration and user ID
 
         let duration_metric = &metrics[0];
         assert_eq!(duration_metric.name, "d:sessions/duration@second");
@@ -414,6 +437,11 @@ mod tests {
             duration_metric.value,
             MetricValue::Distribution(_)
         ));
+
+        let user_metric = &metrics[1];
+        assert_eq!(user_metric.name, "s:sessions/user@none");
+        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+        assert_eq!(user_metric.tags["session.status"], "ok");
     }
 
     #[test]
@@ -464,6 +492,20 @@ mod tests {
                     "release": "my-project-name@1.0.0",
                     "sdk": "sentry-test/1.0",
                     "session.status": "init",
+                },
+            },
+            Metric {
+                name: "c:sessions/session@none",
+                unit: None,
+                value: Counter(
+                    12.0,
+                ),
+                timestamp: UnixTimestamp(1581084960),
+                tags: {
+                    "environment": "development",
+                    "release": "my-project-name@1.0.0",
+                    "sdk": "sentry-test/1.0",
+                    "session.status": "errored_preaggr",
                 },
             },
             Metric {

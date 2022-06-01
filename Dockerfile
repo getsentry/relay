@@ -4,7 +4,8 @@ ARG DOCKER_ARCH=amd64
 ### Deps stage ###
 ##################
 
-FROM $DOCKER_ARCH/rust:slim-buster AS relay-deps
+FROM getsentry/sentry-cli:1 AS sentry-cli
+FROM $DOCKER_ARCH/centos:7 AS relay-deps
 
 ARG DOCKER_ARCH
 ARG BUILD_ARCH=x86_64
@@ -14,13 +15,23 @@ ENV BUILD_ARCH=${BUILD_ARCH}
 
 ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
 
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y \
-    curl build-essential git zip cmake \
+RUN yum -y update \
+    && yum -y install centos-release-scl epel-release \
+    # install a modern compiler toolchain
+    && yum -y install cmake3 devtoolset-10 git \
     # below required for sentry-native
-    clang libcurl4-openssl-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    llvm-toolset-7.0-clang-devel \
+    && yum clean all \
+    && rm -rf /var/cache/yum \
+    && ln -s /usr/bin/cmake3 /usr/bin/cmake
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+
+COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 
 WORKDIR /work
 
@@ -28,17 +39,18 @@ WORKDIR /work
 ### Builder stage ###
 #####################
 
-FROM getsentry/sentry-cli:1 AS sentry-cli
 FROM relay-deps AS relay-builder
 
 ARG RELAY_FEATURES=ssl,processing,crash-handler
 ENV RELAY_FEATURES=${RELAY_FEATURES}
 
-COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 COPY . .
 
-# BUILD IT!
-RUN make build-linux-release TARGET=${BUILD_TARGET} RELAY_FEATURES=${RELAY_FEATURES}
+# Build with the modern compiler toolchain enabled
+RUN scl enable devtoolset-10 llvm-toolset-7.0 -- \
+    make build-linux-release \
+    TARGET=${BUILD_TARGET} \
+    RELAY_FEATURES=${RELAY_FEATURES}
 
 RUN cp ./target/$BUILD_TARGET/release/relay /bin/relay \
     && zip /opt/relay-debug.zip target/$BUILD_TARGET/release/relay.debug

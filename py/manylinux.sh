@@ -16,6 +16,12 @@ if [ "$AUDITWHEEL_ARCH" == "i686" ]; then
   LINUX32=linux32
 fi
 
+# Reduce memory consumption by avoiding cargo's libgit2
+cat > ~/.cargo/config <<EOF
+[net]
+git-fetch-with-cli = true
+EOF
+
 $LINUX32 /opt/python/cp37-cp37m/bin/python setup.py bdist_wheel
 
 # Audit wheels

@@ -25,12 +25,13 @@ use crate::utils::{self, ErrorBoundary};
 mod _macro {
     /// The current version of the project states endpoint.
     ///
-    /// Only this version is supported by Relay. All other versions are forwarded to the Upstream.
-    /// The endpoint version is added as `version` query parameter to every outgoing request.
+    /// This is the version that will be used to query Upstream. The endpoint version is added as
+    /// `version` query parameter to every outgoing request. See the `projectconfigs` endpoint for
+    /// the versions that will be accepted by Relay.
     #[macro_export]
     macro_rules! project_states_version {
         () => {
-            2
+            3
         };
     }
 }
@@ -47,11 +48,17 @@ pub struct GetProjectStates {
     pub no_cache: bool,
 }
 
+/// The response of the projects states requests.
+///
+/// A [`ProjectKey`] is either pending or has a result, it can not appear in both and doing
+/// so is undefined.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
     #[serde(default)]
     pub configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    #[serde(default)]
+    pub pending: Vec<ProjectKey>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -83,6 +90,7 @@ struct ProjectStateChannel {
     receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
     deadline: Instant,
     no_cache: bool,
+    attempts: u64,
 }
 
 impl ProjectStateChannel {
@@ -94,6 +102,7 @@ impl ProjectStateChannel {
             receiver: receiver.shared(),
             deadline: Instant::now() + timeout,
             no_cache: false,
+            attempts: 0,
         }
     }
 
@@ -154,52 +163,45 @@ impl UpstreamProjectSource {
 
         let batch_size = self.config.query_batch_size();
         let num_batches = self.config.max_concurrent_queries();
-        let total_count = batch_size * num_batches;
 
-        // Pop `total_count` items from state_channels. Intuitively, we would use
+        // Pop N items from state_channels. Intuitively, we would use
         // `self.state_channels.drain().take(n)`, but that clears the entire hashmap regardless how
         // much of the iterator is consumed.
         //
         // Instead, we have to collect the keys we want into a separate vector and pop them
         // one-by-one.
-        let projects: Vec<_> = self
-            .state_channels
-            .keys()
-            .copied()
-            .take(total_count)
+        let projects: Vec<_> = (self.state_channels.keys().copied())
+            .take(batch_size * num_batches)
             .collect();
 
-        let channels: BTreeMap<_, _> = projects
-            .iter()
+        // Separate regular channels from those with the `nocache` flag. The latter go in separate
+        // requests, since the upstream will block the response.
+        let (cache_channels, nocache_channels): (Vec<_>, Vec<_>) = (projects.iter())
             .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
             .filter(|(_id, channel)| !channel.expired())
-            .collect();
+            .partition(|(_id, channel)| channel.no_cache);
+        let total_count = cache_channels.len() + nocache_channels.len();
 
         metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
 
         relay_log::debug!(
             "updating project states for {}/{} projects (attempt {})",
-            channels.len(),
-            channels.len() + self.state_channels.len(),
+            total_count,
+            total_count + self.state_channels.len(),
             self.backoff.attempt(),
         );
 
         let request_start = Instant::now();
 
-        // Distribute the projects evenly across HTTP requests to avoid large chunks too early. Do
-        // this by dividing and rounding up to the next integer. We achieve this by adding the
-        // remainder of the division which rounds up `total_count` to the next multiple of
-        // num_batches. Worst case, we're left with one project per request, but that's fine.
-        let actual_batch_size = (total_count + (total_count % num_batches)) / num_batches;
-
-        // TODO(ja): This mixes requests with no_cache. Separate out channels with no_cache: true?
-
-        let requests: Vec<_> = channels
-            .into_iter()
-            .chunks(actual_batch_size)
-            .into_iter()
+        let cache_batches = cache_channels.into_iter().chunks(batch_size);
+        let nocache_batches = nocache_channels.into_iter().chunks(batch_size);
+        let requests: Vec<_> = (cache_batches.into_iter())
+            .chain(nocache_batches.into_iter())
             .map(|channels_batch| {
-                let channels_batch: BTreeMap<_, _> = channels_batch.collect();
+                let mut channels_batch: BTreeMap<_, _> = channels_batch.collect();
+                for channel in channels_batch.values_mut() {
+                    channel.attempts += 1;
+                }
                 relay_log::debug!("sending request of size {}", channels_batch.len());
                 metric!(
                     histogram(RelayHistograms::ProjectStateRequestBatchSize) =
@@ -246,6 +248,10 @@ impl UpstreamProjectSource {
                                     response.configs.len() as u64
                             );
                             for (key, channel) in channels_batch {
+                                if response.pending.contains(&key) {
+                                    slf.state_channels.insert(key, channel);
+                                    continue;
+                                }
                                 let state = response
                                     .configs
                                     .remove(&key)
@@ -260,7 +266,10 @@ impl UpstreamProjectSource {
                                         Some(ProjectState::err())
                                     })
                                     .unwrap_or_else(ProjectState::missing);
-
+                                metric!(
+                                    histogram(RelayHistograms::ProjectStateAttempts) =
+                                        channel.attempts
+                                );
                                 channel.send(state.sanitize());
                             }
                         }
