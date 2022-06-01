@@ -90,6 +90,7 @@ struct ProjectStateChannel {
     receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
     deadline: Instant,
     no_cache: bool,
+    attempts: u64,
 }
 
 impl ProjectStateChannel {
@@ -101,6 +102,7 @@ impl ProjectStateChannel {
             receiver: receiver.shared(),
             deadline: Instant::now() + timeout,
             no_cache: false,
+            attempts: 0,
         }
     }
 
@@ -196,7 +198,10 @@ impl UpstreamProjectSource {
         let requests: Vec<_> = (cache_batches.into_iter())
             .chain(nocache_batches.into_iter())
             .map(|channels_batch| {
-                let channels_batch: BTreeMap<_, _> = channels_batch.collect();
+                let mut channels_batch: BTreeMap<_, _> = channels_batch.collect();
+                for channel in channels_batch.values_mut() {
+                    channel.attempts += 1;
+                }
                 relay_log::debug!("sending request of size {}", channels_batch.len());
                 metric!(
                     histogram(RelayHistograms::ProjectStateRequestBatchSize) =
@@ -261,7 +266,10 @@ impl UpstreamProjectSource {
                                         Some(ProjectState::err())
                                     })
                                     .unwrap_or_else(ProjectState::missing);
-
+                                metric!(
+                                    histogram(RelayHistograms::ProjectStateAttempts) =
+                                        channel.attempts
+                                );
                                 channel.send(state.sanitize());
                             }
                         }
