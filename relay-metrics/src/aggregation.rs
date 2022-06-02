@@ -520,6 +520,21 @@ impl BucketValue {
             Self::Distribution(m) => m.internal_size(),
         }
     }
+
+    /// Estimates the number of bytes needed to encode the bucket.
+    /// Note that this does not necessarily match the exact memory footprint of the bucket,
+    /// because datastructures might have a memory overhead.
+    ///
+    /// This is very similar to [`relative_size`], which can possibly be removed.
+    pub fn size(&self) -> usize {
+        match self {
+            Self::Counter(c) => std::mem::size_of_val(c),
+            Self::Set(s) => 4 * s.len(),
+            Self::Gauge(_) => std::mem::size_of::<GaugeValue>(),
+            // Distribution values are stored as maps of (f64, u32) pairs
+            Self::Distribution(m) => 12 * m.internal_size(),
+        }
+    }
 }
 
 impl From<MetricValue> for BucketValue {
@@ -1881,6 +1896,24 @@ mod tests {
                 count: 2,
             })
         );
+    }
+
+    #[test]
+    fn test_bucket_value_size() {
+        let counter = BucketValue::Counter(123.0);
+        assert_eq!(counter.size(), 8);
+        let set = BucketValue::Set(vec![1, 2, 3, 4, 5].into_iter().collect());
+        assert_eq!(set.size(), 20);
+        let distribution = BucketValue::Distribution(dist![1., 2., 3.]);
+        assert_eq!(distribution.size(), 36);
+        let gauge = BucketValue::Gauge(GaugeValue {
+            max: 43.,
+            min: 42.,
+            sum: 85.,
+            last: 43.,
+            count: 2,
+        });
+        assert_eq!(gauge.size(), 40);
     }
 
     #[test]
