@@ -555,65 +555,54 @@ trait MergeValue: Into<BucketValue> {
     /// Merges `self` into the given `bucket_value` and returns the additional cost for storing this value.
     ///
     /// Aggregation is performed according to the rules documented in [`BucketValue`].
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<usize, AggregateMetricsError>;
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError>;
 }
 
 impl MergeValue for BucketValue {
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<usize, AggregateMetricsError> {
-        let added_cost;
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
         match (bucket_value, self) {
             (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) => {
                 *lhs += rhs;
-                added_cost = 0; // Counter has constant size
             }
             (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => {
                 lhs.extend(&rhs);
-                added_cost = todo!();
             }
             (BucketValue::Set(lhs), BucketValue::Set(rhs)) => {
                 lhs.extend(rhs);
-                added_cost = todo!();
             }
             (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => {
                 lhs.merge(rhs);
-                added_cost = 0; // Gauge has constant size
             }
             _ => {
                 return Err(AggregateMetricsErrorKind::InvalidTypes.into());
             }
         }
 
-        Ok(added_cost)
+        Ok(())
     }
 }
 
 impl MergeValue for MetricValue {
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<usize, AggregateMetricsError> {
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
         match (bucket_value, self) {
             (BucketValue::Counter(counter), MetricValue::Counter(value)) => {
                 *counter += value;
-                Ok(0)
             }
             (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) => {
                 distribution.insert(value);
-                Ok(todo!()) // Insert does not return the additional cost
             }
             (BucketValue::Set(set), MetricValue::Set(value)) => {
-                let inserted = set.insert(value);
-                Ok(if inserted {
-                    std::mem::size_of_val(&value)
-                } else {
-                    0
-                })
+                set.insert(value);
             }
             (BucketValue::Gauge(gauge), MetricValue::Gauge(value)) => {
                 gauge.insert(value);
-                Ok(0)
             }
             _ => {
                 return Err(AggregateMetricsErrorKind::InvalidTypes.into());
             }
         }
+
+        Ok(())
     }
 }
 
@@ -1293,7 +1282,11 @@ impl Aggregator {
                     metric_type = entry.key().metric_type.as_str(),
                     metric_name = &entry.key().metric_name
                 );
-                added_cost = value.merge_into(&mut entry.get_mut().value)?;
+                let bucket_value = &mut entry.get_mut().value;
+                let cost_before = bucket_value.cost();
+                value.merge_into(bucket_value)?;
+                let cost_after = bucket_value.cost();
+                added_cost = cost_after.saturating_sub(cost_before);
             }
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
