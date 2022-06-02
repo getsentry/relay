@@ -1046,7 +1046,7 @@ enum AggregatorState {
 #[derive(Debug, Default)]
 struct CostTracker {
     total_cost: usize,
-    // Chosing a BTreeMap instead of a HashMap here, under the assumption that a BTreeMap
+    // Choosing a BTreeMap instead of a HashMap here, under the assumption that a BTreeMap
     // is still more efficient for the number of project keys we store.
     cost_per_project_key: BTreeMap<ProjectKey, usize>,
 }
@@ -1970,7 +1970,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bucket_value_size() {
+    fn test_bucket_value_cost() {
         let counter = BucketValue::Counter(123.0);
         assert_eq!(counter.cost(), 8);
         let set = BucketValue::Set(vec![1, 2, 3, 4, 5].into_iter().collect());
