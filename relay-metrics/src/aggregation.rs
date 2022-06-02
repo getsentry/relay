@@ -526,7 +526,7 @@ impl BucketValue {
     /// because datastructures might have a memory overhead.
     ///
     /// This is very similar to [`relative_size`], which can possibly be removed.
-    pub fn size(&self) -> usize {
+    pub fn cost(&self) -> usize {
         match self {
             Self::Counter(c) => std::mem::size_of_val(c),
             Self::Set(s) => 4 * s.len(),
@@ -552,47 +552,68 @@ impl From<MetricValue> for BucketValue {
 ///
 /// Currently either a [`MetricValue`] or another `BucketValue`.
 trait MergeValue: Into<BucketValue> {
-    /// Merges `self` into the given `bucket_value`.
+    /// Merges `self` into the given `bucket_value` and returns the additional cost for storing this value.
     ///
     /// Aggregation is performed according to the rules documented in [`BucketValue`].
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError>;
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<usize, AggregateMetricsError>;
 }
 
 impl MergeValue for BucketValue {
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<usize, AggregateMetricsError> {
+        let added_cost;
         match (bucket_value, self) {
-            (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) => *lhs += rhs,
-            (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => lhs.extend(&rhs),
-            (BucketValue::Set(lhs), BucketValue::Set(rhs)) => lhs.extend(rhs),
-            (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => lhs.merge(rhs),
-            _ => return Err(AggregateMetricsErrorKind::InvalidTypes.into()),
-        }
-
-        Ok(())
-    }
-}
-
-impl MergeValue for MetricValue {
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
-        match (bucket_value, self) {
-            (BucketValue::Counter(counter), MetricValue::Counter(value)) => {
-                *counter += value;
+            (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) => {
+                *lhs += rhs;
+                added_cost = 0; // Counter has constant size
             }
-            (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) => {
-                distribution.insert(value);
+            (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => {
+                lhs.extend(&rhs);
+                added_cost = todo!();
             }
-            (BucketValue::Set(set), MetricValue::Set(value)) => {
-                set.insert(value);
+            (BucketValue::Set(lhs), BucketValue::Set(rhs)) => {
+                lhs.extend(rhs);
+                added_cost = todo!();
             }
-            (BucketValue::Gauge(gauge), MetricValue::Gauge(value)) => {
-                gauge.insert(value);
+            (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => {
+                lhs.merge(rhs);
+                added_cost = 0; // Gauge has constant size
             }
             _ => {
                 return Err(AggregateMetricsErrorKind::InvalidTypes.into());
             }
         }
 
-        Ok(())
+        Ok(added_cost)
+    }
+}
+
+impl MergeValue for MetricValue {
+    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<usize, AggregateMetricsError> {
+        match (bucket_value, self) {
+            (BucketValue::Counter(counter), MetricValue::Counter(value)) => {
+                *counter += value;
+                Ok(0)
+            }
+            (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) => {
+                distribution.insert(value);
+                Ok(todo!()) // Insert does not return the additional cost
+            }
+            (BucketValue::Set(set), MetricValue::Set(value)) => {
+                let inserted = set.insert(value);
+                Ok(if inserted {
+                    std::mem::size_of_val(&value)
+                } else {
+                    0
+                })
+            }
+            (BucketValue::Gauge(gauge), MetricValue::Gauge(value)) => {
+                gauge.insert(value);
+                Ok(0)
+            }
+            _ => {
+                return Err(AggregateMetricsErrorKind::InvalidTypes.into());
+            }
+        }
     }
 }
 
@@ -1033,6 +1054,53 @@ enum AggregatorState {
     ShuttingDown,
 }
 
+#[derive(Debug, Default)]
+struct CostTracker {
+    total_cost: usize,
+    // Chosing a BTreeMap instead of a HashMap here, under the assumption that a BTreeMap
+    // is still more efficient for the number of project keys we store.
+    cost_per_project_key: BTreeMap<ProjectKey, usize>,
+}
+
+impl CostTracker {
+    fn add_cost(&mut self, project_key: ProjectKey, cost: usize) {
+        self.total_cost += cost;
+        let project_cost = self.cost_per_project_key.entry(project_key).or_insert(0);
+        *project_cost += cost;
+    }
+
+    fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
+        // Handle total cost:
+        if cost > self.total_cost {
+            relay_log::error!("Subtracting a cost higher than what we tracked");
+            self.total_cost = 0;
+        } else {
+            self.total_cost -= cost;
+        }
+        // Handle per-project cost:
+        match self.cost_per_project_key.entry(project_key) {
+            btree_map::Entry::Vacant(_) => {
+                relay_log::error!(
+                    "Trying to subtract cost for a project key that has not been tracked"
+                );
+            }
+            btree_map::Entry::Occupied(mut entry) => {
+                let project_cost = entry.get_mut();
+                if cost > *project_cost {
+                    relay_log::error!("Subtracting a project cost higher than what we tracked");
+                    *project_cost = 0;
+                } else {
+                    *project_cost -= cost;
+                }
+                if *project_cost == 0 {
+                    // Remove this project_key from the map
+                    entry.remove();
+                }
+            }
+        };
+    }
+}
+
 /// A collector of [`Metric`] submissions.
 ///
 /// # Aggregation
@@ -1089,6 +1157,7 @@ pub struct Aggregator {
     buckets: HashMap<BucketKey, QueuedBucket>,
     receiver: Recipient<FlushBuckets>,
     state: AggregatorState,
+    cost_tracker: CostTracker,
 }
 
 impl Aggregator {
@@ -1102,6 +1171,7 @@ impl Aggregator {
             buckets: HashMap::new(),
             receiver,
             state: AggregatorState::Running,
+            cost_tracker: CostTracker::default(),
         }
     }
 
@@ -1215,6 +1285,7 @@ impl Aggregator {
 
         let key = Self::validate_bucket_key(key, &self.config)?;
 
+        let added_cost;
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
                 relay_statsd::metric!(
@@ -1222,7 +1293,7 @@ impl Aggregator {
                     metric_type = entry.key().metric_type.as_str(),
                     metric_name = &entry.key().metric_name
                 );
-                value.merge_into(&mut entry.get_mut().value)?;
+                added_cost = value.merge_into(&mut entry.get_mut().value)?;
             }
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
@@ -1237,9 +1308,13 @@ impl Aggregator {
                 );
 
                 let flush_at = self.config.get_flush_time(timestamp, project_key);
-                entry.insert(QueuedBucket::new(flush_at, value.into()));
+                let bucket = value.into();
+                added_cost = bucket.cost();
+                entry.insert(QueuedBucket::new(flush_at, bucket));
             }
         }
+
+        self.cost_tracker.add_cost(project_key, added_cost);
 
         Ok(())
     }
@@ -1320,10 +1395,12 @@ impl Aggregator {
 
         relay_statsd::metric!(timer(MetricTimers::BucketsScanDuration), {
             let bucket_interval = self.config.bucket_interval;
+            let cost_tracker = &mut self.cost_tracker;
             self.buckets.retain(|key, entry| {
                 if force || entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
                     let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                    cost_tracker.subtract_cost(key.project_key, value.cost());
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets.entry(key.project_key).or_default().push(bucket);
                     false
@@ -1332,6 +1409,12 @@ impl Aggregator {
                 }
             });
         });
+
+        // We only emit a statsd metric for the total cost on flush (and not when merging the buckets),
+        // assuming that this gives us more than enough data points.
+        relay_statsd::metric!(
+            gauge(MetricGauges::BucketsCost) = self.cost_tracker.total_cost as u64
+        );
 
         buckets
     }
@@ -1901,11 +1984,11 @@ mod tests {
     #[test]
     fn test_bucket_value_size() {
         let counter = BucketValue::Counter(123.0);
-        assert_eq!(counter.size(), 8);
+        assert_eq!(counter.cost(), 8);
         let set = BucketValue::Set(vec![1, 2, 3, 4, 5].into_iter().collect());
-        assert_eq!(set.size(), 20);
+        assert_eq!(set.cost(), 20);
         let distribution = BucketValue::Distribution(dist![1., 2., 3.]);
-        assert_eq!(distribution.size(), 36);
+        assert_eq!(distribution.cost(), 36);
         let gauge = BucketValue::Gauge(GaugeValue {
             max: 43.,
             min: 42.,
@@ -1913,7 +1996,7 @@ mod tests {
             last: 43.,
             count: 2,
         });
-        assert_eq!(gauge.size(), 40);
+        assert_eq!(gauge.cost(), 40);
     }
 
     #[test]

@@ -120,12 +120,15 @@ impl HistogramMetric for MetricHistograms {
 pub enum MetricGauges {
     /// The total number of metric buckets in Relay's metrics aggregator.
     Buckets,
+    /// The total storage cost of metric buckets in Relay's metrics aggregator.
+    BucketsCost,
 }
 
 impl GaugeMetric for MetricGauges {
     fn name(&self) -> &'static str {
         match *self {
             Self::Buckets => "metrics.buckets",
+            Self::BucketsCost => "metrics.bucket_cost",
         }
     }
 }
