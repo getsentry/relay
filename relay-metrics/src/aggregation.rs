@@ -1059,14 +1059,6 @@ impl CostTracker {
     }
 
     fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
-        // Handle total cost:
-        if cost > self.total_cost {
-            relay_log::error!("Subtracting a cost higher than what we tracked");
-            self.total_cost = 0;
-        } else {
-            self.total_cost -= cost;
-        }
-        // Handle per-project cost:
         match self.cost_per_project_key.entry(project_key) {
             btree_map::Entry::Vacant(_) => {
                 relay_log::error!(
@@ -1074,12 +1066,15 @@ impl CostTracker {
                 );
             }
             btree_map::Entry::Occupied(mut entry) => {
+                // Handle per-project cost:
                 let project_cost = entry.get_mut();
                 if cost > *project_cost {
                     relay_log::error!("Subtracting a project cost higher than what we tracked");
+                    self.total_cost = self.total_cost.saturating_sub(*project_cost);
                     *project_cost = 0;
                 } else {
                     *project_cost -= cost;
+                    self.total_cost = self.total_cost.saturating_sub(cost);
                 }
                 if *project_cost == 0 {
                     // Remove this project_key from the map
@@ -2166,6 +2161,81 @@ mod tests {
         aggregator.insert(project_key2, some_metric()).unwrap();
 
         assert_eq!(aggregator.buckets.len(), 2);
+    }
+
+    #[test]
+    fn test_cost_tracker() {
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
+        let mut cost_tracker = CostTracker::default();
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 0,
+            cost_per_project_key: {},
+        }
+        "###);
+        cost_tracker.add_cost(project_key1, 100);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 100,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+            },
+        }
+        "###);
+        cost_tracker.add_cost(project_key2, 200);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 300,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+        }
+        "###);
+        // Unknown project: Will log error, but not crash
+        cost_tracker.subtract_cost(project_key3, 666);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 300,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+        }
+        "###);
+        // Subtract too much: Will log error, but not crash
+        cost_tracker.subtract_cost(project_key1, 666);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 200,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+        }
+        "###);
+        cost_tracker.subtract_cost(project_key2, 20);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 180,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
+            },
+        }
+        "###);
+        cost_tracker.subtract_cost(project_key2, 180);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+         CostTracker {
+            total_cost: 0,
+            cost_per_project_key: {},
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_aggregator_cost_tracking() {
+        // Make sure that the right cost is added / subtracted
     }
 
     #[test]
