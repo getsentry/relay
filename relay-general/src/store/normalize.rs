@@ -115,7 +115,7 @@ impl<'a> NormalizeProcessor<'a> {
     /// Ensure measurements interface is only present for transaction events
     fn normalize_measurements(&self, event: &mut Event) {
         if event.ty.value() != Some(&EventType::Transaction) {
-            // Only transaction/replay events may have a measurements interface
+            // Only transaction events may have a measurements interface
             event.measurements = Annotated::empty();
         }
     }
@@ -129,7 +129,7 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     fn normalize_spans(&self, event: &mut Event) {
-        if event.ty.value() != Some(&EventType::Transaction) {
+        if event.ty.value() == Some(&EventType::Transaction) {
             spans::normalize_spans(event, &self.config.span_attributes);
         }
     }
