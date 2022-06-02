@@ -2236,6 +2236,31 @@ mod tests {
     #[test]
     fn test_aggregator_cost_tracking() {
         // Make sure that the right cost is added / subtracted
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(test_config(), receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        let mut metric = Metric {
+            name: "c:foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(42.),
+            timestamp: UnixTimestamp::from_secs(999994711),
+            tags: BTreeMap::new(),
+        };
+        for (metric_value, expected_total_cost) in [
+            (MetricValue::Counter(42.), 8),
+            (MetricValue::Counter(42.), 8),
+            (MetricValue::Set(123), 12),          // 8 + 1*4
+            (MetricValue::Set(123), 12),          // Same element in set, no change
+            (MetricValue::Set(456), 16),          // Different element in set -> +4
+            (MetricValue::Distribution(1.0), 28), // 1 unique element -> +12
+            (MetricValue::Distribution(1.0), 28), // no new element
+            (MetricValue::Distribution(2.0), 40), // 1 new element -> +12
+        ] {
+            metric.value = metric_value;
+            aggregator.insert(project_key, metric.clone()).unwrap();
+            assert_eq!(aggregator.cost_tracker.total_cost, expected_total_cost);
+        }
     }
 
     #[test]
