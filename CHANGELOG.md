@@ -21,6 +21,7 @@
 - Add support for profile outcomes. ([#1272](https://github.com/getsentry/relay/pull/1272))
 - Avoid potential panics when scrubbing minidumps. ([#1282](https://github.com/getsentry/relay/pull/1282))
 - Fix typescript profile validation. ([#1283](https://github.com/getsentry/relay/pull/1283))
+- Support dedicated topics per metrics usecase, drop metrics from unknown usecases. ([#1285](https://github.com/getsentry/relay/pull/1285))
 
 ## 22.5.0
 
