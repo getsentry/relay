@@ -525,12 +525,12 @@ impl BucketValue {
     /// Note that this does not necessarily match the exact memory footprint of the bucket,
     /// because datastructures might have a memory overhead.
     ///
-    /// This is very similar to [`relative_size`], which can possibly be removed.
+    /// This is very similar to [`BucketValue::relative_size`], which can possibly be removed.
     pub fn cost(&self) -> usize {
         match self {
-            Self::Counter(c) => std::mem::size_of_val(c),
+            Self::Counter(_) => 8,
             Self::Set(s) => 4 * s.len(),
-            Self::Gauge(_) => std::mem::size_of::<GaugeValue>(),
+            Self::Gauge(_) => 5 * 8,
             // Distribution values are stored as maps of (f64, u32) pairs
             Self::Distribution(m) => 12 * m.internal_size(),
         }
@@ -561,21 +561,11 @@ trait MergeValue: Into<BucketValue> {
 impl MergeValue for BucketValue {
     fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
         match (bucket_value, self) {
-            (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) => {
-                *lhs += rhs;
-            }
-            (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => {
-                lhs.extend(&rhs);
-            }
-            (BucketValue::Set(lhs), BucketValue::Set(rhs)) => {
-                lhs.extend(rhs);
-            }
-            (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => {
-                lhs.merge(rhs);
-            }
-            _ => {
-                return Err(AggregateMetricsErrorKind::InvalidTypes.into());
-            }
+            (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) => *lhs += rhs,
+            (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => lhs.extend(&rhs),
+            (BucketValue::Set(lhs), BucketValue::Set(rhs)) => lhs.extend(rhs),
+            (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => lhs.merge(rhs),
+            _ => return Err(AggregateMetricsErrorKind::InvalidTypes.into()),
         }
 
         Ok(())
@@ -2226,7 +2216,7 @@ mod tests {
         "###);
         cost_tracker.subtract_cost(project_key2, 180);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
-         CostTracker {
+        CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
         }
@@ -2249,13 +2239,15 @@ mod tests {
         };
         for (metric_value, expected_total_cost) in [
             (MetricValue::Counter(42.), 8),
-            (MetricValue::Counter(42.), 8),
-            (MetricValue::Set(123), 12),          // 8 + 1*4
-            (MetricValue::Set(123), 12),          // Same element in set, no change
-            (MetricValue::Set(456), 16),          // Different element in set -> +4
+            (MetricValue::Counter(42.), 8), // counters have constant size
+            (MetricValue::Set(123), 12),    // 8 + 1*4
+            (MetricValue::Set(123), 12),    // Same element in set, no change
+            (MetricValue::Set(456), 16),    // Different element in set -> +4
             (MetricValue::Distribution(1.0), 28), // 1 unique element -> +12
             (MetricValue::Distribution(1.0), 28), // no new element
             (MetricValue::Distribution(2.0), 40), // 1 new element -> +12
+            (MetricValue::Gauge(0.3), 80),
+            (MetricValue::Gauge(0.2), 80), // gauge has constant size
         ] {
             metric.value = metric_value;
             aggregator.insert(project_key, metric.clone()).unwrap();
