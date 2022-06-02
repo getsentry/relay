@@ -171,7 +171,6 @@ impl StoreForwarder {
         event_id: EventId,
         project_id: ProjectId,
         item: &Item,
-        topic: KafkaTopic,
     ) -> Result<ChunkedAttachment, StoreError> {
         let id = Uuid::new_v4().to_string();
 
@@ -193,7 +192,7 @@ impl StoreForwarder {
                 id: id.clone(),
                 chunk_index,
             });
-            self.produce(topic, attachment_message)?;
+            self.produce(KafkaTopic::Attachments, attachment_message)?;
             offset += chunk_size;
             chunk_index += 1;
         }
@@ -231,7 +230,7 @@ impl StoreForwarder {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
         });
 
-        self.produce(KafkaTopic::Attachments, message)
+        self.produce(KafkaTopic::ReplayRecordings, message)
     }
 
     fn produce_sessions(
@@ -446,6 +445,56 @@ impl StoreForwarder {
         );
         Ok(())
     }
+
+    fn produce_replay_recording_chunks(
+        &self,
+        event_id: EventId,
+        project_id: ProjectId,
+        item: &Item,
+    ) -> Result<ChunkedAttachment, StoreError> {
+        let id = Uuid::new_v4().to_string();
+
+        let mut chunk_index = 0;
+        let mut offset = 0;
+        let payload = item.payload();
+        let size = item.len();
+
+        // This skips chunks for empty attachments. The consumer does not require chunks for
+        // empty attachments. `chunks` will be `0` in this case.
+        while offset < size {
+            let max_chunk_size = self.config.attachment_chunk_size();
+            let chunk_size = std::cmp::min(max_chunk_size, size - offset);
+
+            let attachment_message = KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
+                payload: payload.slice(offset, offset + chunk_size),
+                event_id,
+                project_id,
+                id: id.clone(),
+                chunk_index,
+            });
+            self.produce(KafkaTopic::ReplayRecordings, attachment_message)?;
+            offset += chunk_size;
+            chunk_index += 1;
+        }
+
+        // The chunk_index is incremented after every loop iteration. After we exit the loop, it
+        // is one larger than the last chunk, so it is equal to the number of chunks.
+
+        Ok(ChunkedAttachment {
+            id,
+            name: match item.filename() {
+                Some(name) => name.to_owned(),
+                None => UNNAMED_ATTACHMENT.to_owned(),
+            },
+            content_type: item
+                .content_type()
+                .map(|content_type| content_type.as_str().to_owned()),
+            attachment_type: item.attachment_type().unwrap_or_default(),
+            chunks: chunk_index,
+            size: Some(size),
+            rate_limited: Some(item.rate_limited()),
+        })
+    }
 }
 
 /// StoreMessageForwarder is an async actor since the only thing it does is put the messages
@@ -565,6 +614,16 @@ struct AttachmentKafkaMessage {
     attachment: ChunkedAttachment,
 }
 
+#[derive(Debug, Serialize)]
+struct ReplayRecordingKafkaMessage {
+    /// The event id.
+    replay_id: EventId,
+    /// The project id for the current event.
+    project_id: ProjectId,
+    /// The recording.
+    recording: ChunkedAttachment,
+}
+
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
 ///
 /// Is always independent of an event and can be sent as part of any envelope.
@@ -633,7 +692,7 @@ enum KafkaMessage {
     Session(SessionKafkaMessage),
     Metric(MetricKafkaMessage),
     Profile(ProfileKafkaMessage),
-    ReplayRecording(AttachmentKafkaMessage),
+    ReplayRecording(ReplayRecordingKafkaMessage),
 }
 
 impl KafkaMessage {
@@ -703,6 +762,7 @@ fn is_slow_item(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
 }
 
+#[inline]
 fn is_replay_recording(item: &Item) -> bool {
     item.ty() == &ItemType::ReplayRecording
 }
@@ -731,14 +791,11 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             KafkaTopic::Attachments
         } else if event_item.map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
-        } else if envelope.get_item_by(is_replay_recording).is_some() {
-            KafkaTopic::ReplayRecordings
         } else {
             KafkaTopic::Events
         };
 
         let mut attachments = Vec::new();
-        let mut replay_recordings = Vec::new();
 
         for item in envelope.items() {
             match item.ty() {
@@ -748,7 +805,6 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
                         item,
-                        topic,
                     )?;
                     attachments.push(attachment);
                 }
@@ -785,15 +841,26 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                     item,
                 )?,
                 ItemType::ReplayRecording => {
-                    debug_assert!(topic == KafkaTopic::ReplayRecordings);
-                    let replay_recording = self.produce_attachment_chunks(
+                    let replay_recording = self.produce_replay_recording_chunks(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
                         item,
-                        topic,
                     )?;
-                    replay_recordings.push(replay_recording);
+                    relay_log::trace!("Sending individual replay_recordings of envelope to kafka");
+                    let replay_recording_message =
+                        KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
+                            replay_id: event_id.ok_or(StoreError::NoEventId)?,
+                            project_id: scoping.project_id,
+                            recording: replay_recording,
+                        });
+
+                    self.produce(KafkaTopic::ReplayRecordings, replay_recording_message)?;
+                    metric!(
+                        counter(RelayCounters::ProcessingMessageProduced) += 1,
+                        event_type = "replay_recording"
+                    );
                 }
+
                 _ => {}
             }
         }
@@ -827,22 +894,6 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = "attachment"
-                );
-            }
-        } else if !replay_recordings.is_empty() {
-            relay_log::trace!("Sending individual replay_recordings of envelope to kafka");
-            for attachment in replay_recordings {
-                let replay_recording_message =
-                    KafkaMessage::ReplayRecording(AttachmentKafkaMessage {
-                        event_id: event_id.ok_or(StoreError::NoEventId)?,
-                        project_id: scoping.project_id,
-                        attachment,
-                    });
-
-                self.produce(KafkaTopic::ReplayRecordings, replay_recording_message)?;
-                metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
-                    event_type = "replay_recording"
                 );
             }
         }

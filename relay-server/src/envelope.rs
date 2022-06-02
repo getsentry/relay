@@ -169,6 +169,7 @@ impl std::str::FromStr for ItemType {
             "metric_buckets" => Self::MetricBuckets,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
+            "replay_recording" => Self::ReplayRecording,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -1366,6 +1367,24 @@ mod tests {
 
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items[0].len(), 10);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_replay_recording() {
+        // TODO: expand on this test
+        // With terminating newline after item payload
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"replay_recording\"}\n\
+             helloworld\n\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
     }
 
     #[test]

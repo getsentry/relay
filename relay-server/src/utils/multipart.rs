@@ -12,8 +12,6 @@ use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
 use crate::extractors::DecodingPayload;
 use crate::service::ServiceState;
 
-const REPLAY_RECORDING_FILENAME: &str = "sentry_replay_recording";
-
 #[derive(Debug, Fail)]
 pub enum MultipartError {
     #[fail(display = "payload reached its size limit")]
@@ -220,12 +218,7 @@ fn consume_item(
         let file_name = content_disposition.as_ref().and_then(|d| d.get_filename());
 
         if let Some(file_name) = file_name {
-            let item_type = match file_name {
-                REPLAY_RECORDING_FILENAME => ItemType::ReplayRecording,
-                _ => ItemType::Attachment,
-            };
-            let mut item = Item::new(item_type);
-
+            let mut item = Item::new(ItemType::Attachment);
             item.set_attachment_type((*content.infer_type)(field_name));
             item.set_payload(content_type.into(), data);
             item.set_filename(file_name);
