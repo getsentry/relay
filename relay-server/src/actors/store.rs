@@ -18,7 +18,7 @@ use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_log::LogError;
-use relay_metrics::{Bucket, BucketValue, MetricUnit};
+use relay_metrics::{Bucket, BucketValue, MetricMri, MetricUnit};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 
@@ -57,7 +57,8 @@ struct Producers {
     attachments: Producer,
     transactions: Producer,
     sessions: Producer,
-    metrics: Producer,
+    metrics_sessions: Producer,
+    metrics_transactions: Producer,
     profiles: Producer,
 }
 
@@ -74,7 +75,8 @@ impl Producers {
                 None
             }
             KafkaTopic::Sessions => Some(&self.sessions),
-            KafkaTopic::Metrics => Some(&self.metrics),
+            KafkaTopic::MetricsSessions => Some(&self.metrics_sessions),
+            KafkaTopic::MetricsTransactions => Some(&self.metrics_transactions),
             KafkaTopic::Profiles => Some(&self.profiles),
         }
     }
@@ -131,7 +133,16 @@ impl StoreForwarder {
             events: make_producer(&*config, &mut reused_producers, KafkaTopic::Events)?,
             transactions: make_producer(&*config, &mut reused_producers, KafkaTopic::Transactions)?,
             sessions: make_producer(&*config, &mut reused_producers, KafkaTopic::Sessions)?,
-            metrics: make_producer(&*config, &mut reused_producers, KafkaTopic::Metrics)?,
+            metrics_sessions: make_producer(
+                &*config,
+                &mut reused_producers,
+                KafkaTopic::MetricsSessions,
+            )?,
+            metrics_transactions: make_producer(
+                &*config,
+                &mut reused_producers,
+                KafkaTopic::MetricsTransactions,
+            )?,
             profiles: make_producer(&*config, &mut reused_producers, KafkaTopic::Profiles)?,
         };
 
@@ -374,8 +385,24 @@ impl StoreForwarder {
     }
 
     fn send_metric_message(&self, message: MetricKafkaMessage) -> Result<(), StoreError> {
+        let topic = match message.name.parse() {
+            Ok(MetricMri { namespace, .. }) if namespace == "transactions" => {
+                KafkaTopic::MetricsTransactions
+            }
+            Ok(MetricMri { namespace, .. }) if namespace == "sessions" => {
+                KafkaTopic::MetricsSessions
+            }
+            _ => {
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("metric_message.name", message.name.into());
+                });
+                relay_log::error!("Dropping unknown metric usecase");
+                return Ok(());
+            }
+        };
+
         relay_log::trace!("Sending metric message to kafka");
-        self.produce(KafkaTopic::Metrics, KafkaMessage::Metric(message))?;
+        self.produce(topic, KafkaMessage::Metric(message))?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "metric"

@@ -152,20 +152,41 @@ fn is_valid_name(name: &str) -> bool {
     false
 }
 
-/// Validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-///
-/// Note that the format used in the statsd protocol is different: Metric names are not prefixed
-/// with `<ty>:` as the type is somewhere else in the protocol.
-pub(crate) fn is_valid_mri(name: &str) -> bool {
-    let mut components = name.splitn(2, ':');
-    if components.next().is_none() {
-        return false;
-    }
+/// A metric name parsed as MRI, a naming scheme which includes most of the metric's bucket key
+/// (excl. timestamp and tags).
+pub struct MetricMri {
+    /// The metric type.
+    pub ty: MetricType,
+    /// The namespace/usecase for this metric. For example `sessions` or `transactions`.
+    pub namespace: String,
+    /// The actual name, such as `duration` as part of `d:transactions/duration@ms`
+    pub name: String,
+    /// The metric unit.
+    pub unit: MetricUnit,
+}
 
-    if let Some(name_unit) = components.next() {
-        parse_name_unit(name_unit).is_some()
-    } else {
-        false
+impl std::str::FromStr for MetricMri {
+    type Err = ParseMetricError;
+
+    /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
+    ///
+    /// Note that the format used in the statsd protocol is different: Metric names are not prefixed
+    /// with `<ty>:` as the type is somewhere else in the protocol.
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
+        let ty = raw_ty.parse()?;
+
+        let (raw_namespace, rest) = rest.split_once('/').ok_or(ParseMetricError(()))?;
+        let namespace = raw_namespace.to_owned();
+
+        let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
+
+        Ok(Self {
+            ty,
+            namespace,
+            name,
+            unit,
+        })
     }
 }
 
@@ -531,12 +552,12 @@ mod tests {
 
     #[test]
     fn test_parse_counter() {
-        let s = "foo:42|c";
+        let s = "transactions/foo:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "c:foo",
+            name: "c:transactions/foo",
             unit: None,
             value: Counter(
                 42.0,
@@ -549,12 +570,12 @@ mod tests {
 
     #[test]
     fn test_parse_distribution() {
-        let s = "foo:17.5|d";
+        let s = "transactions/foo:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "d:foo",
+            name: "d:transactions/foo",
             unit: None,
             value: Distribution(
                 17.5,
@@ -567,7 +588,7 @@ mod tests {
 
     #[test]
     fn test_parse_histogram() {
-        let s = "foo:17.5|h"; // common alias for distribution
+        let s = "transactions/foo:17.5|h"; // common alias for distribution
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.value, MetricValue::Distribution(17.5));
@@ -575,12 +596,12 @@ mod tests {
 
     #[test]
     fn test_parse_set() {
-        let s = "foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s";
+        let s = "transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "s:foo",
+            name: "s:transactions/foo",
             unit: None,
             value: Set(
                 4267882815,
@@ -593,12 +614,12 @@ mod tests {
 
     #[test]
     fn test_parse_gauge() {
-        let s = "foo:42|g";
+        let s = "transactions/foo:42|g";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "g:foo",
+            name: "g:transactions/foo",
             unit: None,
             value: Gauge(
                 42.0,
@@ -611,7 +632,7 @@ mod tests {
 
     #[test]
     fn test_parse_unit() {
-        let s = "foo@second:17.5|d";
+        let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.unit, MetricUnit::Duration(DurationUnit::Second));
@@ -619,7 +640,7 @@ mod tests {
 
     #[test]
     fn test_parse_unit_regression() {
-        let s = "foo@s:17.5|d";
+        let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(metric.unit, MetricUnit::Duration(DurationUnit::Second));
@@ -627,7 +648,7 @@ mod tests {
 
     #[test]
     fn test_parse_tags() {
-        let s = "foo:17.5|d|#foo,bar:baz";
+        let s = "transactions/foo:17.5|d|#foo,bar:baz";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric.tags, @r###"
@@ -724,7 +745,7 @@ mod tests {
 
     #[test]
     fn test_parse_all() {
-        let s = "foo:42|c\nbar:17|c";
+        let s = "transactions/foo:42|c\nbar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metrics: Vec<Metric> = Metric::parse_all(s.as_bytes(), timestamp)
@@ -736,7 +757,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_crlf() {
-        let s = "foo:42|c\r\nbar:17|c";
+        let s = "transactions/foo:42|c\r\nbar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metrics: Vec<Metric> = Metric::parse_all(s.as_bytes(), timestamp)
@@ -748,7 +769,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_empty_lines() {
-        let s = "foo:42|c\n\n\nbar:17|c";
+        let s = "transactions/foo:42|c\n\n\nbar:17|c";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metric_count = Metric::parse_all(s.as_bytes(), timestamp).count();
@@ -757,7 +778,7 @@ mod tests {
 
     #[test]
     fn test_parse_all_trailing() {
-        let s = "foo:42|c\nbar:17|c\n";
+        let s = "transactions/foo:42|c\nbar:17|c\n";
         let timestamp = UnixTimestamp::from_secs(4711);
 
         let metric_count = Metric::parse_all(s.as_bytes(), timestamp).count();

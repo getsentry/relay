@@ -14,7 +14,7 @@ use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_system::{Controller, Shutdown};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{protocol, Metric, MetricType, MetricUnit, MetricValue};
+use crate::{protocol, Metric, MetricMri, MetricType, MetricUnit, MetricValue};
 
 /// Interval for the flush cycle of the [`Aggregator`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -1129,7 +1129,7 @@ impl Aggregator {
             return Err(AggregateMetricsErrorKind::InvalidStringLength.into());
         }
 
-        if !protocol::is_valid_mri(&key.metric_name) {
+        if key.metric_name.parse::<MetricMri>().is_err() {
             relay_log::debug!("invalid metric name {:?}", key.metric_name);
             relay_log::configure_scope(|scope| {
                 scope.set_extra(
@@ -1584,7 +1584,7 @@ mod tests {
 
     fn some_metric() -> Metric {
         Metric {
-            name: "c:foo".to_owned(),
+            name: "c:transactions/foo".to_owned(),
             unit: MetricUnit::None,
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
@@ -1910,7 +1910,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
-                    metric_name: "c:foo",
+                    metric_name: "c:transactions/foo",
                     metric_type: Counter,
                     metric_unit: None,
                     tags: {},
@@ -1959,7 +1959,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
-                    metric_name: "c:foo",
+                    metric_name: "c:transactions/foo",
                     metric_type: Counter,
                     metric_unit: None,
                     tags: {},
@@ -1972,7 +1972,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
-                    metric_name: "c:foo",
+                    metric_name: "c:transactions/foo",
                     metric_type: Counter,
                     metric_unit: None,
                     tags: {},
@@ -2239,7 +2239,7 @@ mod tests {
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:hergus.bergus".to_owned(),
+            metric_name: "c:transactions/hergus.bergus".to_owned(),
             metric_type: MetricType::Counter,
             metric_unit: MetricUnit::None,
             tags: {
@@ -2289,7 +2289,7 @@ mod tests {
         let short_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:a_short_metric".to_owned(),
+            metric_name: "c:transactions/a_short_metric".to_owned(),
             metric_type: MetricType::Counter,
             metric_unit: MetricUnit::None,
             tags: BTreeMap::new(),
@@ -2299,7 +2299,7 @@ mod tests {
         let long_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
+            metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
             metric_type: MetricType::Counter,
             metric_unit: MetricUnit::None,
             tags: BTreeMap::new(),
@@ -2314,7 +2314,7 @@ mod tests {
         let short_metric_long_tag_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:a_short_metric_with_long_tag_key".to_owned(),
+            metric_name: "c:transactions/a_short_metric_with_long_tag_key".to_owned(),
             metric_type: MetricType::Counter,
             metric_unit: MetricUnit::None,
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
@@ -2326,7 +2326,7 @@ mod tests {
         let short_metric_long_tag_value = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:a_short_metric_with_long_tag_value".to_owned(),
+            metric_name: "c:transactions/a_short_metric_with_long_tag_value".to_owned(),
             metric_type: MetricType::Counter,
             metric_unit: MetricUnit::None,
                 tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
