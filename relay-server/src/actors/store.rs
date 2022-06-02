@@ -719,7 +719,7 @@ impl KafkaMessage {
             Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
             Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
             Self::Profile(_message) => Uuid::nil(),
-            Self::ReplayRecording(_message) => Uuid::nil(),
+            Self::ReplayRecording(message) => message.replay_id.0,
         };
 
         if uuid.is_nil() {
