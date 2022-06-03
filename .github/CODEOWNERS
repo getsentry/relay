@@ -5,5 +5,4 @@
 /LICENSE  @getsentry/owners-legal
 
 # Build & Releases
-/.github/workflows/release*.yml  @getsentry/releases
-
+/.github/workflows/release*.yml  @getsentry/release-approvers
