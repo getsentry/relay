@@ -1076,7 +1076,7 @@ enum AggregatorState {
     ShuttingDown,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct CostTracker {
     total_cost: usize,
     cost_per_project_key: HashMap<ProjectKey, usize>,
@@ -1113,6 +1113,17 @@ impl CostTracker {
                 }
             }
         };
+    }
+}
+
+impl fmt::Debug for CostTracker {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut values: Vec<(&ProjectKey, &usize)> = self.cost_per_project_key.iter().collect();
+        values.sort();
+        f.debug_struct("CostTracker")
+            .field("total_cost", &self.total_cost)
+            .field("cost_per_project_key", &values)
+            .finish()
     }
 }
 
@@ -1430,7 +1441,7 @@ impl Aggregator {
                 if force || entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
                     let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
-                    cost_tracker.subtract_cost(key.project_key, value.cost());
+                    cost_tracker.subtract_cost(key.project_key, key.cost() + value.cost());
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets.entry(key.project_key).or_default().push(bucket);
 
@@ -2047,7 +2058,6 @@ mod tests {
                 ("answer".to_owned(), "42".to_owned()),
             ]),
         };
-        dbg!(bucket_key.cost());
         assert_eq!(
             bucket_key.cost(),
             mem::size_of_val(&project_key)
@@ -2249,26 +2259,35 @@ mod tests {
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 0,
-            cost_per_project_key: {},
+            cost_per_project_key: [],
         }
         "###);
         cost_tracker.add_cost(project_key1, 100);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 100,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-            },
+            cost_per_project_key: [
+                (
+                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"),
+                    100,
+                ),
+            ],
         }
         "###);
         cost_tracker.add_cost(project_key2, 200);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 300,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-            },
+            cost_per_project_key: [
+                (
+                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"),
+                    100,
+                ),
+                (
+                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
+                    200,
+                ),
+            ],
         }
         "###);
         // Unknown project: Will log error, but not crash
@@ -2276,10 +2295,16 @@ mod tests {
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 300,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-            },
+            cost_per_project_key: [
+                (
+                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"),
+                    100,
+                ),
+                (
+                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
+                    200,
+                ),
+            ],
         }
         "###);
         // Subtract too much: Will log error, but not crash
@@ -2287,25 +2312,31 @@ mod tests {
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 200,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-            },
+            cost_per_project_key: [
+                (
+                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
+                    200,
+                ),
+            ],
         }
         "###);
         cost_tracker.subtract_cost(project_key2, 20);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 180,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
-            },
+            cost_per_project_key: [
+                (
+                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
+                    180,
+                ),
+            ],
         }
         "###);
         cost_tracker.subtract_cost(project_key2, 180);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 0,
-            cost_per_project_key: {},
+            cost_per_project_key: [],
         }
         "###);
     }
@@ -2325,7 +2356,7 @@ mod tests {
             tags: BTreeMap::new(),
         };
         let bucket_key = BucketKey {
-            project_key: project_key.clone(),
+            project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: "c:foo".to_owned(),
             metric_type: MetricType::Counter,
@@ -2353,6 +2384,9 @@ mod tests {
                 current_cost + expected_added_cost
             );
         }
+
+        aggregator.pop_flush_buckets();
+        assert_eq!(aggregator.cost_tracker.total_cost, 0);
     }
 
     #[test]
