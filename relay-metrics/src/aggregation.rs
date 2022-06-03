@@ -1048,9 +1048,7 @@ enum AggregatorState {
 #[derive(Debug, Default)]
 struct CostTracker {
     total_cost: usize,
-    // Choosing a BTreeMap instead of a HashMap here, under the assumption that a BTreeMap
-    // is still more efficient for the number of project keys we store.
-    cost_per_project_key: BTreeMap<ProjectKey, usize>,
+    cost_per_project_key: HashMap<ProjectKey, usize>,
 }
 
 impl CostTracker {
@@ -1062,12 +1060,12 @@ impl CostTracker {
 
     fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
         match self.cost_per_project_key.entry(project_key) {
-            btree_map::Entry::Vacant(_) => {
+            Entry::Vacant(_) => {
                 relay_log::error!(
                     "Trying to subtract cost for a project key that has not been tracked"
                 );
             }
-            btree_map::Entry::Occupied(mut entry) => {
+            Entry::Occupied(mut entry) => {
                 // Handle per-project cost:
                 let project_cost = entry.get_mut();
                 if cost > *project_cost {
