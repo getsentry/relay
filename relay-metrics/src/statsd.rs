@@ -103,6 +103,11 @@ pub enum MetricHistograms {
     ///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`
     ///    time period (`false`) or after the initial delay has expired (`true`).
     BucketsDelay,
+
+    /// The storage cost of metrics buckets stored Relay's metrics aggregator, for a project key.
+    ///
+    /// See also [`MetricGauges::BucketsCost`].
+    BucketsCostPerProjectKey,
 }
 
 impl HistogramMetric for MetricHistograms {
@@ -112,6 +117,7 @@ impl HistogramMetric for MetricHistograms {
             Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
             Self::BucketRelativeSize => "metrics.buckets.relative_bucket_size",
             Self::BucketsDelay => "metrics.buckets.delay",
+            Self::BucketsCostPerProjectKey => "metrics.buckets.cost_per_project_key",
         }
     }
 }
@@ -128,7 +134,7 @@ impl GaugeMetric for MetricGauges {
     fn name(&self) -> &'static str {
         match *self {
             Self::Buckets => "metrics.buckets",
-            Self::BucketsCost => "metrics.bucket_cost",
+            Self::BucketsCost => "metrics.buckets.cost",
         }
     }
 }

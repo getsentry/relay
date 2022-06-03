@@ -1367,6 +1367,17 @@ impl Aggregator {
     pub fn pop_flush_buckets(&mut self) -> HashMap<ProjectKey, Vec<Bucket>> {
         relay_statsd::metric!(gauge(MetricGauges::Buckets) = self.buckets.len() as u64);
 
+        // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
+        // assuming that this gives us more than enough data points.
+        relay_statsd::metric!(
+            gauge(MetricGauges::BucketsCost) = self.cost_tracker.total_cost as u64
+        );
+        for cost in self.cost_tracker.cost_per_project_key.values() {
+            relay_statsd::metric!(
+                histogram(MetricHistograms::BucketsCostPerProjectKey) = *cost as f64
+            );
+        }
+
         let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
 
         let force = matches!(&self.state, AggregatorState::ShuttingDown);
@@ -1381,18 +1392,13 @@ impl Aggregator {
                     cost_tracker.subtract_cost(key.project_key, value.cost());
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets.entry(key.project_key).or_default().push(bucket);
+
                     false
                 } else {
                     true
                 }
             });
         });
-
-        // We only emit a statsd metric for the total cost on flush (and not when merging the buckets),
-        // assuming that this gives us more than enough data points.
-        relay_statsd::metric!(
-            gauge(MetricGauges::BucketsCost) = self.cost_tracker.total_cost as u64
-        );
 
         buckets
     }
