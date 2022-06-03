@@ -1,6 +1,7 @@
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 use std::fmt;
+use std::mem;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
@@ -527,12 +528,23 @@ impl BucketValue {
     ///
     /// This is very similar to [`BucketValue::relative_size`], which can possibly be removed.
     pub fn cost(&self) -> usize {
+        // We use private type aliases and constants here to make sure that a change in the implementation
+        // does not change the cost model without being noticed.
+        // Note that when the actual data type of these bucket values changes, we have to update
+        // the cost model and potentially increase the limits that are applied to it.
+        type CounterType = f64;
+        type SetType = u32;
+        type GaugeType = f64;
+        // [`GaugeValue`] has 5 members:
+        const GAUGE_SIZE: usize = 5 * mem::size_of::<GaugeType>();
+        // Distribution values are stored as maps of (f64, u32) pairs:
+        const DIST_SIZE: usize = mem::size_of::<f64>() + mem::size_of::<u32>();
+
         match self {
-            Self::Counter(_) => 8,
-            Self::Set(s) => 4 * s.len(),
-            Self::Gauge(_) => 5 * 8,
-            // Distribution values are stored as maps of (f64, u32) pairs
-            Self::Distribution(m) => 12 * m.internal_size(),
+            Self::Counter(_) => mem::size_of::<CounterType>(),
+            Self::Set(s) => mem::size_of::<SetType>() * s.len(),
+            Self::Gauge(_) => GAUGE_SIZE,
+            Self::Distribution(m) => DIST_SIZE * m.internal_size(),
         }
     }
 }
@@ -1388,7 +1400,7 @@ impl Aggregator {
             self.buckets.retain(|key, entry| {
                 if force || entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
-                    let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                    let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
                     cost_tracker.subtract_cost(key.project_key, value.cost());
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets.entry(key.project_key).or_default().push(bucket);
