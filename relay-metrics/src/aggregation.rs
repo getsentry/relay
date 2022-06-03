@@ -757,6 +757,12 @@ enum AggregateMetricsErrorKind {
     /// A metric bucket had a too long string (metric name or a tag key/value).
     #[fail(display = "found invalid string")]
     InvalidStringLength,
+    /// A metric bucket is too large for the global bytes limit.
+    #[fail(display = "total metrics limit exceeded")]
+    TotalLimitExceeded,
+    /// A metric bucket is too large for the per-project bytes limit.
+    #[fail(display = "project metrics limit exceeded")]
+    ProjectLimitExceeded,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -841,6 +847,23 @@ pub struct AggregatorConfig {
     ///
     /// Defaults to `200` bytes.
     pub max_tag_value_length: usize,
+
+    /// Maximum amount of bytes used for metrics aggregation.
+    ///
+    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
+    /// This is only an approximation and does not take into account things such as pre-allocation
+    /// in hashmaps.
+    ///
+    /// Defaults to `None`, i.e. no limit.
+    pub max_total_bucket_bytes: Option<usize>,
+
+    /// Maximum amount of bytes used for metrics aggregation per project.
+    ///
+    /// Similar measuring technique to `max_total_bucket_bytes`, but instead of a
+    /// global/process-wide limit, it is enforced per project id.
+    ///
+    /// Defaults to `None`, i.e. no limit.
+    pub max_project_bucket_bytes: Option<usize>,
 }
 
 impl AggregatorConfig {
@@ -940,6 +963,8 @@ impl Default for AggregatorConfig {
             max_name_length: 200,
             max_tag_key_length: 200,
             max_tag_value_length: 200,
+            max_total_bucket_bytes: None,
+            max_project_bucket_bytes: None,
         }
     }
 }
@@ -1042,6 +1067,32 @@ struct CostTracker {
 }
 
 impl CostTracker {
+    fn check_limits_exceeded(
+        &self,
+        project_key: ProjectKey,
+        max_total_cost: Option<usize>,
+        max_project_cost: Option<usize>,
+    ) -> Result<(), AggregateMetricsError> {
+        if let Some(max_total_cost) = max_total_cost {
+            if self.total_cost > max_total_cost {
+                return Err(AggregateMetricsErrorKind::TotalLimitExceeded.into());
+            }
+        }
+
+        if let Some(max_project_cost) = max_project_cost {
+            let project_cost = self
+                .cost_per_project_key
+                .get(&project_key)
+                .cloned()
+                .unwrap_or(0);
+            if project_cost > max_project_cost {
+                return Err(AggregateMetricsErrorKind::ProjectLimitExceeded.into());
+            }
+        }
+
+        Ok(())
+    }
+
     fn add_cost(&mut self, project_key: ProjectKey, cost: usize) {
         self.total_cost += cost;
         let project_cost = self.cost_per_project_key.entry(project_key).or_insert(0);
@@ -1258,6 +1309,38 @@ impl Aggregator {
         let project_key = key.project_key;
 
         let key = Self::validate_bucket_key(key, &self.config)?;
+
+        // XXX: This is not a great implementation of cost enforcement.
+        //
+        // * it takes two lookups of the project key in the cost tracker to merge a bucket: once in
+        //   `check_limits_exceeded` and once in `add_cost`.
+        //
+        // * the limits are not actually enforced consistently
+        //
+        //   A bucket can be merged that exceeds the cost limit, and only the next bucket will be
+        //   limited because the limit is now reached. This implementation was chosen because it's
+        //   currently not possible to determine cost accurately upfront: The bucket values have to
+        //   be merged together to figure out how costly the merge was. Changing that would force
+        //   us to unravel a lot of abstractions that we have already built.
+        //
+        //   As a result of that, it is possible to exceed the bucket cost limit significantly
+        //   until we have guaranteed upper bounds on the cost of a single bucket (which we
+        //   currently don't, because a metric can have arbitrary amount of tag values).
+        //
+        //   Another consequence is that a MergeValue that adds zero cost (such as an existing
+        //   counter bucket being incremented) is currently rejected even though it doesn't have to
+        //   be.
+        //
+        // The flipside of this approach is however that there's more optimization potential: If
+        // the limit is already exceeded, we could implement an optimization that drops envelope
+        // items before they are parsed, as we can be sure that the new metric bucket will be
+        // rejected in the aggregator regardless of whether it is merged into existing buckets,
+        // whether it is just a counter, etc.
+        self.cost_tracker.check_limits_exceeded(
+            project_key,
+            self.config.max_total_bucket_bytes,
+            self.config.max_project_bucket_bytes,
+        )?;
 
         let added_cost;
         match self.buckets.entry(key) {
@@ -1661,6 +1744,8 @@ mod tests {
             max_name_length: 200,
             max_tag_key_length: 200,
             max_tag_value_length: 200,
+            max_project_bucket_bytes: None,
+            max_total_bucket_bytes: None,
         }
     }
 
@@ -2537,5 +2622,63 @@ mod tests {
             Aggregator::validate_bucket_key(short_metric_long_tag_value, &aggregator_config)
                 .unwrap();
         assert_eq!(validation.tags.len(), 0);
+    }
+
+    #[test]
+    fn test_aggregator_cost_enforcement_total() {
+        let config = AggregatorConfig {
+            max_total_bucket_bytes: Some(1),
+            ..test_config()
+        };
+
+        let metric = Metric {
+            name: "c:foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(42.),
+            timestamp: UnixTimestamp::from_secs(999994711),
+            tags: BTreeMap::new(),
+        };
+
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        aggregator.insert(project_key, metric.clone()).unwrap();
+        assert_eq!(
+            aggregator
+                .insert(project_key, metric.clone())
+                .unwrap_err()
+                .kind,
+            AggregateMetricsErrorKind::TotalLimitExceeded
+        );
+    }
+
+    #[test]
+    fn test_aggregator_cost_enforcement_project() {
+        let config = AggregatorConfig {
+            max_project_bucket_bytes: Some(1),
+            ..test_config()
+        };
+
+        let metric = Metric {
+            name: "c:foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(42.),
+            timestamp: UnixTimestamp::from_secs(999994711),
+            tags: BTreeMap::new(),
+        };
+
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        aggregator.insert(project_key, metric.clone()).unwrap();
+        assert_eq!(
+            aggregator
+                .insert(project_key, metric.clone())
+                .unwrap_err()
+                .kind,
+            AggregateMetricsErrorKind::ProjectLimitExceeded
+        );
     }
 }
