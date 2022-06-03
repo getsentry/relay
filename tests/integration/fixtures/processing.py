@@ -349,7 +349,7 @@ class ReplayRecordingsConsumer(EventsConsumer):
         assert message.error() is None
 
         v = msgpack.unpackb(message.value(), raw=False, use_list=False)
-        assert v["type"] == "attachment_chunk", v["type"]
+        assert v["type"] == "replay_recording_chunk", v["type"]
         return v["payload"], v
 
     def get_individual_replay(self):

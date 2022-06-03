@@ -184,7 +184,6 @@ impl StoreForwarder {
         while offset < size {
             let max_chunk_size = self.config.attachment_chunk_size();
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
-
             let attachment_message = KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
                 payload: payload.slice(offset, offset + chunk_size),
                 event_id,
@@ -230,7 +229,7 @@ impl StoreForwarder {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
         });
 
-        self.produce(KafkaTopic::ReplayRecordings, message)
+        self.produce(KafkaTopic::Attachments, message)
     }
 
     fn produce_sessions(
@@ -448,7 +447,7 @@ impl StoreForwarder {
 
     fn produce_replay_recording_chunks(
         &self,
-        event_id: EventId,
+        replay_id: EventId,
         project_id: ProjectId,
         item: &Item,
     ) -> Result<ChunkedAttachment, StoreError> {
@@ -459,19 +458,20 @@ impl StoreForwarder {
         let payload = item.payload();
         let size = item.len();
 
-        // This skips chunks for empty attachments. The consumer does not require chunks for
-        // empty attachments. `chunks` will be `0` in this case.
+        // This skips chunks for empty replay recordings. The consumer does not require chunks for
+        // empty replay recordings. `chunks` will be `0` in this case.
         while offset < size {
             let max_chunk_size = self.config.attachment_chunk_size();
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
-            let attachment_message = KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
-                payload: payload.slice(offset, offset + chunk_size),
-                event_id,
-                project_id,
-                id: id.clone(),
-                chunk_index,
-            });
+            let attachment_message =
+                KafkaMessage::ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage {
+                    payload: payload.slice(offset, offset + chunk_size),
+                    replay_id,
+                    project_id,
+                    id: id.clone(),
+                    chunk_index,
+                });
             self.produce(KafkaTopic::ReplayRecordings, attachment_message)?;
             offset += chunk_size;
             chunk_index += 1;
@@ -614,6 +614,22 @@ struct AttachmentKafkaMessage {
     attachment: ChunkedAttachment,
 }
 
+/// Container payload for chunks of attachments.
+#[derive(Debug, Serialize)]
+struct ReplayRecordingChunkKafkaMessage {
+    /// Chunk payload of the attachment.
+    payload: Bytes,
+    /// The replay id.
+    replay_id: EventId,
+    /// The project id for the current event.
+    project_id: ProjectId,
+    /// The replay ID within the event.
+    ///
+    /// The triple `(project_id, replay_id, id)` identifies a replay recording chunk uniquely.
+    id: String,
+    /// Sequence number of chunk. Starts at 0 and ends at `ReplayRecordingKafkaMessage.num_chunks - 1`.
+    chunk_index: usize,
+}
 #[derive(Debug, Serialize)]
 struct ReplayRecordingKafkaMessage {
     /// The event id.
@@ -693,6 +709,7 @@ enum KafkaMessage {
     Metric(MetricKafkaMessage),
     Profile(ProfileKafkaMessage),
     ReplayRecording(ReplayRecordingKafkaMessage),
+    ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
 }
 
 impl KafkaMessage {
@@ -706,6 +723,7 @@ impl KafkaMessage {
             KafkaMessage::Metric(_) => "metric",
             KafkaMessage::Profile(_) => "profile",
             KafkaMessage::ReplayRecording(_) => "replay_recording",
+            KafkaMessage::ReplayRecordingChunk(_) => "replay_recording_chunk",
         }
     }
 
@@ -720,6 +738,7 @@ impl KafkaMessage {
             Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
             Self::Profile(_message) => Uuid::nil(),
             Self::ReplayRecording(message) => message.replay_id.0,
+            Self::ReplayRecordingChunk(message) => message.replay_id.0,
         };
 
         if uuid.is_nil() {
@@ -760,11 +779,6 @@ impl Message for StoreEnvelope {
 /// Slow items must be routed to the `Attachments` topic.
 fn is_slow_item(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
-}
-
-#[inline]
-fn is_replay_recording(item: &Item) -> bool {
-    item.ty() == &ItemType::ReplayRecording
 }
 
 impl Handler<StoreEnvelope> for StoreForwarder {

@@ -14,9 +14,9 @@ def test_replay_recordings(mini_sentry, relay_chain):
         project_id, extra={"config": {"features": ["organizations:session-replay"]}}
     )
 
-    event_id = "515539018c9b4260a6f999572f1661ee"
+    replay_id = "515539018c9b4260a6f999572f1661ee"
 
-    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope = Envelope(headers=[["event_id", replay_id]])
     envelope.add_item(Item(payload=PayloadRef(bytes=b"test"), type="replay_recording"))
 
     relay.send_envelope(project_id, envelope)
@@ -35,7 +35,7 @@ def test_replay_recordings_processing(
     mini_sentry, relay_with_processing, replay_recordings_consumer, outcomes_consumer
 ):
     project_id = 42
-    event_id = "515539018c9b4260a6f999572f1661ee"
+    replay_id = "515539018c9b4260a6f999572f1661ee"
 
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
@@ -44,7 +44,7 @@ def test_replay_recordings_processing(
     replay_recordings_consumer = replay_recordings_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope = Envelope(headers=[["event_id", replay_id]])
     envelope.add_item(Item(payload=PayloadRef(bytes=b"test"), type="replay_recording"))
 
     relay.send_envelope(project_id, envelope)
@@ -54,7 +54,6 @@ def test_replay_recordings_processing(
     replay_recording_num_chunks = {}
 
     while set(replay_recording_contents.values()) != {b"test"}:
-        print(replay_recording_contents.values())
         chunk, v = replay_recordings_consumer.get_replay_chunk()
         replay_recording_contents[v["id"]] = (
             replay_recording_contents.get(v["id"], b"") + chunk
@@ -70,7 +69,6 @@ def test_replay_recordings_processing(
     assert replay_recording_contents[id1] == b"test"
 
     replay_recording = replay_recordings_consumer.get_individual_replay()
-    print(replay_recording)
 
     assert replay_recording == {
         "type": "replay_recording",
@@ -83,7 +81,7 @@ def test_replay_recordings_processing(
             "size": len(replay_recording_contents[id1]),
             "rate_limited": False,
         },
-        "replay_id": event_id,
+        "replay_id": replay_id,
         "project_id": project_id,
     }
 

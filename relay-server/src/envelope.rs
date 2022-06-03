@@ -103,7 +103,7 @@ pub enum ItemType {
     ClientReport,
     /// Profile event payload encoded in JSON
     Profile,
-    /// Replay Payload blob payload
+    /// Replay Recording data
     ReplayRecording,
     /// A new item type that is yet unknown by this version of Relay.
     ///
@@ -1371,8 +1371,6 @@ mod tests {
 
     #[test]
     fn test_deserialize_envelope_replay_recording() {
-        // TODO: expand on this test
-        // With terminating newline after item payload
         let bytes = Bytes::from(
             "\
              {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
@@ -1384,7 +1382,7 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         assert_eq!(envelope.len(), 1);
         let items: Vec<_> = envelope.items().collect();
-        assert_eq!(items[1].ty(), &ItemType::ReplayRecording);
+        assert_eq!(items[0].ty(), &ItemType::ReplayRecording);
     }
 
     #[test]

@@ -974,7 +974,6 @@ impl EnvelopeProcessor {
     /// Remove profiles if the feature flag is not enabled
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-
         let context = state.envelope_context;
         state.envelope.retain_items(|item| {
             match item.ty() {
@@ -1007,19 +1006,16 @@ impl EnvelopeProcessor {
         });
     }
 
-    /// Remove replay recordings if the feature flag is not enabled
     fn process_replay_recordings(&self, state: &mut ProcessEnvelopeState) {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
-        state.envelope.retain_items(|item| {
-            match item.ty() {
-                ItemType::ReplayRecording => {
-                    if !replays_enabled {
-                        return false;
-                    }
-                    return true;
+        state.envelope.retain_items(|item| match item.ty() {
+            ItemType::ReplayRecording => {
+                if !replays_enabled {
+                    return false;
                 }
-                _ => true, // Keep all other item types
+                return true;
             }
+            _ => true,
         });
     }
 
