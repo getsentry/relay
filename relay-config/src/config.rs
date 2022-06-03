@@ -803,7 +803,7 @@ pub struct TopicAssignments {
     pub metrics: TopicAssignment,
     /// Stacktrace topic name
     pub profiles: TopicAssignment,
-    /// Payloads topic name.
+    /// Recordings topic name.
     pub replay_recordings: TopicAssignment,
 }
 

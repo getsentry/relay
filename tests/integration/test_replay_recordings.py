@@ -44,7 +44,9 @@ def test_replay_recordings_processing(
     replay_recordings_consumer = replay_recordings_consumer()
     outcomes_consumer = outcomes_consumer()
 
-    envelope = Envelope(headers=[["event_id", replay_id]])
+    envelope = Envelope(
+        headers=[["event_id", replay_id,], ["attachment_type", "replay_recording"]]
+    )
     envelope.add_item(Item(payload=PayloadRef(bytes=b"test"), type="replay_recording"))
 
     relay.send_envelope(project_id, envelope)
@@ -72,12 +74,12 @@ def test_replay_recordings_processing(
 
     assert replay_recording == {
         "type": "replay_recording",
-        "recording": {
+        "replay_recording": {
             "attachment_type": "event.attachment",
             "chunks": replay_recording_num_chunks[id1],
             "content_type": "application/octet-stream",
             "id": id1,
-            "name": "Unnamed Attachment",
+            "name": "rr",
             "size": len(replay_recording_contents[id1]),
             "rate_limited": False,
         },

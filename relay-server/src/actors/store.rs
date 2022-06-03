@@ -38,6 +38,8 @@ const MAX_EXPLODED_SESSIONS: usize = 100;
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
+const REPLAY_RECORDINGS_ATTACHMENT_NAME: &str = "rr";
+
 #[derive(Fail, Debug)]
 pub enum StoreError {
     #[fail(display = "failed to send kafka message")]
@@ -464,7 +466,7 @@ impl StoreForwarder {
             let max_chunk_size = self.config.attachment_chunk_size();
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
 
-            let attachment_message =
+            let replay_recording_chunk_message =
                 KafkaMessage::ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage {
                     payload: payload.slice(offset, offset + chunk_size),
                     replay_id,
@@ -472,7 +474,7 @@ impl StoreForwarder {
                     id: id.clone(),
                     chunk_index,
                 });
-            self.produce(KafkaTopic::ReplayRecordings, attachment_message)?;
+            self.produce(KafkaTopic::ReplayRecordings, replay_recording_chunk_message)?;
             offset += chunk_size;
             chunk_index += 1;
         }
@@ -482,10 +484,7 @@ impl StoreForwarder {
 
         Ok(ChunkedAttachment {
             id,
-            name: match item.filename() {
-                Some(name) => name.to_owned(),
-                None => UNNAMED_ATTACHMENT.to_owned(),
-            },
+            name: REPLAY_RECORDINGS_ATTACHMENT_NAME.to_owned(),
             content_type: item
                 .content_type()
                 .map(|content_type| content_type.as_str().to_owned()),
@@ -617,13 +616,13 @@ struct AttachmentKafkaMessage {
 /// Container payload for chunks of attachments.
 #[derive(Debug, Serialize)]
 struct ReplayRecordingChunkKafkaMessage {
-    /// Chunk payload of the attachment.
+    /// Chunk payload of the replay recording.
     payload: Bytes,
     /// The replay id.
     replay_id: EventId,
-    /// The project id for the current event.
+    /// The project id for the current replay.
     project_id: ProjectId,
-    /// The replay ID within the event.
+    /// The recording ID within the replay.
     ///
     /// The triple `(project_id, replay_id, id)` identifies a replay recording chunk uniquely.
     id: String,
@@ -632,12 +631,12 @@ struct ReplayRecordingChunkKafkaMessage {
 }
 #[derive(Debug, Serialize)]
 struct ReplayRecordingKafkaMessage {
-    /// The event id.
+    /// The replay id.
     replay_id: EventId,
     /// The project id for the current event.
     project_id: ProjectId,
-    /// The recording.
-    recording: ChunkedAttachment,
+    /// The recording attachment.
+    replay_recording: ChunkedAttachment,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
@@ -865,7 +864,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
                             replay_id: event_id.ok_or(StoreError::NoEventId)?,
                             project_id: scoping.project_id,
-                            recording: replay_recording,
+                            replay_recording,
                         });
 
                     self.produce(KafkaTopic::ReplayRecordings, replay_recording_message)?;

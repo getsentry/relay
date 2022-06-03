@@ -1013,7 +1013,7 @@ impl EnvelopeProcessor {
                 if !replays_enabled {
                     return false;
                 }
-                return true;
+                true
             }
             _ => true,
         });
