@@ -1328,7 +1328,7 @@ impl Aggregator {
 
                 let flush_at = self.config.get_flush_time(timestamp, project_key);
                 let bucket = value.into();
-                added_cost = bucket.cost();
+                added_cost = entry.key().cost() + bucket.cost();
                 entry.insert(QueuedBucket::new(flush_at, bucket));
             }
         }
@@ -2324,21 +2324,34 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
         };
-        for (metric_value, expected_total_cost) in [
-            (MetricValue::Counter(42.), 8),
-            (MetricValue::Counter(42.), 8), // counters have constant size
-            (MetricValue::Set(123), 12),    // 8 + 1*4
-            (MetricValue::Set(123), 12),    // Same element in set, no change
-            (MetricValue::Set(456), 16),    // Different element in set -> +4
-            (MetricValue::Distribution(1.0), 28), // 1 unique element -> +12
-            (MetricValue::Distribution(1.0), 28), // no new element
-            (MetricValue::Distribution(2.0), 40), // 1 new element -> +12
-            (MetricValue::Gauge(0.3), 80),
-            (MetricValue::Gauge(0.2), 80), // gauge has constant size
+        let bucket_key = BucketKey {
+            project_key: project_key.clone(),
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:foo".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: BTreeMap::new(),
+        };
+        let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
+        for (metric_value, expected_added_cost) in [
+            (MetricValue::Counter(42.), fixed_cost),
+            (MetricValue::Counter(42.), 0), // counters have constant size
+            (MetricValue::Set(123), fixed_cost + 4), // Added a new bucket + 1 element
+            (MetricValue::Set(123), 0),     // Same element in set, no change
+            (MetricValue::Set(456), 4),     // Different element in set -> +4
+            (MetricValue::Distribution(1.0), fixed_cost + 12), // New bucket + 1 element
+            (MetricValue::Distribution(1.0), 0), // no new element
+            (MetricValue::Distribution(2.0), 12), // 1 new element
+            (MetricValue::Gauge(0.3), fixed_cost), // New bucket
+            (MetricValue::Gauge(0.2), 0),   // gauge has constant size
         ] {
             metric.value = metric_value;
+            let current_cost = aggregator.cost_tracker.total_cost;
             aggregator.insert(project_key, metric.clone()).unwrap();
-            assert_eq!(aggregator.cost_tracker.total_cost, expected_total_cost);
+            assert_eq!(
+                aggregator.cost_tracker.total_cost,
+                current_cost + expected_added_cost
+            );
         }
     }
 
