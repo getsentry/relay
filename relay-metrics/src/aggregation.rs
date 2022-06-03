@@ -783,6 +783,11 @@ struct BucketKey {
     tags: BTreeMap<String, String>,
 }
 
+/// The memory cost of storing a string
+fn string_cost(s: &String) -> usize {
+    mem::size_of::<String>() + s.capacity()
+}
+
 impl BucketKey {
     /// An extremely hamfisted way to hash a bucket key into an integer.
     ///
@@ -799,6 +804,30 @@ impl BucketKey {
         let mut hasher = crc32fast::Hasher::new();
         std::hash::Hash::hash(self, &mut hasher);
         hasher.finalize() as i64
+    }
+
+    /// Estimates the number of bytes needed to encode the bucket key.
+    /// Note that this does not necessarily match the exact memory footprint of the key,
+    /// because datastructures might have a memory overhead.
+    fn cost(&self) -> usize {
+        // We use private constants here to make sure that a change in the implementation
+        // does not change the cost model without being noticed.
+        // Note that when the actual data type of any of the subkeys changes, we have to update
+        // the cost model and potentially increase the limits that are applied to it.
+        const PROJECT_KEY_SIZE: usize = 32;
+        const TIMESTAMP_SIZE: usize = mem::size_of::<u64>();
+        const METRIC_TYPE_SIZE: usize = mem::size_of::<u8>(); // small enum
+        const METRIC_UNIT_SIZE: usize = 16; // 1 (discriminator) + 15 (size of CustomUnit, the largest value)
+
+        PROJECT_KEY_SIZE
+            + TIMESTAMP_SIZE
+            + string_cost(&self.metric_name)
+            + METRIC_TYPE_SIZE
+            + METRIC_UNIT_SIZE
+            + self
+                .tags
+                .iter()
+                .fold(0, |acc, (k, v)| acc + string_cost(k) + string_cost(v))
     }
 }
 
@@ -2000,7 +2029,39 @@ mod tests {
             last: 43.,
             count: 2,
         });
-        assert_eq!(gauge.cost(), 40);
+        assert_eq!(gauge.cost(), mem::size_of_val(&gauge));
+    }
+
+    #[test]
+    fn test_bucket_key_cost() {
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let name = "12345".to_owned();
+        let bucket_key = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: name.clone(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: BTreeMap::from([
+                ("hello".to_owned(), "world".to_owned()),
+                ("answer".to_owned(), "42".to_owned()),
+            ]),
+        };
+        dbg!(bucket_key.cost());
+        assert_eq!(
+            bucket_key.cost(),
+            mem::size_of_val(&project_key)
+                + mem::size_of::<UnixTimestamp>()
+                + string_cost(&name)
+                + mem::size_of::<MetricType>()
+                + mem::size_of::<MetricUnit>()
+                // Tag costs:
+                + 4 * 24
+                + 5
+                + 5
+                + 6
+                + 2
+        );
     }
 
     #[test]
