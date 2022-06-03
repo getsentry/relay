@@ -522,8 +522,8 @@ impl BucketValue {
         }
     }
 
-    /// Estimates the number of bytes needed to encode the bucket.
-    /// Note that this does not necessarily match the exact memory footprint of the bucket,
+    /// Estimates the number of bytes needed to encode the bucket value.
+    /// Note that this does not necessarily match the exact memory footprint of the value,
     /// because datastructures might have a memory overhead.
     ///
     /// This is very similar to [`BucketValue::relative_size`], which can possibly be removed.
@@ -532,20 +532,22 @@ impl BucketValue {
         // does not change the cost model without being noticed.
         // Note that when the actual data type of these bucket values changes, we have to update
         // the cost model and potentially increase the limits that are applied to it.
-        type CounterType = f64;
         type SetType = u32;
-        type GaugeType = f64;
-        // [`GaugeValue`] has 5 members:
-        const GAUGE_SIZE: usize = 5 * mem::size_of::<GaugeType>();
+        /// [`BucketValue`] struct currently fits into 48 bytes:
+        const SELF_SIZE: usize = 48;
         // Distribution values are stored as maps of (f64, u32) pairs:
         const DIST_SIZE: usize = mem::size_of::<f64>() + mem::size_of::<u32>();
 
-        match self {
-            Self::Counter(_) => mem::size_of::<CounterType>(),
+        // Beside the size of [`BucketValue`], we also need to account for the cost of values
+        // allocated dynamically.
+        let allocated_cost = match self {
+            Self::Counter(_) => 0,
             Self::Set(s) => mem::size_of::<SetType>() * s.len(),
-            Self::Gauge(_) => GAUGE_SIZE,
+            Self::Gauge(_) => 0,
             Self::Distribution(m) => DIST_SIZE * m.internal_size(),
-        }
+        };
+
+        SELF_SIZE + allocated_cost
     }
 }
 
@@ -1977,12 +1979,20 @@ mod tests {
 
     #[test]
     fn test_bucket_value_cost() {
+        // This test ensures that the cost model for bucket values matches the actual cost of storing
+        // the data. When this test fails, update both the cost model and the dimensionality limits
+        // applied to it.
         let counter = BucketValue::Counter(123.0);
-        assert_eq!(counter.cost(), 8);
-        let set = BucketValue::Set(vec![1, 2, 3, 4, 5].into_iter().collect());
-        assert_eq!(set.cost(), 20);
+        assert_eq!(counter.cost(), mem::size_of_val(&counter));
+        let set_entries = BTreeSet::<u32>::from([1, 2, 3, 4, 5]);
+        let set_entry_size = mem::size_of_val(set_entries.iter().next().unwrap());
+        let set = BucketValue::Set(set_entries);
+        assert_eq!(set.cost(), mem::size_of_val(&set) + 5 * set_entry_size);
         let distribution = BucketValue::Distribution(dist![1., 2., 3.]);
-        assert_eq!(distribution.cost(), 36);
+        assert_eq!(
+            distribution.cost(),
+            mem::size_of_val(&distribution) + 3 * (mem::size_of::<f64>() + mem::size_of::<Count>())
+        );
         let gauge = BucketValue::Gauge(GaugeValue {
             max: 43.,
             min: 42.,
