@@ -225,6 +225,8 @@ pub struct OverridableConfig {
     pub mode: Option<String>,
     /// The upstream relay or sentry instance.
     pub upstream: Option<String>,
+    /// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.
+    pub upstream_dsn: Option<String>,
     /// The host the relay should bind to (network interface).
     pub host: Option<String>,
     /// The port to bind for the unencrypted relay HTTP server.
@@ -247,8 +249,6 @@ pub struct OverridableConfig {
     pub shutdown_timeout: Option<String>,
     /// AWS Extensions API URL
     pub aws_runtime_api: Option<String>,
-    /// AWS upstream DSN
-    pub aws_upstream_dsn: Option<String>,
 }
 
 /// The relay credentials
@@ -1235,11 +1235,6 @@ pub struct AwsConfig {
     /// This value can be found in the `AWS_LAMBDA_RUNTIME_API` environment variable in a Lambda
     /// Runtime and contains a socket address, usually `"127.0.0.1:9001"`.
     pub runtime_api: Option<String>,
-    /// The upstream DSN that the user's lambda function sends envelopes to.
-    ///
-    /// We pass it explicitly since the `SENTRY_DSN` environment variable is already used
-    /// internally in relay.
-    pub upstream_dsn: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -1352,11 +1347,11 @@ impl Config {
             relay.upstream = upstream
                 .parse::<UpstreamDescriptor>()
                 .map_err(|err| ConfigError::for_field(err, "upstream"))?;
-        } else if let Some(aws_upstream_dsn) = overrides.aws_upstream_dsn {
-            relay.upstream = aws_upstream_dsn
+        } else if let Some(upstream_dsn) = overrides.upstream_dsn {
+            relay.upstream = upstream_dsn
                 .parse::<Dsn>()
                 .map(|dsn| UpstreamDescriptor::from_dsn(&dsn).into_owned())
-                .map_err(|err| ConfigError::for_field(err, "aws_upstream_dsn"))?;
+                .map_err(|err| ConfigError::for_field(err, "upstream_dsn"))?;
         }
 
         if let Some(host) = overrides.host {
