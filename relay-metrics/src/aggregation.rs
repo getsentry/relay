@@ -1053,6 +1053,23 @@ impl Message for FlushBuckets {
     type Result = Result<(), Vec<Bucket>>;
 }
 
+/// Check whether the aggregator has not (yet) exceeded its total limits. Used for healthchecks.
+pub struct AcceptsMetrics;
+
+impl Message for AcceptsMetrics {
+    type Result = bool;
+}
+
+impl Handler<AcceptsMetrics> for Aggregator {
+    type Result = bool;
+
+    fn handle(&mut self, _msg: AcceptsMetrics, _ctx: &mut Self::Context) -> Self::Result {
+        !self
+            .cost_tracker
+            .totals_cost_exceeded(self.config.max_total_bucket_bytes)
+    }
+}
+
 enum AggregatorState {
     Running,
     ShuttingDown,
@@ -1067,16 +1084,24 @@ struct CostTracker {
 }
 
 impl CostTracker {
+    fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
+        if let Some(max_total_cost) = max_total_cost {
+            if self.total_cost >= max_total_cost {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     fn check_limits_exceeded(
         &self,
         project_key: ProjectKey,
         max_total_cost: Option<usize>,
         max_project_cost: Option<usize>,
     ) -> Result<(), AggregateMetricsError> {
-        if let Some(max_total_cost) = max_total_cost {
-            if self.total_cost > max_total_cost {
-                return Err(AggregateMetricsErrorKind::TotalLimitExceeded.into());
-            }
+        if self.totals_cost_exceeded(max_total_cost) {
+            return Err(AggregateMetricsErrorKind::TotalLimitExceeded.into());
         }
 
         if let Some(max_project_cost) = max_project_cost {
@@ -1085,7 +1110,7 @@ impl CostTracker {
                 .get(&project_key)
                 .cloned()
                 .unwrap_or(0);
-            if project_cost > max_project_cost {
+            if project_cost >= max_project_cost {
                 return Err(AggregateMetricsErrorKind::ProjectLimitExceeded.into());
             }
         }
