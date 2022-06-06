@@ -2361,9 +2361,9 @@ checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
 
 [[package]]
 name = "openssl-src"
-version = "111.13.0+1.1.1i"
+version = "111.20.0+1.1.1o"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "045e4dc48af57aad93d665885789b43222ae26f4886494da12d1ed58d309dcb6"
+checksum = "92892c4f87d56e376e469ace79f1128fdaded07646ddf73aa0be4706ff712dec"
 dependencies = [
  "cc",
 ]
@@ -3218,24 +3218,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-cabi"
-version = "0.8.12"
-dependencies = [
- "chrono",
- "failure",
- "json-forensics",
- "lazy_static",
- "relay-auth",
- "relay-common",
- "relay-ffi",
- "relay-general",
- "relay-sampling",
- "sentry-release-parser",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "relay-common"
 version = "22.5.0"
 dependencies = [
@@ -3279,22 +3261,6 @@ version = "22.5.0"
 dependencies = [
  "bindgen",
  "cmake",
-]
-
-[[package]]
-name = "relay-ffi"
-version = "22.5.0"
-dependencies = [
- "failure",
- "relay-ffi-macros",
-]
-
-[[package]]
-name = "relay-ffi-macros"
-version = "22.5.0"
-dependencies = [
- "quote 1.0.7",
- "syn 1.0.58",
 ]
 
 [[package]]
@@ -3915,7 +3881,6 @@ checksum = "96c337b2564b136475f056ca1e5c958a58acdc3a6c48a6a02064f749f87acb18"
 dependencies = [
  "lazy_static",
  "regex",
- "serde",
 ]
 
 [[package]]
