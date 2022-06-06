@@ -51,8 +51,8 @@ def processing_config(get_topic_name):
                 "outcomes": get_topic_name("outcomes"),
                 "sessions": get_topic_name("sessions"),
                 "metrics": get_topic_name("metrics"),
-                "replay_payloads": get_topic_name("replay_payloads"),
                 "replay_events": get_topic_name("replay_events"),
+                "replay_recordings": get_topic_name("replay_recordings"),
             }
 
         if not processing.get("redis"):
@@ -283,8 +283,8 @@ def metrics_consumer(kafka_consumer):
 
 
 @pytest.fixture
-def replay_payloads_consumer(kafka_consumer):
-    return lambda: ReplayPayloadsConsumer(*kafka_consumer("replay_payloads"))
+def replay_recordings_consumer(kafka_consumer):
+    return lambda: ReplayRecordingsConsumer(*kafka_consumer("replay_recordings"))
 
 
 @pytest.fixture
@@ -348,14 +348,14 @@ class AttachmentsConsumer(EventsConsumer):
         return v
 
 
-class ReplayPayloadsConsumer(EventsConsumer):
+class ReplayRecordingsConsumer(EventsConsumer):
     def get_replay_chunk(self):
         message = self.poll()
         assert message is not None
         assert message.error() is None
 
         v = msgpack.unpackb(message.value(), raw=False, use_list=False)
-        assert v["type"] == "attachment_chunk", v["type"]
+        assert v["type"] == "replay_recording_chunk", v["type"]
         return v["payload"], v
 
     def get_individual_replay(self):
@@ -364,7 +364,7 @@ class ReplayPayloadsConsumer(EventsConsumer):
         assert message.error() is None
 
         v = msgpack.unpackb(message.value(), raw=False, use_list=False)
-        assert v["type"] == "replay_payload", v["type"]
+        assert v["type"] == "replay_recording", v["type"]
         return v
 
 

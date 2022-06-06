@@ -3185,7 +3185,7 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 
 [[package]]
 name = "relay"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "clap",
  "console 0.10.3",
@@ -3203,7 +3203,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -3219,7 +3219,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.10"
+version = "0.8.12"
 dependencies = [
  "chrono",
  "failure",
@@ -3237,7 +3237,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "backoff",
  "chrono",
@@ -3257,7 +3257,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "failure",
  "human-size",
@@ -3275,7 +3275,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3283,7 +3283,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "failure",
  "relay-ffi-macros",
@@ -3291,7 +3291,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "quote 1.0.7",
  "syn 1.0.58",
@@ -3299,7 +3299,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "globset",
  "insta",
@@ -3315,7 +3315,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3356,7 +3356,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.7",
@@ -3366,7 +3366,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "chrono",
  "console 0.10.3",
@@ -3383,7 +3383,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "actix",
  "crc32fast",
@@ -3405,7 +3405,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "failure",
  "insta",
@@ -3420,7 +3420,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "failure",
  "r2d2",
@@ -3430,7 +3430,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "insta",
  "rand 0.6.5",
@@ -3446,7 +3446,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -3492,7 +3492,8 @@ dependencies = [
  "serde_json",
  "serde_urlencoded 0.7.0",
  "smallvec 1.4.0",
- "symbolic",
+ "symbolic-common",
+ "symbolic-unreal",
  "take_mut",
  "tokio 1.0.1",
  "tokio-timer",
@@ -3502,7 +3503,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "cadence",
  "lazy_static",
@@ -3513,7 +3514,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "actix",
  "failure",
@@ -3523,7 +3524,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "22.4.0"
+version = "22.5.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -4210,33 +4211,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "502d53007c02d7605a05df1c1a73ee436952781653da5d0bf57ad608f66932c1"
 
 [[package]]
-name = "symbolic"
-version = "8.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fb7f79d0216069be1326a604e8cc483c3c2c08bf8ac6061db40e9f4a2319d91"
-dependencies = [
- "symbolic-common",
- "symbolic-unreal",
-]
-
-[[package]]
 name = "symbolic-common"
-version = "8.7.0"
+version = "8.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac6aac7b803adc9ee75344af7681969f76d4b38e4723c6eaacf3b28f5f1d87ff"
+checksum = "65098afa1f1ca8991e4c6f4a6c03a661838e8f464c8bbafab9c2f1a3fa913b7f"
 dependencies = [
  "debugid",
  "memmap2",
- "serde",
  "stable_deref_trait",
  "uuid 0.8.1",
 ]
 
 [[package]]
 name = "symbolic-unreal"
-version = "8.7.0"
+version = "8.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57e355e20fa321130ba3aba0027a8933d923d3eeff25c93c48bbe041a460d9b1"
+checksum = "26122a242f752060f8844a583c9ef085fe214ac708adb0053ccd02b29a64726b"
 dependencies = [
  "anylog",
  "bytes 1.1.0",

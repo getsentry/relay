@@ -1,5 +1,5 @@
 use chrono::{TimeZone, Utc};
-use symbolic::unreal::{
+use symbolic_unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
 };
 

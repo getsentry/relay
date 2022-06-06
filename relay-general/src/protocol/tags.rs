@@ -46,6 +46,18 @@ impl FromValue for TagEntry {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Tags(pub PairList<TagEntry>);
 
+impl Tags {
+    /// Returns a reference to the value of the tag, if it exists.
+    ///
+    /// If the tag with the specified key exists multiple times, the first instance is returned. If
+    /// no tag with the given key exists or the tag entry is erroneous, `None` is returned`.
+    ///
+    /// To retrieve the [`Annotated`] wrapper of the tag value, use [`PairList::get`] instead.
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.0.get_value(key).map(String::as_str)
+    }
+}
+
 impl std::ops::Deref for Tags {
     type Target = Array<TagEntry>;
 

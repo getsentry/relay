@@ -38,6 +38,8 @@ const MAX_EXPLODED_SESSIONS: usize = 100;
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
+const REPLAY_RECORDINGS_ATTACHMENT_NAME: &str = "rr";
+
 #[derive(Fail, Debug)]
 pub enum StoreError {
     #[fail(display = "failed to send kafka message")]
@@ -59,8 +61,8 @@ struct Producers {
     sessions: Producer,
     metrics: Producer,
     profiles: Producer,
-    replay_payloads: Producer,
     replay_events: Producer,
+    replay_recordings: Producer,
 }
 
 impl Producers {
@@ -78,8 +80,8 @@ impl Producers {
             KafkaTopic::Sessions => Some(&self.sessions),
             KafkaTopic::Metrics => Some(&self.metrics),
             KafkaTopic::Profiles => Some(&self.profiles),
-            KafkaTopic::ReplayPayloads => Some(&self.replay_payloads),
             KafkaTopic::ReplayEvents => Some(&self.replay_events),
+            KafkaTopic::ReplayRecordings => Some(&self.replay_recordings),
         }
     }
 }
@@ -137,10 +139,10 @@ impl StoreForwarder {
             sessions: make_producer(&*config, &mut reused_producers, KafkaTopic::Sessions)?,
             metrics: make_producer(&*config, &mut reused_producers, KafkaTopic::Metrics)?,
             profiles: make_producer(&*config, &mut reused_producers, KafkaTopic::Profiles)?,
-            replay_payloads: make_producer(
+            replay_recordings: make_producer(
                 &*config,
                 &mut reused_producers,
-                KafkaTopic::ReplayPayloads,
+                KafkaTopic::ReplayRecordings,
             )?,
             replay_events: make_producer(
                 &*config,
@@ -178,7 +180,6 @@ impl StoreForwarder {
         event_id: EventId,
         project_id: ProjectId,
         item: &Item,
-        topic: KafkaTopic,
     ) -> Result<ChunkedAttachment, StoreError> {
         let id = Uuid::new_v4().to_string();
 
@@ -192,7 +193,6 @@ impl StoreForwarder {
         while offset < size {
             let max_chunk_size = self.config.attachment_chunk_size();
             let chunk_size = std::cmp::min(max_chunk_size, size - offset);
-
             let attachment_message = KafkaMessage::AttachmentChunk(AttachmentChunkKafkaMessage {
                 payload: payload.slice(offset, offset + chunk_size),
                 event_id,
@@ -201,7 +201,7 @@ impl StoreForwarder {
                 chunk_index,
             });
 
-            self.produce(topic, attachment_message)?;
+            self.produce(KafkaTopic::Attachments, attachment_message)?;
             offset += chunk_size;
             chunk_index += 1;
         }
@@ -435,12 +435,14 @@ impl StoreForwarder {
         &self,
         organization_id: u64,
         project_id: ProjectId,
+        key_id: Option<u64>,
         start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfileKafkaMessage {
             organization_id,
             project_id,
+            key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
@@ -472,6 +474,54 @@ impl StoreForwarder {
             event_type = "replay_event"
         );
         Ok(())
+    }
+
+    fn produce_replay_recording_chunks(
+        &self,
+        replay_id: EventId,
+        project_id: ProjectId,
+        item: &Item,
+    ) -> Result<ChunkedAttachment, StoreError> {
+        let id = Uuid::new_v4().to_string();
+
+        let mut chunk_index = 0;
+        let mut offset = 0;
+        let payload = item.payload();
+        let size = item.len();
+
+        // This skips chunks for empty replay recordings. The consumer does not require chunks for
+        // empty replay recordings. `chunks` will be `0` in this case.
+        while offset < size {
+            let max_chunk_size = self.config.attachment_chunk_size();
+            let chunk_size = std::cmp::min(max_chunk_size, size - offset);
+
+            let replay_recording_chunk_message =
+                KafkaMessage::ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage {
+                    payload: payload.slice(offset, offset + chunk_size),
+                    replay_id,
+                    project_id,
+                    id: id.clone(),
+                    chunk_index,
+                });
+            self.produce(KafkaTopic::ReplayRecordings, replay_recording_chunk_message)?;
+            offset += chunk_size;
+            chunk_index += 1;
+        }
+
+        // The chunk_index is incremented after every loop iteration. After we exit the loop, it
+        // is one larger than the last chunk, so it is equal to the number of chunks.
+
+        Ok(ChunkedAttachment {
+            id,
+            name: REPLAY_RECORDINGS_ATTACHMENT_NAME.to_owned(),
+            content_type: item
+                .content_type()
+                .map(|content_type| content_type.as_str().to_owned()),
+            attachment_type: item.attachment_type().unwrap_or_default(),
+            chunks: chunk_index,
+            size: Some(size),
+            rate_limited: Some(item.rate_limited()),
+        })
     }
 }
 
@@ -603,6 +653,32 @@ struct AttachmentKafkaMessage {
     attachment: ChunkedAttachment,
 }
 
+/// Container payload for chunks of attachments.
+#[derive(Debug, Serialize)]
+struct ReplayRecordingChunkKafkaMessage {
+    /// Chunk payload of the replay recording.
+    payload: Bytes,
+    /// The replay id.
+    replay_id: EventId,
+    /// The project id for the current replay.
+    project_id: ProjectId,
+    /// The recording ID within the replay.
+    ///
+    /// The triple `(project_id, replay_id, id)` identifies a replay recording chunk uniquely.
+    id: String,
+    /// Sequence number of chunk. Starts at 0 and ends at `ReplayRecordingKafkaMessage.num_chunks - 1`.
+    chunk_index: usize,
+}
+#[derive(Debug, Serialize)]
+struct ReplayRecordingKafkaMessage {
+    /// The replay id.
+    replay_id: EventId,
+    /// The project id for the current event.
+    project_id: ProjectId,
+    /// The recording attachment.
+    replay_recording: ChunkedAttachment,
+}
+
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
 ///
 /// Is always independent of an event and can be sent as part of any envelope.
@@ -654,6 +730,7 @@ struct MetricKafkaMessage {
 struct ProfileKafkaMessage {
     organization_id: u64,
     project_id: ProjectId,
+    key_id: Option<u64>,
     received: u64,
     payload: Bytes,
 }
@@ -670,8 +747,9 @@ enum KafkaMessage {
     Session(SessionKafkaMessage),
     Metric(MetricKafkaMessage),
     Profile(ProfileKafkaMessage),
-    ReplayPayload(AttachmentKafkaMessage),
     ReplayEvent(ReplayEventKafkaMessage),
+    ReplayRecording(ReplayRecordingKafkaMessage),
+    ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
 }
 
 impl KafkaMessage {
@@ -684,8 +762,9 @@ impl KafkaMessage {
             KafkaMessage::Session(_) => "session",
             KafkaMessage::Metric(_) => "metric",
             KafkaMessage::Profile(_) => "profile",
-            KafkaMessage::ReplayPayload(_) => "replay_payload",
             KafkaMessage::ReplayEvent(_) => "replay_event",
+            KafkaMessage::ReplayRecording(_) => "replay_recording",
+            KafkaMessage::ReplayRecordingChunk(_) => "replay_recording_chunk",
         }
     }
 
@@ -699,8 +778,9 @@ impl KafkaMessage {
             Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
             Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
             Self::Profile(_message) => Uuid::nil(),
-            Self::ReplayPayload(_message) => Uuid::nil(),
             Self::ReplayEvent(_message) => Uuid::nil(),
+            Self::ReplayRecording(message) => message.replay_id.0,
+            Self::ReplayRecordingChunk(message) => message.replay_id.0,
         };
 
         if uuid.is_nil() {
@@ -743,10 +823,6 @@ fn is_slow_item(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
 }
 
-fn is_replay_payload(item: &Item) -> bool {
-    item.ty() == &ItemType::ReplayPayload
-}
-
 impl Handler<StoreEnvelope> for StoreForwarder {
     type Result = Result<(), StoreError>;
 
@@ -771,14 +847,11 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             KafkaTopic::Attachments
         } else if event_item.map(|x| x.ty()) == Some(&ItemType::Transaction) {
             KafkaTopic::Transactions
-        } else if envelope.get_item_by(is_replay_payload).is_some() {
-            KafkaTopic::ReplayPayloads
         } else {
             KafkaTopic::Events
         };
 
         let mut attachments = Vec::new();
-        let mut replay_payloads = Vec::new();
 
         for item in envelope.items() {
             match item.ty() {
@@ -788,7 +861,6 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
                         item,
-                        topic,
                     )?;
                     attachments.push(attachment);
                 }
@@ -820,18 +892,29 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 ItemType::Profile => self.produce_profile(
                     scoping.organization_id,
                     scoping.project_id,
+                    scoping.key_id,
                     start_time,
                     item,
                 )?,
-                ItemType::ReplayPayload => {
-                    debug_assert!(topic == KafkaTopic::ReplayPayloads);
-                    let replay_payload = self.produce_attachment_chunks(
+                ItemType::ReplayRecording => {
+                    let replay_recording = self.produce_replay_recording_chunks(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
                         item,
-                        topic,
                     )?;
-                    replay_payloads.push(replay_payload);
+                    relay_log::trace!("Sending individual replay_recordings of envelope to kafka");
+                    let replay_recording_message =
+                        KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
+                            replay_id: event_id.ok_or(StoreError::NoEventId)?,
+                            project_id: scoping.project_id,
+                            replay_recording,
+                        });
+
+                    self.produce(KafkaTopic::ReplayRecordings, replay_recording_message)?;
+                    metric!(
+                        counter(RelayCounters::ProcessingMessageProduced) += 1,
+                        event_type = "replay_recording"
+                    );
                 }
                 ItemType::ReplayEvent => self.produce_replay_event(
                     event_id.ok_or(StoreError::NoEventId)?,
@@ -857,7 +940,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
             self.produce(topic, event_message)?;
             metric!(
                 counter(RelayCounters::ProcessingMessageProduced) += 1,
-                event_type = "event"
+                event_type = &event_item.ty().to_string()
             );
         } else if !attachments.is_empty() {
             relay_log::trace!("Sending individual attachments of envelope to kafka");
@@ -872,21 +955,6 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = "attachment"
-                );
-            }
-        } else if !replay_payloads.is_empty() {
-            relay_log::trace!("Sending individual replay_payloads of envelope to kafka");
-            for attachment in replay_payloads {
-                let replay_payload_message = KafkaMessage::ReplayPayload(AttachmentKafkaMessage {
-                    event_id: event_id.ok_or(StoreError::NoEventId)?,
-                    project_id: scoping.project_id,
-                    attachment,
-                });
-
-                self.produce(KafkaTopic::ReplayPayloads, replay_payload_message)?;
-                metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
-                    event_type = "replay_payload"
                 );
             }
         }

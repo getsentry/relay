@@ -68,7 +68,7 @@ use {
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
-    symbolic::unreal::{Unreal4Error, Unreal4ErrorKind},
+    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 /// The minimum clock drift for correction to apply.
@@ -160,10 +160,6 @@ enum ProcessingError {
 
     #[fail(display = "event dropped by sampling rule {}", _0)]
     EventSampled(RuleId),
-
-    #[cfg(feature = "processing")]
-    #[fail(display = "invalid profile")]
-    InvalidProfile(#[cause] ProfileError),
 }
 
 impl ProcessingError {
@@ -188,9 +184,6 @@ impl ProcessingError {
             }
             #[cfg(feature = "processing")]
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
-
-            #[cfg(feature = "processing")]
-            Self::InvalidProfile(_) => Some(Outcome::Invalid(DiscardReason::ProcessProfile)),
 
             // Internal errors
             Self::SerializeFailed(_)
@@ -231,13 +224,6 @@ impl From<Unreal4Error> for ProcessingError {
             Unreal4ErrorKind::TooLarge => Self::PayloadTooLarge,
             _ => ProcessingError::InvalidUnrealReport(err),
         }
-    }
-}
-
-#[cfg(feature = "processing")]
-impl From<ProfileError> for ProcessingError {
-    fn from(err: ProfileError) -> Self {
-        ProcessingError::InvalidProfile(err)
     }
 }
 
@@ -321,7 +307,7 @@ impl EnvelopeContext {
             outcome_aggregator.do_send(TrackOutcome {
                 timestamp: self.received_at,
                 scoping: self.scoping,
-                outcome,
+                outcome: outcome.clone(),
                 event_id: self.event_id,
                 remote_addr: self.remote_addr,
                 category: DataCategory::Attachment,
@@ -330,6 +316,18 @@ impl EnvelopeContext {
                 // do 32.
                 quantity: self.summary.attachment_quantity as u32,
             });
+        }
+
+        if self.summary.profile_quantity > 0 {
+            outcome_aggregator.do_send(TrackOutcome {
+                timestamp: self.received_at,
+                scoping: self.scoping,
+                outcome,
+                event_id: self.event_id,
+                remote_addr: self.remote_addr,
+                category: DataCategory::Profile,
+                quantity: self.summary.profile_quantity as u32,
+            })
         }
     }
 }
@@ -976,6 +974,7 @@ impl EnvelopeProcessor {
     /// Remove profiles if the feature flag is not enabled
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+        let context = state.envelope_context;
         state.envelope.retain_items(|item| {
             match item.ty() {
                 ItemType::Profile => {
@@ -983,7 +982,22 @@ impl EnvelopeProcessor {
                         return false;
                     }
                     if self.config.processing_enabled() {
-                        return self.parse_profile(item).is_ok();
+                        if self.parse_profile(item).is_err() {
+                            let outcome_aggregator = OutcomeAggregator::from_registry();
+
+                            outcome_aggregator.do_send(TrackOutcome {
+                                timestamp: context.received_at,
+                                scoping: context.scoping,
+                                outcome: Outcome::Invalid(DiscardReason::ProcessProfile),
+                                event_id: context.event_id,
+                                remote_addr: context.remote_addr,
+                                category: DataCategory::Profile,
+                                quantity: 1,
+                            });
+
+                            return false;
+                        }
+                        return true;
                     }
                     true
                 }
@@ -997,7 +1011,7 @@ impl EnvelopeProcessor {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         state.envelope.retain_items(|item| {
             match item.ty() {
-                ItemType::ReplayEvent | ItemType::ReplayPayload => {
+                ItemType::ReplayEvent | ItemType::ReplayRecording => {
                     if !replays_enabled {
                         return false;
                     }
@@ -1322,8 +1336,8 @@ impl EnvelopeProcessor {
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::Profile => false,
-            ItemType::ReplayPayload => false,
             ItemType::ReplayEvent => false,
+            ItemType::ReplayRecording => false,
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
         }

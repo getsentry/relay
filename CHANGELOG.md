@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+**Compatibility:** This version of Relay requires Sentry server `22.6.0` or newer.
+
+**Features**:
+
+- Relay is now compatible with CentOS 7 and Red Hat Enterprise Linux 7 onward (kernel version _2.6.32_), depending on _glibc 2.17_ or newer. The `crash-handler` feature, which is currently enabled in the build published to DockerHub, additionally requires _curl 7.29_ or newer. ([#1279](https://github.com/getsentry/relay/pull/1279))
+
+**Bug Fixes**:
+
+- Session metrics extraction: Count distinct_ids from all session updates to prevent undercounting users. ([#1275](https://github.com/getsentry/relay/pull/1275))
+
+- Session metrics extraction: Count crashed+abnormal towards errored_preaggr. ([#1274](https://github.com/getsentry/relay/pull/1274))
+
+**Internal**:
+
+- Add version 3 to the project configs endpoint. This allows returning pending results which need to be polled later and avoids blocking batched requests on single slow entries. ([#1263](https://github.com/getsentry/relay/pull/1263))
+- Emit specific event type tags for "processing.event.produced" metric. ([#1270](https://github.com/getsentry/relay/pull/1270))
+- Add support for profile outcomes. ([#1272](https://github.com/getsentry/relay/pull/1272))
+- Avoid potential panics when scrubbing minidumps. ([#1282](https://github.com/getsentry/relay/pull/1282))
+- Fix typescript profile validation. ([#1283](https://github.com/getsentry/relay/pull/1283))
+
+## 22.5.0
+
 **Features**:
 
 - Add platform, op, http.method and status tag to all extracted transaction metrics. ([#1227](https://github.com/getsentry/relay/pull/1227))
@@ -13,6 +35,7 @@
 - fix(metrics): Enforce metric name length limit. ([#1238](https://github.com/getsentry/relay/pull/1238))
 - Accept and forward unknown Envelope items. In processing mode, drop items individually rather than rejecting the entire request. This allows SDKs to send new data in combined Envelopes in the future. ([#1246](https://github.com/getsentry/relay/pull/1246))
 - Stop extracting metrics with outdated names from sessions. ([#1251](https://github.com/getsentry/relay/pull/1251), [#1252](https://github.com/getsentry/relay/pull/1252))
+- Update symbolic to pull in fixed Unreal parser that now correctly handles zero-length files. ([#1266](https://github.com/getsentry/relay/pull/1266))
 
 **Internal**:
 
@@ -20,13 +43,14 @@
 - Refactor aggregation error, recover from errors more gracefully. ([#1240](https://github.com/getsentry/relay/pull/1240))
 - Remove/reject nul-bytes from metric strings. ([#1235](https://github.com/getsentry/relay/pull/1235))
 - Remove the unused "internal" data category. ([#1245](https://github.com/getsentry/relay/pull/1245))
-- Add ReplayPayload ItemType. ([#1236](https://github.com/getsentry/relay/pull/1236))
 - Add ReplayEvent ItemType. ([#1239](https://github.com/getsentry/relay/pull/1239))
+- Add ReplayRecording ItemType. ([#1236](https://github.com/getsentry/relay/pull/1236))
 - Add the client and version as `sdk` tag to extracted session metrics in the format `name/version`. ([#1248](https://github.com/getsentry/relay/pull/1248))
 - Expose `shutdown_timeout` in `OverridableConfig` ([#1247](https://github.com/getsentry/relay/pull/1247))
 - Normalize all profiles and reject invalid ones. ([#1250](https://github.com/getsentry/relay/pull/1250))
 - Raise a new InvalidCompression Outcome for invalid Unreal compression. ([#1237](https://github.com/getsentry/relay/pull/1237))
 - Add a profile data category and count profiles in an envelope to apply rate limits. ([#1259](https://github.com/getsentry/relay/pull/1259))
+- Support dynamic sampling by custom tags, operating system name and version, as well as device name and family. ([#1268](https://github.com/getsentry/relay/pull/1268))
 
 ## 22.4.0
 

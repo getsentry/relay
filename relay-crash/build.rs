@@ -27,6 +27,9 @@ fn main() {
         // disable additional targets
         .define("SENTRY_BUILD_TESTS", "OFF")
         .define("SENTRY_BUILD_EXAMPLES", "OFF")
+        // cmake sets the install dir to `lib64` on some platforms. since we are not installing to
+        // `/usr` or `/usr/local`, we can choose a stable directory for the link-search below.
+        .define("CMAKE_INSTALL_LIBDIR", "lib")
         .build();
 
     println!(

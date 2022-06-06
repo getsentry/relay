@@ -104,8 +104,8 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::FormData => None,
         ItemType::UserReport => None,
         ItemType::Profile => None,
-        ItemType::ReplayPayload => None,
         ItemType::ReplayEvent => None,
+        ItemType::ReplayRecording => None,
         ItemType::ClientReport => None,
         ItemType::Unknown(_) => None,
     }
@@ -244,7 +244,7 @@ impl Enforcement {
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
     pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
         // Do not report outcomes for sessions.
-        for limit in [self.event, self.attachments] {
+        for limit in [self.event, self.attachments, self.profiles] {
             if limit.is_active() {
                 let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
                 OutcomeAggregator::from_registry().do_send(TrackOutcome {

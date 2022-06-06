@@ -103,10 +103,10 @@ pub enum ItemType {
     ClientReport,
     /// Profile event payload encoded in JSON
     Profile,
-    /// Replay Payload blob payload
-    ReplayPayload,
     /// Replay metadata and breadcrumb payload
     ReplayEvent,
+    /// Replay Recording data
+    ReplayRecording,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -146,8 +146,8 @@ impl fmt::Display for ItemType {
             Self::MetricBuckets => write!(f, "metric_buckets"),
             Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
-            Self::ReplayPayload => write!(f, "replay_payload"),
             Self::ReplayEvent => write!(f, "replay_event"),
+            Self::ReplayRecording => write!(f, "replay_recording"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -157,6 +157,7 @@ impl std::str::FromStr for ItemType {
     type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        println!("zzz");
         Ok(match s {
             "event" => Self::Event,
             "transaction" => Self::Transaction,
@@ -172,8 +173,8 @@ impl std::str::FromStr for ItemType {
             "metric_buckets" => Self::MetricBuckets,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
-            "replay_payload" => Self::ReplayPayload,
             "replay_event" => Self::ReplayEvent,
+            "replay_recording" => Self::ReplayRecording,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -353,18 +354,18 @@ pub enum AttachmentType {
     /// This is a binary attachment present in Unreal 4 events containing event context information.
     ///
     /// This can be deserialized using the `symbolic` crate see
-    /// [`symbolic::unreal::Unreal4Context`].
+    /// [`symbolic_unreal::Unreal4Context`].
     ///
-    /// [`symbolic::unreal::Unreal4Context`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4Context.html
+    /// [`symbolic_unreal::Unreal4Context`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4Context.html
     #[serde(rename = "unreal.context")]
     UnrealContext,
 
     /// This is a binary attachment present in Unreal 4 events containing event Logs.
     ///
     /// This can be deserialized using the `symbolic` crate see
-    /// [`symbolic::unreal::Unreal4LogEntry`].
+    /// [`symbolic_unreal::Unreal4LogEntry`].
     ///
-    /// [`symbolic::unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html
+    /// [`symbolic_unreal::Unreal4LogEntry`]: https://docs.rs/symbolic/*/symbolic/unreal/struct.Unreal4LogEntry.html
     #[serde(rename = "unreal.logs")]
     UnrealLogs,
 }
@@ -629,8 +630,8 @@ impl Item {
             | ItemType::Metrics
             | ItemType::MetricBuckets
             | ItemType::ClientReport
-            | ItemType::ReplayPayload
             | ItemType::ReplayEvent
+            | ItemType::ReplayRecording
             | ItemType::Profile => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
@@ -658,7 +659,7 @@ impl Item {
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
-            ItemType::ReplayPayload => false,
+            ItemType::ReplayRecording => false,
             ItemType::Profile => true,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
@@ -1373,6 +1374,22 @@ mod tests {
 
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items[0].len(), 10);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_replay_recording() {
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"replay_recording\"}\n\
+             helloworld\n\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].ty(), &ItemType::ReplayRecording);
     }
 
     #[test]
