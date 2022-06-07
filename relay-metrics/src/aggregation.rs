@@ -1101,6 +1101,9 @@ impl CostTracker {
         max_project_cost: Option<usize>,
     ) -> Result<(), AggregateMetricsError> {
         if self.totals_cost_exceeded(max_total_cost) {
+            relay_log::configure_scope(|scope| {
+                scope.set_extra("bucket.project_key", project_key.as_str().to_owned().into());
+            });
             return Err(AggregateMetricsErrorKind::TotalLimitExceeded.into());
         }
 
@@ -1111,6 +1114,9 @@ impl CostTracker {
                 .cloned()
                 .unwrap_or(0);
             if project_cost >= max_project_cost {
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("bucket.project_key", project_key.as_str().to_owned().into());
+                });
                 return Err(AggregateMetricsErrorKind::ProjectLimitExceeded.into());
             }
         }
