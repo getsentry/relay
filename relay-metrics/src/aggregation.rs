@@ -1421,7 +1421,8 @@ impl Aggregator {
                 if force || entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
                     let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
-                    cost_tracker.subtract_cost(key.project_key, key.cost() + value.cost());
+                    cost_tracker.subtract_cost(key.project_key, key.cost());
+                    cost_tracker.subtract_cost(key.project_key, value.cost());
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets.entry(key.project_key).or_default().push(bucket);
 
