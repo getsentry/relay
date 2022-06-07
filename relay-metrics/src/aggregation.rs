@@ -15,7 +15,10 @@ use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_system::{Controller, Shutdown};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{protocol, Metric, MetricType, MetricUnit, MetricValue};
+use crate::{
+    protocol, CounterType, DistributionType, GaugeType, Metric, MetricType, MetricUnit,
+    MetricValue, SetType,
+};
 
 /// Interval for the flush cycle of the [`Aggregator`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -24,22 +27,22 @@ const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct GaugeValue {
     /// The maximum value reported in the bucket.
-    pub max: f64,
+    pub max: GaugeType,
     /// The minimum value reported in the bucket.
-    pub min: f64,
+    pub min: GaugeType,
     /// The sum of all values reported in the bucket.
-    pub sum: f64,
+    pub sum: GaugeType,
     /// The last value reported in the bucket.
     ///
     /// This aggregation is not commutative.
-    pub last: f64,
+    pub last: GaugeType,
     /// The number of times this bucket was updated with a new value.
     pub count: u64,
 }
 
 impl GaugeValue {
     /// Creates a gauge snapshot from a single value.
-    pub fn single(value: f64) -> Self {
+    pub fn single(value: GaugeType) -> Self {
         Self {
             max: value,
             min: value,
@@ -50,7 +53,7 @@ impl GaugeValue {
     }
 
     /// Inserts a new value into the gauge.
-    pub fn insert(&mut self, value: f64) {
+    pub fn insert(&mut self, value: GaugeType) {
         self.max = self.max.max(value);
         self.min = self.min.min(value);
         self.sum += value;
@@ -68,17 +71,14 @@ impl GaugeValue {
     }
 
     /// Returns the average of all values reported in this bucket.
-    pub fn avg(&self) -> f64 {
+    pub fn avg(&self) -> GaugeType {
         if self.count > 0 {
-            self.sum / (self.count as f64)
+            self.sum / (self.count as GaugeType)
         } else {
-            0f64
+            0.0
         }
     }
 }
-
-/// Type of distribution entries
-type DistributionValueType = f64;
 
 /// Type for counting duplicates in distributions.
 type Count = u32;
@@ -118,7 +118,7 @@ type Count = u32;
 /// for each value in the distribution, including duplicates.
 #[derive(Clone, Default, PartialEq)]
 pub struct DistributionValue {
-    values: BTreeMap<FloatOrd<DistributionValueType>, Count>,
+    values: BTreeMap<FloatOrd<DistributionType>, Count>,
     length: Count,
 }
 
@@ -173,7 +173,7 @@ impl DistributionValue {
     /// assert_eq!(dist.insert(1.0), 2);
     /// assert_eq!(dist.insert(2.0), 1);
     /// ```
-    pub fn insert(&mut self, value: f64) -> Count {
+    pub fn insert(&mut self, value: DistributionType) -> Count {
         self.insert_multi(value, 1)
     }
 
@@ -190,7 +190,7 @@ impl DistributionValue {
     /// assert_eq!(dist.insert_multi(1.0, 2), 2);
     /// assert_eq!(dist.insert_multi(1.0, 3), 5);
     /// ```
-    pub fn insert_multi(&mut self, value: f64, count: Count) -> Count {
+    pub fn insert_multi(&mut self, value: DistributionType, count: Count) -> Count {
         self.length += count;
         if count == 0 {
             return 0;
@@ -215,7 +215,7 @@ impl DistributionValue {
     /// assert_eq!(dist.contains(1.0), true);
     /// assert_eq!(dist.contains(2.0), false);
     /// ```
-    pub fn contains(&self, value: impl std::borrow::Borrow<f64>) -> bool {
+    pub fn contains(&self, value: impl std::borrow::Borrow<DistributionType>) -> bool {
         self.values.contains_key(&FloatOrd(*value.borrow()))
     }
 
@@ -231,7 +231,7 @@ impl DistributionValue {
     /// assert_eq!(dist.get(1.0), 2);
     /// assert_eq!(dist.get(2.0), 0);
     /// ```
-    pub fn get(&self, value: impl std::borrow::Borrow<f64>) -> Count {
+    pub fn get(&self, value: impl std::borrow::Borrow<DistributionType>) -> Count {
         let value = &FloatOrd(*value.borrow());
         self.values.get(value).copied().unwrap_or(0)
     }
@@ -286,7 +286,7 @@ impl DistributionValue {
 }
 
 impl<'a> IntoIterator for &'a DistributionValue {
-    type Item = (f64, Count);
+    type Item = (DistributionType, Count);
     type IntoIter = DistributionIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -309,7 +309,7 @@ impl Extend<f64> for DistributionValue {
 }
 
 impl Extend<(f64, Count)> for DistributionValue {
-    fn extend<T: IntoIterator<Item = (f64, Count)>>(&mut self, iter: T) {
+    fn extend<T: IntoIterator<Item = (DistributionType, Count)>>(&mut self, iter: T) {
         for (value, count) in iter.into_iter() {
             self.insert_multi(value, count);
         }
@@ -367,7 +367,7 @@ pub struct DistributionIter<'a> {
 }
 
 impl Iterator for DistributionIter<'_> {
-    type Item = (f64, Count);
+    type Item = (DistributionType, Count);
 
     fn next(&mut self) -> Option<Self::Item> {
         let (value, count) = self.inner.next()?;
@@ -394,13 +394,13 @@ impl fmt::Debug for DistributionIter<'_> {
 #[derive(Clone)]
 pub struct DistributionValuesIter<'a> {
     inner: DistributionIter<'a>,
-    current: f64,
+    current: DistributionType,
     remaining: Count,
     total: Count,
 }
 
 impl Iterator for DistributionValuesIter<'_> {
-    type Item = f64;
+    type Item = DistributionType;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining > 0 {
@@ -452,12 +452,6 @@ macro_rules! dist {
     }};
 }
 
-/// Type used for Counter metric
-type CounterType = f64;
-
-/// Type used for set elements in Set metric
-type SetElementType = u32;
-
 /// The [aggregated value](Bucket::value) of a metric bucket.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
@@ -488,7 +482,7 @@ pub enum BucketValue {
     ///
     /// This variant serializes to a list of 32-bit integers.
     #[serde(rename = "s")]
-    Set(BTreeSet<SetElementType>),
+    Set(BTreeSet<SetType>),
     /// Aggregates [`MetricValue::Gauge`] values always retaining the maximum, minimum, and last
     /// value, as well as the sum and count of all values.
     ///
@@ -541,10 +535,10 @@ impl BucketValue {
         // allocated dynamically.
         let allocated_cost = match self {
             Self::Counter(_) => 0,
-            Self::Set(s) => mem::size_of::<SetElementType>() * s.len(),
+            Self::Set(s) => mem::size_of::<SetType>() * s.len(),
             Self::Gauge(_) => 0,
             Self::Distribution(m) => {
-                m.values.len() * (mem::size_of::<DistributionValueType>() + mem::size_of::<Count>())
+                m.values.len() * (mem::size_of::<DistributionType>() + mem::size_of::<Count>())
             }
         };
 

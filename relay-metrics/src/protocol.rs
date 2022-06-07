@@ -12,26 +12,38 @@ pub use relay_common::{
     CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
 };
 
+/// Type used for Counter metric
+pub type CounterType = f64;
+
+/// Type of distribution entries
+pub type DistributionType = f64;
+
+/// Type used for set elements in Set metric
+pub type SetType = u32;
+
+/// Type used for Gauge entries
+pub type GaugeType = f64;
+
 /// The [typed value](Metric::value) of a metric.
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", content = "value")]
 pub enum MetricValue {
     /// Counts instances of an event. See [`MetricType::Counter`].
     #[serde(rename = "c")]
-    Counter(f64),
+    Counter(CounterType),
     /// Builds a statistical distribution over values reported. See [`MetricType::Distribution`].
     #[serde(rename = "d")]
-    Distribution(f64),
+    Distribution(DistributionType),
     /// Counts the number of unique reported values. See [`MetricType::Set`].
     ///
     /// Set values can be specified as strings in the submission protocol. They are always hashed
     /// into a 32-bit value and the original value is dropped. If the submission protocol contains a
     /// 32-bit integer, it will be used directly, instead.
     #[serde(rename = "s")]
-    Set(u32),
+    Set(SetType),
     /// Stores absolute snapshots of values. See [`MetricType::Gauge`].
     #[serde(rename = "g")]
-    Gauge(f64),
+    Gauge(GaugeType),
 }
 
 impl MetricValue {
