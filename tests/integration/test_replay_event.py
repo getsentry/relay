@@ -40,4 +40,3 @@ def test_replay_event(mini_sentry, relay_with_processing, replay_events_consumer
     )
     assert "trace" in replay_event["contexts"]
     assert replay_event["seq_id"] == 0
-

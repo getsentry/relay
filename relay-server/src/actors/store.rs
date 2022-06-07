@@ -456,13 +456,13 @@ impl StoreForwarder {
     }
     fn produce_replay_event(
         &self,
-        event_id: EventId,
+        replay_id: EventId,
         project_id: ProjectId,
         start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ReplayEventKafkaMessage {
-            event_id,
+            replay_id,
             project_id,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
@@ -617,7 +617,7 @@ struct ReplayEventKafkaMessage {
     /// Time at which the event was received by Relay.
     start_time: u64,
     /// The event id.
-    event_id: EventId,
+    replay_id: EventId,
     /// The project id for the current event.
     project_id: ProjectId,
 }
