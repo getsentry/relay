@@ -77,6 +77,9 @@ impl GaugeValue {
     }
 }
 
+/// Type of distribution entries
+type DistributionValueType = f64;
+
 /// Type for counting duplicates in distributions.
 type Count = u32;
 
@@ -115,7 +118,7 @@ type Count = u32;
 /// for each value in the distribution, including duplicates.
 #[derive(Clone, Default, PartialEq)]
 pub struct DistributionValue {
-    values: BTreeMap<FloatOrd<f64>, Count>,
+    values: BTreeMap<FloatOrd<DistributionValueType>, Count>,
     length: Count,
 }
 
@@ -449,6 +452,12 @@ macro_rules! dist {
     }};
 }
 
+/// Type used for Counter metric
+type CounterType = f64;
+
+/// Type used for set elements in Set metric
+type SetElementType = u32;
+
 /// The [aggregated value](Bucket::value) of a metric bucket.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
@@ -461,7 +470,7 @@ pub enum BucketValue {
     ///
     /// This variant serializes to a double precision float.
     #[serde(rename = "c")]
-    Counter(f64),
+    Counter(CounterType),
     /// Aggregates [`MetricValue::Distribution`] values by collecting their values.
     ///
     /// ```text
@@ -479,7 +488,7 @@ pub enum BucketValue {
     ///
     /// This variant serializes to a list of 32-bit integers.
     #[serde(rename = "s")]
-    Set(BTreeSet<Count>),
+    Set(BTreeSet<SetElementType>),
     /// Aggregates [`MetricValue::Gauge`] values always retaining the maximum, minimum, and last
     /// value, as well as the sum and count of all values.
     ///
@@ -528,26 +537,18 @@ impl BucketValue {
     ///
     /// This is very similar to [`BucketValue::relative_size`], which can possibly be removed.
     pub fn cost(&self) -> usize {
-        // We use private type aliases and constants here to make sure that a change in the implementation
-        // does not change the cost model without being noticed.
-        // Note that when the actual data type of these bucket values changes, we have to update
-        // the cost model and potentially increase the limits that are applied to it.
-        type SetType = u32;
-        /// [`BucketValue`] struct currently fits into 48 bytes:
-        const SELF_SIZE: usize = 48;
-        // Distribution values are stored as maps of (f64, u32) pairs:
-        const DIST_SIZE: usize = mem::size_of::<f64>() + mem::size_of::<u32>();
-
         // Beside the size of [`BucketValue`], we also need to account for the cost of values
         // allocated dynamically.
         let allocated_cost = match self {
             Self::Counter(_) => 0,
-            Self::Set(s) => mem::size_of::<SetType>() * s.len(),
+            Self::Set(s) => mem::size_of::<SetElementType>() * s.len(),
             Self::Gauge(_) => 0,
-            Self::Distribution(m) => DIST_SIZE * m.internal_size(),
+            Self::Distribution(m) => {
+                m.values.len() * (mem::size_of::<DistributionValueType>() + mem::size_of::<Count>())
+            }
         };
 
-        SELF_SIZE + allocated_cost
+        mem::size_of::<Self>() + allocated_cost
     }
 }
 
@@ -783,11 +784,6 @@ struct BucketKey {
     tags: BTreeMap<String, String>,
 }
 
-/// The memory cost of storing a string
-fn string_cost(s: &String) -> usize {
-    mem::size_of::<String>() + s.capacity()
-}
-
 impl BucketKey {
     /// An extremely hamfisted way to hash a bucket key into an integer.
     ///
@@ -810,24 +806,12 @@ impl BucketKey {
     /// Note that this does not necessarily match the exact memory footprint of the key,
     /// because datastructures might have a memory overhead.
     fn cost(&self) -> usize {
-        // We use private constants here to make sure that a change in the implementation
-        // does not change the cost model without being noticed.
-        // Note that when the actual data type of any of the subkeys changes, we have to update
-        // the cost model and potentially increase the limits that are applied to it.
-        const PROJECT_KEY_SIZE: usize = 32;
-        const TIMESTAMP_SIZE: usize = mem::size_of::<u64>();
-        const METRIC_TYPE_SIZE: usize = mem::size_of::<u8>(); // small enum
-        const METRIC_UNIT_SIZE: usize = 16; // 1 (discriminator) + 15 (size of CustomUnit, the largest value)
-
-        PROJECT_KEY_SIZE
-            + TIMESTAMP_SIZE
-            + string_cost(&self.metric_name)
-            + METRIC_TYPE_SIZE
-            + METRIC_UNIT_SIZE
+        mem::size_of::<Self>()
+            + self.metric_name.capacity()
             + self
                 .tags
                 .iter()
-                .fold(0, |acc, (k, v)| acc + string_cost(k) + string_cost(v))
+                .fold(0, |acc, (k, v)| acc + k.capacity() + v.capacity())
     }
 }
 
@@ -2019,19 +2003,22 @@ mod tests {
 
     #[test]
     fn test_bucket_value_cost() {
-        // This test ensures that the cost model for bucket values matches the actual cost of storing
-        // the data. When this test fails, update both the cost model and the dimensionality limits
-        // applied to it.
+        // When this test fails, it means that the cost model has changed.
+        // Check dimensionality limits.
+        let expected_bucket_value_size = 48;
+        let expected_set_entry_size = 4;
+
         let counter = BucketValue::Counter(123.0);
-        assert_eq!(counter.cost(), mem::size_of_val(&counter));
-        let set_entries = BTreeSet::<u32>::from([1, 2, 3, 4, 5]);
-        let set_entry_size = mem::size_of_val(set_entries.iter().next().unwrap());
-        let set = BucketValue::Set(set_entries);
-        assert_eq!(set.cost(), mem::size_of_val(&set) + 5 * set_entry_size);
+        assert_eq!(counter.cost(), expected_bucket_value_size);
+        let set = BucketValue::Set(BTreeSet::<u32>::from([1, 2, 3, 4, 5]));
+        assert_eq!(
+            set.cost(),
+            expected_bucket_value_size + 5 * expected_set_entry_size
+        );
         let distribution = BucketValue::Distribution(dist![1., 2., 3.]);
         assert_eq!(
             distribution.cost(),
-            mem::size_of_val(&distribution) + 3 * (mem::size_of::<f64>() + mem::size_of::<Count>())
+            expected_bucket_value_size + 3 * (8 + 4)
         );
         let gauge = BucketValue::Gauge(GaugeValue {
             max: 43.,
@@ -2040,17 +2027,19 @@ mod tests {
             last: 43.,
             count: 2,
         });
-        assert_eq!(gauge.cost(), mem::size_of_val(&gauge));
+        assert_eq!(gauge.cost(), expected_bucket_value_size);
     }
 
     #[test]
     fn test_bucket_key_cost() {
+        // When this test fails, it means that the cost model has changed.
+        // Check dimensionality limits.
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let name = "12345".to_owned();
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: name.clone(),
+            metric_name: name,
             metric_type: MetricType::Counter,
             metric_unit: MetricUnit::None,
             tags: BTreeMap::from([
@@ -2060,17 +2049,9 @@ mod tests {
         };
         assert_eq!(
             bucket_key.cost(),
-            mem::size_of_val(&project_key)
-                + mem::size_of::<UnixTimestamp>()
-                + string_cost(&name)
-                + mem::size_of::<MetricType>()
-                + mem::size_of::<MetricUnit>()
-                // Tag costs:
-                + 4 * 24
-                + 5
-                + 5
-                + 6
-                + 2
+            112 + // BucketKey
+            5 + // name
+            (5 + 5 + 6 + 2) // tags
         );
     }
 
