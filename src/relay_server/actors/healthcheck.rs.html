@@ -105,6 +105,18 @@
 <span id="98">98</span>
 <span id="99">99</span>
 <span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
@@ -113,6 +125,7 @@
 <span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
 
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
+<span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">AcceptsMetrics</span>, <span class="ident">Aggregator</span>};
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 <span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
 
@@ -195,12 +208,23 @@
             <span class="ident">IsHealthy::Liveness</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(<span class="bool-val">true</span>)),
             <span class="ident">IsHealthy::Readiness</span> =&gt; {
                 <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_shutting_down</span> {
-                    <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(<span class="bool-val">false</span>))
-                } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">requires_auth</span>() {
+                    <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(<span class="bool-val">false</span>));
+                }
+
+                <span class="kw">let</span> <span class="ident">is_aggregator_full</span> <span class="op">=</span> <span class="ident">Aggregator::from_registry</span>()
+                    .<span class="ident">send</span>(<span class="ident">AcceptsMetrics</span>)
+                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ());
+                <span class="kw">let</span> <span class="ident">is_authenticated</span>: <span class="ident"><span class="self">Self</span>::Result</span> <span class="op">=</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">requires_auth</span>() {
                     <span class="ident">Box::new</span>(<span class="ident">upstream</span>.<span class="ident">send</span>(<span class="ident">IsAuthenticated</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ()))
                 } <span class="kw">else</span> {
                     <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(<span class="bool-val">true</span>))
-                }
+                };
+
+                <span class="ident">Box::new</span>(
+                    <span class="ident">is_aggregator_full</span>
+                        .<span class="ident">join</span>(<span class="ident">is_authenticated</span>)
+                        .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">a</span>, <span class="ident">b</span>)<span class="op">|</span> <span class="ident">a</span> <span class="op">&amp;&amp;</span> <span class="ident">b</span>),
+                )
             }
         }
     }
