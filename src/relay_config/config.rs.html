@@ -2016,6 +2016,37 @@
 <span id="2009">2009</span>
 <span id="2010">2010</span>
 <span id="2011">2011</span>
+<span id="2012">2012</span>
+<span id="2013">2013</span>
+<span id="2014">2014</span>
+<span id="2015">2015</span>
+<span id="2016">2016</span>
+<span id="2017">2017</span>
+<span id="2018">2018</span>
+<span id="2019">2019</span>
+<span id="2020">2020</span>
+<span id="2021">2021</span>
+<span id="2022">2022</span>
+<span id="2023">2023</span>
+<span id="2024">2024</span>
+<span id="2025">2025</span>
+<span id="2026">2026</span>
+<span id="2027">2027</span>
+<span id="2028">2028</span>
+<span id="2029">2029</span>
+<span id="2030">2030</span>
+<span id="2031">2031</span>
+<span id="2032">2032</span>
+<span id="2033">2033</span>
+<span id="2034">2034</span>
+<span id="2035">2035</span>
+<span id="2036">2036</span>
+<span id="2037">2037</span>
+<span id="2038">2038</span>
+<span id="2039">2039</span>
+<span id="2040">2040</span>
+<span id="2041">2041</span>
+<span id="2042">2042</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2032,7 +2063,7 @@
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de::DeserializeOwned</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
 <span class="kw">use</span> <span class="ident">relay_auth</span>::{<span class="ident">generate_key_pair</span>, <span class="ident">generate_relay_id</span>, <span class="ident">PublicKey</span>, <span class="ident">RelayId</span>, <span class="ident">SecretKey</span>};
-<span class="kw">use</span> <span class="ident">relay_common::Uuid</span>;
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">Dsn</span>, <span class="ident">Uuid</span>};
 <span class="kw">use</span> <span class="ident">relay_metrics::AggregatorConfig</span>;
 <span class="kw">use</span> <span class="ident">relay_redis::RedisConfig</span>;
 
@@ -2243,6 +2274,8 @@
     <span class="kw">pub</span> <span class="ident">mode</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The upstream relay or sentry instance.</span>
     <span class="kw">pub</span> <span class="ident">upstream</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.</span>
+    <span class="kw">pub</span> <span class="ident">upstream_dsn</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The host the relay should bind to (network interface).</span>
     <span class="kw">pub</span> <span class="ident">host</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="doccomment">/// The port to bind for the unencrypted relay HTTP server.</span>
@@ -2263,6 +2296,8 @@
     <span class="kw">pub</span> <span class="ident">outcome_source</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="doccomment">/// shutdown timeout</span>
     <span class="kw">pub</span> <span class="ident">shutdown_timeout</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// AWS Extensions API URL</span>
+    <span class="kw">pub</span> <span class="ident">aws_runtime_api</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// The relay credentials</span>
@@ -3241,6 +3276,16 @@
     <span class="kw">pub</span> <span class="ident">static_relays</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">RelayId</span>, <span class="ident">RelayInfo</span><span class="op">&gt;</span>,
 }
 
+<span class="doccomment">/// AWS extension config.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AwsConfig</span> {
+    <span class="doccomment">/// The host and port of the AWS lambda extensions API.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This value can be found in the `AWS_LAMBDA_RUNTIME_API` environment variable in a Lambda</span>
+    <span class="doccomment">/// Runtime and contains a socket address, usually `&quot;127.0.0.1:9001&quot;`.</span>
+    <span class="kw">pub</span> <span class="ident">runtime_api</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+}
+
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">ConfigValues</span> {
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
@@ -3267,6 +3312,8 @@
     <span class="ident">aggregator</span>: <span class="ident">AggregatorConfig</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="ident">auth</span>: <span class="ident">AuthConfig</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
+    <span class="ident">aws</span>: <span class="ident">AwsConfig</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ConfigObject</span> <span class="kw">for</span> <span class="ident">ConfigValues</span> {
@@ -3349,6 +3396,11 @@
             <span class="ident">relay</span>.<span class="ident">upstream</span> <span class="op">=</span> <span class="ident">upstream</span>
                 .<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">UpstreamDescriptor</span><span class="op">&gt;</span>()
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">ConfigError::for_field</span>(<span class="ident">err</span>, <span class="string">&quot;upstream&quot;</span>))<span class="question-mark">?</span>;
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">upstream_dsn</span>) <span class="op">=</span> <span class="ident">overrides</span>.<span class="ident">upstream_dsn</span> {
+            <span class="ident">relay</span>.<span class="ident">upstream</span> <span class="op">=</span> <span class="ident">upstream_dsn</span>
+                .<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Dsn</span><span class="op">&gt;</span>()
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">dsn</span><span class="op">|</span> <span class="ident">UpstreamDescriptor::from_dsn</span>(<span class="kw-2">&amp;</span><span class="ident">dsn</span>).<span class="ident">into_owned</span>())
+                .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">ConfigError::for_field</span>(<span class="ident">err</span>, <span class="string">&quot;upstream_dsn&quot;</span>))<span class="question-mark">?</span>;
         }
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">host</span>) <span class="op">=</span> <span class="ident">overrides</span>.<span class="ident">host</span> {
@@ -3460,6 +3512,11 @@
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">shutdown_timeout</span>) <span class="op">=</span> <span class="ident">shutdown_timeout</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>() {
                 <span class="ident">limits</span>.<span class="ident">shutdown_timeout</span> <span class="op">=</span> <span class="ident">shutdown_timeout</span>;
             }
+        }
+
+        <span class="kw">let</span> <span class="ident">aws</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">aws</span>;
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">aws_runtime_api</span>) <span class="op">=</span> <span class="ident">overrides</span>.<span class="ident">aws_runtime_api</span> {
+            <span class="ident">aws</span>.<span class="ident">runtime_api</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">aws_runtime_api</span>);
         }
 
         <span class="prelude-val">Ok</span>(<span class="self">self</span>)
@@ -3975,6 +4032,11 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">accept_unknown_items</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="ident">forward</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">routing</span>.<span class="ident">accept_unknown_items</span>;
         <span class="ident">forward</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">processing_enabled</span>())
+    }
+
+    <span class="doccomment">/// Returns the host and port of the AWS lambda runtime API.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">aws_runtime_api</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">aws</span>.<span class="ident">runtime_api</span>.<span class="ident">as_deref</span>()
     }
 }
 
