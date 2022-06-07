@@ -1,6 +1,7 @@
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 use std::fmt;
+use std::iter::FromIterator;
 use std::mem;
 use std::time::{Duration, Instant};
 
@@ -1096,11 +1097,12 @@ impl CostTracker {
 
 impl fmt::Debug for CostTracker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut values: Vec<(&ProjectKey, &usize)> = self.cost_per_project_key.iter().collect();
-        values.sort();
         f.debug_struct("CostTracker")
             .field("total_cost", &self.total_cost)
-            .field("cost_per_project_key", &values)
+            .field(
+                "cost_per_project_key",
+                &BTreeMap::from_iter(self.cost_per_project_key.iter()),
+            )
             .finish()
     }
 }
@@ -2234,35 +2236,26 @@ mod tests {
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 0,
-            cost_per_project_key: [],
+            cost_per_project_key: {},
         }
         "###);
         cost_tracker.add_cost(project_key1, 100);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 100,
-            cost_per_project_key: [
-                (
-                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"),
-                    100,
-                ),
-            ],
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+            },
         }
         "###);
         cost_tracker.add_cost(project_key2, 200);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 300,
-            cost_per_project_key: [
-                (
-                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"),
-                    100,
-                ),
-                (
-                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    200,
-                ),
-            ],
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
         }
         "###);
         // Unknown project: Will log error, but not crash
@@ -2270,16 +2263,10 @@ mod tests {
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 300,
-            cost_per_project_key: [
-                (
-                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"),
-                    100,
-                ),
-                (
-                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    200,
-                ),
-            ],
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
         }
         "###);
         // Subtract too much: Will log error, but not crash
@@ -2287,31 +2274,25 @@ mod tests {
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 200,
-            cost_per_project_key: [
-                (
-                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    200,
-                ),
-            ],
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
         }
         "###);
         cost_tracker.subtract_cost(project_key2, 20);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 180,
-            cost_per_project_key: [
-                (
-                    ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    180,
-                ),
-            ],
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
+            },
         }
         "###);
         cost_tracker.subtract_cost(project_key2, 180);
         insta::assert_debug_snapshot!(cost_tracker, @r###"
         CostTracker {
             total_cost: 0,
-            cost_per_project_key: [],
+            cost_per_project_key: {},
         }
         "###);
     }
