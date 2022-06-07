@@ -2676,10 +2676,7 @@ mod tests {
 
         aggregator.insert(project_key, metric.clone()).unwrap();
         assert_eq!(
-            aggregator
-                .insert(project_key, metric.clone())
-                .unwrap_err()
-                .kind,
+            aggregator.insert(project_key, metric).unwrap_err().kind,
             AggregateMetricsErrorKind::TotalLimitExceeded
         );
     }
@@ -2705,10 +2702,7 @@ mod tests {
 
         aggregator.insert(project_key, metric.clone()).unwrap();
         assert_eq!(
-            aggregator
-                .insert(project_key, metric.clone())
-                .unwrap_err()
-                .kind,
+            aggregator.insert(project_key, metric).unwrap_err().kind,
             AggregateMetricsErrorKind::ProjectLimitExceeded
         );
     }
