@@ -6,3 +6,6 @@
 
 # Build & Releases
 /.github/workflows/release*.yml  @getsentry/release-approvers
+
+# AWS Extension
+/relay-aws-extension/  @getsentry/team-web-sdk-backend
