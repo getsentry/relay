@@ -1091,7 +1091,7 @@ impl CostTracker {
             }
         }
 
-        return false;
+        false
     }
 
     fn check_limits_exceeded(
