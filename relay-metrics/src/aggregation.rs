@@ -1,6 +1,8 @@
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 use std::fmt;
+use std::iter::FromIterator;
+use std::mem;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
@@ -14,7 +16,10 @@ use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_system::{Controller, Shutdown};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{protocol, Metric, MetricType, MetricUnit, MetricValue};
+use crate::{
+    protocol, CounterType, DistributionType, GaugeType, Metric, MetricType, MetricUnit,
+    MetricValue, SetType,
+};
 
 /// Interval for the flush cycle of the [`Aggregator`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -23,22 +28,22 @@ const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct GaugeValue {
     /// The maximum value reported in the bucket.
-    pub max: f64,
+    pub max: GaugeType,
     /// The minimum value reported in the bucket.
-    pub min: f64,
+    pub min: GaugeType,
     /// The sum of all values reported in the bucket.
-    pub sum: f64,
+    pub sum: GaugeType,
     /// The last value reported in the bucket.
     ///
     /// This aggregation is not commutative.
-    pub last: f64,
+    pub last: GaugeType,
     /// The number of times this bucket was updated with a new value.
     pub count: u64,
 }
 
 impl GaugeValue {
     /// Creates a gauge snapshot from a single value.
-    pub fn single(value: f64) -> Self {
+    pub fn single(value: GaugeType) -> Self {
         Self {
             max: value,
             min: value,
@@ -49,7 +54,7 @@ impl GaugeValue {
     }
 
     /// Inserts a new value into the gauge.
-    pub fn insert(&mut self, value: f64) {
+    pub fn insert(&mut self, value: GaugeType) {
         self.max = self.max.max(value);
         self.min = self.min.min(value);
         self.sum += value;
@@ -67,11 +72,11 @@ impl GaugeValue {
     }
 
     /// Returns the average of all values reported in this bucket.
-    pub fn avg(&self) -> f64 {
+    pub fn avg(&self) -> GaugeType {
         if self.count > 0 {
-            self.sum / (self.count as f64)
+            self.sum / (self.count as GaugeType)
         } else {
-            0f64
+            0.0
         }
     }
 }
@@ -114,7 +119,7 @@ type Count = u32;
 /// for each value in the distribution, including duplicates.
 #[derive(Clone, Default, PartialEq)]
 pub struct DistributionValue {
-    values: BTreeMap<FloatOrd<f64>, Count>,
+    values: BTreeMap<FloatOrd<DistributionType>, Count>,
     length: Count,
 }
 
@@ -169,7 +174,7 @@ impl DistributionValue {
     /// assert_eq!(dist.insert(1.0), 2);
     /// assert_eq!(dist.insert(2.0), 1);
     /// ```
-    pub fn insert(&mut self, value: f64) -> Count {
+    pub fn insert(&mut self, value: DistributionType) -> Count {
         self.insert_multi(value, 1)
     }
 
@@ -186,7 +191,7 @@ impl DistributionValue {
     /// assert_eq!(dist.insert_multi(1.0, 2), 2);
     /// assert_eq!(dist.insert_multi(1.0, 3), 5);
     /// ```
-    pub fn insert_multi(&mut self, value: f64, count: Count) -> Count {
+    pub fn insert_multi(&mut self, value: DistributionType, count: Count) -> Count {
         self.length += count;
         if count == 0 {
             return 0;
@@ -211,7 +216,7 @@ impl DistributionValue {
     /// assert_eq!(dist.contains(1.0), true);
     /// assert_eq!(dist.contains(2.0), false);
     /// ```
-    pub fn contains(&self, value: impl std::borrow::Borrow<f64>) -> bool {
+    pub fn contains(&self, value: impl std::borrow::Borrow<DistributionType>) -> bool {
         self.values.contains_key(&FloatOrd(*value.borrow()))
     }
 
@@ -227,7 +232,7 @@ impl DistributionValue {
     /// assert_eq!(dist.get(1.0), 2);
     /// assert_eq!(dist.get(2.0), 0);
     /// ```
-    pub fn get(&self, value: impl std::borrow::Borrow<f64>) -> Count {
+    pub fn get(&self, value: impl std::borrow::Borrow<DistributionType>) -> Count {
         let value = &FloatOrd(*value.borrow());
         self.values.get(value).copied().unwrap_or(0)
     }
@@ -282,7 +287,7 @@ impl DistributionValue {
 }
 
 impl<'a> IntoIterator for &'a DistributionValue {
-    type Item = (f64, Count);
+    type Item = (DistributionType, Count);
     type IntoIter = DistributionIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -305,7 +310,7 @@ impl Extend<f64> for DistributionValue {
 }
 
 impl Extend<(f64, Count)> for DistributionValue {
-    fn extend<T: IntoIterator<Item = (f64, Count)>>(&mut self, iter: T) {
+    fn extend<T: IntoIterator<Item = (DistributionType, Count)>>(&mut self, iter: T) {
         for (value, count) in iter.into_iter() {
             self.insert_multi(value, count);
         }
@@ -363,7 +368,7 @@ pub struct DistributionIter<'a> {
 }
 
 impl Iterator for DistributionIter<'_> {
-    type Item = (f64, Count);
+    type Item = (DistributionType, Count);
 
     fn next(&mut self) -> Option<Self::Item> {
         let (value, count) = self.inner.next()?;
@@ -390,13 +395,13 @@ impl fmt::Debug for DistributionIter<'_> {
 #[derive(Clone)]
 pub struct DistributionValuesIter<'a> {
     inner: DistributionIter<'a>,
-    current: f64,
+    current: DistributionType,
     remaining: Count,
     total: Count,
 }
 
 impl Iterator for DistributionValuesIter<'_> {
-    type Item = f64;
+    type Item = DistributionType;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining > 0 {
@@ -460,7 +465,7 @@ pub enum BucketValue {
     ///
     /// This variant serializes to a double precision float.
     #[serde(rename = "c")]
-    Counter(f64),
+    Counter(CounterType),
     /// Aggregates [`MetricValue::Distribution`] values by collecting their values.
     ///
     /// ```text
@@ -478,7 +483,7 @@ pub enum BucketValue {
     ///
     /// This variant serializes to a list of 32-bit integers.
     #[serde(rename = "s")]
-    Set(BTreeSet<Count>),
+    Set(BTreeSet<SetType>),
     /// Aggregates [`MetricValue::Gauge`] values always retaining the maximum, minimum, and last
     /// value, as well as the sum and count of all values.
     ///
@@ -521,19 +526,24 @@ impl BucketValue {
         }
     }
 
-    /// Estimates the number of bytes needed to encode the bucket.
-    /// Note that this does not necessarily match the exact memory footprint of the bucket,
+    /// Estimates the number of bytes needed to encode the bucket value.
+    /// Note that this does not necessarily match the exact memory footprint of the value,
     /// because datastructures might have a memory overhead.
     ///
     /// This is very similar to [`BucketValue::relative_size`], which can possibly be removed.
     pub fn cost(&self) -> usize {
-        match self {
-            Self::Counter(_) => 8,
-            Self::Set(s) => 4 * s.len(),
-            Self::Gauge(_) => 5 * 8,
-            // Distribution values are stored as maps of (f64, u32) pairs
-            Self::Distribution(m) => 12 * m.internal_size(),
-        }
+        // Beside the size of [`BucketValue`], we also need to account for the cost of values
+        // allocated dynamically.
+        let allocated_cost = match self {
+            Self::Counter(_) => 0,
+            Self::Set(s) => mem::size_of::<SetType>() * s.len(),
+            Self::Gauge(_) => 0,
+            Self::Distribution(m) => {
+                m.values.len() * (mem::size_of::<DistributionType>() + mem::size_of::<Count>())
+            }
+        };
+
+        mem::size_of::<Self>() + allocated_cost
     }
 }
 
@@ -791,6 +801,18 @@ impl BucketKey {
         let mut hasher = crc32fast::Hasher::new();
         std::hash::Hash::hash(self, &mut hasher);
         hasher.finalize() as i64
+    }
+
+    /// Estimates the number of bytes needed to encode the bucket key.
+    /// Note that this does not necessarily match the exact memory footprint of the key,
+    /// because datastructures might have a memory overhead.
+    fn cost(&self) -> usize {
+        mem::size_of::<Self>()
+            + self.metric_name.capacity()
+            + self
+                .tags
+                .iter()
+                .fold(0, |acc, (k, v)| acc + k.capacity() + v.capacity())
     }
 }
 
@@ -1075,12 +1097,10 @@ enum AggregatorState {
     ShuttingDown,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 struct CostTracker {
     total_cost: usize,
-    // Choosing a BTreeMap instead of a HashMap here, under the assumption that a BTreeMap
-    // is still more efficient for the number of project keys we store.
-    cost_per_project_key: BTreeMap<ProjectKey, usize>,
+    cost_per_project_key: HashMap<ProjectKey, usize>,
 }
 
 impl CostTracker {
@@ -1132,12 +1152,12 @@ impl CostTracker {
 
     fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
         match self.cost_per_project_key.entry(project_key) {
-            btree_map::Entry::Vacant(_) => {
+            Entry::Vacant(_) => {
                 relay_log::error!(
                     "Trying to subtract cost for a project key that has not been tracked"
                 );
             }
-            btree_map::Entry::Occupied(mut entry) => {
+            Entry::Occupied(mut entry) => {
                 // Handle per-project cost:
                 let project_cost = entry.get_mut();
                 if cost > *project_cost {
@@ -1154,6 +1174,18 @@ impl CostTracker {
                 }
             }
         };
+    }
+}
+
+impl fmt::Debug for CostTracker {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CostTracker")
+            .field("total_cost", &self.total_cost)
+            .field(
+                "cost_per_project_key",
+                &BTreeMap::from_iter(self.cost_per_project_key.iter()),
+            )
+            .finish()
     }
 }
 
@@ -1401,7 +1433,7 @@ impl Aggregator {
 
                 let flush_at = self.config.get_flush_time(timestamp, project_key);
                 let bucket = value.into();
-                added_cost = bucket.cost();
+                added_cost = entry.key().cost() + bucket.cost();
                 entry.insert(QueuedBucket::new(flush_at, bucket));
             }
         }
@@ -1502,7 +1534,8 @@ impl Aggregator {
             self.buckets.retain(|key, entry| {
                 if force || entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
-                    let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                    let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                    cost_tracker.subtract_cost(key.project_key, key.cost());
                     cost_tracker.subtract_cost(key.project_key, value.cost());
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets.entry(key.project_key).or_default().push(bucket);
@@ -2083,12 +2116,23 @@ mod tests {
 
     #[test]
     fn test_bucket_value_cost() {
+        // When this test fails, it means that the cost model has changed.
+        // Check dimensionality limits.
+        let expected_bucket_value_size = 48;
+        let expected_set_entry_size = 4;
+
         let counter = BucketValue::Counter(123.0);
-        assert_eq!(counter.cost(), 8);
-        let set = BucketValue::Set(vec![1, 2, 3, 4, 5].into_iter().collect());
-        assert_eq!(set.cost(), 20);
+        assert_eq!(counter.cost(), expected_bucket_value_size);
+        let set = BucketValue::Set(BTreeSet::<u32>::from([1, 2, 3, 4, 5]));
+        assert_eq!(
+            set.cost(),
+            expected_bucket_value_size + 5 * expected_set_entry_size
+        );
         let distribution = BucketValue::Distribution(dist![1., 2., 3.]);
-        assert_eq!(distribution.cost(), 36);
+        assert_eq!(
+            distribution.cost(),
+            expected_bucket_value_size + 3 * (8 + 4)
+        );
         let gauge = BucketValue::Gauge(GaugeValue {
             max: 43.,
             min: 42.,
@@ -2096,7 +2140,32 @@ mod tests {
             last: 43.,
             count: 2,
         });
-        assert_eq!(gauge.cost(), 40);
+        assert_eq!(gauge.cost(), expected_bucket_value_size);
+    }
+
+    #[test]
+    fn test_bucket_key_cost() {
+        // When this test fails, it means that the cost model has changed.
+        // Check dimensionality limits.
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let name = "12345".to_owned();
+        let bucket_key = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: name,
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: BTreeMap::from([
+                ("hello".to_owned(), "world".to_owned()),
+                ("answer".to_owned(), "42".to_owned()),
+            ]),
+        };
+        assert_eq!(
+            bucket_key.cost(),
+            112 + // BucketKey
+            5 + // name
+            (5 + 5 + 6 + 2) // tags
+        );
     }
 
     #[test]
@@ -2359,22 +2428,38 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
         };
-        for (metric_value, expected_total_cost) in [
-            (MetricValue::Counter(42.), 8),
-            (MetricValue::Counter(42.), 8), // counters have constant size
-            (MetricValue::Set(123), 12),    // 8 + 1*4
-            (MetricValue::Set(123), 12),    // Same element in set, no change
-            (MetricValue::Set(456), 16),    // Different element in set -> +4
-            (MetricValue::Distribution(1.0), 28), // 1 unique element -> +12
-            (MetricValue::Distribution(1.0), 28), // no new element
-            (MetricValue::Distribution(2.0), 40), // 1 new element -> +12
-            (MetricValue::Gauge(0.3), 80),
-            (MetricValue::Gauge(0.2), 80), // gauge has constant size
+        let bucket_key = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:foo".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: BTreeMap::new(),
+        };
+        let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
+        for (metric_value, expected_added_cost) in [
+            (MetricValue::Counter(42.), fixed_cost),
+            (MetricValue::Counter(42.), 0), // counters have constant size
+            (MetricValue::Set(123), fixed_cost + 4), // Added a new bucket + 1 element
+            (MetricValue::Set(123), 0),     // Same element in set, no change
+            (MetricValue::Set(456), 4),     // Different element in set -> +4
+            (MetricValue::Distribution(1.0), fixed_cost + 12), // New bucket + 1 element
+            (MetricValue::Distribution(1.0), 0), // no new element
+            (MetricValue::Distribution(2.0), 12), // 1 new element
+            (MetricValue::Gauge(0.3), fixed_cost), // New bucket
+            (MetricValue::Gauge(0.2), 0),   // gauge has constant size
         ] {
             metric.value = metric_value;
+            let current_cost = aggregator.cost_tracker.total_cost;
             aggregator.insert(project_key, metric.clone()).unwrap();
-            assert_eq!(aggregator.cost_tracker.total_cost, expected_total_cost);
+            assert_eq!(
+                aggregator.cost_tracker.total_cost,
+                current_cost + expected_added_cost
+            );
         }
+
+        aggregator.pop_flush_buckets();
+        assert_eq!(aggregator.cost_tracker.total_cost, 0);
     }
 
     #[test]
