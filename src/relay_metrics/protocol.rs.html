@@ -771,6 +771,18 @@
 <span id="764">764</span>
 <span id="765">765</span>
 <span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::iter::FusedIterator</span>;
@@ -785,26 +797,38 @@
     <span class="ident">CustomUnit</span>, <span class="ident">DurationUnit</span>, <span class="ident">FractionUnit</span>, <span class="ident">InformationUnit</span>, <span class="ident">MetricUnit</span>, <span class="ident">ParseMetricUnitError</span>,
 };
 
+<span class="doccomment">/// Type used for Counter metric</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">CounterType</span> <span class="op">=</span> <span class="ident">f64</span>;
+
+<span class="doccomment">/// Type of distribution entries</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">DistributionType</span> <span class="op">=</span> <span class="ident">f64</span>;
+
+<span class="doccomment">/// Type used for set elements in Set metric</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">SetType</span> <span class="op">=</span> <span class="ident">u32</span>;
+
+<span class="doccomment">/// Type used for Gauge entries</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">GaugeType</span> <span class="op">=</span> <span class="ident">f64</span>;
+
 <span class="doccomment">/// The [typed value](Metric::value) of a metric.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">tag</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>, <span class="ident">content</span> <span class="op">=</span> <span class="string">&quot;value&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricValue</span> {
     <span class="doccomment">/// Counts instances of an event. See [`MetricType::Counter`].</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;c&quot;</span>)]</span>
-    <span class="ident">Counter</span>(<span class="ident">f64</span>),
+    <span class="ident">Counter</span>(<span class="ident">CounterType</span>),
     <span class="doccomment">/// Builds a statistical distribution over values reported. See [`MetricType::Distribution`].</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;d&quot;</span>)]</span>
-    <span class="ident">Distribution</span>(<span class="ident">f64</span>),
+    <span class="ident">Distribution</span>(<span class="ident">DistributionType</span>),
     <span class="doccomment">/// Counts the number of unique reported values. See [`MetricType::Set`].</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Set values can be specified as strings in the submission protocol. They are always hashed</span>
     <span class="doccomment">/// into a 32-bit value and the original value is dropped. If the submission protocol contains a</span>
     <span class="doccomment">/// 32-bit integer, it will be used directly, instead.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;s&quot;</span>)]</span>
-    <span class="ident">Set</span>(<span class="ident">u32</span>),
+    <span class="ident">Set</span>(<span class="ident">SetType</span>),
     <span class="doccomment">/// Stores absolute snapshots of values. See [`MetricType::Gauge`].</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;g&quot;</span>)]</span>
-    <span class="ident">Gauge</span>(<span class="ident">f64</span>),
+    <span class="ident">Gauge</span>(<span class="ident">GaugeType</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">MetricValue</span> {
