@@ -57,6 +57,7 @@ struct Producers {
     attachments: Producer,
     transactions: Producer,
     sessions: Producer,
+    metrics_default: Producer,
     metrics_sessions: Producer,
     metrics_transactions: Producer,
     profiles: Producer,
@@ -75,6 +76,7 @@ impl Producers {
                 None
             }
             KafkaTopic::Sessions => Some(&self.sessions),
+            KafkaTopic::MetricsDefault => Some(&self.metrics_default),
             KafkaTopic::MetricsSessions => Some(&self.metrics_sessions),
             KafkaTopic::MetricsTransactions => Some(&self.metrics_transactions),
             KafkaTopic::Profiles => Some(&self.profiles),
@@ -133,6 +135,11 @@ impl StoreForwarder {
             events: make_producer(&*config, &mut reused_producers, KafkaTopic::Events)?,
             transactions: make_producer(&*config, &mut reused_producers, KafkaTopic::Transactions)?,
             sessions: make_producer(&*config, &mut reused_producers, KafkaTopic::Sessions)?,
+            metrics_default: make_producer(
+                &*config,
+                &mut reused_producers,
+                KafkaTopic::MetricsDefault,
+            )?,
             metrics_sessions: make_producer(
                 &*config,
                 &mut reused_producers,
@@ -392,13 +399,7 @@ impl StoreForwarder {
             Ok(MetricResourceIdentifier { namespace, .. }) if namespace == "sessions" => {
                 KafkaTopic::MetricsSessions
             }
-            _ => {
-                relay_log::configure_scope(|scope| {
-                    scope.set_extra("metric_message.name", message.name.into());
-                });
-                relay_log::error!("Dropping unknown metric usecase");
-                return Ok(());
-            }
+            _ => KafkaTopic::MetricsDefault,
         };
 
         relay_log::trace!("Sending metric message to kafka");

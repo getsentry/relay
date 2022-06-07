@@ -775,6 +775,8 @@ pub enum KafkaTopic {
     OutcomesBilling,
     /// Session health updates.
     Sessions,
+    /// The default topic for metrics. We use this mainly for tests at the moment.
+    MetricsDefault,
     /// Any metric that is extracted from sessions.
     MetricsSessions,
     /// Any metric that is extracted from transactions.
@@ -821,6 +823,7 @@ impl TopicAssignments {
             KafkaTopic::Outcomes => &self.outcomes,
             KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
             KafkaTopic::Sessions => &self.sessions,
+            KafkaTopic::MetricsDefault => &self.metrics,
             KafkaTopic::MetricsSessions => self.metrics_sessions.as_ref().unwrap_or(&self.metrics),
             KafkaTopic::MetricsTransactions => {
                 self.metrics_transactions.as_ref().unwrap_or(&self.metrics)
