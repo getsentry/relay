@@ -374,24 +374,10 @@ where
     }
 }
 
-impl Annotated<Value> {
-    fn attach_meta_tree(&mut self, mut meta_tree: MetaTree) {
-        match self.value_mut() {
-            Some(Value::Array(items)) => {
-                for (idx, item) in items.iter_mut().enumerate() {
-                    if let Some(meta_tree) = meta_tree.children.remove(&idx.to_string()) {
-                        item.attach_meta_tree(meta_tree);
-                    }
-                }
-            }
-            Some(Value::Object(items)) => {
-                for (key, value) in items.iter_mut() {
-                    if let Some(meta_tree) = meta_tree.children.remove(key) {
-                        value.attach_meta_tree(meta_tree);
-                    }
-                }
-            }
-            _ => {}
+impl<T: FromValue> Annotated<T> {
+    pub(crate) fn attach_meta_tree(&mut self, meta_tree: MetaTree) {
+        if let Some(value) = self.value_mut() {
+            value.attach_meta_map(meta_tree.children);
         }
 
         *self.meta_mut() = meta_tree.meta;

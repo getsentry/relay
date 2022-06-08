@@ -83,6 +83,11 @@ pub trait FromValue: Debug {
     fn from_value(value: Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized;
+
+    fn attach_meta_map(&mut self, meta_map: MetaMap) {
+        let _meta_map = meta_map;
+        todo!()
+    }
 }
 
 /// Implemented for all meta structures.

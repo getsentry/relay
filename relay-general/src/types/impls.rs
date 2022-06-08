@@ -358,6 +358,26 @@ impl FromValue for Value {
     fn from_value(value: Annotated<Value>) -> Annotated<Value> {
         value
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        match self {
+            Value::Array(items) => {
+                for (idx, annotated) in items.iter_mut().enumerate() {
+                    if let Some(meta_tree) = meta_map.remove(&idx.to_string()) {
+                        annotated.attach_meta_tree(meta_tree);
+                    }
+                }
+            }
+            Value::Object(items) => {
+                for (key, annotated) in items.iter_mut() {
+                    if let Some(meta_tree) = meta_map.remove(key) {
+                        annotated.attach_meta_tree(meta_tree);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 impl IntoValue for Value {
