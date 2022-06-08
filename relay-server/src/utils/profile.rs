@@ -287,6 +287,110 @@ pub fn parse_typescript_profile(item: &mut Item) -> Result<(), ProfileError> {
     Ok(())
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct RustProfile {
+    duration_ns: u128,
+    platform: String,
+    architecture: String,
+    // string representation of Uuid v4
+    trace_id: String,
+    transaction_name: String,
+    // string representation of Uuid v4
+    transaction_id: String,
+    // string representation of Uuid v4
+    profile_id: String,
+    sampled_profile: RustSampledProfile,
+    device_os_name: String,
+    device_os_version: String,
+    version_name: String,
+    version_code: String,
+    debug_meta: RustDebugMeta,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RustDebugMeta {
+    pub images: Vec<SymbolicDebugImage>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RustSampledProfile {
+    pub start_time_nanos: u128,
+    pub start_time_secs: u64,
+    pub duration_nanos: u128,
+    pub samples: Vec<RustSample>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RustSample {
+    pub frames: Vec<RustFrame>,
+    pub thread_name: String,
+    pub thread_id: u64,
+    pub nanos_relative_to_start: u128,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RustFrame {
+    pub instruction_addr: String,
+}
+
+/// Represents a symbolic debug image.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct SymbolicDebugImage {
+    #[serde(rename = "type")]
+    pub image_type: String,
+    /// Path and name of the image file (required).
+    ///
+    /// The absolute path to the dynamic library or executable. This helps to locate the file if it is missing on Sentry.
+    /// This is also called `code_file`.
+    pub name: String,
+    /// The optional CPU architecture of the debug image.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arch: Option<String>,
+    /// Starting memory address of the image (required).
+    ///
+    /// Memory address, at which the image is mounted in the virtual address space of the process.
+    pub image_addr: String,
+    /// Size of the image in bytes (required).
+    ///
+    /// The size of the image in virtual memory.
+    pub image_size: u64,
+    /// Loading address in virtual memory.
+    ///
+    /// Preferred load address of the image in virtual memory, as declared in the headers of the
+    /// image. When loading an image, the operating system may still choose to place it at a
+    /// different address.
+    ///
+    /// Symbols and addresses in the native image are always relative to the start of the image and do not consider the preferred load address. It is merely a hint to the loader.
+    pub image_vmaddr: Option<String>,
+    /// Unique debug identifier of the image.
+    ///
+    /// This is also called `debug_id`.
+    pub id: String,
+
+    /// Optional identifier of the code file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code_id: Option<String>,
+    /// Path and name of the debug companion file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub debug_file: Option<String>,
+}
+
+pub fn parse_rust_profile(item: &mut Item) -> Result<(), ProfileError> {
+    let profile: RustProfile =
+        serde_json::from_slice(&item.payload()).map_err(ProfileError::InvalidJson)?;
+
+    if profile.sampled_profile.samples.is_empty() {
+        return Err(ProfileError::NotEnoughSamples);
+    }
+
+    match serde_json::to_vec(&profile) {
+        Ok(payload) => item.set_payload(ContentType::Json, &payload[..]),
+        Err(_) => return Err(ProfileError::CannotSerializePayload),
+    };
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
@@ -341,6 +445,20 @@ mod tests {
     }
 
     #[test]
+    fn test_roundtrip_rust() {
+        let mut item = Item::new(ItemType::Profile);
+        let payload = Bytes::from(&include_bytes!("../../tests/fixtures/profiles/rust.json")[..]);
+
+        item.set_payload(ContentType::Json, payload);
+
+        assert!(parse_rust_profile(&mut item).is_ok());
+
+        item.set_payload(ContentType::Json, item.payload());
+
+        assert!(parse_rust_profile(&mut item).is_ok());
+    }
+
+    #[test]
     fn test_debug_image_compatibility() {
         let image_json = r#"{"debug_id":"32420279-25E2-34E6-8BC7-8A006A8F2425","image_addr":"0x000000010258c000","code_file":"/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies","type":"macho","image_size":1720320,"image_vmaddr":"0x0000000100000000"}"#;
         let image: MachOImage = serde_json::from_str(image_json).unwrap();
@@ -358,5 +476,26 @@ mod tests {
                 image_vmaddr: Annotated::new(Addr(4294967296)),
                 other: Map::new(),
             }))), annotated);
+    }
+
+    #[test]
+    fn test_symbolic_debug_image_compatibility() {
+        let image_json = r#"{"type": "symbolic","name": "/Users/vigliasentry/Documents/dev/rustfib/target/release/rustfib","image_addr": "0x104c6c000","image_size": 557056,"image_vmaddr": "0x100000000","id": "e5fd8c72-6f8f-3ad2-9c52-5ae133138e0c","code_id": "e5fd8c726f8f3ad29c525ae133138e0c"}"#;
+        let image: SymbolicDebugImage = serde_json::from_str(image_json).unwrap();
+        assert_eq!(
+            SymbolicDebugImage {
+                image_type: "symbolic".to_string(),
+                name: "/Users/vigliasentry/Documents/dev/rustfib/target/release/rustfib"
+                    .to_string(),
+                arch: None,
+                image_addr: "0x104c6c000".to_string(),
+                image_size: 557056,
+                image_vmaddr: Some("0x100000000".to_string()),
+                id: "e5fd8c72-6f8f-3ad2-9c52-5ae133138e0c".to_string(),
+                code_id: Some("e5fd8c726f8f3ad29c525ae133138e0c".to_string()),
+                debug_file: None,
+            },
+            image
+        );
     }
 }

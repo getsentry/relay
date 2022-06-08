@@ -1,0 +1,979 @@
+{
+    "duration_ns": 192401958,
+    "debug_meta": {
+      "images": [
+        {
+          "type": "symbolic",
+          "name": "/Users/vigliasentry/Documents/dev/rustfib/target/release/rustfib",
+          "image_addr": "0x104c6c000",
+          "image_size": 557056,
+          "image_vmaddr": "0x100000000",
+          "id": "e5fd8c72-6f8f-3ad2-9c52-5ae133138e0c",
+          "code_id": "e5fd8c726f8f3ad29c525ae133138e0c"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/libSystem.B.dylib",
+          "image_addr": "0x1a9ebe000",
+          "image_size": 8192,
+          "image_vmaddr": "0x18ada2000",
+          "id": "640fe593-770b-3a1a-96ea-511241755f4e",
+          "code_id": "640fe593770b3a1a96ea511241755f4e"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libcache.dylib",
+          "image_addr": "0x1a9eb8000",
+          "image_size": 24576,
+          "image_vmaddr": "0x18ad9c000",
+          "id": "bea4ed2b-8857-3269-b5bb-516ec54aa8e6",
+          "code_id": "bea4ed2b88573269b5bb516ec54aa8e6"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libcommonCrypto.dylib",
+          "image_addr": "0x1a9e76000",
+          "image_size": 53248,
+          "image_vmaddr": "0x18ad5a000",
+          "id": "c9dcc784-1c68-36b4-95ab-18da54eb68ef",
+          "code_id": "c9dcc7841c6836b495ab18da54eb68ef"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libcompiler_rt.dylib",
+          "image_addr": "0x1a9e9f000",
+          "image_size": 16384,
+          "image_vmaddr": "0x18ad83000",
+          "id": "b7250772-4efd-33b1-9baf-372eeed75dc6",
+          "code_id": "b72507724efd33b19baf372eeed75dc6"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libcopyfile.dylib",
+          "image_addr": "0x1a9e96000",
+          "image_size": 36864,
+          "image_vmaddr": "0x18ad7a000",
+          "id": "edfea1ff-ce44-3efc-9f9f-2a69998152e0",
+          "code_id": "edfea1ffce443efc9f9f2a69998152e0"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libcorecrypto.dylib",
+          "image_addr": "0x19f1c2000",
+          "image_size": 499712,
+          "image_vmaddr": "0x1800a6000",
+          "id": "ca4ca853-ca1a-3871-bf13-245aa06292a9",
+          "code_id": "ca4ca853ca1a3871bf13245aa06292a9"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libdispatch.dylib",
+          "image_addr": "0x19f267000",
+          "image_size": 290816,
+          "image_vmaddr": "0x18014b000",
+          "id": "3d7a56a3-23bf-3077-b5c6-9ce65ce7333e",
+          "code_id": "3d7a56a323bf3077b5c69ce65ce7333e"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libdyld.dylib",
+          "image_addr": "0x19f42f000",
+          "image_size": 53248,
+          "image_vmaddr": "0x180313000",
+          "id": "ef2728e4-6e8a-3045-b175-8f3e331c3b6a",
+          "code_id": "ef2728e46e8a3045b1758f3e331c3b6a"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libkeymgr.dylib",
+          "image_addr": "0x1a9eae000",
+          "image_size": 4096,
+          "image_vmaddr": "0x18ad92000",
+          "id": "687a89e7-1d7d-36cb-9ce9-71a95577efac",
+          "code_id": "687a89e71d7d36cb9ce971a95577efac"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libmacho.dylib",
+          "image_addr": "0x1a9e58000",
+          "image_size": 24576,
+          "image_vmaddr": "0x18ad3c000",
+          "id": "101c5b57-4d8a-3d41-874d-baa93e509a24",
+          "code_id": "101c5b574d8a3d41874dbaa93e509a24"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libquarantine.dylib",
+          "image_addr": "0x1a9564000",
+          "image_size": 12288,
+          "image_vmaddr": "0x18a448000",
+          "id": "faf762f5-88c2-3fbc-bb36-f4167d4f15d1",
+          "code_id": "faf762f588c23fbcbb36f4167d4f15d1"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libremovefile.dylib",
+          "image_addr": "0x1a9eab000",
+          "image_size": 12288,
+          "image_vmaddr": "0x18ad8f000",
+          "id": "9e81013e-9af4-3deb-9bc3-e26539dcaeed",
+          "code_id": "9e81013e9af43deb9bc3e26539dcaeed"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_asl.dylib",
+          "image_addr": "0x1a45b1000",
+          "image_size": 98304,
+          "image_vmaddr": "0x185495000",
+          "id": "3850e69c-517a-3d5b-b499-0089c59a07aa",
+          "code_id": "3850e69c517a3d5bb4990089c59a07aa"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_blocks.dylib",
+          "image_addr": "0x19f16c000",
+          "image_size": 8192,
+          "image_vmaddr": "0x180050000",
+          "id": "06da29c0-4674-3332-9466-44fd0108c65a",
+          "code_id": "06da29c046743332946644fd0108c65a"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_c.dylib",
+          "image_addr": "0x19f2ed000",
+          "image_size": 528384,
+          "image_vmaddr": "0x1801d1000",
+          "id": "002a39ae-6431-3b2e-85e7-c45fc2f95ad0",
+          "code_id": "002a39ae64313b2e85e7c45fc2f95ad0"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_collections.dylib",
+          "image_addr": "0x1a9ea3000",
+          "image_size": 20480,
+          "image_vmaddr": "0x18ad87000",
+          "id": "1993e331-8148-3e74-9825-80ab4c03250d",
+          "code_id": "1993e33181483e74982580ab4c03250d"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_configuration.dylib",
+          "image_addr": "0x1a89c1000",
+          "image_size": 20480,
+          "image_vmaddr": "0x1898a5000",
+          "id": "59ffe06c-bdda-36c9-a041-9c8c3b71ba99",
+          "code_id": "59ffe06cbdda36c9a0419c8c3b71ba99"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_containermanager.dylib",
+          "image_addr": "0x1a7c47000",
+          "image_size": 126976,
+          "image_vmaddr": "0x188b2b000",
+          "id": "5ca1332a-182b-3985-be8e-1427d7d6e55f",
+          "code_id": "5ca1332a182b3985be8e1427d7d6e55f"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_coreservices.dylib",
+          "image_addr": "0x1a9bc2000",
+          "image_size": 24576,
+          "image_vmaddr": "0x18aaa6000",
+          "id": "26e69b46-69b9-39f2-8a7d-e313cd40d92a",
+          "code_id": "26e69b4669b939f28a7de313cd40d92a"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_darwin.dylib",
+          "image_addr": "0x1a1b54000",
+          "image_size": 45056,
+          "image_vmaddr": "0x182a38000",
+          "id": "dba62f65-d3d4-3488-b989-e86fa06f4152",
+          "code_id": "dba62f65d3d43488b989e86fa06f4152"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_dnssd.dylib",
+          "image_addr": "0x1a9eaf000",
+          "image_size": 36864,
+          "image_vmaddr": "0x18ad93000",
+          "id": "1a3f09c0-6756-3476-bd9b-07fa2ed12972",
+          "code_id": "1a3f09c067563476bd9b07fa2ed12972"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_featureflags.dylib",
+          "image_addr": "0x19f2ea000",
+          "image_size": 12288,
+          "image_vmaddr": "0x1801ce000",
+          "id": "050a021b-e775-3e59-bee5-b6944d042598",
+          "code_id": "050a021be7753e59bee5b6944d042598"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_info.dylib",
+          "image_addr": "0x19f444000",
+          "image_size": 180224,
+          "image_vmaddr": "0x180328000",
+          "id": "9b1288f3-7805-3850-8585-856eed193d8a",
+          "code_id": "9b1288f3780538508585856eed193d8a"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_m.dylib",
+          "image_addr": "0x1a9e20000",
+          "image_size": 225280,
+          "image_vmaddr": "0x18ad04000",
+          "id": "15b61131-14e1-31f2-9219-d2f7823a5167",
+          "code_id": "15b6113114e131f29219d2f7823a5167"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_malloc.dylib",
+          "image_addr": "0x19f23c000",
+          "image_size": 176128,
+          "image_vmaddr": "0x180120000",
+          "id": "0b1b0684-d16a-3cee-a9e6-126236d29c51",
+          "code_id": "0b1b0684d16a3ceea9e6126236d29c51"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_networkextension.dylib",
+          "image_addr": "0x1a4542000",
+          "image_size": 98304,
+          "image_vmaddr": "0x185426000",
+          "id": "71d6dea7-e70f-31bb-a6bb-d2dda3c520c2",
+          "code_id": "71d6dea7e70f31bba6bbd2dda3c520c2"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_notify.dylib",
+          "image_addr": "0x1a1fa7000",
+          "image_size": 61440,
+          "image_vmaddr": "0x182e8b000",
+          "id": "4a86a8d3-25d8-3cbc-adf0-3140bd2ab95d",
+          "code_id": "4a86a8d325d83cbcadf03140bd2ab95d"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_product_info_filter.dylib",
+          "image_addr": "0x1b008b000",
+          "image_size": 4096,
+          "image_vmaddr": "0x190f6f000",
+          "id": "fb7fceeb-f157-3a29-a4ef-ce0944f08560",
+          "code_id": "fb7fceebf1573a29a4efce0944f08560"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_sandbox.dylib",
+          "image_addr": "0x1a89c6000",
+          "image_size": 20480,
+          "image_vmaddr": "0x1898aa000",
+          "id": "2b1c446c-4aff-3a8f-804e-9e61837a4711",
+          "code_id": "2b1c446c4aff3a8f804e9e61837a4711"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_secinit.dylib",
+          "image_addr": "0x1a9ea8000",
+          "image_size": 12288,
+          "image_vmaddr": "0x18ad8c000",
+          "id": "1278bad2-1de2-39f7-8c27-53a96b166765",
+          "code_id": "1278bad21de239f78c2753a96b166765"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_kernel.dylib",
+          "image_addr": "0x19f3ec000",
+          "image_size": 221184,
+          "image_vmaddr": "0x1802d0000",
+          "id": "c8524c02-b14f-30bd-a228-c44b4a448e68",
+          "code_id": "c8524c02b14f30bda228c44b4a448e68"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_platform.dylib",
+          "image_addr": "0x19f43c000",
+          "image_size": 32768,
+          "image_vmaddr": "0x180320000",
+          "id": "06ce953d-f22a-3724-b6d5-829b45179897",
+          "code_id": "06ce953df22a3724b6d5829b45179897"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_pthread.dylib",
+          "image_addr": "0x19f422000",
+          "image_size": 53248,
+          "image_vmaddr": "0x180306000",
+          "id": "4786e19a-9312-38e6-80ef-9c1394548118",
+          "code_id": "4786e19a931238e680ef9c1394548118"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_symptoms.dylib",
+          "image_addr": "0x1a5ce7000",
+          "image_size": 36864,
+          "image_vmaddr": "0x186bcb000",
+          "id": "b07398c4-752a-3863-aced-304bd8201972",
+          "code_id": "b07398c4752a3863aced304bd8201972"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libsystem_trace.dylib",
+          "image_addr": "0x19f1a8000",
+          "image_size": 106496,
+          "image_vmaddr": "0x18008c000",
+          "id": "4749c29f-ee26-3a1c-b964-f1b1fd30ed5e",
+          "code_id": "4749c29fee263a1cb964f1b1fd30ed5e"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libunwind.dylib",
+          "image_addr": "0x1a9e83000",
+          "image_size": 45056,
+          "image_vmaddr": "0x18ad67000",
+          "id": "d2d9663f-ee70-349a-972b-2203d4282665",
+          "code_id": "d2d9663fee70349a972b2203d4282665"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/system/libxpc.dylib",
+          "image_addr": "0x19f16e000",
+          "image_size": 237568,
+          "image_vmaddr": "0x180052000",
+          "id": "a35762da-b9c1-3897-bc39-d88bc78fad1c",
+          "code_id": "a35762dab9c13897bc39d88bc78fad1c"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/libc++abi.dylib",
+          "image_addr": "0x19f3d2000",
+          "image_size": 106496,
+          "image_vmaddr": "0x1802b6000",
+          "id": "6baf3d90-c332-373d-8f33-2a6744916698",
+          "code_id": "6baf3d90c332373d8f332a6744916698"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/libobjc.A.dylib",
+          "image_addr": "0x19f2ae000",
+          "image_size": 245760,
+          "image_vmaddr": "0x180192000",
+          "id": "2eabed7f-1e81-3a1b-bb4b-985b8dd3b77f",
+          "code_id": "2eabed7f1e813a1bbb4b985b8dd3b77f"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/liboah.dylib",
+          "image_addr": "0x1a9e8e000",
+          "image_size": 32768,
+          "image_vmaddr": "0x18ad72000",
+          "id": "68c75153-a8be-30d0-836b-ebe68ec4c799",
+          "code_id": "68c75153a8be30d0836bebe68ec4c799"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/libc++.1.dylib",
+          "image_addr": "0x19f36e000",
+          "image_size": 409600,
+          "image_vmaddr": "0x180252000",
+          "id": "3ad094c9-4883-394c-af5a-2b9a5bdfe45b",
+          "code_id": "3ad094c94883394caf5a2b9a5bdfe45b"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/libiconv.2.dylib",
+          "image_addr": "0x1a9f02000",
+          "image_size": 995328,
+          "image_vmaddr": "0x18ade6000",
+          "id": "7fd5e4b8-a118-3e08-b92c-dacd2494b351",
+          "code_id": "7fd5e4b8a1183e08b92cdacd2494b351"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/libcharset.1.dylib",
+          "image_addr": "0x1a9e57000",
+          "image_size": 4096,
+          "image_vmaddr": "0x18ad3b000",
+          "id": "e1dc224d-6b14-31ed-bec6-3d81d03e3992",
+          "code_id": "e1dc224d6b1431edbec63d81d03e3992"
+        },
+        {
+          "type": "symbolic",
+          "name": "/usr/lib/libresolv.9.dylib",
+          "image_addr": "0x1acc04000",
+          "image_size": 102400,
+          "image_vmaddr": "0x18dae8000",
+          "id": "6178c8e4-c903-38d4-af1f-16a71e96d8e1",
+          "code_id": "6178c8e4c90338d4af1f16a71e96d8e1"
+        }
+      ]
+    },
+    "platform": "rust",
+    "architecture": "aarch64",
+    "trace_id": "833a3de9bf01469299604dc5c450ddbb",
+    "transaction_name": "test_transaction",
+    "transaction_id": "9403ab9d846f4ca9aa3e054d4a977db6",
+    "profile_id": "70368c79-1a6b-40d3-9115-1960a9da146e",
+    "sampled_profile": {
+      "start_time_nanos": 1654593762505589000,
+      "start_time_secs": 1654593762,
+      "duration_nanos": 192401958,
+      "samples": [
+        {
+          "frames": [
+            {
+              "instruction_addr": "0x104c7c79c"
+            },
+            {
+              "instruction_addr": "0x19f4404e4"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c77644"
+            },
+            {
+              "instruction_addr": "0x104c77a08"
+            },
+            {
+              "instruction_addr": "0x104c71a80"
+            },
+            {
+              "instruction_addr": "0x104cbfbd8"
+            },
+            {
+              "instruction_addr": "0x104c77a84"
+            }
+          ],
+          "thread_name": "4378035584",
+          "thread_id": 4378035584,
+          "nanos_relative_to_start": 77505000
+        },
+        {
+          "frames": [
+            {
+              "instruction_addr": "0x104c7c79c"
+            },
+            {
+              "instruction_addr": "0x19f4404e4"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c77644"
+            },
+            {
+              "instruction_addr": "0x104c77a08"
+            },
+            {
+              "instruction_addr": "0x104c71a80"
+            },
+            {
+              "instruction_addr": "0x104cbfbd8"
+            },
+            {
+              "instruction_addr": "0x104c77a84"
+            }
+          ],
+          "thread_name": "4378035584",
+          "thread_id": 4378035584,
+          "nanos_relative_to_start": 93217000
+        },
+        {
+          "frames": [
+            {
+              "instruction_addr": "0x104c7c79c"
+            },
+            {
+              "instruction_addr": "0x19f4404e4"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c77644"
+            },
+            {
+              "instruction_addr": "0x104c77a08"
+            },
+            {
+              "instruction_addr": "0x104c71a80"
+            },
+            {
+              "instruction_addr": "0x104cbfbd8"
+            },
+            {
+              "instruction_addr": "0x104c77a84"
+            }
+          ],
+          "thread_name": "4378035584",
+          "thread_id": 4378035584,
+          "nanos_relative_to_start": 143231000
+        },
+        {
+          "frames": [
+            {
+              "instruction_addr": "0x104c7c79c"
+            },
+            {
+              "instruction_addr": "0x19f4404e4"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c77644"
+            },
+            {
+              "instruction_addr": "0x104c77a08"
+            },
+            {
+              "instruction_addr": "0x104c71a80"
+            },
+            {
+              "instruction_addr": "0x104cbfbd8"
+            },
+            {
+              "instruction_addr": "0x104c77a84"
+            }
+          ],
+          "thread_name": "4378035584",
+          "thread_id": 4378035584,
+          "nanos_relative_to_start": 10895000
+        },
+        {
+          "frames": [
+            {
+              "instruction_addr": "0x104c7c79c"
+            },
+            {
+              "instruction_addr": "0x19f4404e4"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c77644"
+            },
+            {
+              "instruction_addr": "0x104c77a08"
+            },
+            {
+              "instruction_addr": "0x104c71a80"
+            },
+            {
+              "instruction_addr": "0x104cbfbd8"
+            },
+            {
+              "instruction_addr": "0x104c77a84"
+            }
+          ],
+          "thread_name": "4378035584",
+          "thread_id": 4378035584,
+          "nanos_relative_to_start": 63217000
+        },
+        {
+          "frames": [
+            {
+              "instruction_addr": "0x104c7c79c"
+            },
+            {
+              "instruction_addr": "0x19f4404e4"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c77644"
+            },
+            {
+              "instruction_addr": "0x104c77a08"
+            },
+            {
+              "instruction_addr": "0x104c71a80"
+            },
+            {
+              "instruction_addr": "0x104cbfbd8"
+            },
+            {
+              "instruction_addr": "0x104c77a84"
+            }
+          ],
+          "thread_name": "4378035584",
+          "thread_id": 4378035584,
+          "nanos_relative_to_start": 133217000
+        },
+        {
+          "frames": [
+            {
+              "instruction_addr": "0x104c7c79c"
+            },
+            {
+              "instruction_addr": "0x19f4404e4"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c7768c"
+            },
+            {
+              "instruction_addr": "0x104c77644"
+            },
+            {
+              "instruction_addr": "0x104c77a08"
+            },
+            {
+              "instruction_addr": "0x104c71a80"
+            },
+            {
+              "instruction_addr": "0x104cbfbd8"
+            },
+            {
+              "instruction_addr": "0x104c77a84"
+            }
+          ],
+          "thread_name": "4378035584",
+          "thread_id": 4378035584,
+          "nanos_relative_to_start": 23217000
+        }
+      ]
+    },
+    "device_os_name": "Darwin",
+    "device_os_version": "21.1.0",
+    "version_name": "0.1.0",
+    "version_code": "c5262628ac4e4bae9387ac0623acc2a9"
+  }
