@@ -811,7 +811,7 @@ fn test_query_string_legacy_nested() {
 fn test_query_invalid() {
     let query = Annotated::<Query>::from_error(
         Error::expected("a query string or map"),
-        Some(Value::U64(42)),
+        Some(Value::I64(42)),
     );
     assert_eq_dbg!(query, Annotated::from_json("42").unwrap());
 }
@@ -887,7 +887,7 @@ fn test_cookies_object() {
 #[test]
 fn test_cookies_invalid() {
     let cookies =
-        Annotated::<Cookies>::from_error(Error::expected("cookies"), Some(Value::U64(42)));
+        Annotated::<Cookies>::from_error(Error::expected("cookies"), Some(Value::I64(42)));
     assert_eq_dbg!(cookies, Annotated::from_json("42").unwrap());
 }
 

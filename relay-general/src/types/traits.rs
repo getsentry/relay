@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
+use serde::{Deserialize, Deserializer};
+
 use crate::types::{Annotated, MetaMap, MetaTree, Value};
 
 /// A value that can be empty.
@@ -79,6 +81,17 @@ impl Default for SkipSerialization {
 
 /// Implemented for all meta structures.
 pub trait FromValue: Debug {
+    fn from_deserializer<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Annotated<Self>, D::Error>
+    where
+        Self: Sized,
+    {
+        Ok(FromValue::from_value(Annotated::from(
+            Option::<Value>::deserialize(deserializer)?,
+        )))
+    }
+
     /// Creates a meta structure from an annotated boxed value.
     fn from_value(value: Annotated<Value>) -> Annotated<Self>
     where
