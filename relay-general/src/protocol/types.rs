@@ -78,7 +78,7 @@ impl<T> Values<T> {
 }
 
 impl<T: FromValue> FromValue for Values<T> {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             // Example:
             // {"threads": [foo, bar, baz]}
@@ -322,7 +322,7 @@ where
     V: FromValue,
     T: FromValue + AsPair<Key = K, Value = V>,
 {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Array(items)), meta) => {
                 let mut rv = Vec::new();
@@ -456,7 +456,7 @@ macro_rules! hex_metrastructure {
         }
 
         impl FromValue for $type {
-            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+            fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                         Ok(value) => Annotated(Some(value), meta),
@@ -633,7 +633,7 @@ impl<'de> Deserialize<'de> for IpAddr {
 }
 
 impl FromValue for IpAddr {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => match IpAddr::parse(value) {
                 Ok(addr) => Annotated(Some(addr), meta),
@@ -724,7 +724,7 @@ impl fmt::Display for Level {
 }
 
 impl FromValue for Level {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                 Ok(value) => Annotated(Some(value), meta),
@@ -845,7 +845,7 @@ impl From<String> for LenientString {
 }
 
 impl FromValue for LenientString {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(string)), meta) => Annotated(Some(string), meta),
             // XXX: True/False instead of true/false because of old python code
@@ -913,7 +913,7 @@ impl std::ops::DerefMut for JsonLenientString {
 }
 
 impl FromValue for JsonLenientString {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(string)), meta) => Annotated(Some(string.into()), meta),
             Annotated(Some(other), meta) => {
@@ -1042,7 +1042,7 @@ fn utc_result_to_annotated<V: IntoValue>(
 }
 
 impl FromValue for Timestamp {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         let rv = match value {
             Annotated(Some(Value::String(value)), mut meta) => {
                 // NaiveDateTime parses "%Y-%m-%dT%H:%M:%S%.f"

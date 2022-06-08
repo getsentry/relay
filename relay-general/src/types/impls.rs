@@ -26,7 +26,7 @@ impl<'a, T: IntoValue> Serialize for SerializePayload<'a, T> {
 macro_rules! derive_from_value {
     ($type:ident, $meta_type:ident, $expectation:expr) => {
         impl FromValue for $type {
-            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+            fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::$meta_type(value)), meta) => Annotated(Some(value), meta),
                     Annotated(None, meta) => Annotated(None, meta),
@@ -68,7 +68,7 @@ macro_rules! derive_to_value {
 macro_rules! derive_numeric_meta_structure {
     ($type:ident, $meta_type:ident, $expectation:expr) => {
         impl FromValue for $type {
-            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+            fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
                 value.and_then(|value| {
                     let number = match value {
                         Value::U64(x) => num_traits::cast(x),
@@ -191,7 +191,7 @@ impl<T> FromValue for Array<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Array(items)), meta) => Annotated(
                 Some(items.into_iter().map(FromValue::from_value).collect()),
@@ -275,7 +275,7 @@ impl<T> FromValue for Object<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Object(items)), meta) => Annotated(
                 Some(
@@ -375,7 +375,7 @@ impl Empty for Value {
 
 impl FromValue for Value {
     #[inline]
-    fn from_value(value: Annotated<Value>) -> Annotated<Value> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Value> {
         value
     }
 
@@ -437,7 +437,7 @@ impl<T> FromValue for Box<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized,
     {
@@ -519,7 +519,7 @@ macro_rules! tuple_meta_structure {
     ($($name:ident: $i:tt),+) => {
         impl< $( $name: FromValue ),* > FromValue for ( $( Annotated<$name>, )* ) {
             #[allow(non_snake_case, unused_variables)]
-            fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
+            fn from_value_legacy(annotated: Annotated<Value>) -> Annotated<Self> {
                 $(
                     let expected_elements: usize = $i + 1;
                     let expectation = match expected_elements {

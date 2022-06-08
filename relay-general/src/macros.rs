@@ -1,7 +1,7 @@
 macro_rules! derive_string_meta_structure {
     ($type:ident, $expectation:expr) => {
         impl crate::types::FromValue for $type {
-            fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+            fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
                 match value {
                     Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                         Ok(value) => Annotated(Some(value), meta),

@@ -17,7 +17,7 @@ impl Empty for MetricUnit {
 }
 
 impl FromValue for MetricUnit {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match String::from_value(value) {
             Annotated(Some(value), mut meta) => match value.parse() {
                 Ok(unit) => Annotated(Some(unit), meta),
@@ -78,7 +78,7 @@ impl Measurements {
 }
 
 impl FromValue for Measurements {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         let mut processing_errors = Vec::new();
 
         let mut measurements = Object::from_value(value).map_value(|measurements| {

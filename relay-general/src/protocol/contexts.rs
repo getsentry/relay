@@ -420,7 +420,7 @@ impl MonitorContext {
 pub struct TraceId(pub String);
 
 impl FromValue for TraceId {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => {
                 if !TRACE_ID.is_match(&value) || value.bytes().all(|x| x == b'0') {
@@ -449,7 +449,7 @@ impl FromValue for TraceId {
 pub struct SpanId(pub String);
 
 impl FromValue for SpanId {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => {
                 if !SPAN_ID.is_match(&value) || value.bytes().all(|x| x == b'0') {
@@ -518,7 +518,7 @@ impl Empty for SpanStatus {
 }
 
 impl FromValue for SpanStatus {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => match value.parse() {
                 Ok(status) => Annotated(Some(status), meta),
@@ -720,7 +720,7 @@ impl std::ops::DerefMut for Contexts {
 }
 
 impl FromValue for Contexts {
-    fn from_value(mut annotated: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(mut annotated: Annotated<Value>) -> Annotated<Self> {
         if let Annotated(Some(Value::Object(ref mut items)), _) = annotated {
             for (key, value) in items.iter_mut() {
                 if let Annotated(Some(Value::Object(ref mut items)), _) = value {

@@ -81,7 +81,7 @@ impl AsRef<str> for Message {
 }
 
 impl FromValue for LogEntry {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         // raw 'message' is coerced to the Message interface, as its used for pure index of
         // searchable strings. If both a raw 'message' and a Message interface exist, try and
         // add the former as the 'formatted' attribute of the latter.

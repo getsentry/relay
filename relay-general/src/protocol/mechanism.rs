@@ -159,7 +159,7 @@ pub struct Mechanism {
 }
 
 impl FromValue for Mechanism {
-    fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(annotated: Annotated<Value>) -> Annotated<Self> {
         #[derive(Debug, FromValue)]
         struct NewMechanism {
             #[metastructure(field = "type", required = "true")]

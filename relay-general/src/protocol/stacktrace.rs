@@ -215,7 +215,7 @@ impl From<Object<Value>> for FrameVars {
 }
 
 impl FromValue for FrameVars {
-    fn from_value(mut value: Annotated<Value>) -> Annotated<FrameVars> {
+    fn from_value_legacy(mut value: Annotated<Value>) -> Annotated<FrameVars> {
         value = value.map_value(|value| {
             if let Value::Array(value) = value {
                 Value::Object(

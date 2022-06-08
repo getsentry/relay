@@ -87,15 +87,29 @@ pub trait FromValue: Debug {
     where
         Self: Sized,
     {
-        Ok(FromValue::from_value(Annotated::from(
-            Option::<Value>::deserialize(deserializer)?,
-        )))
+        Ok(FromValue::from_value_legacy(Annotated::from(Option::<
+            Value,
+        >::deserialize(
+            deserializer,
+        )?)))
     }
 
-    /// Creates a meta structure from an annotated boxed value.
-    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    /// Legacy method for old implementors of FromValue
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized;
+
+    /// Stub method for callers of FromValue::from_value.
+    ///
+    /// This method should never be overridden and is scheduled to be removed.
+    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    where
+        Self: Sized,
+    {
+        let stringified = serde_json::to_string(&value.value()).unwrap();
+        let mut deserializer = serde_json::Deserializer::from_str(&stringified);
+        Self::from_deserializer(&mut deserializer).unwrap()
+    }
 
     fn attach_meta_map(&mut self, meta_map: MetaMap);
 }

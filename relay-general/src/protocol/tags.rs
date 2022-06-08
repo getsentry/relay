@@ -30,7 +30,7 @@ impl AsPair for TagEntry {
 }
 
 impl FromValue for TagEntry {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         type TagTuple = (Annotated<LenientString>, Annotated<LenientString>);
         TagTuple::from_value(value).map_value(|(key, value)| {
             TagEntry(

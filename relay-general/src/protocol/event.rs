@@ -76,7 +76,7 @@ impl Empty for EventType {
 }
 
 impl FromValue for EventType {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match String::from_value(value) {
             Annotated(Some(value), mut meta) => match value.parse() {
                 Ok(eventtype) => Annotated(Some(eventtype), meta),

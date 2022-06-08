@@ -79,7 +79,7 @@ fn derive_newtype_metastructure(
         Trait::From => s.gen_impl(quote! {
             #[automatically_derived]
             gen impl crate::types::FromValue for @Self {
-                fn from_value(
+                fn from_value_legacy(
                     __value: crate::types::Annotated<crate::types::Value>,
                 ) -> crate::types::Annotated<Self> {
                     match crate::types::FromValue::from_value(__value) {
@@ -220,7 +220,7 @@ fn derive_enum_metastructure(
             s.gen_impl(quote! {
                 #[automatically_derived]
                 gen impl crate::types::FromValue for @Self {
-                    fn from_value(
+                    fn from_value_legacy(
                         __value: crate::types::Annotated<crate::types::Value>,
                     ) -> crate::types::Annotated<Self> {
                         match crate::types::Object::<crate::types::Value>::from_value(__value) {
@@ -468,7 +468,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
             s.gen_impl(quote! {
                 #[automatically_derived]
                 gen impl crate::types::FromValue for @Self {
-                    fn from_value(
+                    fn from_value_legacy(
                         __value: crate::types::Annotated<crate::types::Value>,
                     ) -> crate::types::Annotated<Self> {
                         match __value {

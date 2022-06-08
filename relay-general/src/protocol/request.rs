@@ -57,7 +57,7 @@ impl std::ops::DerefMut for Cookies {
 }
 
 impl FromValue for Cookies {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => {
                 let mut cookies = Vec::new();
@@ -160,7 +160,7 @@ impl From<&'_ str> for HeaderName {
 }
 
 impl FromValue for HeaderName {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         String::from_value(value).map_value(HeaderName::new)
     }
 
@@ -211,7 +211,7 @@ impl From<&'_ str> for HeaderValue {
 }
 
 impl FromValue for HeaderValue {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Array(array)), mut meta) => {
                 let mut header_value = String::new();
@@ -273,7 +273,7 @@ impl std::ops::DerefMut for Headers {
 }
 
 impl FromValue for Headers {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         // Preserve order if SDK sent headers as array
         let should_sort = matches!(value.value(), Some(Value::Object(_)));
 
@@ -354,7 +354,7 @@ where
 }
 
 impl FromValue for Query {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(v)), meta) => Annotated(Some(Query::parse(&v)), meta),
             annotated @ Annotated(Some(Value::Object(_)), _)

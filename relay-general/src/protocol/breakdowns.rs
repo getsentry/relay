@@ -21,7 +21,7 @@ impl Breakdowns {
 }
 
 impl FromValue for Breakdowns {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         let mut processing_errors = Vec::new();
 
         let mut breakdowns = Object::from_value(value).map_value(|breakdowns| {

@@ -19,7 +19,7 @@ pub enum ThreadId {
 }
 
 impl FromValue for ThreadId {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), meta) => {
                 Annotated(Some(ThreadId::String(value)), meta)

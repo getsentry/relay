@@ -40,7 +40,7 @@ impl Empty for Fingerprint {
 }
 
 impl FromValue for Fingerprint {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self>
+    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self>
     where
         Self: Sized,
     {
