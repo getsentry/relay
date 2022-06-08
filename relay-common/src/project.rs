@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 #[doc(inline)]
-pub use sentry_types::ProjectId;
+pub use sentry_types::{ParseProjectIdError, ProjectId};
 
 /// An error parsing [`ProjectKey`].
 #[derive(Clone, Copy, Debug)]

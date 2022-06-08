@@ -25,6 +25,4 @@ pub use crate::time::*;
 pub use crate::utils::*;
 
 pub use sentry_types::protocol::LATEST as PROTOCOL_VERSION;
-pub use sentry_types::{
-    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectIdError, Scheme, Uuid,
-};
+pub use sentry_types::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme, Uuid};
