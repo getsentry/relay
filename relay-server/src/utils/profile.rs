@@ -293,12 +293,12 @@ struct RustProfile {
     platform: String,
     architecture: String,
     // string representation of Uuid v4
-    trace_id: String,
+    trace_id: EventId,
     transaction_name: String,
     // string representation of Uuid v4
-    transaction_id: String,
+    transaction_id: EventId,
     // string representation of Uuid v4
-    profile_id: String,
+    profile_id: EventId,
     sampled_profile: RustSampledProfile,
     device_os_name: String,
     device_os_version: String,
