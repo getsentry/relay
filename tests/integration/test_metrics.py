@@ -46,7 +46,7 @@ def test_metrics(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"foo:42|c\nbar:17|c"
+    metrics_payload = f"foo:42|c\ntransactions/bar:17|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
@@ -111,7 +111,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     mini_sentry.add_full_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"foo:42|c\nbar@second:17|c"
+    metrics_payload = f"foo:42|c\ntransactions/bar@second:17|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
     metrics = metrics_by_name(metrics_consumer, 2)
