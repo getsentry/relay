@@ -244,13 +244,3 @@ macro_rules! process_tuple {
 
 process_tuple!(T1);
 process_tuple!(T1, T2);
-process_tuple!(T1, T2, T3);
-process_tuple!(T1, T2, T3, T4);
-process_tuple!(T1, T2, T3, T4, T5);
-process_tuple!(T1, T2, T3, T4, T5, T6);
-process_tuple!(T1, T2, T3, T4, T5, T6, T7);
-process_tuple!(T1, T2, T3, T4, T5, T6, T7, T8);
-process_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9);
-process_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
-process_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
-process_tuple!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);

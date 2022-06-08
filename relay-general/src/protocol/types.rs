@@ -19,7 +19,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{process_value, ProcessValue, ProcessingState, Processor, ValueType};
 use crate::types::{
-    Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object,
+    Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, MetaMap, Object,
     ProcessingResult, SkipSerialization, Value,
 };
 
@@ -133,6 +133,22 @@ impl<T: FromValue> FromValue for Values<T> {
                 Annotated(None, meta)
             }
         }
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        if let Some(meta_tree) = meta_map.remove("values") {
+            self.values.attach_meta_tree(meta_tree);
+        } else {
+            if let Some(values) = self.values.value_mut() {
+                for (idx, annotated) in values.iter_mut().enumerate() {
+                    if let Some(meta_tree) = meta_map.remove(&idx.to_string()) {
+                        annotated.attach_meta_tree(meta_tree);
+                    }
+                }
+            }
+        }
+
+        self.other.attach_meta_map(meta_map);
     }
 }
 
@@ -300,7 +316,12 @@ impl<T> From<Array<T>> for PairList<T> {
     }
 }
 
-impl<T: FromValue> FromValue for PairList<T> {
+impl<T, K, V> FromValue for PairList<T>
+where
+    K: AsRef<str>,
+    V: FromValue,
+    T: FromValue + AsPair<Key = K, Value = V>,
+{
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::Array(items)), meta) => {
@@ -321,6 +342,22 @@ impl<T: FromValue> FromValue for PairList<T> {
                 Annotated(Some(PairList(rv)), meta)
             }
             other => FromValue::from_value(other).map_value(PairList),
+        }
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        for (idx, pair) in self.0.iter_mut().enumerate() {
+            if let Some(pair) = pair.value_mut() {
+                if let Some(key) = pair.as_pair().0.value() {
+                    if let Some(meta_tree) = meta_map.remove(key.as_ref()) {
+                        pair.as_pair_mut().1.attach_meta_tree(meta_tree);
+                    }
+                }
+            }
+
+            if let Some(meta_tree) = meta_map.remove(&idx.to_string()) {
+                pair.attach_meta_tree(meta_tree);
+            }
         }
     }
 }
@@ -441,6 +478,8 @@ macro_rules! hex_metrastructure {
                     }
                 }
             }
+
+            fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
         }
 
         impl IntoValue for $type {
@@ -612,6 +651,8 @@ impl FromValue for IpAddr {
             }
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 /// An error used when parsing `Level`.
@@ -719,6 +760,8 @@ impl FromValue for Level {
             }
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 impl IntoValue for Level {
@@ -828,6 +871,8 @@ impl FromValue for LenientString {
         }
         .map_value(LenientString)
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 /// A "into-string" type of value. All non-string values are serialized as JSON.
@@ -877,6 +922,8 @@ impl FromValue for JsonLenientString {
             Annotated(None, meta) => Annotated(None, meta),
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 impl From<String> for JsonLenientString {
@@ -1056,6 +1103,8 @@ impl FromValue for Timestamp {
             x => x.map_value(Timestamp),
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 impl IntoValue for Timestamp {

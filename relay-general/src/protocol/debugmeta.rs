@@ -14,7 +14,7 @@ use uuid::Uuid;
 use crate::processor::{ProcessValue, ProcessingState, Processor, ValueType};
 use crate::protocol::Addr;
 use crate::types::{
-    Annotated, Array, Empty, Error, FromValue, IntoValue, Meta, Object, ProcessingResult,
+    Annotated, Array, Empty, Error, FromValue, IntoValue, Meta, MetaMap, Object, ProcessingResult,
     SkipSerialization, Value,
 };
 
@@ -177,6 +177,8 @@ macro_rules! impl_traits {
                     Annotated(None, meta) => Annotated(None, meta),
                 }
             }
+
+            fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
         }
 
         impl IntoValue for $type {

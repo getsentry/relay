@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::protocol::{Addr, NativeImagePath, RegVal};
-use crate::types::{Annotated, Array, FromValue, Object, Value};
+use crate::types::{Annotated, Array, FromValue, MetaMap, Object, Value};
 
 /// Holds information about a single stacktrace frame.
 ///
@@ -231,6 +231,12 @@ impl FromValue for FrameVars {
         });
 
         FromValue::from_value(value).map_value(FrameVars)
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        // we don't know the indices at this point, so we can only recover _meta when FrameVars has
+        // been deserialized as JSON object.
+        self.0.attach_meta_map(meta_map)
     }
 }
 

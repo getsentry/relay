@@ -87,6 +87,10 @@ fn derive_newtype_metastructure(
                         Annotated(None, __meta) => Annotated(None, __meta),
                     }
                 }
+
+                fn attach_meta_map(&mut self, mut meta_map: crate::types::MetaMap) {
+                    crate::types::FromValue::attach_meta_map(&mut self.0, meta_map);
+                }
             }
         }),
         Trait::To => s.gen_impl(quote! {
@@ -138,6 +142,7 @@ fn derive_enum_metastructure(
     let _process_value_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
+    let mut attach_meta_map_body = TokenStream::new();
 
     for variant in s.variants() {
         let variant_attrs = parse_variant_attributes(variant.ast().attrs);
@@ -202,6 +207,12 @@ fn derive_enum_metastructure(
             }
         })
         .to_tokens(&mut extract_child_meta_body);
+        (quote! {
+            #type_name::#variant_name(__value) => {
+                crate::types::FromValue::attach_meta_map(__value, meta_map)
+            }
+        })
+        .to_tokens(&mut attach_meta_map_body);
     }
 
     Ok(match t {
@@ -220,6 +231,12 @@ fn derive_enum_metastructure(
                                 }
                             }
                             crate::types::Annotated(None, __meta) => crate::types::Annotated(None, __meta)
+                        }
+                    }
+
+                    fn attach_meta_map(&mut self, mut meta_map: crate::types::MetaMap) {
+                        match self {
+                            #attach_meta_map_body
                         }
                     }
                 }
@@ -285,6 +302,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     let mut to_value_body = TokenStream::new();
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
+    let mut attach_meta_map_body = TokenStream::new();
 
     let type_attrs = parse_type_attributes(&s);
     if type_attrs.tag_key.is_some() {
@@ -333,6 +351,14 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 }
             })
             .to_tokens(&mut extract_child_meta_body);
+            (quote! {
+                for (__key, __value) in #bi.iter_mut() {
+                    if let Some(meta_tree) = meta_map.remove(__key) {
+                        crate::types::Annotated::attach_meta_tree(__value, meta_tree);
+                    }
+                }
+            })
+            .to_tokens(&mut attach_meta_map_body);
         } else {
             if is_tuple_struct {
                 (quote! {
@@ -387,6 +413,12 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 }
             })
             .to_tokens(&mut extract_child_meta_body);
+            (quote! {
+                if let Some(meta_tree) = meta_map.remove(#field_name) {
+                    crate::types::Annotated::attach_meta_tree(#bi, meta_tree);
+                }
+            })
+            .to_tokens(&mut attach_meta_map_body);
         }
     }
 
@@ -399,13 +431,13 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     let to_value_pat = variant.pat();
     let to_structure_assemble_pat = variant.pat();
     for binding in variant.bindings_mut() {
-        binding.style = synstructure::BindStyle::RefMut;
-    }
-    let _process_value_pat = variant.pat();
-    for binding in variant.bindings_mut() {
         binding.style = synstructure::BindStyle::Ref;
     }
     let serialize_pat = variant.pat();
+    for binding in variant.bindings_mut() {
+        binding.style = synstructure::BindStyle::RefMut;
+    }
+    let attach_meta_map_pat = variant.pat();
 
     match t {
         Trait::From => {
@@ -448,6 +480,11 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                                 crate::types::Annotated(None, __meta)
                             }
                         }
+                    }
+
+                    fn attach_meta_map(&mut self, mut meta_map: crate::types::MetaMap) {
+                        let #attach_meta_map_pat = *self;
+                        #attach_meta_map_body
                     }
                 }
             })

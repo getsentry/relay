@@ -4,7 +4,8 @@ use relay_common::MetricUnit;
 
 use crate::processor::ProcessValue;
 use crate::types::{
-    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, MetaMap, Object, SkipSerialization,
+    Value,
 };
 
 impl Empty for MetricUnit {
@@ -29,6 +30,8 @@ impl FromValue for MetricUnit {
             Annotated(None, meta) => Annotated(None, meta),
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 impl IntoValue for MetricUnit {
@@ -110,6 +113,10 @@ impl FromValue for Measurements {
         }
 
         measurements
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        self.0.attach_meta_map(meta_map);
     }
 }
 

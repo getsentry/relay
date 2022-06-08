@@ -15,7 +15,8 @@ use crate::protocol::{
     RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
 };
 use crate::types::{
-    Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
+    Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, MetaMap, Object, SkipSerialization,
+    Value,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -88,6 +89,8 @@ impl FromValue for EventType {
             Annotated(None, meta) => Annotated(None, meta),
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 impl IntoValue for EventType {

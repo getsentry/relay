@@ -84,10 +84,7 @@ pub trait FromValue: Debug {
     where
         Self: Sized;
 
-    fn attach_meta_map(&mut self, meta_map: MetaMap) {
-        let _meta_map = meta_map;
-        todo!()
-    }
+    fn attach_meta_map(&mut self, meta_map: MetaMap);
 }
 
 /// Implemented for all meta structures.

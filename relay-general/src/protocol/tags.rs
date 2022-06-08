@@ -1,5 +1,5 @@
 use crate::protocol::{AsPair, LenientString, PairList};
-use crate::types::{Annotated, Array, FromValue, Value};
+use crate::types::{Annotated, Array, FromValue, MetaMap, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -38,6 +38,16 @@ impl FromValue for TagEntry {
                 value.map_value(|x| x.into_inner().trim().to_string()),
             )
         })
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        if let Some(meta_tree) = meta_map.remove("0") {
+            self.0.attach_meta_tree(meta_tree);
+        }
+
+        if let Some(meta_tree) = meta_map.remove("1") {
+            self.1.attach_meta_tree(meta_tree);
+        }
     }
 }
 

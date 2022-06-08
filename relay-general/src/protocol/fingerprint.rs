@@ -1,7 +1,7 @@
 use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
 use crate::types::{
-    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, SkipSerialization, Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, MetaMap, SkipSerialization, Value,
 };
 
 /// A fingerprint value.
@@ -86,6 +86,11 @@ impl FromValue for Fingerprint {
             }
             Annotated(None, meta) => Annotated(None, meta),
         }
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        // since we apparently store the fingerprint in a bare Vec<String> as opposed to
+        // Vec<Annotated<_>>, we can't store child meta
     }
 }
 

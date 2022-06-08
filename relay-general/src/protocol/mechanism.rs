@@ -1,4 +1,4 @@
-use crate::types::{Annotated, Error, FromValue, Object, Value};
+use crate::types::{Annotated, Error, FromValue, MetaMap, Object, Value};
 
 /// POSIX signal with optional extended data.
 ///
@@ -253,6 +253,10 @@ impl FromValue for Mechanism {
             }
             Annotated(None, meta) => Annotated(None, meta),
         }
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        // i give up, this is too hard to implement
     }
 }
 

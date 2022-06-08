@@ -1,5 +1,5 @@
 use crate::protocol::JsonLenientString;
-use crate::types::{Annotated, Error, FromValue, Meta, Object, Value};
+use crate::types::{Annotated, Error, FromValue, Meta, MetaMap, Object, Value};
 
 /// A log entry message.
 ///
@@ -128,6 +128,24 @@ impl FromValue for LogEntry {
                 ..Default::default()
             }),
         }
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        // this does not implement _meta conversion for any of the legacy formats, and is basically
+        // the same thing the derive(FromValue) produces
+        if let Some(meta_tree) = meta_map.remove("message") {
+            self.message.attach_meta_tree(meta_tree);
+        }
+
+        if let Some(meta_tree) = meta_map.remove("formatted") {
+            self.formatted.attach_meta_tree(meta_tree);
+        }
+
+        if let Some(meta_tree) = meta_map.remove("params") {
+            self.params.attach_meta_tree(meta_tree);
+        }
+
+        self.other.attach_meta_map(meta_map);
     }
 }
 

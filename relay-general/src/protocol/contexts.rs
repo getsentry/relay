@@ -4,7 +4,7 @@ use serde::{Serialize, Serializer};
 use crate::processor::ProcessValue;
 use crate::protocol::LenientString;
 use crate::types::{
-    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
+    Annotated, Empty, Error, FromValue, IntoValue, MetaMap, Object, SkipSerialization, Value,
 };
 
 /// Device information.
@@ -439,6 +439,8 @@ impl FromValue for TraceId {
             }
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 /// A 16-character hex string as described in the W3C trace context spec.
@@ -466,6 +468,8 @@ impl FromValue for SpanId {
             }
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 /// Trace context
@@ -559,6 +563,8 @@ impl FromValue for SpanStatus {
             }
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 impl IntoValue for SpanStatus {
@@ -728,6 +734,10 @@ impl FromValue for Contexts {
             }
         }
         FromValue::from_value(annotated).map_value(Contexts)
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        self.0.attach_meta_map(meta_map);
     }
 }
 

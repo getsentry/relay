@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::protocol::Measurements;
-use crate::types::{Annotated, Error, FromValue, Object, Value};
+use crate::types::{Annotated, Error, FromValue, MetaMap, Object, Value};
 
 /// A map of breakdowns.
 /// Breakdowns may be available on any event type. A breakdown are product-defined measurement values
@@ -51,6 +51,10 @@ impl FromValue for Breakdowns {
         }
 
         breakdowns
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        self.0.attach_meta_map(meta_map)
     }
 }
 

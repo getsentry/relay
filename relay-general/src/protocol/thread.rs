@@ -4,7 +4,7 @@ use crate::processor::ProcessValue;
 use crate::protocol::RawStacktrace;
 use crate::protocol::Stacktrace;
 use crate::types::{
-    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
+    Annotated, Empty, Error, FromValue, IntoValue, MetaMap, Object, SkipSerialization, Value,
 };
 
 /// Represents a thread id.
@@ -36,6 +36,8 @@ impl FromValue for ThreadId {
             }
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 impl IntoValue for ThreadId {

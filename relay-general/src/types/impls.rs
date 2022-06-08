@@ -37,6 +37,8 @@ macro_rules! derive_from_value {
                     }
                 }
             }
+
+            fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
         }
     };
 }
@@ -86,6 +88,8 @@ macro_rules! derive_numeric_meta_structure {
                     }
                 })
             }
+
+            fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
         }
 
         derive_to_value!($type, $meta_type);
@@ -201,6 +205,14 @@ where
             }
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        for (idx, annotated) in self.iter_mut().enumerate() {
+            if let Some(meta_tree) = meta_map.remove(&idx.to_string()) {
+                annotated.attach_meta_tree(meta_tree);
+            }
+        }
+    }
 }
 
 impl<T> IntoValue for Array<T>
@@ -279,6 +291,14 @@ where
                 meta.add_error(Error::expected("an object"));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
+            }
+        }
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        for (key, annotated) in self.iter_mut() {
+            if let Some(meta_tree) = meta_map.remove(key) {
+                annotated.attach_meta_tree(meta_tree);
             }
         }
     }
@@ -362,18 +382,10 @@ impl FromValue for Value {
     fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
         match self {
             Value::Array(items) => {
-                for (idx, annotated) in items.iter_mut().enumerate() {
-                    if let Some(meta_tree) = meta_map.remove(&idx.to_string()) {
-                        annotated.attach_meta_tree(meta_tree);
-                    }
-                }
+                items.attach_meta_map(meta_map);
             }
             Value::Object(items) => {
-                for (key, annotated) in items.iter_mut() {
-                    if let Some(meta_tree) = meta_map.remove(key) {
-                        annotated.attach_meta_tree(meta_tree);
-                    }
-                }
+                items.attach_meta_map(meta_map);
             }
             _ => {}
         }
@@ -431,6 +443,10 @@ where
     {
         let annotated: Annotated<T> = FromValue::from_value(value);
         Annotated(annotated.0.map(Box::new), annotated.1)
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        (&mut **self).attach_meta_map(meta_map);
     }
 }
 
@@ -500,21 +516,22 @@ where
 }
 
 macro_rules! tuple_meta_structure {
-    ($count: literal, $($name: ident),+) => {
+    ($($name:ident: $i:tt),+) => {
         impl< $( $name: FromValue ),* > FromValue for ( $( Annotated<$name>, )* ) {
             #[allow(non_snake_case, unused_variables)]
             fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
-                let expectation = match $count {
-                    1 => "a single element",
-                    2 => "a tuple",
-                    _ => concat!("a ", $count, "-tuple"),
-                };
+                $(
+                    let expected_elements: usize = $i + 1;
+                    let expectation = match expected_elements {
+                        1 => "a single element",
+                        2 => "a tuple",
+                        _ => concat!("a ", $i, "-tuple"),
+                    };
+                )*
 
-                let mut n = 0;
-                $(let $name = (); n += 1;)*
                 match annotated {
                     Annotated(Some(Value::Array(items)), mut meta) => {
-                        if items.len() != n {
+                        if items.len() != expected_elements {
                             meta.add_error(Error::expected(expectation));
                             meta.set_original_value(Some(items));
                             return Annotated(None, meta);
@@ -535,6 +552,14 @@ macro_rules! tuple_meta_structure {
                     }
                     Annotated(None, meta) => Annotated(None, meta)
                 }
+            }
+
+            fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+                $(
+                    if let Some(meta_tree) = meta_map.remove(stringify!($i)) {
+                        self.$i.attach_meta_tree(meta_tree);
+                    }
+                )*
             }
         }
 
@@ -592,18 +617,8 @@ macro_rules! tuple_meta_structure {
     }
 }
 
-tuple_meta_structure!(1, T1);
-tuple_meta_structure!(2, T1, T2);
-tuple_meta_structure!(3, T1, T2, T3);
-tuple_meta_structure!(4, T1, T2, T3, T4);
-tuple_meta_structure!(5, T1, T2, T3, T4, T5);
-tuple_meta_structure!(6, T1, T2, T3, T4, T5, T6);
-tuple_meta_structure!(7, T1, T2, T3, T4, T5, T6, T7);
-tuple_meta_structure!(8, T1, T2, T3, T4, T5, T6, T7, T8);
-tuple_meta_structure!(9, T1, T2, T3, T4, T5, T6, T7, T8, T9);
-tuple_meta_structure!(10, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
-tuple_meta_structure!(11, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
-tuple_meta_structure!(12, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
+tuple_meta_structure!(T0: 0);
+tuple_meta_structure!(T0: 0, T1: 1);
 
 #[test]
 fn test_unsigned_integers() {

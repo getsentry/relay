@@ -9,7 +9,7 @@ use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
 
 use crate::protocol::{JsonLenientString, LenientString, PairList};
-use crate::types::{Annotated, Error, FromValue, Object, Value};
+use crate::types::{Annotated, Error, FromValue, MetaMap, Object, Value};
 
 type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
 
@@ -86,6 +86,10 @@ impl FromValue for Cookies {
             }
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        self.0.attach_meta_map(meta_map);
+    }
 }
 
 /// A "into-string" type that normalizes header names.
@@ -159,6 +163,8 @@ impl FromValue for HeaderName {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         String::from_value(value).map_value(HeaderName::new)
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 /// A "into-string" type that normalizes header values.
@@ -229,6 +235,8 @@ impl FromValue for HeaderValue {
             annotated => LenientString::from_value(annotated).map_value(HeaderValue::new),
         }
     }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
 }
 
 /// A map holding headers.
@@ -281,6 +289,19 @@ impl FromValue for Headers {
 
             Headers(pair_list)
         })
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        // XXX: this is technically unsafe to do, as
+        //
+        // * from_value is sorting the headers one might end up with annotations on a header
+        //   mis-attributed to another header. consider removing this weird sorting in FromValue
+        //   and move it to normalizer instead
+        //
+        // * HeaderName normalizes header names during deserialization, while _meta might be
+        //   unnormalized. This can potentially be fixed in this function by iterating over meta_map
+        //   and normalizing its entries.
+        self.0.attach_meta_map(meta_map);
     }
 }
 
@@ -347,6 +368,10 @@ impl FromValue for Query {
                 Annotated(None, meta)
             }
         }
+    }
+
+    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+        self.0.attach_meta_map(meta_map);
     }
 }
 
