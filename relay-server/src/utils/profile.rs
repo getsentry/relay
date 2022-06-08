@@ -287,6 +287,11 @@ pub fn parse_typescript_profile(item: &mut Item) -> Result<(), ProfileError> {
     Ok(())
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RustDebugMeta {
+    pub images: Vec<SymbolicDebugImage>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct RustProfile {
     duration_ns: u64,
@@ -305,11 +310,6 @@ struct RustProfile {
     version_name: String,
     version_code: String,
     debug_meta: RustDebugMeta,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RustDebugMeta {
-    pub images: Vec<SymbolicDebugImage>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
