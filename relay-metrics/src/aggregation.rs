@@ -14,7 +14,7 @@ use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_system::{Controller, Shutdown};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{protocol, Metric, MetricResourceIdentifier, MetricType, MetricUnit, MetricValue};
+use crate::{protocol, Metric, MetricMri, MetricType, MetricUnit, MetricValue};
 
 /// Interval for the flush cycle of the [`Aggregator`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -1129,7 +1129,7 @@ impl Aggregator {
             return Err(AggregateMetricsErrorKind::InvalidStringLength.into());
         }
 
-        if key.metric_name.parse::<MetricResourceIdentifier>().is_err() {
+        if key.metric_name.parse::<MetricMri>().is_err() {
             relay_log::debug!("invalid metric name {:?}", key.metric_name);
             relay_log::configure_scope(|scope| {
                 scope.set_extra(

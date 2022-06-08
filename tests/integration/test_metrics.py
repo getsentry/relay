@@ -46,7 +46,7 @@ def test_metrics(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"foo:42|c\ntransactions/bar:17|c"
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
@@ -61,14 +61,14 @@ def test_metrics(mini_sentry, relay):
         {
             "timestamp": timestamp,
             "width": 1,
-            "name": "c:bar",
+            "name": "c:transactions/bar",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": timestamp,
             "width": 1,
-            "name": "c:foo",
+            "name": "c:transactions/foo",
             "value": 42.0,
             "type": "c",
         },
@@ -82,7 +82,7 @@ def test_metrics_backdated(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp()) - 24 * 60 * 60
-    metrics_payload = f"foo:42|c"
+    metrics_payload = f"transactions/foo:42|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
     envelope = mini_sentry.captured_events.get(timeout=2)
@@ -96,7 +96,7 @@ def test_metrics_backdated(mini_sentry, relay):
         {
             "timestamp": timestamp,
             "width": 1,
-            "name": "c:foo",
+            "name": "c:transactions/foo",
             "value": 42.0,
             "type": "c",
         },
@@ -111,25 +111,25 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     mini_sentry.add_full_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"foo:42|c\ntransactions/bar@second:17|c"
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar@second:17|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
     metrics = metrics_by_name(metrics_consumer, 2)
 
-    assert metrics["c:foo"] == {
+    assert metrics["c:transactions/foo"] == {
         "org_id": 1,
         "project_id": project_id,
-        "name": "c:foo",
+        "name": "c:transactions/foo",
         "unit": "none",
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
     }
 
-    assert metrics["c:bar"] == {
+    assert metrics["c:transactions/bar"] == {
         "org_id": 1,
         "project_id": project_id,
-        "name": "c:bar",
+        "name": "c:transactions/bar",
         "unit": "second",
         "value": 17.0,
         "type": "c",
@@ -157,17 +157,17 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
 
     # Send two events to downstream and one to upstream
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    downstream.send_metrics(project_id, f"foo:7|c", timestamp)
-    downstream.send_metrics(project_id, f"foo:5|c", timestamp)
+    downstream.send_metrics(project_id, f"transactions/foo:7|c", timestamp)
+    downstream.send_metrics(project_id, f"transactions/foo:5|c", timestamp)
 
-    upstream.send_metrics(project_id, f"foo:3|c", timestamp)
+    upstream.send_metrics(project_id, f"transactions/foo:3|c", timestamp)
 
     metric = metrics_consumer.get_metric(timeout=6)
     metric.pop("timestamp")
     assert metric == {
         "org_id": 1,
         "project_id": project_id,
-        "name": "c:foo",
+        "name": "c:transactions/foo",
         "unit": "none",
         "value": 15.0,
         "type": "c",
@@ -595,17 +595,17 @@ def test_graceful_shutdown(mini_sentry, relay):
 
     # Backdated metric will be flushed immediately due to debounce delay
     past_timestamp = timestamp - 1000
-    metrics_payload = f"foo:42|c"
+    metrics_payload = f"transactions/foo:42|c"
     relay.send_metrics(project_id, metrics_payload, past_timestamp)
 
     # Future timestamp will not be flushed regularly, only through force flush
-    metrics_payload = f"bar:17|c"
+    metrics_payload = f"transactions/bar:17|c"
     future_timestamp = timestamp + 60
     relay.send_metrics(project_id, metrics_payload, future_timestamp)
     relay.shutdown(sig=signal.SIGTERM)
 
     # Try to send another metric (will be rejected)
-    metrics_payload = f"zap:666|c"
+    metrics_payload = f"transactions/zap:666|c"
     with pytest.raises(requests.ConnectionError):
         relay.send_metrics(project_id, metrics_payload, timestamp)
 
@@ -619,14 +619,14 @@ def test_graceful_shutdown(mini_sentry, relay):
         {
             "timestamp": future_timestamp,
             "width": 1,
-            "name": "c:bar",
+            "name": "c:transactions/bar",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": past_timestamp,
             "width": 1,
-            "name": "c:foo",
+            "name": "c:transactions/foo",
             "value": 42.0,
             "type": "c",
         },

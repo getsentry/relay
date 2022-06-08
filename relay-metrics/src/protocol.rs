@@ -152,9 +152,9 @@ fn is_valid_name(name: &str) -> bool {
     false
 }
 
-/// A metric name as MRI, a naming scheme which includes most of the metric's bucket key
+/// A metric name parsed as MRI, a naming scheme which includes most of the metric's bucket key
 /// (excl. timestamp and tags).
-pub struct MetricResourceIdentifier {
+pub struct MetricMri {
     /// The metric type.
     pub ty: MetricType,
     /// The namespace/usecase for this metric. For example `sessions` or `transactions`.
@@ -165,7 +165,7 @@ pub struct MetricResourceIdentifier {
     pub unit: MetricUnit,
 }
 
-impl std::str::FromStr for MetricResourceIdentifier {
+impl std::str::FromStr for MetricMri {
     type Err = ParseMetricError;
 
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
