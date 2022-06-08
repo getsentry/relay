@@ -7,7 +7,7 @@ use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
-use serde::de::{Deserializer, MapAccess, SeqAccess, Visitor};
+use serde::de::Deserializer;
 use serde::ser::{SerializeMap, Serializer};
 use serde::{Deserialize, Serialize};
 
