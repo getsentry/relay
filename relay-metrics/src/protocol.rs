@@ -200,7 +200,7 @@ impl fmt::Display for MetricNamespace {
 /// (excl. timestamp and tags).
 ///
 /// For more information see [`Metric::name`].
-pub struct MetricMri<'a> {
+pub struct MetricResourceIdentifier<'a> {
     /// The metric type.
     pub ty: MetricType,
     /// The namespace/usecase for this metric. For example `sessions` or `transactions`.
@@ -211,7 +211,7 @@ pub struct MetricMri<'a> {
     pub unit: MetricUnit,
 }
 
-impl<'a> std::str::FromStr for MetricMri<'a> {
+impl<'a> std::str::FromStr for MetricResourceIdentifier<'a> {
     type Err = ParseMetricError;
 
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
@@ -231,7 +231,7 @@ impl<'a> std::str::FromStr for MetricMri<'a> {
     }
 }
 
-impl<'a> fmt::Display for MetricMri<'a> {
+impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // `<ty>:<ns>/<name>@<unit>`
         write!(
@@ -422,7 +422,7 @@ pub struct Metric {
     /// * `name` cannot be empty, must start with a letter and can consist of ASCII alphanumerics, underscores, slashes, @s and periods.
     /// * `unit` is one of the values representable by `MetricUnit`.
     ///
-    /// For parsing and normalization, the [`MetricMri`] struct is used in the aggregator. It is
+    /// For parsing and normalization, the [`MetricResourceIdentifier`] struct is used in the aggregator. It is
     /// also used in the kafka producer to route certain namespaces to certain topics.
     ///
     /// Note that the format used in the statsd protocol is different: Metric names are not prefixed
@@ -468,7 +468,7 @@ impl Metric {
         tags: BTreeMap<String, String>,
     ) -> Self {
         Self {
-            name: MetricMri {
+            name: MetricResourceIdentifier {
                 ty: value.ty(),
                 name: name.to_string().into(),
                 namespace,
@@ -697,7 +697,7 @@ mod tests {
         let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri: MetricMri = metric.name.parse().unwrap();
+        let mri: MetricResourceIdentifier = metric.name.parse().unwrap();
         assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
@@ -706,7 +706,7 @@ mod tests {
         let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri: MetricMri = metric.name.parse().unwrap();
+        let mri: MetricResourceIdentifier = metric.name.parse().unwrap();
         assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
