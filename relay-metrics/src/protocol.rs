@@ -198,6 +198,8 @@ impl fmt::Display for MetricNamespace {
 
 /// A metric name parsed as MRI, a naming scheme which includes most of the metric's bucket key
 /// (excl. timestamp and tags).
+///
+/// For more information see [`Metric::name`].
 pub struct MetricMri<'a> {
     /// The metric type.
     pub ty: MetricType,
@@ -213,9 +215,6 @@ impl<'a> std::str::FromStr for MetricMri<'a> {
     type Err = ParseMetricError;
 
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-    ///
-    /// Note that the format used in the statsd protocol is different: Metric names are not prefixed
-    /// with `<ty>:` as the type is somewhere else in the protocol.
     fn from_str(name: &str) -> Result<Self, Self::Err> {
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
@@ -408,11 +407,26 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Metric {
-    /// The name of the metric without its unit.
+    /// The name of the metric, i.e. the MRI.
     ///
-    /// TODO: fix
-    /// Metric names cannot be empty, must start with a letter and can consist of ASCII
-    /// alphanumerics, underscores, slashes, @s and periods.
+    /// The metric name historically has been a freeform string. Over time we realized that we can
+    /// use the metric name to encode things like metric unit, type, etc in order to force
+    /// downstream systems to bucket by those properties, without having to update them. This is
+    /// how the concept of the Metrics Resource Identifier was born.
+    ///
+    /// An MRI has the following format: `<type>:<namespace>/<name>@<unit>`
+    ///
+    ///
+    /// * `type` is the single-letter representation of the metric's type, e.g. one of `d`, `s`, `c`.
+    /// * `namespace` is one of the values representable by `MetricNamespace`.
+    /// * `name` cannot be empty, must start with a letter and can consist of ASCII alphanumerics, underscores, slashes, @s and periods.
+    /// * `unit` is one of the values representable by `MetricUnit`.
+    ///
+    /// For parsing and normalization, the [`MetricMri`] struct is used in the aggregator. It is
+    /// also used in the kafka producer to route certain namespaces to certain topics.
+    ///
+    /// Note that the format used in the statsd protocol is different: Metric names are not prefixed
+    /// with `<ty>:` as the type is somewhere else in the protocol.
     pub name: String,
     /// The value of the metric.
     ///
@@ -440,6 +454,8 @@ pub struct Metric {
 
 impl Metric {
     /// Creates a new metric using the MRI naming format.
+    ///
+    /// See [`Metric::name`].
     ///
     /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
