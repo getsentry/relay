@@ -1,4 +1,5 @@
 use std::fmt;
+use std::mem;
 
 use failure::Fail;
 
@@ -253,21 +254,20 @@ where
     pub fn deserialize_with_meta<'de, D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Self, D::Error> {
-        Ok(FromValue::from_value(
-            match Option::<Value>::deserialize(deserializer)? {
-                Some(Value::Object(mut map)) => {
-                    let meta_tree = map
-                        .remove("_meta")
-                        .map(MetaTree::from_value)
-                        .unwrap_or_default();
+        match Option::<Value>::deserialize(deserializer)? {
+            Some(Value::Object(mut map)) => {
+                let meta_tree = map
+                    .remove("_meta")
+                    .map(MetaTree::from_value)
+                    .unwrap_or_default();
 
-                    let mut value: Annotated<Value> = Annotated::new(Value::Object(map));
-                    value.attach_meta_tree(meta_tree);
-                    value
-                }
-                other => Annotated::from(other),
-            },
-        ))
+                let mut value: Annotated<T> =
+                    FromValue::from_value(Annotated::from(Value::Object(map)));
+                value.attach_meta_tree(meta_tree);
+                Ok(value)
+            }
+            other => Ok(FromValue::from_value(Annotated::from(other))),
+        }
     }
 
     /// Deserializes an annotated from a JSON string.
@@ -380,7 +380,11 @@ impl<T: FromValue> Annotated<T> {
             value.attach_meta_map(meta_tree.children);
         }
 
-        *self.meta_mut() = meta_tree.meta;
+        // We want to merge the incoming meta tree with the current one instead of the other way
+        // around, because the incoming meta tree is from deserialization and so its errors and
+        // remarks should come first in the respective list.
+        let first_meta = meta_tree.meta;
+        take_mut::take(self.meta_mut(), move |meta_mut| first_meta.merge(meta_mut));
     }
 }
 

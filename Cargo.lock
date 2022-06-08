@@ -3362,6 +3362,7 @@ dependencies = [
  "serde_urlencoded 0.5.5",
  "sha-1",
  "smallvec 1.4.0",
+ "take_mut",
  "uaparser",
  "url 2.2.0",
  "utf16string",
