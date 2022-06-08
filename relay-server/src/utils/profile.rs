@@ -289,7 +289,7 @@ pub fn parse_typescript_profile(item: &mut Item) -> Result<(), ProfileError> {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RustProfile {
-    duration_ns: u128,
+    duration_ns: u64,
     platform: String,
     architecture: String,
     // string representation of Uuid v4
@@ -314,9 +314,9 @@ pub struct RustDebugMeta {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RustSampledProfile {
-    pub start_time_nanos: u128,
+    pub start_time_nanos: u64,
     pub start_time_secs: u64,
-    pub duration_nanos: u128,
+    pub duration_nanos: u64,
     pub samples: Vec<RustSample>,
 }
 
@@ -325,7 +325,7 @@ pub struct RustSample {
     pub frames: Vec<RustFrame>,
     pub thread_name: String,
     pub thread_id: u64,
-    pub nanos_relative_to_start: u128,
+    pub nanos_relative_to_start: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
