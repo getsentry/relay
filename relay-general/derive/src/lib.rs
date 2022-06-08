@@ -79,13 +79,11 @@ fn derive_newtype_metastructure(
         Trait::From => s.gen_impl(quote! {
             #[automatically_derived]
             gen impl crate::types::FromValue for @Self {
-                fn from_value_legacy(
-                    __value: crate::types::Annotated<crate::types::Value>,
-                ) -> crate::types::Annotated<Self> {
-                    match crate::types::FromValue::from_value(__value) {
-                        Annotated(Some(__value), __meta) => Annotated(Some(#name(__value)), __meta),
-                        Annotated(None, __meta) => Annotated(None, __meta),
-                    }
+                fn from_deserializer<'de, D: serde::Deserializer<'de>>(
+                    deserializer: D,
+                ) -> Result<Annotated<Self>, D::Error> {
+                    let inner = crate::types::FromValue::from_deserializer(deserializer)?;
+                    Ok(inner.map_value(#name))
                 }
 
                 fn attach_meta_map(&mut self, mut meta_map: crate::types::MetaMap) {

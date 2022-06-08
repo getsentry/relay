@@ -1,5 +1,5 @@
 use serde::ser::{SerializeMap, SerializeSeq};
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::types::{
@@ -374,9 +374,13 @@ impl Empty for Value {
 }
 
 impl FromValue for Value {
-    #[inline]
-    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Value> {
-        value
+    fn from_deserializer<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Annotated<Self>, D::Error>
+    where
+        Self: Sized,
+    {
+        Ok(Annotated::from(Option::<Value>::deserialize(deserializer)?))
     }
 
     fn attach_meta_map(&mut self, meta_map: MetaMap) {

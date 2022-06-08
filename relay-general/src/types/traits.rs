@@ -95,9 +95,12 @@ pub trait FromValue: Debug {
     }
 
     /// Legacy method for old implementors of FromValue
-    fn from_value_legacy(value: Annotated<Value>) -> Annotated<Self>
+    fn from_value_legacy(_value: Annotated<Value>) -> Annotated<Self>
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        unimplemented!()
+    }
 
     /// Stub method for callers of FromValue::from_value.
     ///
