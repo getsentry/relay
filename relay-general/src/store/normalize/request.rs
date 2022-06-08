@@ -48,7 +48,7 @@ fn normalize_url(request: &mut Request) {
             url.set_query(None);
             url.set_fragment(None);
             if url.as_str() != url_string {
-                *url_string = url.into_string();
+                *url_string = url.into();
             }
         }
         Err(_) => {
