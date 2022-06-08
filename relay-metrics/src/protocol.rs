@@ -1,7 +1,7 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::iter::FusedIterator;
-use std::borrow::Cow;
 
 use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
@@ -160,8 +160,15 @@ fn is_valid_name(name: &str) -> bool {
 /// the store actor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MetricNamespace {
+    /// Metrics extracted from sessions.
     Sessions,
+    /// Metrics extracted from transaction events.
     Transactions,
+    /// Metrics that relay doesn't know the namespace of, and will drop before aggregating.
+    ///
+    /// We could make this variant contain a string such that customer and PoP-relays can forward
+    /// unknown namespaces, but decided against it for now because there was no obvious usecase for
+    /// it that didn't require a Relay update anyway.
     Unsupported,
 }
 
@@ -228,7 +235,11 @@ impl<'a> std::str::FromStr for MetricMri<'a> {
 impl<'a> fmt::Display for MetricMri<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // `<ty>:<ns>/<name>@<unit>`
-        write!(f, "{}:{}/{}@{}", self.ty, self.namespace, self.name, self.unit)
+        write!(
+            f,
+            "{}:{}/{}@{}",
+            self.ty, self.namespace, self.name, self.unit
+        )
     }
 }
 
@@ -300,10 +311,7 @@ fn parse_value(string: &str, ty: MetricType) -> Option<MetricValue> {
 ///
 /// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if any of the components is
 /// invalid.
-fn parse_name_unit_value(
-    string: &str,
-    ty: MetricType,
-) -> Option<(&str, MetricUnit, MetricValue)> {
+fn parse_name_unit_value(string: &str, ty: MetricType) -> Option<(&str, MetricUnit, MetricValue)> {
     let mut components = string.splitn(2, ':');
     let (name, unit) = components.next().and_then(parse_name_unit)?;
     let value = components.next().and_then(|s| parse_value(s, ty))?;
@@ -448,8 +456,9 @@ impl Metric {
                 ty: value.ty(),
                 name: name.to_string().into(),
                 namespace,
-                unit
-            }.to_string(),
+                unit,
+            }
+            .to_string(),
             value,
             timestamp,
             tags,

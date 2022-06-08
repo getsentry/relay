@@ -18,7 +18,7 @@ use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_log::LogError;
-use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricMri, MetricUnit};
+use relay_metrics::{Bucket, BucketValue, MetricMri, MetricNamespace};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 
@@ -386,12 +386,14 @@ impl StoreForwarder {
 
     fn send_metric_message(&self, message: MetricKafkaMessage) -> Result<(), StoreError> {
         let topic = match message.name.parse() {
-            Ok(MetricMri { namespace: MetricNamespace::Transactions, .. }) => {
-                KafkaTopic::MetricsTransactions
-            }
-            Ok(MetricMri { namespace: MetricNamespace::Sessions, .. }) => {
-                KafkaTopic::MetricsSessions
-            }
+            Ok(MetricMri {
+                namespace: MetricNamespace::Transactions,
+                ..
+            }) => KafkaTopic::MetricsTransactions,
+            Ok(MetricMri {
+                namespace: MetricNamespace::Sessions,
+                ..
+            }) => KafkaTopic::MetricsSessions,
             _ => {
                 relay_log::configure_scope(|scope| {
                     scope.set_extra("metric_message.name", message.name.into());

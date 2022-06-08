@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{SessionAttributes, SessionErrored, SessionLike, SessionStatus};
-use relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue, MetricNamespace};
+use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
 
 use super::utils::with_tag;
 
@@ -482,7 +482,6 @@ mod tests {
         [
             Metric {
                 name: "c:sessions/session@none",
-                unit: None,
                 value: Counter(
                     135.0,
                 ),
@@ -496,7 +495,6 @@ mod tests {
             },
             Metric {
                 name: "c:sessions/session@none",
-                unit: None,
                 value: Counter(
                     12.0,
                 ),
@@ -510,7 +508,6 @@ mod tests {
             },
             Metric {
                 name: "c:sessions/session@none",
-                unit: None,
                 value: Counter(
                     5.0,
                 ),
@@ -524,7 +521,6 @@ mod tests {
             },
             Metric {
                 name: "c:sessions/session@none",
-                unit: None,
                 value: Counter(
                     7.0,
                 ),
@@ -538,7 +534,6 @@ mod tests {
             },
             Metric {
                 name: "c:sessions/session@none",
-                unit: None,
                 value: Counter(
                     15.0,
                 ),
@@ -552,7 +547,6 @@ mod tests {
             },
             Metric {
                 name: "s:sessions/user@none",
-                unit: None,
                 value: Set(
                     3097475539,
                 ),
@@ -566,7 +560,6 @@ mod tests {
             },
             Metric {
                 name: "c:sessions/session@none",
-                unit: None,
                 value: Counter(
                     3.0,
                 ),
@@ -580,7 +573,6 @@ mod tests {
             },
             Metric {
                 name: "s:sessions/user@none",
-                unit: None,
                 value: Set(
                     3097475539,
                 ),

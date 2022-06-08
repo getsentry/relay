@@ -61,14 +61,14 @@ def test_metrics(mini_sentry, relay):
         {
             "timestamp": timestamp,
             "width": 1,
-            "name": "c:transactions/bar",
+            "name": "c:transactions/bar@none",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": timestamp,
             "width": 1,
-            "name": "c:transactions/foo",
+            "name": "c:transactions/foo@none",
             "value": 42.0,
             "type": "c",
         },
@@ -96,7 +96,7 @@ def test_metrics_backdated(mini_sentry, relay):
         {
             "timestamp": timestamp,
             "width": 1,
-            "name": "c:transactions/foo",
+            "name": "c:transactions/foo@none",
             "value": 42.0,
             "type": "c",
         },
@@ -116,21 +116,19 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
 
     metrics = metrics_by_name(metrics_consumer, 2)
 
-    assert metrics["c:transactions/foo"] == {
+    assert metrics["c:transactions/foo@none"] == {
         "org_id": 1,
         "project_id": project_id,
-        "name": "c:transactions/foo",
-        "unit": "none",
+        "name": "c:transactions/foo@none",
         "value": 42.0,
         "type": "c",
         "timestamp": timestamp,
     }
 
-    assert metrics["c:transactions/bar"] == {
+    assert metrics["c:transactions/bar@second"] == {
         "org_id": 1,
         "project_id": project_id,
-        "name": "c:transactions/bar",
-        "unit": "second",
+        "name": "c:transactions/bar@second",
         "value": 17.0,
         "type": "c",
         "timestamp": timestamp,
@@ -167,8 +165,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     assert metric == {
         "org_id": 1,
         "project_id": project_id,
-        "name": "c:transactions/foo",
-        "unit": "none",
+        "name": "c:transactions/foo@none",
         "value": 15.0,
         "type": "c",
     }
@@ -272,7 +269,6 @@ def test_session_metrics_non_processing(
                 "timestamp": ts,
                 "width": 1,
                 "type": "d",
-                "unit": "second",
                 "value": [1947.49],
             },
             {
@@ -387,7 +383,6 @@ def test_session_metrics_processing(
         "timestamp": expected_timestamp,
         "name": "c:sessions/session@none",
         "type": "c",
-        "unit": "none",
         "value": 1.0,
         "tags": {
             "sdk": "raven-node/2.6.3",
@@ -403,7 +398,6 @@ def test_session_metrics_processing(
         "timestamp": expected_timestamp,
         "name": "s:sessions/user@none",
         "type": "s",
-        "unit": "none",
         "value": [1617781333],
         "tags": {
             "sdk": "raven-node/2.6.3",
@@ -419,7 +413,6 @@ def test_session_metrics_processing(
         "timestamp": expected_timestamp,
         "name": "d:sessions/duration@second",
         "type": "d",
-        "unit": "second",
         "value": [1947.49],
         "tags": {
             "sdk": "raven-node/2.6.3",
@@ -544,7 +537,6 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/measurements.foo@none",
         "type": "d",
-        "unit": "none",
         "value": [1.2, 2.2],
     }
 
@@ -552,7 +544,6 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/measurements.bar@none",
         "type": "d",
-        "unit": "none",
         "value": [1.3],
     }
 
@@ -562,7 +553,6 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
         "type": "d",
-        "unit": "millisecond",
         "value": [9.910106, 9.910106],
     }
 
@@ -570,7 +560,6 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/breakdowns.span_ops.total.time@millisecond",
         "type": "d",
-        "unit": "millisecond",
         "value": [9.910106, 9.910106],
     }
 
@@ -619,14 +608,14 @@ def test_graceful_shutdown(mini_sentry, relay):
         {
             "timestamp": future_timestamp,
             "width": 1,
-            "name": "c:transactions/bar",
+            "name": "c:transactions/bar@none",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": past_timestamp,
             "width": 1,
-            "name": "c:transactions/foo",
+            "name": "c:transactions/foo@none",
             "value": 42.0,
             "type": "c",
         },

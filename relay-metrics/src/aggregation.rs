@@ -14,7 +14,7 @@ use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_system::{Controller, Shutdown};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{protocol, Metric, MetricNamespace, MetricMri, MetricType, MetricValue};
+use crate::{protocol, Metric, MetricMri, MetricNamespace, MetricType, MetricValue};
 
 /// Interval for the flush cycle of the [`Aggregator`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -1138,7 +1138,7 @@ impl Aggregator {
                     return Err(AggregateMetricsErrorKind::InvalidNamespace.into());
                 }
                 mri.to_string()
-            },
+            }
             Err(_) => {
                 relay_log::debug!("invalid metric name {:?}", key.metric_name);
                 relay_log::configure_scope(|scope| {
@@ -1975,31 +1975,6 @@ mod tests {
             ),
         ]
         "###);
-    }
-
-    #[test]
-    fn test_aggregator_mixed_types() {
-        relay_test::setup();
-
-        let config = AggregatorConfig {
-            bucket_interval: 10,
-            ..test_config()
-        };
-
-        let receiver = TestReceiver::start_default().recipient();
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-
-        let mut aggregator = Aggregator::new(config, receiver);
-
-        let metric1 = some_metric();
-
-        let mut metric2 = metric1.clone();
-        metric2.value = MetricValue::Set(123);
-
-        // It's OK to have same name for different types:
-        aggregator.insert(project_key, metric1).unwrap();
-        aggregator.insert(project_key, metric2).unwrap();
-        assert_eq!(aggregator.buckets.len(), 2);
     }
 
     #[test]

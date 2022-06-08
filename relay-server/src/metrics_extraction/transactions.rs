@@ -11,7 +11,7 @@ use {
     relay_general::protocol::{Context, ContextInner},
     relay_general::store,
     relay_general::types::Annotated,
-    relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue, MetricNamespace},
+    relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue},
     std::fmt,
 };
 
