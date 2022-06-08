@@ -139,12 +139,6 @@
 <span id="132">132</span>
 <span id="133">133</span>
 <span id="134">134</span>
-<span id="135">135</span>
-<span id="136">136</span>
-<span id="137">137</span>
-<span id="138">138</span>
-<span id="139">139</span>
-<span id="140">140</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.</span>
@@ -250,11 +244,6 @@
     <span class="doccomment">///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`</span>
     <span class="doccomment">///    time period (`false`) or after the initial delay has expired (`true`).</span>
     <span class="ident">BucketsDelay</span>,
-
-    <span class="doccomment">/// The storage cost of metrics buckets stored Relay&#39;s metrics aggregator, for a project key.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// See also [`MetricGauges::BucketsCost`].</span>
-    <span class="ident">BucketsCostPerProjectKey</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">MetricHistograms</span> {
@@ -264,7 +253,6 @@
             <span class="ident"><span class="self">Self</span>::BucketsFlushedPerProject</span> =&gt; <span class="string">&quot;metrics.buckets.flushed_per_project&quot;</span>,
             <span class="ident"><span class="self">Self</span>::BucketRelativeSize</span> =&gt; <span class="string">&quot;metrics.buckets.relative_bucket_size&quot;</span>,
             <span class="ident"><span class="self">Self</span>::BucketsDelay</span> =&gt; <span class="string">&quot;metrics.buckets.delay&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::BucketsCostPerProjectKey</span> =&gt; <span class="string">&quot;metrics.buckets.cost_per_project_key&quot;</span>,
         }
     }
 }
