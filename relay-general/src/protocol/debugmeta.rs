@@ -178,7 +178,7 @@ macro_rules! impl_traits {
                 }
             }
 
-            fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+            fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
         }
 
         impl IntoValue for $type {

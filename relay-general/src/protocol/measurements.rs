@@ -31,7 +31,7 @@ impl FromValue for MetricUnit {
         }
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+    fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
 }
 
 impl IntoValue for MetricUnit {
@@ -115,7 +115,7 @@ impl FromValue for Measurements {
         measurements
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+    fn attach_meta_map(&mut self, meta_map: MetaMap) {
         self.0.attach_meta_map(meta_map);
     }
 }

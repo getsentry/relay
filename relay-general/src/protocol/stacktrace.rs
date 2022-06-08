@@ -233,7 +233,7 @@ impl FromValue for FrameVars {
         FromValue::from_value(value).map_value(FrameVars)
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+    fn attach_meta_map(&mut self, meta_map: MetaMap) {
         // we don't know the indices at this point, so we can only recover _meta when FrameVars has
         // been deserialized as JSON object.
         self.0.attach_meta_map(meta_map)

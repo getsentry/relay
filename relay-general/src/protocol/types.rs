@@ -479,7 +479,7 @@ macro_rules! hex_metrastructure {
                 }
             }
 
-            fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+            fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
         }
 
         impl IntoValue for $type {
@@ -652,7 +652,7 @@ impl FromValue for IpAddr {
         }
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+    fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
 }
 
 /// An error used when parsing `Level`.
@@ -761,7 +761,7 @@ impl FromValue for Level {
         }
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+    fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
 }
 
 impl IntoValue for Level {
@@ -872,7 +872,7 @@ impl FromValue for LenientString {
         .map_value(LenientString)
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+    fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
 }
 
 /// A "into-string" type of value. All non-string values are serialized as JSON.
@@ -923,7 +923,7 @@ impl FromValue for JsonLenientString {
         }
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+    fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
 }
 
 impl From<String> for JsonLenientString {
@@ -1104,7 +1104,7 @@ impl FromValue for Timestamp {
         }
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+    fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
 }
 
 impl IntoValue for Timestamp {

@@ -88,7 +88,7 @@ impl FromValue for Fingerprint {
         }
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+    fn attach_meta_map(&mut self, _meta_map: MetaMap) {
         // since we apparently store the fingerprint in a bare Vec<String> as opposed to
         // Vec<Annotated<_>>, we can't store child meta
     }

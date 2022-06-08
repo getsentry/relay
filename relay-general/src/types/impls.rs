@@ -38,7 +38,7 @@ macro_rules! derive_from_value {
                 }
             }
 
-            fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+            fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
         }
     };
 }
@@ -89,7 +89,7 @@ macro_rules! derive_numeric_meta_structure {
                 })
             }
 
-            fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+            fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
         }
 
         derive_to_value!($type, $meta_type);
@@ -379,7 +379,7 @@ impl FromValue for Value {
         value
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+    fn attach_meta_map(&mut self, meta_map: MetaMap) {
         match self {
             Value::Array(items) => {
                 items.attach_meta_map(meta_map);
@@ -445,7 +445,7 @@ where
         Annotated(annotated.0.map(Box::new), annotated.1)
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+    fn attach_meta_map(&mut self, meta_map: MetaMap) {
         (&mut **self).attach_meta_map(meta_map);
     }
 }

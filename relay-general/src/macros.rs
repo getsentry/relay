@@ -20,7 +20,7 @@ macro_rules! derive_string_meta_structure {
                 }
             }
 
-            fn attach_meta_map(&mut self, mut meta_map: crate::types::MetaMap) {}
+            fn attach_meta_map(&mut self, _meta_map: crate::types::MetaMap) {}
         }
 
         impl crate::types::IntoValue for $type {

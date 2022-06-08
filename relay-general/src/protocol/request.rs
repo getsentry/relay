@@ -87,7 +87,7 @@ impl FromValue for Cookies {
         }
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+    fn attach_meta_map(&mut self, meta_map: MetaMap) {
         self.0.attach_meta_map(meta_map);
     }
 }
@@ -164,7 +164,7 @@ impl FromValue for HeaderName {
         String::from_value(value).map_value(HeaderName::new)
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+    fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
 }
 
 /// A "into-string" type that normalizes header values.
@@ -236,7 +236,7 @@ impl FromValue for HeaderValue {
         }
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {}
+    fn attach_meta_map(&mut self, _meta_map: MetaMap) {}
 }
 
 /// A map holding headers.
@@ -291,7 +291,7 @@ impl FromValue for Headers {
         })
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+    fn attach_meta_map(&mut self, meta_map: MetaMap) {
         // XXX: this is technically unsafe to do, as
         //
         // * from_value is sorting the headers one might end up with annotations on a header
@@ -370,7 +370,7 @@ impl FromValue for Query {
         }
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+    fn attach_meta_map(&mut self, meta_map: MetaMap) {
         self.0.attach_meta_map(meta_map);
     }
 }

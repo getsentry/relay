@@ -255,7 +255,7 @@ impl FromValue for Mechanism {
         }
     }
 
-    fn attach_meta_map(&mut self, mut meta_map: MetaMap) {
+    fn attach_meta_map(&mut self, _meta_map: MetaMap) {
         // i give up, this is too hard to implement
     }
 }
