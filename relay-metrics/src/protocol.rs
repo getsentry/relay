@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::iter::FusedIterator;
+use std::borrow::Cow;
 
 use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
@@ -152,20 +153,56 @@ fn is_valid_name(name: &str) -> bool {
     false
 }
 
+/// The namespace of a metric.
+///
+/// This successfully deserializes any kind of string, but in reality only `"sessions"` and
+/// `"transactions"` is supported. Everything else is dropped both in the metrics aggregator and in
+/// the store actor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MetricNamespace {
+    Sessions,
+    Transactions,
+    Unsupported,
+}
+
+impl std::str::FromStr for MetricNamespace {
+    type Err = ParseMetricError;
+
+    fn from_str(ns: &str) -> Result<Self, Self::Err> {
+        match ns {
+            "sessions" => Ok(MetricNamespace::Sessions),
+            "transactions" => Ok(MetricNamespace::Transactions),
+            _ => Ok(MetricNamespace::Unsupported),
+        }
+    }
+}
+
+relay_common::impl_str_serde!(MetricNamespace, "a valid metric namespace");
+
+impl fmt::Display for MetricNamespace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MetricNamespace::Sessions => write!(f, "sessions"),
+            MetricNamespace::Transactions => write!(f, "transactions"),
+            MetricNamespace::Unsupported => write!(f, "unsupported"),
+        }
+    }
+}
+
 /// A metric name parsed as MRI, a naming scheme which includes most of the metric's bucket key
 /// (excl. timestamp and tags).
-pub struct MetricMri {
+pub struct MetricMri<'a> {
     /// The metric type.
     pub ty: MetricType,
     /// The namespace/usecase for this metric. For example `sessions` or `transactions`.
-    pub namespace: String,
+    pub namespace: MetricNamespace,
     /// The actual name, such as `duration` as part of `d:transactions/duration@ms`
-    pub name: String,
+    pub name: Cow<'a, str>,
     /// The metric unit.
     pub unit: MetricUnit,
 }
 
-impl std::str::FromStr for MetricMri {
+impl<'a> std::str::FromStr for MetricMri<'a> {
     type Err = ParseMetricError;
 
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
@@ -177,16 +214,21 @@ impl std::str::FromStr for MetricMri {
         let ty = raw_ty.parse()?;
 
         let (raw_namespace, rest) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-        let namespace = raw_namespace.to_owned();
-
         let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
 
         Ok(Self {
             ty,
-            namespace,
-            name,
+            namespace: raw_namespace.parse()?,
+            name: name.to_owned().into(),
             unit,
         })
+    }
+}
+
+impl<'a> fmt::Display for MetricMri<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // `<ty>:<ns>/<name>@<unit>`
+        write!(f, "{}:{}/{}@{}", self.ty, self.namespace, self.name, self.unit)
     }
 }
 
@@ -215,7 +257,7 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 ///
 /// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
 /// invalid.
-fn parse_name_unit(string: &str) -> Option<(String, MetricUnit)> {
+fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
     if !is_valid_name(name) {
@@ -227,7 +269,7 @@ fn parse_name_unit(string: &str) -> Option<(String, MetricUnit)> {
         None => MetricUnit::default(),
     };
 
-    Some((name.to_owned(), unit))
+    Some((name, unit))
 }
 
 /// Hashes the given set value.
@@ -261,7 +303,7 @@ fn parse_value(string: &str, ty: MetricType) -> Option<MetricValue> {
 fn parse_name_unit_value(
     string: &str,
     ty: MetricType,
-) -> Option<(String, MetricUnit, MetricValue)> {
+) -> Option<(&str, MetricUnit, MetricValue)> {
     let mut components = string.splitn(2, ':');
     let (name, unit) = components.next().and_then(parse_name_unit)?;
     let value = components.next().and_then(|s| parse_value(s, ty))?;
@@ -360,18 +402,10 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 pub struct Metric {
     /// The name of the metric without its unit.
     ///
+    /// TODO: fix
     /// Metric names cannot be empty, must start with a letter and can consist of ASCII
     /// alphanumerics, underscores, slashes, @s and periods.
     pub name: String,
-    /// The unit of the metric value.
-    ///
-    /// Units augment metric values by giving them a magnitude and semantics. There are certain
-    /// types of units that are subdivided in their precision, such as the [`DurationUnit`] for time
-    /// measurements.
-    ///
-    /// The unit can be omitted and defaults to [`MetricUnit::None`].
-    #[serde(default, skip_serializing_if = "MetricUnit::is_none")]
-    pub unit: MetricUnit,
     /// The value of the metric.
     ///
     /// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric
@@ -402,7 +436,7 @@ impl Metric {
     /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
     pub fn new_mri(
-        namespace: impl fmt::Display,
+        namespace: MetricNamespace,
         name: impl fmt::Display,
         unit: MetricUnit,
         value: MetricValue,
@@ -410,36 +444,43 @@ impl Metric {
         tags: BTreeMap<String, String>,
     ) -> Self {
         Self {
-            name: format!("{}:{}/{}@{}", value.ty(), namespace, name, unit),
-            unit,
+            name: MetricMri {
+                ty: value.ty(),
+                name: name.to_string().into(),
+                namespace,
+                unit
+            }.to_string(),
             value,
             timestamp,
             tags,
         }
     }
 
+    /// Parse statsd-compatible payload of format
+    /// ```text
+    /// [<ns>/]<name>[@<unit>]:<value>|<type>[|#<tags>]`
+    /// ```
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
-        let mut components = string.split('|');
+        let (raw_namespace, rest) = string.split_once('/').unwrap_or(("custom", string));
+        let (raw_name_unit_value, rest) = rest.split_once('|')?;
+        let (raw_ty, rest) = rest.split_once('|').unwrap_or((rest, ""));
+        let ty = raw_ty.parse().ok()?;
+        let (name, unit, value) = parse_name_unit_value(raw_name_unit_value, ty)?;
 
-        let name_value_str = components.next()?;
-        let ty = components.next().and_then(|s| s.parse().ok())?;
-        let (name, unit, value) = parse_name_unit_value(name_value_str, ty)?;
+        let tags = if rest.starts_with('#') {
+            parse_tags(rest.get(1..)?)?
+        } else {
+            BTreeMap::new()
+        };
 
-        let mut metric = Self {
-            name: format!("{}:{}", ty, name),
+        Some(Self::new_mri(
+            raw_namespace.parse().ok()?,
+            name,
             unit,
             value,
             timestamp,
-            tags: BTreeMap::new(),
-        };
-
-        for component in components {
-            if let Some('#') = component.chars().next() {
-                metric.tags = parse_tags(component.get(1..)?)?;
-            }
-        }
-
-        Some(metric)
+            tags,
+        ))
     }
 
     /// Parses a single metric value from the raw protocol.
@@ -557,8 +598,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "c:transactions/foo",
-            unit: None,
+            name: "c:transactions/foo@none",
             value: Counter(
                 42.0,
             ),
@@ -575,8 +615,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "d:transactions/foo",
-            unit: None,
+            name: "d:transactions/foo@none",
             value: Distribution(
                 17.5,
             ),
@@ -601,8 +640,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "s:transactions/foo",
-            unit: None,
+            name: "s:transactions/foo@none",
             value: Set(
                 4267882815,
             ),
@@ -619,8 +657,7 @@ mod tests {
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
-            name: "g:transactions/foo",
-            unit: None,
+            name: "g:transactions/foo@none",
             value: Gauge(
                 42.0,
             ),
@@ -635,7 +672,8 @@ mod tests {
         let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.unit, MetricUnit::Duration(DurationUnit::Second));
+        let mri: MetricMri = metric.name.parse().unwrap();
+        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
     #[test]
@@ -643,7 +681,8 @@ mod tests {
         let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.unit, MetricUnit::Duration(DurationUnit::Second));
+        let mri: MetricMri = metric.name.parse().unwrap();
+        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
     #[test]
@@ -687,7 +726,6 @@ mod tests {
     fn test_serde_json() {
         let json = r#"{
   "name": "foo",
-  "unit": "second",
   "type": "c",
   "value": 42.0,
   "timestamp": 4711,
@@ -701,9 +739,6 @@ mod tests {
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
             name: "foo",
-            unit: Duration(
-                Second,
-            ),
             value: Counter(
                 42.0,
             ),
@@ -733,7 +768,6 @@ mod tests {
         insta::assert_debug_snapshot!(metric, @r###"
         Metric {
             name: "foo",
-            unit: None,
             value: Counter(
                 42.0,
             ),

@@ -2,12 +2,12 @@ use std::collections::BTreeMap;
 
 use relay_common::{UnixTimestamp, Uuid};
 use relay_general::protocol::{SessionAttributes, SessionErrored, SessionLike, SessionStatus};
-use relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue};
+use relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue, MetricNamespace};
 
 use super::utils::with_tag;
 
 /// Namespace of session metricsfor the MRI.
-const METRIC_NAMESPACE: &str = "sessions";
+const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Sessions;
 
 /// Current version of metrics extraction.
 const EXTRACT_VERSION: u16 = 1;

@@ -11,7 +11,7 @@ use {
     relay_general::protocol::{Context, ContextInner},
     relay_general::store,
     relay_general::types::Annotated,
-    relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue},
+    relay_metrics::{DurationUnit, Metric, MetricUnit, MetricValue, MetricNamespace},
     std::fmt,
 };
 
@@ -53,7 +53,7 @@ pub struct TransactionMetricsConfig {
 }
 
 #[cfg(feature = "processing")]
-const METRIC_NAMESPACE: &str = "transactions";
+const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
 
 #[cfg(feature = "processing")]
 fn get_trace_context(event: &Event) -> Option<&TraceContext> {
@@ -552,16 +552,8 @@ mod tests {
             "d:transactions/measurements.lcp@millisecond"
         );
         assert_eq!(
-            metrics[2].unit,
-            MetricUnit::Duration(DurationUnit::MilliSecond)
-        );
-        assert_eq!(
             metrics[2].name,
             "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond"
-        );
-        assert_eq!(
-            metrics[2].unit,
-            MetricUnit::Duration(DurationUnit::MilliSecond)
         );
 
         let duration_metric = &metrics[3];
@@ -636,26 +628,18 @@ mod tests {
             "{:?}",
             metrics[0]
         );
-        assert_eq!(
-            metrics[0].unit,
-            MetricUnit::Duration(DurationUnit::MilliSecond),
-            "{:?}",
-            metrics[0]
-        );
 
         assert_eq!(
             metrics[1].name, "d:transactions/measurements.foo@none",
             "{:?}",
             metrics[1]
         );
-        assert_eq!(metrics[1].unit, MetricUnit::None, "{:?}", metrics[1]);
 
         assert_eq!(
             metrics[2].name, "d:transactions/measurements.stall_count@none",
             "{:?}",
             metrics[2]
         );
-        assert_eq!(metrics[2].unit, MetricUnit::None, "{:?}", metrics[2]);
     }
 
     #[test]
@@ -688,11 +672,9 @@ mod tests {
         assert_eq!(metrics.len(), 2);
 
         assert_eq!(metrics[0].name, "d:transactions/measurements.fcp@second");
-        assert_eq!(metrics[0].unit, MetricUnit::Duration(DurationUnit::Second));
 
         // None is an override, too.
         assert_eq!(metrics[1].name, "d:transactions/measurements.lcp@none");
-        assert_eq!(metrics[1].unit, MetricUnit::None);
     }
 
     #[test]
@@ -733,10 +715,6 @@ mod tests {
 
         let duration_metric = &metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        assert_eq!(
-            duration_metric.unit,
-            MetricUnit::Duration(DurationUnit::MilliSecond)
-        );
         if let MetricValue::Distribution(value) = duration_metric.value {
             assert_eq!(value, 59000.0); // millis
         } else {
