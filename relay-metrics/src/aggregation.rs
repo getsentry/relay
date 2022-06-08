@@ -18,7 +18,7 @@ use relay_system::{Controller, Shutdown};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{
     protocol, CounterType, DistributionType, GaugeType, Metric, MetricNamespace,
-    MetricResourceIdentifier, MetricType, MetricUnit, MetricValue, SetType,
+    MetricResourceIdentifier, MetricType, MetricValue, SetType,
 };
 
 /// Interval for the flush cycle of the [`Aggregator`].
