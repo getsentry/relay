@@ -1518,11 +1518,6 @@ impl Aggregator {
         relay_statsd::metric!(
             gauge(MetricGauges::BucketsCost) = self.cost_tracker.total_cost as u64
         );
-        for cost in self.cost_tracker.cost_per_project_key.values() {
-            relay_statsd::metric!(
-                histogram(MetricHistograms::BucketsCostPerProjectKey) = *cost as f64
-            );
-        }
 
         let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
 
