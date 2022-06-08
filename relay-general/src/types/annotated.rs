@@ -1,5 +1,4 @@
 use std::fmt;
-use std::mem;
 
 use failure::Fail;
 
@@ -8,13 +7,14 @@ use schemars::gen::SchemaGenerator;
 #[cfg(feature = "jsonschema")]
 use schemars::schema::Schema;
 
-use serde::ser::SerializeMap;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::{Deserializer, MapAccess, SeqAccess, Visitor};
+use serde::ser::{SerializeMap, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::types::{Empty, Error, FromValue, IntoValue, Map, Meta, SkipSerialization, Value};
 
 /// Represents a tree of meta objects.
-#[derive(Default, Debug, Serialize)]
+#[derive(Default, Debug, Deserialize, Serialize)]
 pub struct MetaTree {
     /// The node's meta data
     #[serde(rename = "", skip_serializing_if = "Meta::is_empty")]
@@ -26,28 +26,6 @@ pub struct MetaTree {
 }
 
 impl MetaTree {
-    fn from_value(value: Annotated<Value>) -> Self {
-        match value {
-            Annotated(Some(Value::Object(mut map)), _) => MetaTree {
-                meta: map
-                    .remove("")
-                    .and_then(|value| {
-                        // this is not the fastest operation because we cannot currently
-                        // deserialize stright from a `Value`.  However since we expect
-                        // to handle very few meta data initially this is okay enough
-                        let value: serde_json::Value = value.into();
-                        serde_json::from_value(value).ok()
-                    })
-                    .unwrap_or_default(),
-                children: map
-                    .into_iter()
-                    .map(|(k, v)| (k, MetaTree::from_value(v)))
-                    .collect(),
-            },
-            _ => MetaTree::default(),
-        }
-    }
-
     /// Checks if the tree has any errors.
     pub fn has_errors(&self) -> bool {
         self.meta.has_errors() || self.children.values().any(MetaTree::has_errors)
@@ -254,20 +232,103 @@ where
     pub fn deserialize_with_meta<'de, D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Self, D::Error> {
-        match Option::<Value>::deserialize(deserializer)? {
-            Some(Value::Object(mut map)) => {
-                let meta_tree = map
-                    .remove("_meta")
-                    .map(MetaTree::from_value)
-                    .unwrap_or_default();
+        struct AnnotatedRootVisitor;
 
-                let mut value: Annotated<T> =
-                    FromValue::from_value(Annotated::from(Value::Object(map)));
-                value.attach_meta_tree(meta_tree);
-                Ok(value)
+        impl<'de> Visitor<'de> for AnnotatedRootVisitor {
+            type Value = (Option<Value>, MetaTree);
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                // this deserializer should be infallible
+                formatter.write_str("any valid JSON value")
             }
-            other => Ok(FromValue::from_value(Annotated::from(other))),
+
+            #[inline]
+            fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+                Ok((Some(Value::Bool(value)), MetaTree::default()))
+            }
+
+            #[inline]
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+                Ok((Some(Value::I64(value)), MetaTree::default()))
+            }
+
+            #[inline]
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+                Ok((Some(Value::U64(value)), MetaTree::default()))
+            }
+
+            #[inline]
+            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
+                Ok((Some(Value::F64(value)), MetaTree::default()))
+            }
+
+            #[inline]
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                self.visit_string(String::from(value))
+            }
+
+            #[inline]
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+                Ok((Some(Value::String(value)), MetaTree::default()))
+            }
+
+            #[inline]
+            fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                deserializer.deserialize_any(self)
+            }
+
+            #[inline]
+            fn visit_none<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok((None, MetaTree::default()))
+            }
+
+            #[inline]
+            fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let mut vec = Vec::new();
+                while let Some(elem) = visitor.next_element()? {
+                    vec.push(Annotated(elem, Meta::default()));
+                }
+                Ok((Some(Value::Array(vec)), MetaTree::default()))
+            }
+
+            fn visit_map<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut meta = MetaTree::default();
+                let mut map = Map::new();
+                while let Some(key) = visitor.next_key()? {
+                    if key == "_meta" {
+                        meta = visitor.next_value()?;
+                    } else {
+                        let value: Option<Value> = visitor.next_value()?;
+                        map.insert(key, Annotated::from(value));
+                    }
+                }
+                Ok((Some(Value::Object(map)), meta))
+            }
         }
+
+        let (value, meta_tree) = deserializer.deserialize_any(AnnotatedRootVisitor)?;
+
+        let mut annotated = FromValue::from_value(Annotated::from(value));
+
+        // attach meta tree after running through Event::from_value. Otherwise we will not have a
+        // chance to ever get rid of the intermediate Value and deserialize Event directly.
+        annotated.attach_meta_tree(meta_tree);
+        Ok(annotated)
     }
 
     /// Deserializes an annotated from a JSON string.
