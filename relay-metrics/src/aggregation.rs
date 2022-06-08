@@ -1310,7 +1310,11 @@ impl Aggregator {
                     });
                     return Err(AggregateMetricsErrorKind::InvalidNamespace.into());
                 }
-                mri.to_string()
+
+                let mut metric_name = mri.to_string();
+                // do this so cost tracking still works accurately.
+                metric_name.shrink_to_fit();
+                metric_name
             }
             Err(_) => {
                 relay_log::debug!("invalid metric name {:?}", key.metric_name);
@@ -1532,6 +1536,7 @@ impl Aggregator {
             let bucket_interval = self.config.bucket_interval;
             let cost_tracker = &mut self.cost_tracker;
             self.buckets.retain(|key, entry| {
+                dbg!(&key);
                 if force || entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
                     let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
@@ -2146,8 +2151,6 @@ mod tests {
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: name,
-            metric_type: MetricType::Counter,
-            metric_unit: MetricUnit::None,
             tags: BTreeMap::from([
                 ("hello".to_owned(), "world".to_owned()),
                 ("answer".to_owned(), "42".to_owned()),
@@ -2155,7 +2158,7 @@ mod tests {
         };
         assert_eq!(
             bucket_key.cost(),
-            112 + // BucketKey
+            88 + // BucketKey
             5 + // name
             (5 + 5 + 6 + 2) // tags
         );
@@ -2356,9 +2359,8 @@ mod tests {
         let mut aggregator = Aggregator::new(test_config(), receiver);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        let mut metric = Metric {
-            name: "c:foo".to_owned(),
-            unit: MetricUnit::None,
+        let metric = Metric {
+            name: "c:transactions/foo@none".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -2366,9 +2368,7 @@ mod tests {
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:foo".to_owned(),
-            metric_type: MetricType::Counter,
-            metric_unit: MetricUnit::None,
+            metric_name: "c:transactions/foo@none".to_owned(),
             tags: BTreeMap::new(),
         };
         let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
@@ -2384,13 +2384,25 @@ mod tests {
             (MetricValue::Gauge(0.3), fixed_cost), // New bucket
             (MetricValue::Gauge(0.2), 0),   // gauge has constant size
         ] {
+            let mut metric = metric.clone();
             metric.value = metric_value;
+            // rename the metric such that the aggregator doesn't crash trying to merge a
+            // distribution and a counter together.
+            //
+            // the following code is the sanest way I know of to replace a single ASCII character
+            // by index within a &mut str in Rust.
+            unsafe {
+                let mut metric_name_bytes = metric.name.as_bytes_mut();
+                metric_name_bytes[0] = metric.value.ty().as_str().as_bytes()[0];
+
+                // sanity check that our unsafe code didn't break stuff
+                assert!(metric_name_bytes.is_ascii());
+            }
+
             let current_cost = aggregator.cost_tracker.total_cost;
-            aggregator.insert(project_key, metric.clone()).unwrap();
-            assert_eq!(
-                aggregator.cost_tracker.total_cost,
-                current_cost + expected_added_cost
-            );
+            aggregator.insert(project_key, metric).unwrap();
+            let total_cost = aggregator.cost_tracker.total_cost;
+            assert_eq!(total_cost, current_cost + expected_added_cost);
         }
 
         aggregator.pop_flush_buckets();
@@ -2673,8 +2685,7 @@ mod tests {
         };
 
         let metric = Metric {
-            name: "c:foo".to_owned(),
-            unit: MetricUnit::None,
+            name: "c:transactions/foo".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -2699,8 +2710,7 @@ mod tests {
         };
 
         let metric = Metric {
-            name: "c:foo".to_owned(),
-            unit: MetricUnit::None,
+            name: "c:transactions/foo".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
