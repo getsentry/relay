@@ -986,7 +986,7 @@ impl Default for AggregatorConfig {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_total_bucket_bytes: None,
-            max_project_bucket_bytes: None,
+            max_project_key_bucket_bytes: None,
         }
     }
 }
@@ -1402,7 +1402,7 @@ impl Aggregator {
         self.cost_tracker.check_limits_exceeded(
             project_key,
             self.config.max_total_bucket_bytes,
-            self.config.max_project_bucket_bytes,
+            self.config.max_project_key_bucket_bytes,
         )?;
 
         let added_cost;
@@ -1803,7 +1803,7 @@ mod tests {
             max_name_length: 200,
             max_tag_key_length: 200,
             max_tag_value_length: 200,
-            max_project_bucket_bytes: None,
+            max_project_key_bucket_bytes: None,
             max_total_bucket_bytes: None,
         }
     }
@@ -2764,7 +2764,7 @@ mod tests {
     #[test]
     fn test_aggregator_cost_enforcement_project() {
         let config = AggregatorConfig {
-            max_project_bucket_bytes: Some(1),
+            max_project_key_bucket_bytes: Some(1),
             ..test_config()
         };
 
