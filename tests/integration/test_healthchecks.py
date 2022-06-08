@@ -80,3 +80,18 @@ def test_readiness_proxy(mini_sentry, relay):
     finally:
         # Authentication failures would fail the test
         mini_sentry.test_failures.clear()
+
+
+def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
+    try:
+        relay = relay(
+            mini_sentry,
+            {"aggregator": {"max_total_bucket_bytes": 0}},
+            wait_healthcheck=False,
+        )
+
+        response = wait_get(relay, "/api/relay/healthcheck/ready/")
+        assert response.status_code == 503
+    finally:
+        # Authentication failures would fail the test
+        mini_sentry.test_failures.clear()

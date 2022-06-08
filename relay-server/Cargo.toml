@@ -50,6 +50,7 @@ rdkafka = { version = "0.24", optional = true }
 rdkafka-sys = { version = "2.1.0", optional = true }
 regex = "1.5.5"
 relay-auth = { path = "../relay-auth" }
+relay-aws-extension = { path = "../relay-aws-extension" }
 relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
 relay-filter = { path = "../relay-filter" }
