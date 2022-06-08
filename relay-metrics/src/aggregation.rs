@@ -2372,32 +2372,41 @@ mod tests {
             tags: BTreeMap::new(),
         };
         let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
-        for (metric_value, expected_added_cost) in [
-            (MetricValue::Counter(42.), fixed_cost),
-            (MetricValue::Counter(42.), 0), // counters have constant size
-            (MetricValue::Set(123), fixed_cost + 4), // Added a new bucket + 1 element
-            (MetricValue::Set(123), 0),     // Same element in set, no change
-            (MetricValue::Set(456), 4),     // Different element in set -> +4
-            (MetricValue::Distribution(1.0), fixed_cost + 12), // New bucket + 1 element
-            (MetricValue::Distribution(1.0), 0), // no new element
-            (MetricValue::Distribution(2.0), 12), // 1 new element
-            (MetricValue::Gauge(0.3), fixed_cost), // New bucket
-            (MetricValue::Gauge(0.2), 0),   // gauge has constant size
+        for (metric_name, metric_value, expected_added_cost) in [
+            (
+                "c:transactions/foo@none",
+                MetricValue::Counter(42.),
+                fixed_cost,
+            ),
+            ("c:transactions/foo@none", MetricValue::Counter(42.), 0), // counters have constant size
+            (
+                "s:transactions/foo@none",
+                MetricValue::Set(123),
+                fixed_cost + 4,
+            ), // Added a new bucket + 1 element
+            ("s:transactions/foo@none", MetricValue::Set(123), 0), // Same element in set, no change
+            ("s:transactions/foo@none", MetricValue::Set(456), 4), // Different element in set -> +4
+            (
+                "d:transactions/foo@none",
+                MetricValue::Distribution(1.0),
+                fixed_cost + 12,
+            ), // New bucket + 1 element
+            ("d:transactions/foo@none", MetricValue::Distribution(1.0), 0), // no new element
+            (
+                "d:transactions/foo@none",
+                MetricValue::Distribution(2.0),
+                12,
+            ), // 1 new element
+            (
+                "g:transactions/foo@none",
+                MetricValue::Gauge(0.3),
+                fixed_cost,
+            ), // New bucket
+            ("g:transactions/foo@none", MetricValue::Gauge(0.2), 0), // gauge has constant size
         ] {
             let mut metric = metric.clone();
             metric.value = metric_value;
-            // rename the metric such that the aggregator doesn't crash trying to merge a
-            // distribution and a counter together.
-            //
-            // the following code is the sanest way I know of to replace a single ASCII character
-            // by index within a &mut str in Rust.
-            unsafe {
-                let mut metric_name_bytes = metric.name.as_bytes_mut();
-                metric_name_bytes[0] = metric.value.ty().as_str().as_bytes()[0];
-
-                // sanity check that our unsafe code didn't break stuff
-                assert!(metric_name_bytes.is_ascii());
-            }
+            metric.name = metric_name.to_string();
 
             let current_cost = aggregator.cost_tracker.total_cost;
             aggregator.insert(project_key, metric).unwrap();
