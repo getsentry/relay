@@ -753,8 +753,8 @@ enum AggregateMetricsErrorKind {
     #[fail(display = "found invalid characters")]
     InvalidCharacters,
     /// A metric bucket had an unknown namespace in the metric name.
-    #[fail(display = "found invalid namespace")]
-    InvalidNamespace,
+    #[fail(display = "found unsupported namespace")]
+    UnsupportedNamespace,
     /// A metric bucket's timestamp was out of the configured acceptable range.
     #[fail(display = "found invalid timestamp")]
     InvalidTimestamp,
@@ -1297,18 +1297,26 @@ impl Aggregator {
             return Err(AggregateMetricsErrorKind::InvalidStringLength.into());
         }
 
-        key.metric_name = match key.metric_name.parse::<MetricResourceIdentifier>() {
+        if let Err(err) = Self::normalize_metric_name(&mut key) {
+            relay_log::configure_scope(|scope| {
+                scope.set_extra(
+                    "bucket.project_key",
+                    key.project_key.as_str().to_owned().into(),
+                );
+                scope.set_extra("bucket.metric_name", key.metric_name.into());
+            });
+            return Err(err);
+        }
+
+        Ok(key)
+    }
+
+    fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
+        key.metric_name = match MetricResourceIdentifier::from_str(&key.metric_name) {
             Ok(mri) => {
                 if matches!(mri.namespace, MetricNamespace::Unsupported) {
                     relay_log::debug!("invalid metric namespace {:?}", key.metric_name);
-                    relay_log::configure_scope(|scope| {
-                        scope.set_extra(
-                            "bucket.project_key",
-                            key.project_key.as_str().to_owned().into(),
-                        );
-                        scope.set_extra("bucket.metric_name", key.metric_name.into());
-                    });
-                    return Err(AggregateMetricsErrorKind::InvalidNamespace.into());
+                    return Err(AggregateMetricsErrorKind::UnsupportedNamespace.into());
                 }
 
                 let mut metric_name = mri.to_string();
@@ -1318,18 +1326,11 @@ impl Aggregator {
             }
             Err(_) => {
                 relay_log::debug!("invalid metric name {:?}", key.metric_name);
-                relay_log::configure_scope(|scope| {
-                    scope.set_extra(
-                        "bucket.project_key",
-                        key.project_key.as_str().to_owned().into(),
-                    );
-                    scope.set_extra("bucket.metric_name", key.metric_name.into());
-                });
                 return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
             }
         };
 
-        Ok(key)
+        Ok(())
     }
 
     /// Removes tags with invalid characters in the key, and validates tag values.
@@ -1536,7 +1537,6 @@ impl Aggregator {
             let bucket_interval = self.config.bucket_interval;
             let cost_tracker = &mut self.cost_tracker;
             self.buckets.retain(|key, entry| {
-                dbg!(&key);
                 if force || entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
                     let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));

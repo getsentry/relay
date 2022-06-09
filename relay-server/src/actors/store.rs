@@ -385,20 +385,19 @@ impl StoreForwarder {
     }
 
     fn send_metric_message(&self, message: MetricKafkaMessage) -> Result<(), StoreError> {
-        let topic = match message.name.parse() {
-            Ok(MetricResourceIdentifier {
-                namespace: MetricNamespace::Transactions,
-                ..
-            }) => KafkaTopic::MetricsTransactions,
-            Ok(MetricResourceIdentifier {
-                namespace: MetricNamespace::Sessions,
-                ..
-            }) => KafkaTopic::MetricsSessions,
-            _ => {
-                relay_log::configure_scope(|scope| {
-                    scope.set_extra("metric_message.name", message.name.into());
-                });
-                relay_log::error!("Store actor dropping unknown metric usecase");
+        let mri = MetricResourceIdentifier::from_str(&message.name);
+        let topic = match mri.map(|mri| mri.namespace) {
+            Ok(MetricNamespace::Transactions) => KafkaTopic::MetricsTransactions,
+            Ok(MetricNamespace::Sessions) => KafkaTopic::MetricsSessions,
+            Ok(MetricNamespace::Unsupported) | Err(_) => {
+                relay_log::with_scope(
+                    |scope| {
+                        scope.set_extra("metric_message.name", message.name.into());
+                    },
+                    || {
+                        relay_log::error!("Store actor dropping unknown metric usecase");
+                    },
+                );
                 return Ok(());
             }
         };

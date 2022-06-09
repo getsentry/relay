@@ -336,7 +336,7 @@ fn extract_transaction_metrics_inner(
 
             push_metric(Metric::new_mri(
                 METRIC_NAMESPACE,
-                format_args!("measurements.{}", name),
+                format!("measurements.{}", name),
                 stated_unit.or(default_unit).unwrap_or_default(),
                 MetricValue::Distribution(value),
                 unix_timestamp,
@@ -364,7 +364,7 @@ fn extract_transaction_metrics_inner(
 
                 push_metric(Metric::new_mri(
                     METRIC_NAMESPACE,
-                    format_args!("breakdowns.{}.{}", breakdown, measurement_name),
+                    format!("breakdowns.{}.{}", breakdown, measurement_name),
                     unit.copied().unwrap_or(MetricUnit::None),
                     MetricValue::Distribution(value),
                     unix_timestamp,

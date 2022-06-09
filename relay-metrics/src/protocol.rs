@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::iter::FusedIterator;
@@ -167,20 +166,27 @@ fn is_valid_name(name: &str) -> bool {
 
 /// The namespace of a metric.
 ///
-/// This successfully deserializes any kind of string, but in reality only `"sessions"` and
-/// `"transactions"` is supported. Everything else is dropped both in the metrics aggregator and in
-/// the store actor.
+/// Namespaces allow to identify the product entity that the metric got extracted from, and/or
+/// identify the use case that the metric belongs to. These namespaces cannot be defined freely,
+/// instead they are defined by Sentry. Over time, there will be more namespaces as we introduce
+/// new metrics-based products.
+///
+/// Right now this successfully deserializes any kind of string, but in reality only `"sessions"`
+/// (for release health) and `"transactions"` (for metrics-enhanced performance) is supported.
+/// Everything else is dropped both in the metrics aggregator and in the store actor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MetricNamespace {
     /// Metrics extracted from sessions.
     Sessions,
     /// Metrics extracted from transaction events.
     Transactions,
-    /// Metrics that relay doesn't know the namespace of, and will drop before aggregating.
+    /// Metrics that relay either doesn't know or recognize the namespace of, and will drop before
+    /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
+    /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
+    /// this variant.
     ///
-    /// We could make this variant contain a string such that customer and PoP-relays can forward
-    /// unknown namespaces, but decided against it for now because there was no obvious usecase for
-    /// it that didn't require a Relay update anyway.
+    /// Relay currently drops all metrics whose namespace ends up being deserialized as
+    /// `unsupported`. We may revise that in the future.
     Unsupported,
 }
 
@@ -218,16 +224,14 @@ pub struct MetricResourceIdentifier<'a> {
     /// The namespace/usecase for this metric. For example `sessions` or `transactions`.
     pub namespace: MetricNamespace,
     /// The actual name, such as `duration` as part of `d:transactions/duration@ms`
-    pub name: Cow<'a, str>,
+    pub name: &'a str,
     /// The metric unit.
     pub unit: MetricUnit,
 }
 
-impl<'a> std::str::FromStr for MetricResourceIdentifier<'a> {
-    type Err = ParseMetricError;
-
+impl<'a> MetricResourceIdentifier<'a> {
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-    fn from_str(name: &str) -> Result<Self, Self::Err> {
+    pub fn from_str(name: &'a str) -> Result<Self, ParseMetricError> {
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
 
@@ -237,7 +241,7 @@ impl<'a> std::str::FromStr for MetricResourceIdentifier<'a> {
         Ok(Self {
             ty,
             namespace: raw_namespace.parse()?,
-            name: name.to_owned().into(),
+            name: name.into(),
             unit,
         })
     }
@@ -419,26 +423,31 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Metric {
-    /// The name of the metric, i.e. the MRI.
+    /// The metric resource identifier, in short MRI.
     ///
-    /// The metric name historically has been a freeform string. Over time we realized that we can
-    /// use the metric name to encode things like metric unit, type, etc in order to force
-    /// downstream systems to bucket by those properties, without having to update them. This is
-    /// how the concept of the Metrics Resource Identifier was born.
+    /// MRIs follow three core principles:
+
+    /// 1. **Robustness:** Metrics must be addressed via a stable identifier. During ingestion in
+    ///    Relay and Snuba, metrics are preaggregated and bucketed based on this identifier, so it
+    ///    cannot change over time without breaking bucketing.
+    /// 2. **Uniqueness:** The identifier for metrics must be unique across variations of units and
+    ///    metric types, within and across use cases, as well as between projects and
+    ///    organizations.
+    /// 3. **Abstraction:** The user-facing product changes its terminology over time, and splits
+    ///    concepts into smaller parts. The internal metric identifiers must abstract from that,
+    ///    and offer sufficient granularity to allow for such changes.
     ///
-    /// An MRI has the following format: `<type>:<namespace>/<name>@<unit>`
+    /// MRIs have the format `<type>:<ns>/<name>@<unit>`, comprising the following components:
     ///
+    /// * **Type:** counter (`c`), set (`s`), distribution (`d`), gauge (`g`), and evaluated (`e`) for derived numeric metrics. See [`MetricType`].
+    /// * **Namespace:** Identifying the product entity and use case affiliation of the metric. See
+    /// [`MetricNamespace`].
+    /// * **Name:** The display name of the metric in the allowed character set.
+    /// * **Unit:** The verbatim unit name. See [`MetricUnit`].
     ///
-    /// * `type` is the single-letter representation of the metric's type, e.g. one of `d`, `s`, `c`.
-    /// * `namespace` is one of the values representable by `MetricNamespace`.
-    /// * `name` cannot be empty, must start with a letter and can consist of ASCII alphanumerics, underscores, slashes, @s and periods.
-    /// * `unit` is one of the values representable by `MetricUnit`.
-    ///
-    /// For parsing and normalization, the [`MetricResourceIdentifier`] struct is used in the aggregator. It is
+    /// For parsing, construction and normalization, the [`MetricResourceIdentifier`] struct is used in the aggregator. It is
     /// also used in the kafka producer to route certain namespaces to certain topics.
     ///
-    /// Note that the format used in the statsd protocol is different: Metric names are not prefixed
-    /// with `<ty>:` as the type is somewhere else in the protocol.
     pub name: String,
     /// The value of the metric.
     ///
@@ -473,7 +482,7 @@ impl Metric {
     /// ensures that just the name determines correct bucketing of metrics with name collisions.
     pub fn new_mri(
         namespace: MetricNamespace,
-        name: impl fmt::Display,
+        name: impl AsRef<str>,
         unit: MetricUnit,
         value: MetricValue,
         timestamp: UnixTimestamp,
@@ -482,7 +491,7 @@ impl Metric {
         Self {
             name: MetricResourceIdentifier {
                 ty: value.ty(),
-                name: name.to_string().into(),
+                name: name.as_ref(),
                 namespace,
                 unit,
             }
@@ -498,26 +507,31 @@ impl Metric {
     /// [<ns>/]<name>[@<unit>]:<value>|<type>[|#<tags>]`
     /// ```
     fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
-        let (raw_namespace, rest) = string.split_once('/').unwrap_or(("custom", string));
-        let (raw_name_unit_value, rest) = rest.split_once('|')?;
-        let (raw_ty, rest) = rest.split_once('|').unwrap_or((rest, ""));
-        let ty = raw_ty.parse().ok()?;
-        let (name, unit, value) = parse_name_unit_value(raw_name_unit_value, ty)?;
+        let mut components = string.split('|');
 
-        let tags = if rest.starts_with('#') {
-            parse_tags(rest.get(1..)?)?
-        } else {
-            BTreeMap::new()
-        };
+        let name_value_str = components.next()?;
+        let ty = components.next().and_then(|s| s.parse().ok())?;
+        let (name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)?;
+        let (raw_namespace, name) = name_and_namespace
+            .split_once('/')
+            .unwrap_or(("custom", string));
 
-        Some(Self::new_mri(
+        let mut metric = Self::new_mri(
             raw_namespace.parse().ok()?,
             name,
             unit,
             value,
             timestamp,
-            tags,
-        ))
+            BTreeMap::new(),
+        );
+
+        for component in components {
+            if let Some('#') = component.chars().next() {
+                metric.tags = parse_tags(component.get(1..)?)?;
+            }
+        }
+
+        Some(metric)
     }
 
     /// Parses a single metric value from the raw protocol.
@@ -709,7 +723,7 @@ mod tests {
         let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri: MetricResourceIdentifier = metric.name.parse().unwrap();
+        let mri = MetricResourceIdentifier::from_str(&metric.name).unwrap();
         assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
@@ -718,7 +732,7 @@ mod tests {
         let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri: MetricResourceIdentifier = metric.name.parse().unwrap();
+        let mri = MetricResourceIdentifier::from_str(&metric.name).unwrap();
         assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
