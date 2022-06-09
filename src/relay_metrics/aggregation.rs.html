@@ -2761,39 +2761,6 @@
 <span id="2754">2754</span>
 <span id="2755">2755</span>
 <span id="2756">2756</span>
-<span id="2757">2757</span>
-<span id="2758">2758</span>
-<span id="2759">2759</span>
-<span id="2760">2760</span>
-<span id="2761">2761</span>
-<span id="2762">2762</span>
-<span id="2763">2763</span>
-<span id="2764">2764</span>
-<span id="2765">2765</span>
-<span id="2766">2766</span>
-<span id="2767">2767</span>
-<span id="2768">2768</span>
-<span id="2769">2769</span>
-<span id="2770">2770</span>
-<span id="2771">2771</span>
-<span id="2772">2772</span>
-<span id="2773">2773</span>
-<span id="2774">2774</span>
-<span id="2775">2775</span>
-<span id="2776">2776</span>
-<span id="2777">2777</span>
-<span id="2778">2778</span>
-<span id="2779">2779</span>
-<span id="2780">2780</span>
-<span id="2781">2781</span>
-<span id="2782">2782</span>
-<span id="2783">2783</span>
-<span id="2784">2784</span>
-<span id="2785">2785</span>
-<span id="2786">2786</span>
-<span id="2787">2787</span>
-<span id="2788">2788</span>
-<span id="2789">2789</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2942,13 +2909,6 @@
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Count</span> {
         <span class="self">self</span>.<span class="ident">length</span>
-    }
-
-    <span class="doccomment">/// Returns the size of the map used to store the distribution.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is only relevant for internal metrics.</span>
-    <span class="kw">fn</span> <span class="ident">internal_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="self">self</span>.<span class="ident">values</span>.<span class="ident">len</span>()
     }
 
     <span class="doccomment">/// Returns `true` if the map contains no elements.</span>
@@ -3311,22 +3271,9 @@
         }
     }
 
-    <span class="doccomment">/// Returns the number of values needed to encode the bucket (a measure of bucket</span>
-    <span class="doccomment">/// complexity).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relative_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident"><span class="self">Self</span>::Counter</span>(<span class="kw">_</span>) =&gt; <span class="number">1</span>,
-            <span class="ident"><span class="self">Self</span>::Set</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">len</span>(),
-            <span class="ident"><span class="self">Self</span>::Gauge</span>(<span class="kw">_</span>) =&gt; <span class="number">5</span>,
-            <span class="ident"><span class="self">Self</span>::Distribution</span>(<span class="ident">m</span>) =&gt; <span class="ident">m</span>.<span class="ident">internal_size</span>(),
-        }
-    }
-
     <span class="doccomment">/// Estimates the number of bytes needed to encode the bucket value.</span>
     <span class="doccomment">/// Note that this does not necessarily match the exact memory footprint of the value,</span>
     <span class="doccomment">/// because datastructures might have a memory overhead.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is very similar to [`BucketValue::relative_size`], which can possibly be removed.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cost</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
         <span class="comment">// Beside the size of [`BucketValue`], we also need to account for the cost of values</span>
         <span class="comment">// allocated dynamically.</span>
@@ -4362,11 +4309,6 @@
             );
             <span class="ident">total_bucket_count</span> <span class="op">+</span><span class="op">=</span> <span class="ident">bucket_count</span>;
 
-            <span class="kw">let</span> <span class="ident">size_statsd_metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">project_buckets</span>
-                .<span class="ident">iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">bucket</span><span class="op">|</span> (<span class="ident">bucket</span>.<span class="ident">value</span>.<span class="ident">ty</span>(), <span class="ident">bucket</span>.<span class="ident">value</span>.<span class="ident">relative_size</span>()))
-                .<span class="ident">collect</span>();
-
             <span class="self">self</span>.<span class="ident">receiver</span>
                 .<span class="ident">send</span>(<span class="ident">FlushBuckets::new</span>(<span class="ident">project_key</span>, <span class="ident">project_buckets</span>))
                 .<span class="ident">into_actor</span>(<span class="self">self</span>)
@@ -4377,14 +4319,6 @@
                             <span class="ident">buckets</span>.<span class="ident">len</span>()
                         );
                         <span class="ident">slf</span>.<span class="ident">merge_all</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>).<span class="ident">ok</span>();
-                    } <span class="kw">else</span> {
-                        <span class="kw">for</span> (<span class="ident">bucket_type</span>, <span class="ident">bucket_relative_size</span>) <span class="kw">in</span> <span class="ident">size_statsd_metrics</span> {
-                            <span class="macro">relay_statsd::metric!</span>(
-                                <span class="ident">histogram</span>(<span class="ident">MetricHistograms::BucketRelativeSize</span>) <span class="op">=</span>
-                                    <span class="ident">bucket_relative_size</span> <span class="kw">as</span> <span class="ident">u64</span>,
-                                <span class="ident">metric_type</span> <span class="op">=</span> <span class="ident">bucket_type</span>.<span class="ident">as_str</span>(),
-                            );
-                        }
                     }
                     <span class="ident">fut::ok</span>(())
                 })
