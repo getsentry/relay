@@ -6,6 +6,7 @@ use futures::future;
 use futures::prelude::*;
 
 use relay_config::{Config, RelayMode};
+use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
 use relay_system::{Controller, Shutdown};
 
@@ -88,12 +89,23 @@ impl Handler<IsHealthy> for Healthcheck {
             IsHealthy::Liveness => Box::new(future::ok(true)),
             IsHealthy::Readiness => {
                 if self.is_shutting_down {
-                    Box::new(future::ok(false))
-                } else if self.config.requires_auth() {
+                    return Box::new(future::ok(false));
+                }
+
+                let is_aggregator_full = Aggregator::from_registry()
+                    .send(AcceptsMetrics)
+                    .map_err(|_| ());
+                let is_authenticated: Self::Result = if self.config.requires_auth() {
                     Box::new(upstream.send(IsAuthenticated).map_err(|_| ()))
                 } else {
                     Box::new(future::ok(true))
-                }
+                };
+
+                Box::new(
+                    is_aggregator_full
+                        .join(is_authenticated)
+                        .map(|(a, b)| a && b),
+                )
             }
         }
     }

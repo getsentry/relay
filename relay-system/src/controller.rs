@@ -7,6 +7,9 @@ use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 
+#[doc(inline)]
+pub use actix::actors::signal::{Signal, SignalType};
+
 /// Actor to start and gracefully stop an actix system.
 ///
 /// This actor contains a static `run` method which will run an actix system and block the current

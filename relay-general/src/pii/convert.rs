@@ -707,31 +707,33 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         assert_annotated_snapshot!(data);
     }
 
+    macro_rules! sanitize_credit_card_within_value_test {
+        ($cc:literal) => {{
+            let mut data = Event::from_value(
+                serde_json::json!({
+                    "extra": {
+                        "foo": $cc
+                    }
+                })
+                .into(),
+            );
+
+            let pii_config = simple_enabled_pii_config();
+            let compiled = pii_config.compiled();
+            let mut pii_processor = PiiProcessor::new(&compiled);
+            process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+            assert_annotated_snapshot!(data);
+        }}
+    }
+
     #[test]
     fn test_sanitize_credit_card_within_value_1() {
-        sanitize_credit_card_within_value_test("'4571234567890111'");
+        sanitize_credit_card_within_value_test!("'4571234567890111'");
     }
 
     #[test]
     fn test_sanitize_credit_card_within_value_2() {
-        sanitize_credit_card_within_value_test("foo 4571234567890111");
-    }
-
-    fn sanitize_credit_card_within_value_test(cc: &str) {
-        let mut data = Event::from_value(
-            serde_json::json!({
-                "extra": {
-                    "foo": cc
-                }
-            })
-            .into(),
-        );
-
-        let pii_config = simple_enabled_pii_config();
-        let compiled = pii_config.compiled();
-        let mut pii_processor = PiiProcessor::new(&compiled);
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data);
+        sanitize_credit_card_within_value_test!("foo 4571234567890111");
     }
 
     #[test]
@@ -758,29 +760,48 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         "###);
     }
 
+    macro_rules! sanitize_url_test {
+        ($url:literal) => {{
+            let mut data = Event::from_value(
+                serde_json::json!({
+                    "extra": {
+                        "foo": $url
+                    }
+                })
+                .into(),
+            );
+
+            let pii_config = simple_enabled_pii_config();
+            let compiled = pii_config.compiled();
+            let mut pii_processor = PiiProcessor::new(&compiled);
+            process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+            assert_annotated_snapshot!(data);
+        }}
+    }
+
     #[test]
     fn test_sanitize_url_1() {
-        sanitize_url_test("pg://matt:pass@localhost/1");
+        sanitize_url_test!("pg://matt:pass@localhost/1");
     }
 
     #[test]
     fn test_sanitize_url_2() {
-        sanitize_url_test("foo 'redis://redis:foo@localhost:6379/0' bar");
+        sanitize_url_test!("foo 'redis://redis:foo@localhost:6379/0' bar");
     }
 
     #[test]
     fn test_sanitize_url_3() {
-        sanitize_url_test("'redis://redis:foo@localhost:6379/0'");
+        sanitize_url_test!("'redis://redis:foo@localhost:6379/0'");
     }
 
     #[test]
     fn test_sanitize_url_4() {
-        sanitize_url_test("foo redis://redis:foo@localhost:6379/0 bar");
+        sanitize_url_test!("foo redis://redis:foo@localhost:6379/0 bar");
     }
 
     #[test]
     fn test_sanitize_url_5() {
-        sanitize_url_test("foo redis://redis:foo@localhost:6379/0 bar pg://matt:foo@localhost/1");
+        sanitize_url_test!("foo redis://redis:foo@localhost:6379/0 bar pg://matt:foo@localhost/1");
     }
 
     #[test]
@@ -788,32 +809,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         // Make sure we don't mess up any other url.
         // This url specifically if passed through urlunsplit(urlsplit()),
         // it'll change the value.
-        sanitize_url_test("postgres:///path");
+        sanitize_url_test!("postgres:///path");
     }
 
     #[test]
     fn test_sanitize_url_7() {
         // Don't be too overly eager within JSON strings an catch the right field.
-        sanitize_url_test(
-            r#"{"a":"https://localhost","b":"foo@localhost","c":"pg://matt:pass@localhost/1","d":"lol"}"#,
+        sanitize_url_test!(
+            r#"{"a":"https://localhost","b":"foo@localhost","c":"pg://matt:pass@localhost/1","d":"lol"}"#
         );
-    }
-
-    fn sanitize_url_test(url: &str) {
-        let mut data = Event::from_value(
-            serde_json::json!({
-                "extra": {
-                    "foo": url
-                }
-            })
-            .into(),
-        );
-
-        let pii_config = simple_enabled_pii_config();
-        let compiled = pii_config.compiled();
-        let mut pii_processor = PiiProcessor::new(&compiled);
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data);
     }
 
     /// Ensure that valid JSON as request body is parsed as such, and that the PII stripping is
@@ -1100,36 +1104,38 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         "###);
     }
 
+    macro_rules! should_have_mysql_pwd_as_a_default_test {
+        ($key:literal) => {{
+            let mut data = Event::from_value(
+                serde_json::json!({
+                    "extra": {
+                        *$key: "the one",
+                    }
+                })
+                .into(),
+            );
+
+            let pii_config = to_pii_config(&DataScrubbingConfig {
+                sensitive_fields: vec!["".to_owned()],
+                ..simple_enabled_config()
+            });
+
+            let pii_config = pii_config.unwrap();
+            let compiled = pii_config.compiled();
+            let mut pii_processor = PiiProcessor::new(&compiled);
+            process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+            assert_annotated_snapshot!(data);
+        }}
+    }
+
     #[test]
     fn test_should_have_mysql_pwd_as_a_default_1() {
-        should_have_mysql_pwd_as_a_default_test("MYSQL_PWD");
+        should_have_mysql_pwd_as_a_default_test!("MYSQL_PWD");
     }
 
     #[test]
     fn test_should_have_mysql_pwd_as_a_default_2() {
-        should_have_mysql_pwd_as_a_default_test("mysql_pwd");
-    }
-
-    fn should_have_mysql_pwd_as_a_default_test(key: &str) {
-        let mut data = Event::from_value(
-            serde_json::json!({
-                "extra": {
-                    *key: "the one",
-                }
-            })
-            .into(),
-        );
-
-        let pii_config = to_pii_config(&DataScrubbingConfig {
-            sensitive_fields: vec!["".to_owned()],
-            ..simple_enabled_config()
-        });
-
-        let pii_config = pii_config.unwrap();
-        let compiled = pii_config.compiled();
-        let mut pii_processor = PiiProcessor::new(&compiled);
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_annotated_snapshot!(data);
+        should_have_mysql_pwd_as_a_default_test!("mysql_pwd");
     }
 
     #[test]

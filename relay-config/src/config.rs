@@ -14,7 +14,7 @@ use serde::de::{Unexpected, Visitor};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use relay_common::Uuid;
+use relay_common::{Dsn, Uuid};
 use relay_metrics::AggregatorConfig;
 use relay_redis::RedisConfig;
 
@@ -225,6 +225,8 @@ pub struct OverridableConfig {
     pub mode: Option<String>,
     /// The upstream relay or sentry instance.
     pub upstream: Option<String>,
+    /// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.
+    pub upstream_dsn: Option<String>,
     /// The host the relay should bind to (network interface).
     pub host: Option<String>,
     /// The port to bind for the unencrypted relay HTTP server.
@@ -245,6 +247,8 @@ pub struct OverridableConfig {
     pub outcome_source: Option<String>,
     /// shutdown timeout
     pub shutdown_timeout: Option<String>,
+    /// AWS Extensions API URL
+    pub aws_runtime_api: Option<String>,
 }
 
 /// The relay credentials
@@ -1229,6 +1233,16 @@ pub struct AuthConfig {
     pub static_relays: HashMap<RelayId, RelayInfo>,
 }
 
+/// AWS extension config.
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct AwsConfig {
+    /// The host and port of the AWS lambda extensions API.
+    ///
+    /// This value can be found in the `AWS_LAMBDA_RUNTIME_API` environment variable in a Lambda
+    /// Runtime and contains a socket address, usually `"127.0.0.1:9001"`.
+    pub runtime_api: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1255,6 +1269,8 @@ struct ConfigValues {
     aggregator: AggregatorConfig,
     #[serde(default)]
     auth: AuthConfig,
+    #[serde(default)]
+    aws: AwsConfig,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1337,6 +1353,11 @@ impl Config {
             relay.upstream = upstream
                 .parse::<UpstreamDescriptor>()
                 .map_err(|err| ConfigError::for_field(err, "upstream"))?;
+        } else if let Some(upstream_dsn) = overrides.upstream_dsn {
+            relay.upstream = upstream_dsn
+                .parse::<Dsn>()
+                .map(|dsn| UpstreamDescriptor::from_dsn(&dsn).into_owned())
+                .map_err(|err| ConfigError::for_field(err, "upstream_dsn"))?;
         }
 
         if let Some(host) = overrides.host {
@@ -1448,6 +1469,11 @@ impl Config {
             if let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
+        }
+
+        let aws = &mut self.values.aws;
+        if let Some(aws_runtime_api) = overrides.aws_runtime_api {
+            aws.runtime_api = Some(aws_runtime_api);
         }
 
         Ok(self)
@@ -1963,6 +1989,11 @@ impl Config {
     pub fn accept_unknown_items(&self) -> bool {
         let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
+    }
+
+    /// Returns the host and port of the AWS lambda runtime API.
+    pub fn aws_runtime_api(&self) -> Option<&str> {
+        self.values.aws.runtime_api.as_deref()
     }
 }
 

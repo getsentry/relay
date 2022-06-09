@@ -1,6 +1,8 @@
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 use std::fmt;
+use std::iter::FromIterator;
+use std::mem;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
@@ -14,7 +16,10 @@ use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
 use relay_system::{Controller, Shutdown};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{protocol, Metric, MetricType, MetricUnit, MetricValue};
+use crate::{
+    protocol, CounterType, DistributionType, GaugeType, Metric, MetricType, MetricUnit,
+    MetricValue, SetType,
+};
 
 /// Interval for the flush cycle of the [`Aggregator`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -23,22 +28,22 @@ const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct GaugeValue {
     /// The maximum value reported in the bucket.
-    pub max: f64,
+    pub max: GaugeType,
     /// The minimum value reported in the bucket.
-    pub min: f64,
+    pub min: GaugeType,
     /// The sum of all values reported in the bucket.
-    pub sum: f64,
+    pub sum: GaugeType,
     /// The last value reported in the bucket.
     ///
     /// This aggregation is not commutative.
-    pub last: f64,
+    pub last: GaugeType,
     /// The number of times this bucket was updated with a new value.
     pub count: u64,
 }
 
 impl GaugeValue {
     /// Creates a gauge snapshot from a single value.
-    pub fn single(value: f64) -> Self {
+    pub fn single(value: GaugeType) -> Self {
         Self {
             max: value,
             min: value,
@@ -49,7 +54,7 @@ impl GaugeValue {
     }
 
     /// Inserts a new value into the gauge.
-    pub fn insert(&mut self, value: f64) {
+    pub fn insert(&mut self, value: GaugeType) {
         self.max = self.max.max(value);
         self.min = self.min.min(value);
         self.sum += value;
@@ -67,11 +72,11 @@ impl GaugeValue {
     }
 
     /// Returns the average of all values reported in this bucket.
-    pub fn avg(&self) -> f64 {
+    pub fn avg(&self) -> GaugeType {
         if self.count > 0 {
-            self.sum / (self.count as f64)
+            self.sum / (self.count as GaugeType)
         } else {
-            0f64
+            0.0
         }
     }
 }
@@ -114,7 +119,7 @@ type Count = u32;
 /// for each value in the distribution, including duplicates.
 #[derive(Clone, Default, PartialEq)]
 pub struct DistributionValue {
-    values: BTreeMap<FloatOrd<f64>, Count>,
+    values: BTreeMap<FloatOrd<DistributionType>, Count>,
     length: Count,
 }
 
@@ -143,13 +148,6 @@ impl DistributionValue {
         self.length
     }
 
-    /// Returns the size of the map used to store the distribution.
-    ///
-    /// This is only relevant for internal metrics.
-    fn internal_size(&self) -> usize {
-        self.values.len()
-    }
-
     /// Returns `true` if the map contains no elements.
     pub fn is_empty(&self) -> bool {
         self.length == 0
@@ -169,7 +167,7 @@ impl DistributionValue {
     /// assert_eq!(dist.insert(1.0), 2);
     /// assert_eq!(dist.insert(2.0), 1);
     /// ```
-    pub fn insert(&mut self, value: f64) -> Count {
+    pub fn insert(&mut self, value: DistributionType) -> Count {
         self.insert_multi(value, 1)
     }
 
@@ -186,7 +184,7 @@ impl DistributionValue {
     /// assert_eq!(dist.insert_multi(1.0, 2), 2);
     /// assert_eq!(dist.insert_multi(1.0, 3), 5);
     /// ```
-    pub fn insert_multi(&mut self, value: f64, count: Count) -> Count {
+    pub fn insert_multi(&mut self, value: DistributionType, count: Count) -> Count {
         self.length += count;
         if count == 0 {
             return 0;
@@ -211,7 +209,7 @@ impl DistributionValue {
     /// assert_eq!(dist.contains(1.0), true);
     /// assert_eq!(dist.contains(2.0), false);
     /// ```
-    pub fn contains(&self, value: impl std::borrow::Borrow<f64>) -> bool {
+    pub fn contains(&self, value: impl std::borrow::Borrow<DistributionType>) -> bool {
         self.values.contains_key(&FloatOrd(*value.borrow()))
     }
 
@@ -227,7 +225,7 @@ impl DistributionValue {
     /// assert_eq!(dist.get(1.0), 2);
     /// assert_eq!(dist.get(2.0), 0);
     /// ```
-    pub fn get(&self, value: impl std::borrow::Borrow<f64>) -> Count {
+    pub fn get(&self, value: impl std::borrow::Borrow<DistributionType>) -> Count {
         let value = &FloatOrd(*value.borrow());
         self.values.get(value).copied().unwrap_or(0)
     }
@@ -282,7 +280,7 @@ impl DistributionValue {
 }
 
 impl<'a> IntoIterator for &'a DistributionValue {
-    type Item = (f64, Count);
+    type Item = (DistributionType, Count);
     type IntoIter = DistributionIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -305,7 +303,7 @@ impl Extend<f64> for DistributionValue {
 }
 
 impl Extend<(f64, Count)> for DistributionValue {
-    fn extend<T: IntoIterator<Item = (f64, Count)>>(&mut self, iter: T) {
+    fn extend<T: IntoIterator<Item = (DistributionType, Count)>>(&mut self, iter: T) {
         for (value, count) in iter.into_iter() {
             self.insert_multi(value, count);
         }
@@ -363,7 +361,7 @@ pub struct DistributionIter<'a> {
 }
 
 impl Iterator for DistributionIter<'_> {
-    type Item = (f64, Count);
+    type Item = (DistributionType, Count);
 
     fn next(&mut self) -> Option<Self::Item> {
         let (value, count) = self.inner.next()?;
@@ -390,13 +388,13 @@ impl fmt::Debug for DistributionIter<'_> {
 #[derive(Clone)]
 pub struct DistributionValuesIter<'a> {
     inner: DistributionIter<'a>,
-    current: f64,
+    current: DistributionType,
     remaining: Count,
     total: Count,
 }
 
 impl Iterator for DistributionValuesIter<'_> {
-    type Item = f64;
+    type Item = DistributionType;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining > 0 {
@@ -460,7 +458,7 @@ pub enum BucketValue {
     ///
     /// This variant serializes to a double precision float.
     #[serde(rename = "c")]
-    Counter(f64),
+    Counter(CounterType),
     /// Aggregates [`MetricValue::Distribution`] values by collecting their values.
     ///
     /// ```text
@@ -478,7 +476,7 @@ pub enum BucketValue {
     ///
     /// This variant serializes to a list of 32-bit integers.
     #[serde(rename = "s")]
-    Set(BTreeSet<Count>),
+    Set(BTreeSet<SetType>),
     /// Aggregates [`MetricValue::Gauge`] values always retaining the maximum, minimum, and last
     /// value, as well as the sum and count of all values.
     ///
@@ -510,15 +508,22 @@ impl BucketValue {
         }
     }
 
-    /// Returns the number of values needed to encode the bucket (a measure of bucket
-    /// complexity).
-    pub fn relative_size(&self) -> usize {
-        match self {
-            Self::Counter(_) => 1,
-            Self::Set(s) => s.len(),
-            Self::Gauge(_) => 5,
-            Self::Distribution(m) => m.internal_size(),
-        }
+    /// Estimates the number of bytes needed to encode the bucket value.
+    /// Note that this does not necessarily match the exact memory footprint of the value,
+    /// because datastructures might have a memory overhead.
+    pub fn cost(&self) -> usize {
+        // Beside the size of [`BucketValue`], we also need to account for the cost of values
+        // allocated dynamically.
+        let allocated_cost = match self {
+            Self::Counter(_) => 0,
+            Self::Set(s) => mem::size_of::<SetType>() * s.len(),
+            Self::Gauge(_) => 0,
+            Self::Distribution(m) => {
+                m.values.len() * (mem::size_of::<DistributionType>() + mem::size_of::<Count>())
+            }
+        };
+
+        mem::size_of::<Self>() + allocated_cost
     }
 }
 
@@ -537,7 +542,7 @@ impl From<MetricValue> for BucketValue {
 ///
 /// Currently either a [`MetricValue`] or another `BucketValue`.
 trait MergeValue: Into<BucketValue> {
-    /// Merges `self` into the given `bucket_value`.
+    /// Merges `self` into the given `bucket_value` and returns the additional cost for storing this value.
     ///
     /// Aggregation is performed according to the rules documented in [`BucketValue`].
     fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError>;
@@ -742,6 +747,12 @@ enum AggregateMetricsErrorKind {
     /// A metric bucket had a too long string (metric name or a tag key/value).
     #[fail(display = "found invalid string")]
     InvalidStringLength,
+    /// A metric bucket is too large for the global bytes limit.
+    #[fail(display = "total metrics limit exceeded")]
+    TotalLimitExceeded,
+    /// A metric bucket is too large for the per-project bytes limit.
+    #[fail(display = "project metrics limit exceeded")]
+    ProjectLimitExceeded,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -770,6 +781,18 @@ impl BucketKey {
         let mut hasher = crc32fast::Hasher::new();
         std::hash::Hash::hash(self, &mut hasher);
         hasher.finalize() as i64
+    }
+
+    /// Estimates the number of bytes needed to encode the bucket key.
+    /// Note that this does not necessarily match the exact memory footprint of the key,
+    /// because datastructures might have a memory overhead.
+    fn cost(&self) -> usize {
+        mem::size_of::<Self>()
+            + self.metric_name.capacity()
+            + self
+                .tags
+                .iter()
+                .fold(0, |acc, (k, v)| acc + k.capacity() + v.capacity())
     }
 }
 
@@ -826,6 +849,23 @@ pub struct AggregatorConfig {
     ///
     /// Defaults to `200` bytes.
     pub max_tag_value_length: usize,
+
+    /// Maximum amount of bytes used for metrics aggregation.
+    ///
+    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
+    /// This is only an approximation and does not take into account things such as pre-allocation
+    /// in hashmaps.
+    ///
+    /// Defaults to `None`, i.e. no limit.
+    pub max_total_bucket_bytes: Option<usize>,
+
+    /// Maximum amount of bytes used for metrics aggregation per project key.
+    ///
+    /// Similar measuring technique to `max_total_bucket_bytes`, but instead of a
+    /// global/process-wide limit, it is enforced per project key.
+    ///
+    /// Defaults to `None`, i.e. no limit.
+    pub max_project_key_bucket_bytes: Option<usize>,
 }
 
 impl AggregatorConfig {
@@ -925,6 +965,8 @@ impl Default for AggregatorConfig {
             max_name_length: 200,
             max_tag_key_length: 200,
             max_tag_value_length: 200,
+            max_total_bucket_bytes: None,
+            max_project_key_bucket_bytes: None,
         }
     }
 }
@@ -1013,9 +1055,118 @@ impl Message for FlushBuckets {
     type Result = Result<(), Vec<Bucket>>;
 }
 
+/// Check whether the aggregator has not (yet) exceeded its total limits. Used for healthchecks.
+pub struct AcceptsMetrics;
+
+impl Message for AcceptsMetrics {
+    type Result = bool;
+}
+
+impl Handler<AcceptsMetrics> for Aggregator {
+    type Result = bool;
+
+    fn handle(&mut self, _msg: AcceptsMetrics, _ctx: &mut Self::Context) -> Self::Result {
+        !self
+            .cost_tracker
+            .totals_cost_exceeded(self.config.max_total_bucket_bytes)
+    }
+}
+
 enum AggregatorState {
     Running,
     ShuttingDown,
+}
+
+#[derive(Default)]
+struct CostTracker {
+    total_cost: usize,
+    cost_per_project_key: HashMap<ProjectKey, usize>,
+}
+
+impl CostTracker {
+    fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
+        if let Some(max_total_cost) = max_total_cost {
+            if self.total_cost >= max_total_cost {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn check_limits_exceeded(
+        &self,
+        project_key: ProjectKey,
+        max_total_cost: Option<usize>,
+        max_project_cost: Option<usize>,
+    ) -> Result<(), AggregateMetricsError> {
+        if self.totals_cost_exceeded(max_total_cost) {
+            relay_log::configure_scope(|scope| {
+                scope.set_extra("bucket.project_key", project_key.as_str().to_owned().into());
+            });
+            return Err(AggregateMetricsErrorKind::TotalLimitExceeded.into());
+        }
+
+        if let Some(max_project_cost) = max_project_cost {
+            let project_cost = self
+                .cost_per_project_key
+                .get(&project_key)
+                .cloned()
+                .unwrap_or(0);
+            if project_cost >= max_project_cost {
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("bucket.project_key", project_key.as_str().to_owned().into());
+                });
+                return Err(AggregateMetricsErrorKind::ProjectLimitExceeded.into());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn add_cost(&mut self, project_key: ProjectKey, cost: usize) {
+        self.total_cost += cost;
+        let project_cost = self.cost_per_project_key.entry(project_key).or_insert(0);
+        *project_cost += cost;
+    }
+
+    fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
+        match self.cost_per_project_key.entry(project_key) {
+            Entry::Vacant(_) => {
+                relay_log::error!(
+                    "Trying to subtract cost for a project key that has not been tracked"
+                );
+            }
+            Entry::Occupied(mut entry) => {
+                // Handle per-project cost:
+                let project_cost = entry.get_mut();
+                if cost > *project_cost {
+                    relay_log::error!("Subtracting a project cost higher than what we tracked");
+                    self.total_cost = self.total_cost.saturating_sub(*project_cost);
+                    *project_cost = 0;
+                } else {
+                    *project_cost -= cost;
+                    self.total_cost = self.total_cost.saturating_sub(cost);
+                }
+                if *project_cost == 0 {
+                    // Remove this project_key from the map
+                    entry.remove();
+                }
+            }
+        };
+    }
+}
+
+impl fmt::Debug for CostTracker {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CostTracker")
+            .field("total_cost", &self.total_cost)
+            .field(
+                "cost_per_project_key",
+                &BTreeMap::from_iter(self.cost_per_project_key.iter()),
+            )
+            .finish()
+    }
 }
 
 /// A collector of [`Metric`] submissions.
@@ -1074,6 +1225,7 @@ pub struct Aggregator {
     buckets: HashMap<BucketKey, QueuedBucket>,
     receiver: Recipient<FlushBuckets>,
     state: AggregatorState,
+    cost_tracker: CostTracker,
 }
 
 impl Aggregator {
@@ -1087,6 +1239,7 @@ impl Aggregator {
             buckets: HashMap::new(),
             receiver,
             state: AggregatorState::Running,
+            cost_tracker: CostTracker::default(),
         }
     }
 
@@ -1200,6 +1353,39 @@ impl Aggregator {
 
         let key = Self::validate_bucket_key(key, &self.config)?;
 
+        // XXX: This is not a great implementation of cost enforcement.
+        //
+        // * it takes two lookups of the project key in the cost tracker to merge a bucket: once in
+        //   `check_limits_exceeded` and once in `add_cost`.
+        //
+        // * the limits are not actually enforced consistently
+        //
+        //   A bucket can be merged that exceeds the cost limit, and only the next bucket will be
+        //   limited because the limit is now reached. This implementation was chosen because it's
+        //   currently not possible to determine cost accurately upfront: The bucket values have to
+        //   be merged together to figure out how costly the merge was. Changing that would force
+        //   us to unravel a lot of abstractions that we have already built.
+        //
+        //   As a result of that, it is possible to exceed the bucket cost limit significantly
+        //   until we have guaranteed upper bounds on the cost of a single bucket (which we
+        //   currently don't, because a metric can have arbitrary amount of tag values).
+        //
+        //   Another consequence is that a MergeValue that adds zero cost (such as an existing
+        //   counter bucket being incremented) is currently rejected even though it doesn't have to
+        //   be.
+        //
+        // The flipside of this approach is however that there's more optimization potential: If
+        // the limit is already exceeded, we could implement an optimization that drops envelope
+        // items before they are parsed, as we can be sure that the new metric bucket will be
+        // rejected in the aggregator regardless of whether it is merged into existing buckets,
+        // whether it is just a counter, etc.
+        self.cost_tracker.check_limits_exceeded(
+            project_key,
+            self.config.max_total_bucket_bytes,
+            self.config.max_project_key_bucket_bytes,
+        )?;
+
+        let added_cost;
         match self.buckets.entry(key) {
             Entry::Occupied(mut entry) => {
                 relay_statsd::metric!(
@@ -1207,7 +1393,11 @@ impl Aggregator {
                     metric_type = entry.key().metric_type.as_str(),
                     metric_name = &entry.key().metric_name
                 );
-                value.merge_into(&mut entry.get_mut().value)?;
+                let bucket_value = &mut entry.get_mut().value;
+                let cost_before = bucket_value.cost();
+                value.merge_into(bucket_value)?;
+                let cost_after = bucket_value.cost();
+                added_cost = cost_after.saturating_sub(cost_before);
             }
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
@@ -1222,9 +1412,13 @@ impl Aggregator {
                 );
 
                 let flush_at = self.config.get_flush_time(timestamp, project_key);
-                entry.insert(QueuedBucket::new(flush_at, value.into()));
+                let bucket = value.into();
+                added_cost = entry.key().cost() + bucket.cost();
+                entry.insert(QueuedBucket::new(flush_at, bucket));
             }
         }
+
+        self.cost_tracker.add_cost(project_key, added_cost);
 
         Ok(())
     }
@@ -1299,18 +1493,28 @@ impl Aggregator {
     pub fn pop_flush_buckets(&mut self) -> HashMap<ProjectKey, Vec<Bucket>> {
         relay_statsd::metric!(gauge(MetricGauges::Buckets) = self.buckets.len() as u64);
 
+        // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
+        // assuming that this gives us more than enough data points.
+        relay_statsd::metric!(
+            gauge(MetricGauges::BucketsCost) = self.cost_tracker.total_cost as u64
+        );
+
         let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
 
         let force = matches!(&self.state, AggregatorState::ShuttingDown);
 
         relay_statsd::metric!(timer(MetricTimers::BucketsScanDuration), {
             let bucket_interval = self.config.bucket_interval;
+            let cost_tracker = &mut self.cost_tracker;
             self.buckets.retain(|key, entry| {
                 if force || entry.elapsed() {
                     // Take the value and leave a placeholder behind. It'll be removed right after.
-                    let value = std::mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                    let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                    cost_tracker.subtract_cost(key.project_key, key.cost());
+                    cost_tracker.subtract_cost(key.project_key, value.cost());
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets.entry(key.project_key).or_default().push(bucket);
+
                     false
                 } else {
                     true
@@ -1342,11 +1546,6 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            let size_statsd_metrics: Vec<_> = project_buckets
-                .iter()
-                .map(|bucket| (bucket.value.ty(), bucket.value.relative_size()))
-                .collect();
-
             self.receiver
                 .send(FlushBuckets::new(project_key, project_buckets))
                 .into_actor(self)
@@ -1357,14 +1556,6 @@ impl Aggregator {
                             buckets.len()
                         );
                         slf.merge_all(project_key, buckets).ok();
-                    } else {
-                        for (bucket_type, bucket_relative_size) in size_statsd_metrics {
-                            relay_statsd::metric!(
-                                histogram(MetricHistograms::BucketRelativeSize) =
-                                    bucket_relative_size as u64,
-                                metric_type = bucket_type.as_str(),
-                            );
-                        }
                     }
                     fut::ok(())
                 })
@@ -1579,6 +1770,8 @@ mod tests {
             max_name_length: 200,
             max_tag_key_length: 200,
             max_tag_value_length: 200,
+            max_project_key_bucket_bytes: None,
+            max_total_bucket_bytes: None,
         }
     }
 
@@ -1884,6 +2077,60 @@ mod tests {
     }
 
     #[test]
+    fn test_bucket_value_cost() {
+        // When this test fails, it means that the cost model has changed.
+        // Check dimensionality limits.
+        let expected_bucket_value_size = 48;
+        let expected_set_entry_size = 4;
+
+        let counter = BucketValue::Counter(123.0);
+        assert_eq!(counter.cost(), expected_bucket_value_size);
+        let set = BucketValue::Set(BTreeSet::<u32>::from([1, 2, 3, 4, 5]));
+        assert_eq!(
+            set.cost(),
+            expected_bucket_value_size + 5 * expected_set_entry_size
+        );
+        let distribution = BucketValue::Distribution(dist![1., 2., 3.]);
+        assert_eq!(
+            distribution.cost(),
+            expected_bucket_value_size + 3 * (8 + 4)
+        );
+        let gauge = BucketValue::Gauge(GaugeValue {
+            max: 43.,
+            min: 42.,
+            sum: 85.,
+            last: 43.,
+            count: 2,
+        });
+        assert_eq!(gauge.cost(), expected_bucket_value_size);
+    }
+
+    #[test]
+    fn test_bucket_key_cost() {
+        // When this test fails, it means that the cost model has changed.
+        // Check dimensionality limits.
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let name = "12345".to_owned();
+        let bucket_key = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: name,
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: BTreeMap::from([
+                ("hello".to_owned(), "world".to_owned()),
+                ("answer".to_owned(), "42".to_owned()),
+            ]),
+        };
+        assert_eq!(
+            bucket_key.cost(),
+            112 + // BucketKey
+            5 + // name
+            (5 + 5 + 6 + 2) // tags
+        );
+    }
+
+    #[test]
     fn test_aggregator_merge_counters() {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -2057,6 +2304,124 @@ mod tests {
         aggregator.insert(project_key2, some_metric()).unwrap();
 
         assert_eq!(aggregator.buckets.len(), 2);
+    }
+
+    #[test]
+    fn test_cost_tracker() {
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
+        let mut cost_tracker = CostTracker::default();
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 0,
+            cost_per_project_key: {},
+        }
+        "###);
+        cost_tracker.add_cost(project_key1, 100);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 100,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+            },
+        }
+        "###);
+        cost_tracker.add_cost(project_key2, 200);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 300,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+        }
+        "###);
+        // Unknown project: Will log error, but not crash
+        cost_tracker.subtract_cost(project_key3, 666);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 300,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+        }
+        "###);
+        // Subtract too much: Will log error, but not crash
+        cost_tracker.subtract_cost(project_key1, 666);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 200,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
+            },
+        }
+        "###);
+        cost_tracker.subtract_cost(project_key2, 20);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 180,
+            cost_per_project_key: {
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
+            },
+        }
+        "###);
+        cost_tracker.subtract_cost(project_key2, 180);
+        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        CostTracker {
+            total_cost: 0,
+            cost_per_project_key: {},
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_aggregator_cost_tracking() {
+        // Make sure that the right cost is added / subtracted
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(test_config(), receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        let mut metric = Metric {
+            name: "c:foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(42.),
+            timestamp: UnixTimestamp::from_secs(999994711),
+            tags: BTreeMap::new(),
+        };
+        let bucket_key = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:foo".to_owned(),
+            metric_type: MetricType::Counter,
+            metric_unit: MetricUnit::None,
+            tags: BTreeMap::new(),
+        };
+        let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
+        for (metric_value, expected_added_cost) in [
+            (MetricValue::Counter(42.), fixed_cost),
+            (MetricValue::Counter(42.), 0), // counters have constant size
+            (MetricValue::Set(123), fixed_cost + 4), // Added a new bucket + 1 element
+            (MetricValue::Set(123), 0),     // Same element in set, no change
+            (MetricValue::Set(456), 4),     // Different element in set -> +4
+            (MetricValue::Distribution(1.0), fixed_cost + 12), // New bucket + 1 element
+            (MetricValue::Distribution(1.0), 0), // no new element
+            (MetricValue::Distribution(2.0), 12), // 1 new element
+            (MetricValue::Gauge(0.3), fixed_cost), // New bucket
+            (MetricValue::Gauge(0.2), 0),   // gauge has constant size
+        ] {
+            metric.value = metric_value;
+            let current_cost = aggregator.cost_tracker.total_cost;
+            aggregator.insert(project_key, metric.clone()).unwrap();
+            assert_eq!(
+                aggregator.cost_tracker.total_cost,
+                current_cost + expected_added_cost
+            );
+        }
+
+        aggregator.pop_flush_buckets();
+        assert_eq!(aggregator.cost_tracker.total_cost, 0);
     }
 
     #[test]
@@ -2335,5 +2700,57 @@ mod tests {
             Aggregator::validate_bucket_key(short_metric_long_tag_value, &aggregator_config)
                 .unwrap();
         assert_eq!(validation.tags.len(), 0);
+    }
+
+    #[test]
+    fn test_aggregator_cost_enforcement_total() {
+        let config = AggregatorConfig {
+            max_total_bucket_bytes: Some(1),
+            ..test_config()
+        };
+
+        let metric = Metric {
+            name: "c:foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(42.),
+            timestamp: UnixTimestamp::from_secs(999994711),
+            tags: BTreeMap::new(),
+        };
+
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        aggregator.insert(project_key, metric.clone()).unwrap();
+        assert_eq!(
+            aggregator.insert(project_key, metric).unwrap_err().kind,
+            AggregateMetricsErrorKind::TotalLimitExceeded
+        );
+    }
+
+    #[test]
+    fn test_aggregator_cost_enforcement_project() {
+        let config = AggregatorConfig {
+            max_project_key_bucket_bytes: Some(1),
+            ..test_config()
+        };
+
+        let metric = Metric {
+            name: "c:foo".to_owned(),
+            unit: MetricUnit::None,
+            value: MetricValue::Counter(42.),
+            timestamp: UnixTimestamp::from_secs(999994711),
+            tags: BTreeMap::new(),
+        };
+
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        aggregator.insert(project_key, metric.clone()).unwrap();
+        assert_eq!(
+            aggregator.insert(project_key, metric).unwrap_err().kind,
+            AggregateMetricsErrorKind::ProjectLimitExceeded
+        );
     }
 }
