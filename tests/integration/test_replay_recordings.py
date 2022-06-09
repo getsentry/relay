@@ -7,7 +7,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 
 def test_replay_recordings(mini_sentry, relay_chain):
-    relay = relay_chain()
+    relay = relay_chain(min_relay_version="latest")
 
     project_id = 42
     mini_sentry.add_basic_project_config(
