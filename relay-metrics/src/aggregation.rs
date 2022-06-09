@@ -148,13 +148,6 @@ impl DistributionValue {
         self.length
     }
 
-    /// Returns the size of the map used to store the distribution.
-    ///
-    /// This is only relevant for internal metrics.
-    fn internal_size(&self) -> usize {
-        self.values.len()
-    }
-
     /// Returns `true` if the map contains no elements.
     pub fn is_empty(&self) -> bool {
         self.length == 0
