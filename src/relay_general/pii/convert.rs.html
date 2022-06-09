@@ -1394,6 +1394,12 @@
 <span id="1387">1387</span>
 <span id="1388">1388</span>
 <span id="1389">1389</span>
+<span id="1390">1390</span>
+<span id="1391">1391</span>
+<span id="1392">1392</span>
+<span id="1393">1393</span>
+<span id="1394">1394</span>
+<span id="1395">1395</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 
 <span class="kw">use</span> <span class="ident">regex::RegexBuilder</span>;
@@ -2103,31 +2109,33 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
+    <span class="macro">macro_rules!</span> <span class="ident">sanitize_credit_card_within_value_test</span> {
+        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">cc</span>:<span class="ident">literal</span>) =&gt; {{
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+                <span class="macro">serde_json::json!</span>({
+                    <span class="string">&quot;extra&quot;</span>: {
+                        <span class="string">&quot;foo&quot;</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">cc</span>
+                    }
+                })
+                .<span class="ident">into</span>(),
+            );
+
+            <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
+            <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+            <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+            <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
+        }}
+    }
+
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_credit_card_within_value_1</span>() {
-        <span class="ident">sanitize_credit_card_within_value_test</span>(<span class="string">&quot;&#39;4571234567890111&#39;&quot;</span>);
+        <span class="macro">sanitize_credit_card_within_value_test!</span>(<span class="string">&quot;&#39;4571234567890111&#39;&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_credit_card_within_value_2</span>() {
-        <span class="ident">sanitize_credit_card_within_value_test</span>(<span class="string">&quot;foo 4571234567890111&quot;</span>);
-    }
-
-    <span class="kw">fn</span> <span class="ident">sanitize_credit_card_within_value_test</span>(<span class="ident">cc</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
-            <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;foo&quot;</span>: <span class="ident">cc</span>
-                }
-            })
-            .<span class="ident">into</span>(),
-        );
-
-        <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
-        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
+        <span class="macro">sanitize_credit_card_within_value_test!</span>(<span class="string">&quot;foo 4571234567890111&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -2154,29 +2162,48 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         &quot;###</span>);
     }
 
+    <span class="macro">macro_rules!</span> <span class="ident">sanitize_url_test</span> {
+        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">url</span>:<span class="ident">literal</span>) =&gt; {{
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+                <span class="macro">serde_json::json!</span>({
+                    <span class="string">&quot;extra&quot;</span>: {
+                        <span class="string">&quot;foo&quot;</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">url</span>
+                    }
+                })
+                .<span class="ident">into</span>(),
+            );
+
+            <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
+            <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+            <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+            <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
+        }}
+    }
+
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_url_1</span>() {
-        <span class="ident">sanitize_url_test</span>(<span class="string">&quot;pg://matt:pass@localhost/1&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;pg://matt:pass@localhost/1&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_url_2</span>() {
-        <span class="ident">sanitize_url_test</span>(<span class="string">&quot;foo &#39;redis://redis:foo@localhost:6379/0&#39; bar&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;foo &#39;redis://redis:foo@localhost:6379/0&#39; bar&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_url_3</span>() {
-        <span class="ident">sanitize_url_test</span>(<span class="string">&quot;&#39;redis://redis:foo@localhost:6379/0&#39;&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;&#39;redis://redis:foo@localhost:6379/0&#39;&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_url_4</span>() {
-        <span class="ident">sanitize_url_test</span>(<span class="string">&quot;foo redis://redis:foo@localhost:6379/0 bar&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;foo redis://redis:foo@localhost:6379/0 bar&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_url_5</span>() {
-        <span class="ident">sanitize_url_test</span>(<span class="string">&quot;foo redis://redis:foo@localhost:6379/0 bar pg://matt:foo@localhost/1&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;foo redis://redis:foo@localhost:6379/0 bar pg://matt:foo@localhost/1&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -2184,32 +2211,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="comment">// Make sure we don&#39;t mess up any other url.</span>
         <span class="comment">// This url specifically if passed through urlunsplit(urlsplit()),</span>
         <span class="comment">// it&#39;ll change the value.</span>
-        <span class="ident">sanitize_url_test</span>(<span class="string">&quot;postgres:///path&quot;</span>);
+        <span class="macro">sanitize_url_test!</span>(<span class="string">&quot;postgres:///path&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_url_7</span>() {
         <span class="comment">// Don&#39;t be too overly eager within JSON strings an catch the right field.</span>
-        <span class="ident">sanitize_url_test</span>(
-            <span class="string">r#&quot;{&quot;a&quot;:&quot;https://localhost&quot;,&quot;b&quot;:&quot;foo@localhost&quot;,&quot;c&quot;:&quot;pg://matt:pass@localhost/1&quot;,&quot;d&quot;:&quot;lol&quot;}&quot;#</span>,
+        <span class="macro">sanitize_url_test!</span>(
+            <span class="string">r#&quot;{&quot;a&quot;:&quot;https://localhost&quot;,&quot;b&quot;:&quot;foo@localhost&quot;,&quot;c&quot;:&quot;pg://matt:pass@localhost/1&quot;,&quot;d&quot;:&quot;lol&quot;}&quot;#</span>
         );
-    }
-
-    <span class="kw">fn</span> <span class="ident">sanitize_url_test</span>(<span class="ident">url</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
-            <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="string">&quot;foo&quot;</span>: <span class="ident">url</span>
-                }
-            })
-            .<span class="ident">into</span>(),
-        );
-
-        <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">simple_enabled_pii_config</span>();
-        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
     }
 
     <span class="doccomment">/// Ensure that valid JSON as request body is parsed as such, and that the PII stripping is</span>
@@ -2496,36 +2506,38 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         &quot;###</span>);
     }
 
+    <span class="macro">macro_rules!</span> <span class="ident">should_have_mysql_pwd_as_a_default_test</span> {
+        (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">key</span>:<span class="ident">literal</span>) =&gt; {{
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
+                <span class="macro">serde_json::json!</span>({
+                    <span class="string">&quot;extra&quot;</span>: {
+                        <span class="kw-2">*</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">key</span>: <span class="string">&quot;the one&quot;</span>,
+                    }
+                })
+                .<span class="ident">into</span>(),
+            );
+
+            <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
+                <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>()],
+                ..<span class="ident">simple_enabled_config</span>()
+            });
+
+            <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+            <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+            <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
+        }}
+    }
+
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_should_have_mysql_pwd_as_a_default_1</span>() {
-        <span class="ident">should_have_mysql_pwd_as_a_default_test</span>(<span class="string">&quot;MYSQL_PWD&quot;</span>);
+        <span class="macro">should_have_mysql_pwd_as_a_default_test!</span>(<span class="string">&quot;MYSQL_PWD&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_should_have_mysql_pwd_as_a_default_2</span>() {
-        <span class="ident">should_have_mysql_pwd_as_a_default_test</span>(<span class="string">&quot;mysql_pwd&quot;</span>);
-    }
-
-    <span class="kw">fn</span> <span class="ident">should_have_mysql_pwd_as_a_default_test</span>(<span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
-            <span class="macro">serde_json::json!</span>({
-                <span class="string">&quot;extra&quot;</span>: {
-                    <span class="kw-2">*</span><span class="ident">key</span>: <span class="string">&quot;the one&quot;</span>,
-                }
-            })
-            .<span class="ident">into</span>(),
-        );
-
-        <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">to_pii_config</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
-            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;&quot;</span>.<span class="ident">to_owned</span>()],
-            ..<span class="ident">simple_enabled_config</span>()
-        });
-
-        <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">pii_config</span>.<span class="ident">compiled</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pii_processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;mut</span> <span class="ident">pii_processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">data</span>);
+        <span class="macro">should_have_mysql_pwd_as_a_default_test!</span>(<span class="string">&quot;mysql_pwd&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
