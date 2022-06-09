@@ -55,4 +55,3 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
 
     replay_event = envelope.items[0]
     assert replay_event.type == "replay_event"
-
