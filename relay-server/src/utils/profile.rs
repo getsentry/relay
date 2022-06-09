@@ -288,36 +288,8 @@ pub fn parse_typescript_profile(item: &mut Item) -> Result<(), ProfileError> {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct RustDebugMeta {
-    pub images: Vec<SymbolicDebugImage>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct RustProfile {
-    duration_ns: u64,
-    platform: String,
-    architecture: String,
-    // string representation of Uuid v4
-    trace_id: EventId,
-    transaction_name: String,
-    // string representation of Uuid v4
-    transaction_id: EventId,
-    // string representation of Uuid v4
-    profile_id: EventId,
-    sampled_profile: RustSampledProfile,
-    device_os_name: String,
-    device_os_version: String,
-    version_name: String,
-    version_code: String,
-    debug_meta: RustDebugMeta,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct RustSampledProfile {
-    pub start_time_nanos: u64,
-    pub start_time_secs: u64,
-    pub duration_nanos: u64,
-    pub samples: Vec<RustSample>,
+pub struct RustFrame {
+    pub instruction_addr: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -328,9 +300,12 @@ pub struct RustSample {
     pub nanos_relative_to_start: u64,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RustFrame {
-    pub instruction_addr: String,
+#[derive(Debug, Serialize, Deserialize)]
+struct RustSampledProfile {
+    pub start_time_nanos: u64,
+    pub start_time_secs: u64,
+    pub duration_nanos: u64,
+    pub samples: Vec<RustSample>,
 }
 
 /// Represents a symbolic debug image.
@@ -373,6 +348,28 @@ pub struct SymbolicDebugImage {
     /// Path and name of the debug companion file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_file: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RustDebugMeta {
+    pub images: Vec<SymbolicDebugImage>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RustProfile {
+    duration_ns: u64,
+    platform: String,
+    architecture: String,
+    trace_id: EventId,
+    transaction_name: String,
+    transaction_id: EventId,
+    profile_id: EventId,
+    sampled_profile: RustSampledProfile,
+    device_os_name: String,
+    device_os_version: String,
+    version_name: String,
+    version_code: String,
+    debug_meta: RustDebugMeta,
 }
 
 pub fn parse_rust_profile(item: &mut Item) -> Result<(), ProfileError> {
