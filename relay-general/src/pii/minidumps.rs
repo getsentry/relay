@@ -140,7 +140,7 @@ impl<'a> MinidumpData<'a> {
         &self,
         stream_type: StreamType,
     ) -> Result<Option<Range<usize>>, ScrubMinidumpError> {
-        let range = match self.minidump.get_raw_stream(stream_type) {
+        let range = match self.minidump.get_raw_stream(stream_type.into()) {
             Ok(stream) => Some(
                 self.slice_range(stream)
                     .ok_or(ScrubMinidumpError::InvalidAddress)?,
@@ -446,7 +446,8 @@ mod tests {
                 Which::Original => &self.orig_dump,
                 Which::Scrubbed => &self.scrubbed_dump,
             };
-            dump.get_raw_stream(StreamType::LinuxEnviron).unwrap()
+            dump.get_raw_stream(StreamType::LinuxEnviron.into())
+                .unwrap()
         }
     }
 

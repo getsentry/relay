@@ -166,7 +166,7 @@ fn derive_enum_metastructure(
             (quote! {
                 #type_name::#variant_name(ref __value) => {
                     let mut __map_ser = ::serde::Serializer::serialize_map(__serializer, None)?;
-                    crate::types::IntoValue::serialize_payload(__value, ::serde::private::ser::FlatMapSerializer(&mut __map_ser), __behavior)?;
+                    crate::types::IntoValue::serialize_payload(__value, ::serde::__private::ser::FlatMapSerializer(&mut __map_ser), __behavior)?;
                     ::serde::ser::SerializeMap::serialize_key(&mut __map_ser, #tag_key_str)?;
                     ::serde::ser::SerializeMap::serialize_value(&mut __map_ser, #tag)?;
                     ::serde::ser::SerializeMap::end(__map_ser)
