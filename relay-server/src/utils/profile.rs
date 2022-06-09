@@ -184,11 +184,14 @@ struct SampledProfile {
 #[serde(rename_all = "lowercase")]
 enum ImageType {
     MachO,
+    Symbolic,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-struct MachOImage {
+struct NativeDebugImage {
+    #[serde(alias = "name")]
     code_file: NativeImagePath,
+    #[serde(alias = "id")]
     debug_id: DebugId,
     image_addr: Addr,
 
@@ -204,7 +207,7 @@ struct MachOImage {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DebugMeta {
-    images: Vec<MachOImage>,
+    images: Vec<NativeDebugImage>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -288,71 +291,29 @@ pub fn parse_typescript_profile(item: &mut Item) -> Result<(), ProfileError> {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct RustFrame {
-    pub instruction_addr: String,
+struct RustFrame {
+    instruction_addr: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct RustSample {
-    pub frames: Vec<RustFrame>,
-    pub thread_name: String,
-    pub thread_id: u64,
-    pub nanos_relative_to_start: u64,
+struct RustSample {
+    frames: Vec<RustFrame>,
+    thread_name: String,
+    thread_id: u64,
+    nanos_relative_to_start: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RustSampledProfile {
-    pub start_time_nanos: u64,
-    pub start_time_secs: u64,
-    pub duration_nanos: u64,
-    pub samples: Vec<RustSample>,
-}
-
-/// Represents a symbolic debug image.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct SymbolicDebugImage {
-    #[serde(rename = "type")]
-    pub image_type: String,
-    /// Path and name of the image file (required).
-    ///
-    /// The absolute path to the dynamic library or executable. This helps to locate the file if it is missing on Sentry.
-    /// This is also called `code_file`.
-    pub name: String,
-    /// The optional CPU architecture of the debug image.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub arch: Option<String>,
-    /// Starting memory address of the image (required).
-    ///
-    /// Memory address, at which the image is mounted in the virtual address space of the process.
-    pub image_addr: String,
-    /// Size of the image in bytes (required).
-    ///
-    /// The size of the image in virtual memory.
-    pub image_size: u64,
-    /// Loading address in virtual memory.
-    ///
-    /// Preferred load address of the image in virtual memory, as declared in the headers of the
-    /// image. When loading an image, the operating system may still choose to place it at a
-    /// different address.
-    ///
-    /// Symbols and addresses in the native image are always relative to the start of the image and do not consider the preferred load address. It is merely a hint to the loader.
-    pub image_vmaddr: Option<String>,
-    /// Unique debug identifier of the image.
-    ///
-    /// This is also called `debug_id`.
-    pub id: String,
-
-    /// Optional identifier of the code file.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub code_id: Option<String>,
-    /// Path and name of the debug companion file.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub debug_file: Option<String>,
+    start_time_nanos: u64,
+    start_time_secs: u64,
+    duration_nanos: u64,
+    samples: Vec<RustSample>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct RustDebugMeta {
-    pub images: Vec<SymbolicDebugImage>,
+struct RustDebugMeta {
+    images: Vec<NativeDebugImage>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -394,7 +355,7 @@ mod tests {
 
     use super::*;
 
-    use relay_general::protocol::{DebugImage, NativeDebugImage};
+    use relay_general::protocol::{DebugImage, NativeDebugImage as RelayNativeDebugImage};
     use relay_general::types::{Annotated, Map};
 
     use crate::envelope::{ContentType, Item, ItemType};
@@ -456,13 +417,13 @@ mod tests {
     }
 
     #[test]
-    fn test_debug_image_compatibility() {
+    fn test_ios_debug_image_compatibility() {
         let image_json = r#"{"debug_id":"32420279-25E2-34E6-8BC7-8A006A8F2425","image_addr":"0x000000010258c000","code_file":"/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies","type":"macho","image_size":1720320,"image_vmaddr":"0x0000000100000000"}"#;
-        let image: MachOImage = serde_json::from_str(image_json).unwrap();
+        let image: NativeDebugImage = serde_json::from_str(image_json).unwrap();
         let json = serde_json::to_string(&image).unwrap();
         let annotated = Annotated::from_json(&json[..]).unwrap();
         assert_eq!(
-            Annotated::new(DebugImage::MachO(Box::new(NativeDebugImage {
+            Annotated::new(DebugImage::MachO(Box::new(RelayNativeDebugImage {
                 arch: Annotated::empty(),
                 code_file: Annotated::new("/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies".into()),
                 code_id: Annotated::empty(),
@@ -476,23 +437,26 @@ mod tests {
     }
 
     #[test]
-    fn test_symbolic_debug_image_compatibility() {
+    fn test_rust_debug_image_compatibility() {
         let image_json = r#"{"type": "symbolic","name": "/Users/vigliasentry/Documents/dev/rustfib/target/release/rustfib","image_addr": "0x104c6c000","image_size": 557056,"image_vmaddr": "0x100000000","id": "e5fd8c72-6f8f-3ad2-9c52-5ae133138e0c","code_id": "e5fd8c726f8f3ad29c525ae133138e0c"}"#;
-        let image: SymbolicDebugImage = serde_json::from_str(image_json).unwrap();
+        let image: NativeDebugImage = serde_json::from_str(image_json).unwrap();
+        let json = serde_json::to_string(&image).unwrap();
+        let annotated = Annotated::from_json(&json[..]).unwrap();
         assert_eq!(
-            SymbolicDebugImage {
-                image_type: "symbolic".to_string(),
-                name: "/Users/vigliasentry/Documents/dev/rustfib/target/release/rustfib"
-                    .to_string(),
-                arch: None,
-                image_addr: "0x104c6c000".to_string(),
-                image_size: 557056,
-                image_vmaddr: Some("0x100000000".to_string()),
-                id: "e5fd8c72-6f8f-3ad2-9c52-5ae133138e0c".to_string(),
-                code_id: Some("e5fd8c726f8f3ad29c525ae133138e0c".to_string()),
-                debug_file: None,
-            },
-            image
+            Annotated::new(DebugImage::Symbolic(Box::new(RelayNativeDebugImage {
+                arch: Annotated::empty(),
+                code_file: Annotated::new(
+                    "/Users/vigliasentry/Documents/dev/rustfib/target/release/rustfib".into()
+                ),
+                code_id: Annotated::empty(),
+                debug_file: Annotated::empty(),
+                debug_id: Annotated::new("e5fd8c72-6f8f-3ad2-9c52-5ae133138e0c".parse().unwrap()),
+                image_addr: Annotated::new(Addr(4375101440)),
+                image_size: Annotated::new(557056),
+                image_vmaddr: Annotated::new(Addr(4294967296)),
+                other: Map::new(),
+            }))),
+            annotated
         );
     }
 }
