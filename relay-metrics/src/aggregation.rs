@@ -148,13 +148,6 @@ impl DistributionValue {
         self.length
     }
 
-    /// Returns the size of the map used to store the distribution.
-    ///
-    /// This is only relevant for internal metrics.
-    fn internal_size(&self) -> usize {
-        self.values.len()
-    }
-
     /// Returns `true` if the map contains no elements.
     pub fn is_empty(&self) -> bool {
         self.length == 0
@@ -515,22 +508,9 @@ impl BucketValue {
         }
     }
 
-    /// Returns the number of values needed to encode the bucket (a measure of bucket
-    /// complexity).
-    pub fn relative_size(&self) -> usize {
-        match self {
-            Self::Counter(_) => 1,
-            Self::Set(s) => s.len(),
-            Self::Gauge(_) => 5,
-            Self::Distribution(m) => m.internal_size(),
-        }
-    }
-
     /// Estimates the number of bytes needed to encode the bucket value.
     /// Note that this does not necessarily match the exact memory footprint of the value,
     /// because datastructures might have a memory overhead.
-    ///
-    /// This is very similar to [`BucketValue::relative_size`], which can possibly be removed.
     pub fn cost(&self) -> usize {
         // Beside the size of [`BucketValue`], we also need to account for the cost of values
         // allocated dynamically.
@@ -1566,11 +1546,6 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            let size_statsd_metrics: Vec<_> = project_buckets
-                .iter()
-                .map(|bucket| (bucket.value.ty(), bucket.value.relative_size()))
-                .collect();
-
             self.receiver
                 .send(FlushBuckets::new(project_key, project_buckets))
                 .into_actor(self)
@@ -1581,14 +1556,6 @@ impl Aggregator {
                             buckets.len()
                         );
                         slf.merge_all(project_key, buckets).ok();
-                    } else {
-                        for (bucket_type, bucket_relative_size) in size_statsd_metrics {
-                            relay_statsd::metric!(
-                                histogram(MetricHistograms::BucketRelativeSize) =
-                                    bucket_relative_size as u64,
-                                metric_type = bucket_type.as_str(),
-                            );
-                        }
                     }
                     fut::ok(())
                 })
