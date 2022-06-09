@@ -38,8 +38,6 @@ const MAX_EXPLODED_SESSIONS: usize = 100;
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
 
-const REPLAY_RECORDINGS_ATTACHMENT_NAME: &str = "rr";
-
 #[derive(Fail, Debug)]
 pub enum StoreError {
     #[fail(display = "failed to send kafka message")]
@@ -454,6 +452,7 @@ impl StoreForwarder {
         );
         Ok(())
     }
+
     fn produce_replay_event(
         &self,
         replay_id: EventId,
@@ -481,7 +480,7 @@ impl StoreForwarder {
         replay_id: EventId,
         project_id: ProjectId,
         item: &Item,
-    ) -> Result<ChunkedAttachment, StoreError> {
+    ) -> Result<ChunkedReplayRecording, StoreError> {
         let id = Uuid::new_v4().to_string();
 
         let mut chunk_index = 0;
@@ -511,16 +510,10 @@ impl StoreForwarder {
         // The chunk_index is incremented after every loop iteration. After we exit the loop, it
         // is one larger than the last chunk, so it is equal to the number of chunks.
 
-        Ok(ChunkedAttachment {
+        Ok(ChunkedReplayRecording {
             id,
-            name: REPLAY_RECORDINGS_ATTACHMENT_NAME.to_owned(),
-            content_type: item
-                .content_type()
-                .map(|content_type| content_type.as_str().to_owned()),
-            attachment_type: item.attachment_type().unwrap_or_default(),
             chunks: chunk_index,
             size: Some(size),
-            rate_limited: Some(item.rate_limited()),
         })
     }
 }
@@ -577,6 +570,21 @@ struct ChunkedAttachment {
     /// not be persisted after processing.
     #[serde(skip_serializing_if = "Option::is_none")]
     rate_limited: Option<bool>,
+}
+/// attributes for Replay Recordings
+#[derive(Debug, Serialize)]
+struct ChunkedReplayRecording {
+    /// The attachment ID within the event.
+    ///
+    /// The triple `(project_id, event_id, id)` identifies an attachment uniquely.
+    id: String,
+
+    /// Number of chunks. Must be greater than zero.
+    chunks: usize,
+
+    /// The size of the attachment in bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size: Option<usize>,
 }
 
 /// A hack to make rmp-serde behave more like serde-json when serializing enums.
@@ -663,10 +671,9 @@ struct ReplayRecordingChunkKafkaMessage {
     /// The project id for the current replay.
     project_id: ProjectId,
     /// The recording ID within the replay.
-    ///
-    /// The triple `(project_id, replay_id, id)` identifies a replay recording chunk uniquely.
     id: String,
     /// Sequence number of chunk. Starts at 0 and ends at `ReplayRecordingKafkaMessage.num_chunks - 1`.
+    /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
     chunk_index: usize,
 }
 #[derive(Debug, Serialize)]
@@ -676,7 +683,7 @@ struct ReplayRecordingKafkaMessage {
     /// The project id for the current event.
     project_id: ProjectId,
     /// The recording attachment.
-    replay_recording: ChunkedAttachment,
+    replay_recording: ChunkedReplayRecording,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
@@ -778,7 +785,7 @@ impl KafkaMessage {
             Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
             Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
             Self::Profile(_message) => Uuid::nil(),
-            Self::ReplayEvent(_message) => Uuid::nil(),
+            Self::ReplayEvent(message) => message.replay_id.0,
             Self::ReplayRecording(message) => message.replay_id.0,
             Self::ReplayRecordingChunk(message) => message.replay_id.0,
         };

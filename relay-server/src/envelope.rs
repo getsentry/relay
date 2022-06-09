@@ -157,7 +157,6 @@ impl std::str::FromStr for ItemType {
     type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        println!("zzz");
         Ok(match s {
             "event" => Self::Event,
             "transaction" => Self::Transaction,

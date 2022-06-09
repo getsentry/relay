@@ -1009,16 +1009,9 @@ impl EnvelopeProcessor {
     /// Remove replays if the feature flag is not enabled
     fn process_replays(&self, state: &mut ProcessEnvelopeState) {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
-        state.envelope.retain_items(|item| {
-            match item.ty() {
-                ItemType::ReplayEvent | ItemType::ReplayRecording => {
-                    if !replays_enabled {
-                        return false;
-                    }
-                    true
-                }
-                _ => true, // Keep all other item types
-            }
+        state.envelope.retain_items(|item| match item.ty() {
+            ItemType::ReplayEvent | ItemType::ReplayRecording => replays_enabled,
+            _ => true,
         });
     }
 

@@ -1,9 +1,3 @@
-import pytest
-
-from requests.exceptions import HTTPError
-from sentry_sdk.envelope import Envelope
-
-
 def generate_replay_event():
     return {
         "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
@@ -22,7 +16,9 @@ def generate_replay_event():
     }
 
 
-def test_replay_event(mini_sentry, relay_with_processing, replay_events_consumer):
+def test_replay_event_with_processing(
+    mini_sentry, relay_with_processing, replay_events_consumer
+):
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
         42, extra={"config": {"features": ["organizations:session-replay"]}}
@@ -40,3 +36,23 @@ def test_replay_event(mini_sentry, relay_with_processing, replay_events_consumer
     )
     assert "trace" in replay_event["contexts"]
     assert replay_event["seq_id"] == 0
+
+
+def test_replay_events_without_processing(mini_sentry, relay_chain):
+    relay = relay_chain(min_relay_version="latest")
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(
+        project_id, extra={"config": {"features": ["organizations:session-replay"]}}
+    )
+
+    replay_item = generate_replay_event()
+
+    relay.send_replay_event(42, replay_item)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert len(envelope.items) == 1
+
+    replay_event = envelope.items[0]
+    assert replay_event.type == "replay_event"
+
