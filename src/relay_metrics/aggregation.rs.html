@@ -3675,13 +3675,13 @@
     <span class="doccomment">/// Defaults to `None`, i.e. no limit.</span>
     <span class="kw">pub</span> <span class="ident">max_total_bucket_bytes</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
 
-    <span class="doccomment">/// Maximum amount of bytes used for metrics aggregation per project.</span>
+    <span class="doccomment">/// Maximum amount of bytes used for metrics aggregation per project key.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Similar measuring technique to `max_total_bucket_bytes`, but instead of a</span>
-    <span class="doccomment">/// global/process-wide limit, it is enforced per project id.</span>
+    <span class="doccomment">/// global/process-wide limit, it is enforced per project key.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Defaults to `None`, i.e. no limit.</span>
-    <span class="kw">pub</span> <span class="ident">max_project_bucket_bytes</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">max_project_key_bucket_bytes</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">AggregatorConfig</span> {
@@ -3782,7 +3782,7 @@
             <span class="ident">max_tag_key_length</span>: <span class="number">200</span>,
             <span class="ident">max_tag_value_length</span>: <span class="number">200</span>,
             <span class="ident">max_total_bucket_bytes</span>: <span class="prelude-val">None</span>,
-            <span class="ident">max_project_bucket_bytes</span>: <span class="prelude-val">None</span>,
+            <span class="ident">max_project_key_bucket_bytes</span>: <span class="prelude-val">None</span>,
         }
     }
 }
@@ -4198,7 +4198,7 @@
         <span class="self">self</span>.<span class="ident">cost_tracker</span>.<span class="ident">check_limits_exceeded</span>(
             <span class="ident">project_key</span>,
             <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_total_bucket_bytes</span>,
-            <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_project_bucket_bytes</span>,
+            <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_project_key_bucket_bytes</span>,
         )<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">added_cost</span>;
@@ -4599,7 +4599,7 @@
             <span class="ident">max_name_length</span>: <span class="number">200</span>,
             <span class="ident">max_tag_key_length</span>: <span class="number">200</span>,
             <span class="ident">max_tag_value_length</span>: <span class="number">200</span>,
-            <span class="ident">max_project_bucket_bytes</span>: <span class="prelude-val">None</span>,
+            <span class="ident">max_project_key_bucket_bytes</span>: <span class="prelude-val">None</span>,
             <span class="ident">max_total_bucket_bytes</span>: <span class="prelude-val">None</span>,
         }
     }
@@ -5560,7 +5560,7 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_aggregator_cost_enforcement_project</span>() {
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">AggregatorConfig</span> {
-            <span class="ident">max_project_bucket_bytes</span>: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+            <span class="ident">max_project_key_bucket_bytes</span>: <span class="prelude-val">Some</span>(<span class="number">1</span>),
             ..<span class="ident">test_config</span>()
         };
 
