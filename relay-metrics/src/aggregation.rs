@@ -1312,7 +1312,7 @@ impl Aggregator {
     }
 
     fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
-        key.metric_name = match MetricResourceIdentifier::from_str(&key.metric_name) {
+        key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
             Ok(mri) => {
                 if matches!(mri.namespace, MetricNamespace::Unsupported) {
                     relay_log::debug!("invalid metric namespace {:?}", key.metric_name);

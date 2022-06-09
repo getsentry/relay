@@ -385,7 +385,7 @@ impl StoreForwarder {
     }
 
     fn send_metric_message(&self, message: MetricKafkaMessage) -> Result<(), StoreError> {
-        let mri = MetricResourceIdentifier::from_str(&message.name);
+        let mri = MetricResourceIdentifier::parse(&message.name);
         let topic = match mri.map(|mri| mri.namespace) {
             Ok(MetricNamespace::Transactions) => KafkaTopic::MetricsTransactions,
             Ok(MetricNamespace::Sessions) => KafkaTopic::MetricsSessions,

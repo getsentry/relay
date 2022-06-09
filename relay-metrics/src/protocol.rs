@@ -231,7 +231,7 @@ pub struct MetricResourceIdentifier<'a> {
 
 impl<'a> MetricResourceIdentifier<'a> {
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
-    pub fn from_str(name: &'a str) -> Result<Self, ParseMetricError> {
+    pub fn parse(name: &'a str) -> Result<Self, ParseMetricError> {
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
 
@@ -241,7 +241,7 @@ impl<'a> MetricResourceIdentifier<'a> {
         Ok(Self {
             ty,
             namespace: raw_namespace.parse()?,
-            name: name.into(),
+            name,
             unit,
         })
     }
@@ -723,7 +723,7 @@ mod tests {
         let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::from_str(&metric.name).unwrap();
+        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
         assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
@@ -732,7 +732,7 @@ mod tests {
         let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::from_str(&metric.name).unwrap();
+        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
         assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
