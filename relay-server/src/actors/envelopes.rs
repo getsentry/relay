@@ -1009,12 +1009,7 @@ impl EnvelopeProcessor {
     fn process_replay_recordings(&self, state: &mut ProcessEnvelopeState) {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         state.envelope.retain_items(|item| match item.ty() {
-            ItemType::ReplayRecording => {
-                if !replays_enabled {
-                    return false;
-                }
-                true
-            }
+            ItemType::ReplayRecording => replays_enabled,
             _ => true,
         });
     }

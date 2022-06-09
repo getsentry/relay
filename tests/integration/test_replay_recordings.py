@@ -75,13 +75,9 @@ def test_replay_recordings_processing(
     assert replay_recording == {
         "type": "replay_recording",
         "replay_recording": {
-            "attachment_type": "event.attachment",
             "chunks": replay_recording_num_chunks[id1],
-            "content_type": "application/octet-stream",
             "id": id1,
-            "name": "rr",
             "size": len(replay_recording_contents[id1]),
-            "rate_limited": False,
         },
         "replay_id": replay_id,
         "project_id": project_id,
