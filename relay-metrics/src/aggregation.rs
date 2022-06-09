@@ -882,7 +882,7 @@ pub struct AggregatorConfig {
     /// Maximum amount of bytes used for metrics aggregation per project key.
     ///
     /// Similar measuring technique to `max_total_bucket_bytes`, but instead of a
-    /// global/process-wide limit, it is enforced per project id.
+    /// global/process-wide limit, it is enforced per project key.
     ///
     /// Defaults to `None`, i.e. no limit.
     pub max_project_key_bucket_bytes: Option<usize>,
