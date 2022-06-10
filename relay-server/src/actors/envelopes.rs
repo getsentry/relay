@@ -1087,6 +1087,7 @@ impl EnvelopeProcessor {
             "android" => utils::parse_android_profile(item),
             "cocoa" => utils::parse_cocoa_profile(item),
             "typescript" => utils::parse_typescript_profile(item),
+            "rust" => utils::parse_rust_profile(item),
             _ => Err(ProfileError::PlatformNotSupported),
         }
     }
