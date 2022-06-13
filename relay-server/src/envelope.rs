@@ -103,6 +103,8 @@ pub enum ItemType {
     ClientReport,
     /// Profile event payload encoded in JSON
     Profile,
+    /// Replay Recording data
+    ReplayRecording,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -142,6 +144,7 @@ impl fmt::Display for ItemType {
             Self::MetricBuckets => write!(f, "metric_buckets"),
             Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
+            Self::ReplayRecording => write!(f, "replay_recording"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -166,6 +169,7 @@ impl std::str::FromStr for ItemType {
             "metric_buckets" => Self::MetricBuckets,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
+            "replay_recording" => Self::ReplayRecording,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -621,6 +625,7 @@ impl Item {
             | ItemType::Metrics
             | ItemType::MetricBuckets
             | ItemType::ClientReport
+            | ItemType::ReplayRecording
             | ItemType::Profile => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
@@ -647,6 +652,7 @@ impl Item {
             ItemType::Metrics => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
+            ItemType::ReplayRecording => false,
             ItemType::Profile => true,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
@@ -1361,6 +1367,22 @@ mod tests {
 
         let items: Vec<_> = envelope.items().collect();
         assert_eq!(items[0].len(), 10);
+    }
+
+    #[test]
+    fn test_deserialize_envelope_replay_recording() {
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"replay_recording\"}\n\
+             helloworld\n\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        assert_eq!(envelope.len(), 1);
+        let items: Vec<_> = envelope.items().collect();
+        assert_eq!(items[0].ty(), &ItemType::ReplayRecording);
     }
 
     #[test]
