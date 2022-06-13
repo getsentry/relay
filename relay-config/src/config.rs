@@ -785,7 +785,7 @@ pub enum KafkaTopic {
     Profiles,
     /// ReplayEvents, breadcrumb + session updates for replays
     ReplayEvents,
-    /// ReplayRecording, large blobs sent by the replay sdk
+    /// ReplayRecordings, large blobs sent by the replay sdk
     ReplayRecordings,
 }
 

@@ -198,7 +198,6 @@ impl StoreForwarder {
                 id: id.clone(),
                 chunk_index,
             });
-
             self.produce(KafkaTopic::Attachments, attachment_message)?;
             offset += chunk_size;
             chunk_index += 1;

@@ -184,11 +184,14 @@ struct SampledProfile {
 #[serde(rename_all = "lowercase")]
 enum ImageType {
     MachO,
+    Symbolic,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-struct MachOImage {
+struct NativeDebugImage {
+    #[serde(alias = "name")]
     code_file: NativeImagePath,
+    #[serde(alias = "id")]
     debug_id: DebugId,
     image_addr: Addr,
 
@@ -204,7 +207,7 @@ struct MachOImage {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DebugMeta {
-    images: Vec<MachOImage>,
+    images: Vec<NativeDebugImage>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -287,13 +290,72 @@ pub fn parse_typescript_profile(item: &mut Item) -> Result<(), ProfileError> {
     Ok(())
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct RustFrame {
+    instruction_addr: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct RustSample {
+    frames: Vec<RustFrame>,
+    thread_name: String,
+    thread_id: u64,
+    nanos_relative_to_start: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RustSampledProfile {
+    start_time_nanos: u64,
+    start_time_secs: u64,
+    duration_nanos: u64,
+    samples: Vec<RustSample>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct RustDebugMeta {
+    images: Vec<NativeDebugImage>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RustProfile {
+    duration_ns: u64,
+    platform: String,
+    architecture: String,
+    trace_id: EventId,
+    transaction_name: String,
+    transaction_id: EventId,
+    profile_id: EventId,
+    sampled_profile: RustSampledProfile,
+    device_os_name: String,
+    device_os_version: String,
+    version_name: String,
+    version_code: String,
+    debug_meta: RustDebugMeta,
+}
+
+pub fn parse_rust_profile(item: &mut Item) -> Result<(), ProfileError> {
+    let profile: RustProfile =
+        serde_json::from_slice(&item.payload()).map_err(ProfileError::InvalidJson)?;
+
+    if profile.sampled_profile.samples.is_empty() {
+        return Err(ProfileError::NotEnoughSamples);
+    }
+
+    match serde_json::to_vec(&profile) {
+        Ok(payload) => item.set_payload(ContentType::Json, &payload[..]),
+        Err(_) => return Err(ProfileError::CannotSerializePayload),
+    };
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
 
     use super::*;
 
-    use relay_general::protocol::{DebugImage, NativeDebugImage};
+    use relay_general::protocol::{DebugImage, NativeDebugImage as RelayNativeDebugImage};
     use relay_general::types::{Annotated, Map};
 
     use crate::envelope::{ContentType, Item, ItemType};
@@ -341,13 +403,27 @@ mod tests {
     }
 
     #[test]
-    fn test_debug_image_compatibility() {
+    fn test_roundtrip_rust() {
+        let mut item = Item::new(ItemType::Profile);
+        let payload = Bytes::from(&include_bytes!("../../tests/fixtures/profiles/rust.json")[..]);
+
+        item.set_payload(ContentType::Json, payload);
+
+        assert!(parse_rust_profile(&mut item).is_ok());
+
+        item.set_payload(ContentType::Json, item.payload());
+
+        assert!(parse_rust_profile(&mut item).is_ok());
+    }
+
+    #[test]
+    fn test_ios_debug_image_compatibility() {
         let image_json = r#"{"debug_id":"32420279-25E2-34E6-8BC7-8A006A8F2425","image_addr":"0x000000010258c000","code_file":"/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies","type":"macho","image_size":1720320,"image_vmaddr":"0x0000000100000000"}"#;
-        let image: MachOImage = serde_json::from_str(image_json).unwrap();
+        let image: NativeDebugImage = serde_json::from_str(image_json).unwrap();
         let json = serde_json::to_string(&image).unwrap();
         let annotated = Annotated::from_json(&json[..]).unwrap();
         assert_eq!(
-            Annotated::new(DebugImage::MachO(Box::new(NativeDebugImage {
+            Annotated::new(DebugImage::MachO(Box::new(RelayNativeDebugImage {
                 arch: Annotated::empty(),
                 code_file: Annotated::new("/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies".into()),
                 code_id: Annotated::empty(),
@@ -358,5 +434,29 @@ mod tests {
                 image_vmaddr: Annotated::new(Addr(4294967296)),
                 other: Map::new(),
             }))), annotated);
+    }
+
+    #[test]
+    fn test_rust_debug_image_compatibility() {
+        let image_json = r#"{"type": "symbolic","name": "/Users/vigliasentry/Documents/dev/rustfib/target/release/rustfib","image_addr": "0x104c6c000","image_size": 557056,"image_vmaddr": "0x100000000","id": "e5fd8c72-6f8f-3ad2-9c52-5ae133138e0c","code_id": "e5fd8c726f8f3ad29c525ae133138e0c"}"#;
+        let image: NativeDebugImage = serde_json::from_str(image_json).unwrap();
+        let json = serde_json::to_string(&image).unwrap();
+        let annotated = Annotated::from_json(&json[..]).unwrap();
+        assert_eq!(
+            Annotated::new(DebugImage::Symbolic(Box::new(RelayNativeDebugImage {
+                arch: Annotated::empty(),
+                code_file: Annotated::new(
+                    "/Users/vigliasentry/Documents/dev/rustfib/target/release/rustfib".into()
+                ),
+                code_id: Annotated::empty(),
+                debug_file: Annotated::empty(),
+                debug_id: Annotated::new("e5fd8c72-6f8f-3ad2-9c52-5ae133138e0c".parse().unwrap()),
+                image_addr: Annotated::new(Addr(4375101440)),
+                image_size: Annotated::new(557056),
+                image_vmaddr: Annotated::new(Addr(4294967296)),
+                other: Map::new(),
+            }))),
+            annotated
+        );
     }
 }
