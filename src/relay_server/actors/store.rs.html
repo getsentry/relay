@@ -813,6 +813,120 @@
 <span id="806">806</span>
 <span id="807">807</span>
 <span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
+<span id="879">879</span>
+<span id="880">880</span>
+<span id="881">881</span>
+<span id="882">882</span>
+<span id="883">883</span>
+<span id="884">884</span>
+<span id="885">885</span>
+<span id="886">886</span>
+<span id="887">887</span>
+<span id="888">888</span>
+<span id="889">889</span>
+<span id="890">890</span>
+<span id="891">891</span>
+<span id="892">892</span>
+<span id="893">893</span>
+<span id="894">894</span>
+<span id="895">895</span>
+<span id="896">896</span>
+<span id="897">897</span>
+<span id="898">898</span>
+<span id="899">899</span>
+<span id="900">900</span>
+<span id="901">901</span>
+<span id="902">902</span>
+<span id="903">903</span>
+<span id="904">904</span>
+<span id="905">905</span>
+<span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
+<span id="912">912</span>
+<span id="913">913</span>
+<span id="914">914</span>
+<span id="915">915</span>
+<span id="916">916</span>
+<span id="917">917</span>
+<span id="918">918</span>
+<span id="919">919</span>
+<span id="920">920</span>
+<span id="921">921</span>
+<span id="922">922</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The actor uses kafka topics to forward data to Sentry</span>
 
@@ -874,6 +988,7 @@
     <span class="ident">sessions</span>: <span class="ident">Producer</span>,
     <span class="ident">metrics</span>: <span class="ident">Producer</span>,
     <span class="ident">profiles</span>: <span class="ident">Producer</span>,
+    <span class="ident">replay_recordings</span>: <span class="ident">Producer</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Producers</span> {
@@ -891,6 +1006,7 @@
             <span class="ident">KafkaTopic::Sessions</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sessions</span>),
             <span class="ident">KafkaTopic::Metrics</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>),
             <span class="ident">KafkaTopic::Profiles</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiles</span>),
+            <span class="ident">KafkaTopic::ReplayRecordings</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">replay_recordings</span>),
         }
     }
 }
@@ -948,6 +1064,11 @@
             <span class="ident">sessions</span>: <span class="ident">make_producer</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">config</span>, <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>, <span class="ident">KafkaTopic::Sessions</span>)<span class="question-mark">?</span>,
             <span class="ident">metrics</span>: <span class="ident">make_producer</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">config</span>, <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>, <span class="ident">KafkaTopic::Metrics</span>)<span class="question-mark">?</span>,
             <span class="ident">profiles</span>: <span class="ident">make_producer</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">config</span>, <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>, <span class="ident">KafkaTopic::Profiles</span>)<span class="question-mark">?</span>,
+            <span class="ident">replay_recordings</span>: <span class="ident">make_producer</span>(
+                <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">config</span>,
+                <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>,
+                <span class="ident">KafkaTopic::ReplayRecordings</span>,
+            )<span class="question-mark">?</span>,
         };
 
         <span class="prelude-val">Ok</span>(<span class="self">Self</span> { <span class="ident">config</span>, <span class="ident">producers</span> })
@@ -992,7 +1113,6 @@
         <span class="kw">while</span> <span class="ident">offset</span> <span class="op">&lt;</span> <span class="ident">size</span> {
             <span class="kw">let</span> <span class="ident">max_chunk_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">attachment_chunk_size</span>();
             <span class="kw">let</span> <span class="ident">chunk_size</span> <span class="op">=</span> <span class="ident">std::cmp::min</span>(<span class="ident">max_chunk_size</span>, <span class="ident">size</span> <span class="op">-</span> <span class="ident">offset</span>);
-
             <span class="kw">let</span> <span class="ident">attachment_message</span> <span class="op">=</span> <span class="ident">KafkaMessage::AttachmentChunk</span>(<span class="ident">AttachmentChunkKafkaMessage</span> {
                 <span class="ident">payload</span>: <span class="ident">payload</span>.<span class="ident">slice</span>(<span class="ident">offset</span>, <span class="ident">offset</span> <span class="op">+</span> <span class="ident">chunk_size</span>),
                 <span class="ident">event_id</span>,
@@ -1000,7 +1120,6 @@
                 <span class="ident">id</span>: <span class="ident">id</span>.<span class="ident">clone</span>(),
                 <span class="ident">chunk_index</span>,
             });
-
             <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::Attachments</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
             <span class="ident">offset</span> <span class="op">+</span><span class="op">=</span> <span class="ident">chunk_size</span>;
             <span class="ident">chunk_index</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
@@ -1254,6 +1373,48 @@
         );
         <span class="prelude-val">Ok</span>(())
     }
+
+    <span class="kw">fn</span> <span class="ident">produce_replay_recording_chunks</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
+        <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
+        <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ChunkedReplayRecording</span>, <span class="ident">StoreError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident">Uuid::new_v4</span>().<span class="ident">to_string</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chunk_index</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">offset</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">payload</span>();
+        <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>();
+
+        <span class="comment">// This skips chunks for empty replay recordings. The consumer does not require chunks for</span>
+        <span class="comment">// empty replay recordings. `chunks` will be `0` in this case.</span>
+        <span class="kw">while</span> <span class="ident">offset</span> <span class="op">&lt;</span> <span class="ident">size</span> {
+            <span class="kw">let</span> <span class="ident">max_chunk_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">attachment_chunk_size</span>();
+            <span class="kw">let</span> <span class="ident">chunk_size</span> <span class="op">=</span> <span class="ident">std::cmp::min</span>(<span class="ident">max_chunk_size</span>, <span class="ident">size</span> <span class="op">-</span> <span class="ident">offset</span>);
+
+            <span class="kw">let</span> <span class="ident">replay_recording_chunk_message</span> <span class="op">=</span>
+                <span class="ident">KafkaMessage::ReplayRecordingChunk</span>(<span class="ident">ReplayRecordingChunkKafkaMessage</span> {
+                    <span class="ident">payload</span>: <span class="ident">payload</span>.<span class="ident">slice</span>(<span class="ident">offset</span>, <span class="ident">offset</span> <span class="op">+</span> <span class="ident">chunk_size</span>),
+                    <span class="ident">replay_id</span>,
+                    <span class="ident">project_id</span>,
+                    <span class="ident">id</span>: <span class="ident">id</span>.<span class="ident">clone</span>(),
+                    <span class="ident">chunk_index</span>,
+                });
+            <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::ReplayRecordings</span>, <span class="ident">replay_recording_chunk_message</span>)<span class="question-mark">?</span>;
+            <span class="ident">offset</span> <span class="op">+</span><span class="op">=</span> <span class="ident">chunk_size</span>;
+            <span class="ident">chunk_index</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+        }
+
+        <span class="comment">// The chunk_index is incremented after every loop iteration. After we exit the loop, it</span>
+        <span class="comment">// is one larger than the last chunk, so it is equal to the number of chunks.</span>
+
+        <span class="prelude-val">Ok</span>(<span class="ident">ChunkedReplayRecording</span> {
+            <span class="ident">id</span>,
+            <span class="ident">chunks</span>: <span class="ident">chunk_index</span>,
+            <span class="ident">size</span>: <span class="prelude-val">Some</span>(<span class="ident">size</span>),
+        })
+    }
 }
 
 <span class="doccomment">/// StoreMessageForwarder is an async actor since the only thing it does is put the messages</span>
@@ -1308,6 +1469,21 @@
     <span class="doccomment">/// not be persisted after processing.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="ident">rate_limited</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+}
+<span class="doccomment">/// attributes for Replay Recordings</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">ChunkedReplayRecording</span> {
+    <span class="doccomment">/// The attachment ID within the event.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The triple `(project_id, event_id, id)` identifies an attachment uniquely.</span>
+    <span class="ident">id</span>: <span class="ident">String</span>,
+
+    <span class="doccomment">/// Number of chunks. Must be greater than zero.</span>
+    <span class="ident">chunks</span>: <span class="ident">usize</span>,
+
+    <span class="doccomment">/// The size of the attachment in bytes.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
+    <span class="ident">size</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// A hack to make rmp-serde behave more like serde-json when serializing enums.</span>
@@ -1371,6 +1547,31 @@
     <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
     <span class="doccomment">/// The attachment.</span>
     <span class="ident">attachment</span>: <span class="ident">ChunkedAttachment</span>,
+}
+
+<span class="doccomment">/// Container payload for chunks of attachments.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">ReplayRecordingChunkKafkaMessage</span> {
+    <span class="doccomment">/// Chunk payload of the replay recording.</span>
+    <span class="ident">payload</span>: <span class="ident">Bytes</span>,
+    <span class="doccomment">/// The replay id.</span>
+    <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
+    <span class="doccomment">/// The project id for the current replay.</span>
+    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
+    <span class="doccomment">/// The recording ID within the replay.</span>
+    <span class="ident">id</span>: <span class="ident">String</span>,
+    <span class="doccomment">/// Sequence number of chunk. Starts at 0 and ends at `ReplayRecordingKafkaMessage.num_chunks - 1`.</span>
+    <span class="doccomment">/// the tuple (id, chunk_index) is the unique identifier for a single chunk.</span>
+    <span class="ident">chunk_index</span>: <span class="ident">usize</span>,
+}
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
+<span class="kw">struct</span> <span class="ident">ReplayRecordingKafkaMessage</span> {
+    <span class="doccomment">/// The replay id.</span>
+    <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
+    <span class="doccomment">/// The project id for the current event.</span>
+    <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
+    <span class="doccomment">/// The recording attachment.</span>
+    <span class="ident">replay_recording</span>: <span class="ident">ChunkedReplayRecording</span>,
 }
 
 <span class="doccomment">/// User report for an event wrapped up in a message ready for consumption in Kafka.</span>
@@ -1441,6 +1642,8 @@
     <span class="ident">Session</span>(<span class="ident">SessionKafkaMessage</span>),
     <span class="ident">Metric</span>(<span class="ident">MetricKafkaMessage</span>),
     <span class="ident">Profile</span>(<span class="ident">ProfileKafkaMessage</span>),
+    <span class="ident">ReplayRecording</span>(<span class="ident">ReplayRecordingKafkaMessage</span>),
+    <span class="ident">ReplayRecordingChunk</span>(<span class="ident">ReplayRecordingChunkKafkaMessage</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">KafkaMessage</span> {
@@ -1453,6 +1656,8 @@
             <span class="ident">KafkaMessage::Session</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;session&quot;</span>,
             <span class="ident">KafkaMessage::Metric</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;metric&quot;</span>,
             <span class="ident">KafkaMessage::Profile</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;profile&quot;</span>,
+            <span class="ident">KafkaMessage::ReplayRecording</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording&quot;</span>,
+            <span class="ident">KafkaMessage::ReplayRecordingChunk</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording_chunk&quot;</span>,
         }
     }
 
@@ -1466,6 +1671,8 @@
             <span class="ident"><span class="self">Self</span>::Session</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(), <span class="comment">// Explicit random partitioning for sessions</span>
             <span class="ident"><span class="self">Self</span>::Metric</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(),  <span class="comment">// TODO(ja): Determine a partitioning key</span>
             <span class="ident"><span class="self">Self</span>::Profile</span>(<span class="ident">_message</span>) =&gt; <span class="ident">Uuid::nil</span>(),
+            <span class="ident"><span class="self">Self</span>::ReplayRecording</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">replay_id</span>.<span class="number">0</span>,
+            <span class="ident"><span class="self">Self</span>::ReplayRecordingChunk</span>(<span class="ident">message</span>) =&gt; <span class="ident">message</span>.<span class="ident">replay_id</span>.<span class="number">0</span>,
         };
 
         <span class="kw">if</span> <span class="ident">uuid</span>.<span class="ident">is_nil</span>() {
@@ -1581,6 +1788,27 @@
                     <span class="ident">start_time</span>,
                     <span class="ident">item</span>,
                 )<span class="question-mark">?</span>,
+                <span class="ident">ItemType::ReplayRecording</span> =&gt; {
+                    <span class="kw">let</span> <span class="ident">replay_recording</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">produce_replay_recording_chunks</span>(
+                        <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                        <span class="ident">item</span>,
+                    )<span class="question-mark">?</span>;
+                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending individual replay_recordings of envelope to kafka&quot;</span>);
+                    <span class="kw">let</span> <span class="ident">replay_recording_message</span> <span class="op">=</span>
+                        <span class="ident">KafkaMessage::ReplayRecording</span>(<span class="ident">ReplayRecordingKafkaMessage</span> {
+                            <span class="ident">replay_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                            <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                            <span class="ident">replay_recording</span>,
+                        });
+
+                    <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::ReplayRecordings</span>, <span class="ident">replay_recording_message</span>)<span class="question-mark">?</span>;
+                    <span class="macro">metric!</span>(
+                        <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+                        <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;replay_recording&quot;</span>
+                    );
+                }
+
                 <span class="kw">_</span> =&gt; {}
             }
         }

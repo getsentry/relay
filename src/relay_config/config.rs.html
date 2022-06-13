@@ -2047,6 +2047,12 @@
 <span id="2040">2040</span>
 <span id="2041">2041</span>
 <span id="2042">2042</span>
+<span id="2043">2043</span>
+<span id="2044">2044</span>
+<span id="2045">2045</span>
+<span id="2046">2046</span>
+<span id="2047">2047</span>
+<span id="2048">2048</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2832,6 +2838,8 @@
     <span class="ident">Metrics</span>,
     <span class="doccomment">/// Profiles</span>
     <span class="ident">Profiles</span>,
+    <span class="doccomment">/// ReplayRecording, large blobs sent by the replay sdk</span>
+    <span class="ident">ReplayRecordings</span>,
 }
 
 <span class="doccomment">/// Configuration for topics.</span>
@@ -2854,6 +2862,8 @@
     <span class="kw">pub</span> <span class="ident">metrics</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Stacktrace topic name</span>
     <span class="kw">pub</span> <span class="ident">profiles</span>: <span class="ident">TopicAssignment</span>,
+    <span class="doccomment">/// Recordings topic name.</span>
+    <span class="kw">pub</span> <span class="ident">replay_recordings</span>: <span class="ident">TopicAssignment</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TopicAssignments</span> {
@@ -2868,6 +2878,7 @@
             <span class="ident">KafkaTopic::Sessions</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sessions</span>,
             <span class="ident">KafkaTopic::Metrics</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>,
             <span class="ident">KafkaTopic::Profiles</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiles</span>,
+            <span class="ident">KafkaTopic::ReplayRecordings</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">replay_recordings</span>,
         }
     }
 }
@@ -2883,6 +2894,7 @@
             <span class="ident">sessions</span>: <span class="string">&quot;ingest-sessions&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">metrics</span>: <span class="string">&quot;ingest-metrics&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">profiles</span>: <span class="string">&quot;profiles&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+            <span class="ident">replay_recordings</span>: <span class="string">&quot;ingest-replay-recordings&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
         }
     }
 }

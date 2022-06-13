@@ -1544,6 +1544,28 @@
 <span id="1537">1537</span>
 <span id="1538">1538</span>
 <span id="1539">1539</span>
+<span id="1540">1540</span>
+<span id="1541">1541</span>
+<span id="1542">1542</span>
+<span id="1543">1543</span>
+<span id="1544">1544</span>
+<span id="1545">1545</span>
+<span id="1546">1546</span>
+<span id="1547">1547</span>
+<span id="1548">1548</span>
+<span id="1549">1549</span>
+<span id="1550">1550</span>
+<span id="1551">1551</span>
+<span id="1552">1552</span>
+<span id="1553">1553</span>
+<span id="1554">1554</span>
+<span id="1555">1555</span>
+<span id="1556">1556</span>
+<span id="1557">1557</span>
+<span id="1558">1558</span>
+<span id="1559">1559</span>
+<span id="1560">1560</span>
+<span id="1561">1561</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data</span>
@@ -1649,6 +1671,8 @@
     <span class="ident">ClientReport</span>,
     <span class="doccomment">/// Profile event payload encoded in JSON</span>
     <span class="ident">Profile</span>,
+    <span class="doccomment">/// Replay Recording data</span>
+    <span class="ident">ReplayRecording</span>,
     <span class="doccomment">/// A new item type that is yet unknown by this version of Relay.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// By default, items of this type are forwarded without modification. Processing Relays and</span>
@@ -1688,6 +1712,7 @@
             <span class="ident"><span class="self">Self</span>::MetricBuckets</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;metric_buckets&quot;</span>),
             <span class="ident"><span class="self">Self</span>::ClientReport</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;client_report&quot;</span>),
             <span class="ident"><span class="self">Self</span>::Profile</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;profile&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::ReplayRecording</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;replay_recording&quot;</span>),
             <span class="ident"><span class="self">Self</span>::Unknown</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
         }
     }
@@ -1712,6 +1737,7 @@
             <span class="string">&quot;metric_buckets&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::MetricBuckets</span>,
             <span class="string">&quot;client_report&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::ClientReport</span>,
             <span class="string">&quot;profile&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Profile</span>,
+            <span class="string">&quot;replay_recording&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::ReplayRecording</span>,
             <span class="ident">other</span> =&gt; <span class="ident"><span class="self">Self</span>::Unknown</span>(<span class="ident">other</span>.<span class="ident">to_owned</span>()),
         })
     }
@@ -2167,6 +2193,7 @@
             <span class="op">|</span> <span class="ident">ItemType::Metrics</span>
             <span class="op">|</span> <span class="ident">ItemType::MetricBuckets</span>
             <span class="op">|</span> <span class="ident">ItemType::ClientReport</span>
+            <span class="op">|</span> <span class="ident">ItemType::ReplayRecording</span>
             <span class="op">|</span> <span class="ident">ItemType::Profile</span> =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// The unknown item type can observe any behavior, most likely there are going to be no</span>
@@ -2193,6 +2220,7 @@
             <span class="ident">ItemType::Metrics</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::MetricBuckets</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::ClientReport</span> =&gt; <span class="bool-val">false</span>,
+            <span class="ident">ItemType::ReplayRecording</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::Profile</span> =&gt; <span class="bool-val">true</span>,
 
             <span class="comment">// Since this Relay cannot interpret the semantics of this item, it does not know</span>
@@ -2907,6 +2935,22 @@
 
         <span class="kw">let</span> <span class="ident">items</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">items</span>().<span class="ident">collect</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">items</span>[<span class="number">0</span>].<span class="ident">len</span>(), <span class="number">10</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_deserialize_envelope_replay_recording</span>() {
+        <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="ident">Bytes::from</span>(
+            <span class="string">&quot;\
+             {\&quot;event_id\&quot;:\&quot;9ec79c33ec9942ab8353589fcb2e04dc\&quot;,\&quot;dsn\&quot;:\&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\&quot;}\n\
+             {\&quot;type\&quot;:\&quot;replay_recording\&quot;}\n\
+             helloworld\n\
+             &quot;</span>,
+        );
+
+        <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="ident">Envelope::parse_bytes</span>(<span class="ident">bytes</span>).<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(<span class="ident">envelope</span>.<span class="ident">len</span>(), <span class="number">1</span>);
+        <span class="kw">let</span> <span class="ident">items</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">items</span>().<span class="ident">collect</span>();
+        <span class="macro">assert_eq!</span>(<span class="ident">items</span>[<span class="number">0</span>].<span class="ident">ty</span>(), <span class="kw-2">&amp;</span><span class="ident">ItemType::ReplayRecording</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
