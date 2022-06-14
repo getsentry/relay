@@ -107,6 +107,9 @@
 <span id="100">100</span>
 <span id="101">101</span>
 <span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Metric protocol, aggregation and processing for Sentry.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Metrics are high-volume values sent from Sentry clients, integrations, or extracted from errors</span>
@@ -138,6 +141,9 @@
 <span class="doccomment">//! endpoint.response_time@millisecond:57|d|#route:user_index</span>
 <span class="doccomment">//! ...</span>
 <span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Note that the name format used in the statsd protocol is different from the MRI: Metric names</span>
+<span class="doccomment">//! are not prefixed with `&lt;ty&gt;:` as the type is somewhere else in the protocol.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The timestamp in the item header is used to send backdated metrics. If it is omitted,</span>
 <span class="doccomment">//! the `received` time of the envelope is assumed.</span>

@@ -2053,6 +2053,19 @@
 <span id="2046">2046</span>
 <span id="2047">2047</span>
 <span id="2048">2048</span>
+<span id="2049">2049</span>
+<span id="2050">2050</span>
+<span id="2051">2051</span>
+<span id="2052">2052</span>
+<span id="2053">2053</span>
+<span id="2054">2054</span>
+<span id="2055">2055</span>
+<span id="2056">2056</span>
+<span id="2057">2057</span>
+<span id="2058">2058</span>
+<span id="2059">2059</span>
+<span id="2060">2060</span>
+<span id="2061">2061</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2834,8 +2847,10 @@
     <span class="ident">OutcomesBilling</span>,
     <span class="doccomment">/// Session health updates.</span>
     <span class="ident">Sessions</span>,
-    <span class="doccomment">/// Aggregate Metrics.</span>
-    <span class="ident">Metrics</span>,
+    <span class="doccomment">/// Any metric that is extracted from sessions.</span>
+    <span class="ident">MetricsSessions</span>,
+    <span class="doccomment">/// Any metric that is extracted from transactions.</span>
+    <span class="ident">MetricsTransactions</span>,
     <span class="doccomment">/// Profiles</span>
     <span class="ident">Profiles</span>,
     <span class="doccomment">/// ReplayRecording, large blobs sent by the replay sdk</span>
@@ -2858,8 +2873,14 @@
     <span class="kw">pub</span> <span class="ident">outcomes_billing</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TopicAssignment</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Session health topic name.</span>
     <span class="kw">pub</span> <span class="ident">sessions</span>: <span class="ident">TopicAssignment</span>,
-    <span class="doccomment">/// Metrics topic name.</span>
+    <span class="doccomment">/// Default topic name for all aggregate metrics. Specialized topics for session-based and</span>
+    <span class="doccomment">/// transaction-based metrics can be configured via `metrics_sessions` and</span>
+    <span class="doccomment">/// `metrics_transactions` each.</span>
     <span class="kw">pub</span> <span class="ident">metrics</span>: <span class="ident">TopicAssignment</span>,
+    <span class="doccomment">/// Topic name for metrics extracted from sessions. Defaults to the assignment of `metrics`.</span>
+    <span class="kw">pub</span> <span class="ident">metrics_sessions</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TopicAssignment</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Topic name for metrics extracted from transactions. Defaults to the assignment of `metrics`.</span>
+    <span class="kw">pub</span> <span class="ident">metrics_transactions</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TopicAssignment</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Stacktrace topic name</span>
     <span class="kw">pub</span> <span class="ident">profiles</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Recordings topic name.</span>
@@ -2876,7 +2897,10 @@
             <span class="ident">KafkaTopic::Outcomes</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcomes</span>,
             <span class="ident">KafkaTopic::OutcomesBilling</span> =&gt; <span class="self">self</span>.<span class="ident">outcomes_billing</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">outcomes</span>),
             <span class="ident">KafkaTopic::Sessions</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sessions</span>,
-            <span class="ident">KafkaTopic::Metrics</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>,
+            <span class="ident">KafkaTopic::MetricsSessions</span> =&gt; <span class="self">self</span>.<span class="ident">metrics_sessions</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>),
+            <span class="ident">KafkaTopic::MetricsTransactions</span> =&gt; {
+                <span class="self">self</span>.<span class="ident">metrics_transactions</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>)
+            }
             <span class="ident">KafkaTopic::Profiles</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiles</span>,
             <span class="ident">KafkaTopic::ReplayRecordings</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">replay_recordings</span>,
         }
@@ -2893,6 +2917,8 @@
             <span class="ident">outcomes_billing</span>: <span class="prelude-val">None</span>,
             <span class="ident">sessions</span>: <span class="string">&quot;ingest-sessions&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">metrics</span>: <span class="string">&quot;ingest-metrics&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+            <span class="ident">metrics_sessions</span>: <span class="prelude-val">None</span>,
+            <span class="ident">metrics_transactions</span>: <span class="prelude-val">None</span>,
             <span class="ident">profiles</span>: <span class="string">&quot;profiles&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">replay_recordings</span>: <span class="string">&quot;ingest-replay-recordings&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
         }

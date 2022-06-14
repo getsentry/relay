@@ -783,6 +783,106 @@
 <span id="776">776</span>
 <span id="777">777</span>
 <span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::iter::FusedIterator</span>;
@@ -949,20 +1049,99 @@
     <span class="bool-val">false</span>
 }
 
-<span class="doccomment">/// Validates an MRI of the form `&lt;ty&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`</span>
+<span class="doccomment">/// The namespace of a metric.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// Note that the format used in the statsd protocol is different: Metric names are not prefixed</span>
-<span class="doccomment">/// with `&lt;ty&gt;:` as the type is somewhere else in the protocol.</span>
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">is_valid_mri</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">components</span> <span class="op">=</span> <span class="ident">name</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>);
-    <span class="kw">if</span> <span class="ident">components</span>.<span class="ident">next</span>().<span class="ident">is_none</span>() {
-        <span class="kw">return</span> <span class="bool-val">false</span>;
-    }
+<span class="doccomment">/// Namespaces allow to identify the product entity that the metric got extracted from, and/or</span>
+<span class="doccomment">/// identify the use case that the metric belongs to. These namespaces cannot be defined freely,</span>
+<span class="doccomment">/// instead they are defined by Sentry. Over time, there will be more namespaces as we introduce</span>
+<span class="doccomment">/// new metrics-based products.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Right now this successfully deserializes any kind of string, but in reality only `&quot;sessions&quot;`</span>
+<span class="doccomment">/// (for release health) and `&quot;transactions&quot;` (for metrics-enhanced performance) is supported.</span>
+<span class="doccomment">/// Everything else is dropped both in the metrics aggregator and in the store actor.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MetricNamespace</span> {
+    <span class="doccomment">/// Metrics extracted from sessions.</span>
+    <span class="ident">Sessions</span>,
+    <span class="doccomment">/// Metrics extracted from transaction events.</span>
+    <span class="ident">Transactions</span>,
+    <span class="doccomment">/// Metrics that relay either doesn&#39;t know or recognize the namespace of, will be dropped before</span>
+    <span class="doccomment">/// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace</span>
+    <span class="doccomment">/// `something_new`, but as Relay doesn&#39;t support that namespace, it gets deserialized into</span>
+    <span class="doccomment">/// this variant.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Relay currently drops all metrics whose namespace ends up being deserialized as</span>
+    <span class="doccomment">/// `unsupported`. We may revise that in the future.</span>
+    <span class="ident">Unsupported</span>,
+}
 
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">name_unit</span>) <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>() {
-        <span class="ident">parse_name_unit</span>(<span class="ident">name_unit</span>).<span class="ident">is_some</span>()
-    } <span class="kw">else</span> {
-        <span class="bool-val">false</span>
+<span class="kw">impl</span> <span class="ident">std::str::FromStr</span> <span class="kw">for</span> <span class="ident">MetricNamespace</span> {
+    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">ParseMetricError</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">ns</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident"><span class="self">Self</span>::Err</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="ident">ns</span> {
+            <span class="string">&quot;sessions&quot;</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">MetricNamespace::Sessions</span>),
+            <span class="string">&quot;transactions&quot;</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">MetricNamespace::Transactions</span>),
+            <span class="kw">_</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">MetricNamespace::Unsupported</span>),
+        }
+    }
+}
+
+<span class="macro">relay_common::impl_str_serde!</span>(<span class="ident">MetricNamespace</span>, <span class="string">&quot;a valid metric namespace&quot;</span>);
+
+<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricNamespace</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident">MetricNamespace::Sessions</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;sessions&quot;</span>),
+            <span class="ident">MetricNamespace::Transactions</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;transactions&quot;</span>),
+            <span class="ident">MetricNamespace::Unsupported</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;unsupported&quot;</span>),
+        }
+    }
+}
+
+<span class="doccomment">/// A metric name parsed as MRI, a naming scheme which includes most of the metric&#39;s bucket key</span>
+<span class="doccomment">/// (excl. timestamp and tags).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For more information see [`Metric::name`].</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MetricResourceIdentifier</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// The metric type.</span>
+    <span class="kw">pub</span> <span class="ident">ty</span>: <span class="ident">MetricType</span>,
+    <span class="doccomment">/// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the</span>
+    <span class="doccomment">/// case of the statsd protocol, a missing namespace is converted into the valueconverted into</span>
+    <span class="doccomment">/// the value `&quot;custom&quot;`.</span>
+    <span class="kw">pub</span> <span class="ident">namespace</span>: <span class="ident">MetricNamespace</span>,
+    <span class="doccomment">/// The actual name, such as `duration` as part of `d:transactions/duration@ms`</span>
+    <span class="kw">pub</span> <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
+    <span class="doccomment">/// The metric unit.</span>
+    <span class="kw">pub</span> <span class="ident">unit</span>: <span class="ident">MetricUnit</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">MetricResourceIdentifier</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Parses and validates an MRI of the form `&lt;ty&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ParseMetricError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> (<span class="ident">raw_ty</span>, <span class="ident">rest</span>) <span class="op">=</span> <span class="ident">name</span>.<span class="ident">split_once</span>(<span class="string">&#39;:&#39;</span>).<span class="ident">ok_or</span>(<span class="ident">ParseMetricError</span>(()))<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">ty</span> <span class="op">=</span> <span class="ident">raw_ty</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+
+        <span class="kw">let</span> (<span class="ident">raw_namespace</span>, <span class="ident">rest</span>) <span class="op">=</span> <span class="ident">rest</span>.<span class="ident">split_once</span>(<span class="string">&#39;/&#39;</span>).<span class="ident">ok_or</span>(<span class="ident">ParseMetricError</span>(()))<span class="question-mark">?</span>;
+        <span class="kw">let</span> (<span class="ident">name</span>, <span class="ident">unit</span>) <span class="op">=</span> <span class="ident">parse_name_unit</span>(<span class="ident">rest</span>).<span class="ident">ok_or</span>(<span class="ident">ParseMetricError</span>(()))<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
+            <span class="ident">ty</span>,
+            <span class="ident">namespace</span>: <span class="ident">raw_namespace</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+            <span class="ident">name</span>,
+            <span class="ident">unit</span>,
+        })
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">MetricResourceIdentifier</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="comment">// `&lt;ty&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`</span>
+        <span class="macro">write!</span>(
+            <span class="ident">f</span>,
+            <span class="string">&quot;{}:{}/{}@{}&quot;</span>,
+            <span class="self">self</span>.<span class="ident">ty</span>, <span class="self">self</span>.<span class="ident">namespace</span>, <span class="self">self</span>.<span class="ident">name</span>, <span class="self">self</span>.<span class="ident">unit</span>
+        )
     }
 }
 
@@ -991,7 +1170,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are</span>
 <span class="doccomment">/// invalid.</span>
-<span class="kw">fn</span> <span class="ident">parse_name_unit</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">MetricUnit</span>)<span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">parse_name_unit</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">MetricUnit</span>)<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">components</span> <span class="op">=</span> <span class="ident">string</span>.<span class="ident">split</span>(<span class="string">&#39;@&#39;</span>);
     <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
     <span class="kw">if</span> <span class="op">!</span><span class="ident">is_valid_name</span>(<span class="ident">name</span>) {
@@ -1003,7 +1182,7 @@
         <span class="prelude-val">None</span> =&gt; <span class="ident">MetricUnit::default</span>(),
     };
 
-    <span class="prelude-val">Some</span>((<span class="ident">name</span>.<span class="ident">to_owned</span>(), <span class="ident">unit</span>))
+    <span class="prelude-val">Some</span>((<span class="ident">name</span>, <span class="ident">unit</span>))
 }
 
 <span class="doccomment">/// Hashes the given set value.</span>
@@ -1034,10 +1213,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if any of the components is</span>
 <span class="doccomment">/// invalid.</span>
-<span class="kw">fn</span> <span class="ident">parse_name_unit_value</span>(
-    <span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    <span class="ident">ty</span>: <span class="ident">MetricType</span>,
-) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>)<span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">parse_name_unit_value</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">ty</span>: <span class="ident">MetricType</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>)<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">components</span> <span class="op">=</span> <span class="ident">string</span>.<span class="ident">splitn</span>(<span class="number">2</span>, <span class="string">&#39;:&#39;</span>);
     <span class="kw">let</span> (<span class="ident">name</span>, <span class="ident">unit</span>) <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>().<span class="ident">and_then</span>(<span class="ident">parse_name_unit</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">parse_value</span>(<span class="ident">s</span>, <span class="ident">ty</span>))<span class="question-mark">?</span>;
@@ -1134,20 +1310,36 @@
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Metric</span> {
-    <span class="doccomment">/// The name of the metric without its unit.</span>
+    <span class="doccomment">/// The metric resource identifier, in short MRI.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// Metric names cannot be empty, must start with a letter and can consist of ASCII</span>
-    <span class="doccomment">/// alphanumerics, underscores, slashes, @s and periods.</span>
+    <span class="doccomment">/// MRIs follow three core principles:</span>
+
+    <span class="doccomment">/// 1. **Robustness:** Metrics must be addressed via a stable identifier. During ingestion in</span>
+    <span class="doccomment">///    Relay and Snuba, metrics are preaggregated and bucketed based on this identifier, so it</span>
+    <span class="doccomment">///    cannot change over time without breaking bucketing.</span>
+    <span class="doccomment">/// 2. **Uniqueness:** The identifier for metrics must be unique across variations of units and</span>
+    <span class="doccomment">///    metric types, within and across use cases, as well as between projects and</span>
+    <span class="doccomment">///    organizations.</span>
+    <span class="doccomment">/// 3. **Abstraction:** The user-facing product changes its terminology over time, and splits</span>
+    <span class="doccomment">///    concepts into smaller parts. The internal metric identifiers must abstract from that,</span>
+    <span class="doccomment">///    and offer sufficient granularity to allow for such changes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// MRIs have the format `&lt;type&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`, comprising the following components:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// * **Type:** counter (`c`), set (`s`), distribution (`d`), gauge (`g`), and evaluated (`e`)</span>
+    <span class="doccomment">///   for derived numeric metrics (the latter is a pure query-time construct and is not relevant</span>
+    <span class="doccomment">///   to Relay or ingestion). See [`MetricType`].</span>
+    <span class="doccomment">/// * **Namespace:** Identifying the product entity and use case affiliation of the metric. See</span>
+    <span class="doccomment">/// [`MetricNamespace`].</span>
+    <span class="doccomment">/// * **Name:** The display name of the metric in the allowed character set.</span>
+    <span class="doccomment">/// * **Unit:** The verbatim unit name. See [`MetricUnit`].</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Parsing a metric (or set of metrics) should not fail hard if the MRI is invalid, so this is</span>
+    <span class="doccomment">/// typed as string. Later in the metrics aggregator, the MRI is parsed using</span>
+    <span class="doccomment">/// [`MetricResourceIdentifier`] and validated for invalid characters as well.</span>
+    <span class="doccomment">/// [`MetricResourceIdentifier`] is also used in the kafka producer to route certain namespaces</span>
+    <span class="doccomment">/// to certain topics.</span>
     <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
-    <span class="doccomment">/// The unit of the metric value.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Units augment metric values by giving them a magnitude and semantics. There are certain</span>
-    <span class="doccomment">/// types of units that are subdivided in their precision, such as the [`DurationUnit`] for time</span>
-    <span class="doccomment">/// measurements.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The unit can be omitted and defaults to [`MetricUnit::None`].</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;MetricUnit::is_none&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">unit</span>: <span class="ident">MetricUnit</span>,
     <span class="doccomment">/// The value of the metric.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric</span>
@@ -1175,39 +1367,54 @@
 <span class="kw">impl</span> <span class="ident">Metric</span> {
     <span class="doccomment">/// Creates a new metric using the MRI naming format.</span>
     <span class="doccomment">///</span>
+    <span class="doccomment">/// See [`Metric::name`].</span>
+    <span class="doccomment">///</span>
     <span class="doccomment">/// MRI is the metric resource identifier in the format `&lt;type&gt;:&lt;ns&gt;/&lt;name&gt;@&lt;unit&gt;`. This name</span>
     <span class="doccomment">/// ensures that just the name determines correct bucketing of metrics with name collisions.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_mri</span>(
-        <span class="ident">namespace</span>: <span class="kw">impl</span> <span class="ident">fmt::Display</span>,
-        <span class="ident">name</span>: <span class="kw">impl</span> <span class="ident">fmt::Display</span>,
+        <span class="ident">namespace</span>: <span class="ident">MetricNamespace</span>,
+        <span class="ident">name</span>: <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>,
         <span class="ident">unit</span>: <span class="ident">MetricUnit</span>,
         <span class="ident">value</span>: <span class="ident">MetricValue</span>,
         <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>,
         <span class="ident">tags</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">String</span><span class="op">&gt;</span>,
     ) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
-            <span class="ident">name</span>: <span class="macro">format!</span>(<span class="string">&quot;{}:{}/{}@{}&quot;</span>, <span class="ident">value</span>.<span class="ident">ty</span>(), <span class="ident">namespace</span>, <span class="ident">name</span>, <span class="ident">unit</span>),
-            <span class="ident">unit</span>,
+            <span class="ident">name</span>: <span class="ident">MetricResourceIdentifier</span> {
+                <span class="ident">ty</span>: <span class="ident">value</span>.<span class="ident">ty</span>(),
+                <span class="ident">name</span>: <span class="ident">name</span>.<span class="ident">as_ref</span>(),
+                <span class="ident">namespace</span>,
+                <span class="ident">unit</span>,
+            }
+            .<span class="ident">to_string</span>(),
             <span class="ident">value</span>,
             <span class="ident">timestamp</span>,
             <span class="ident">tags</span>,
         }
     }
 
+    <span class="doccomment">/// Parse statsd-compatible payload of format</span>
+    <span class="doccomment">/// ```text</span>
+    <span class="doccomment">/// [&lt;ns&gt;/]&lt;name&gt;[@&lt;unit&gt;]:&lt;value&gt;|&lt;type&gt;[|#&lt;tags&gt;]`</span>
+    <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">parse_str</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">timestamp</span>: <span class="ident">UnixTimestamp</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">components</span> <span class="op">=</span> <span class="ident">string</span>.<span class="ident">split</span>(<span class="string">&#39;|&#39;</span>);
 
         <span class="kw">let</span> <span class="ident">name_value_str</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>()<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">ty</span> <span class="op">=</span> <span class="ident">components</span>.<span class="ident">next</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())<span class="question-mark">?</span>;
-        <span class="kw">let</span> (<span class="ident">name</span>, <span class="ident">unit</span>, <span class="ident">value</span>) <span class="op">=</span> <span class="ident">parse_name_unit_value</span>(<span class="ident">name_value_str</span>, <span class="ident">ty</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> (<span class="ident">name_and_namespace</span>, <span class="ident">unit</span>, <span class="ident">value</span>) <span class="op">=</span> <span class="ident">parse_name_unit_value</span>(<span class="ident">name_value_str</span>, <span class="ident">ty</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> (<span class="ident">raw_namespace</span>, <span class="ident">name</span>) <span class="op">=</span> <span class="ident">name_and_namespace</span>
+            .<span class="ident">split_once</span>(<span class="string">&#39;/&#39;</span>)
+            .<span class="ident">unwrap_or</span>((<span class="string">&quot;custom&quot;</span>, <span class="ident">string</span>));
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metric</span> <span class="op">=</span> <span class="self">Self</span> {
-            <span class="ident">name</span>: <span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, <span class="ident">ty</span>, <span class="ident">name</span>),
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::new_mri</span>(
+            <span class="ident">raw_namespace</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()<span class="question-mark">?</span>,
+            <span class="ident">name</span>,
             <span class="ident">unit</span>,
             <span class="ident">value</span>,
             <span class="ident">timestamp</span>,
-            <span class="ident">tags</span>: <span class="ident">BTreeMap::new</span>(),
-        };
+            <span class="ident">BTreeMap::new</span>(),
+        );
 
         <span class="kw">for</span> <span class="ident">component</span> <span class="kw">in</span> <span class="ident">components</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&#39;#&#39;</span>) <span class="op">=</span> <span class="ident">component</span>.<span class="ident">chars</span>().<span class="ident">next</span>() {
@@ -1328,13 +1535,12 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_counter</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo:42|c&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|c&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
         <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
         Metric {
-            name: &quot;c:foo&quot;,
-            unit: None,
+            name: &quot;c:transactions/foo@none&quot;,
             value: Counter(
                 42.0,
             ),
@@ -1346,13 +1552,12 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_distribution</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo:17.5|d&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:17.5|d&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
         <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
         Metric {
-            name: &quot;d:foo&quot;,
-            unit: None,
+            name: &quot;d:transactions/foo@none&quot;,
             value: Distribution(
                 17.5,
             ),
@@ -1364,7 +1569,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_histogram</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo:17.5|h&quot;</span>; <span class="comment">// common alias for distribution</span>
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:17.5|h&quot;</span>; <span class="comment">// common alias for distribution</span>
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
         <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">metric</span>.<span class="ident">value</span>, <span class="ident">MetricValue::Distribution</span>(<span class="number">17.5</span>));
@@ -1372,13 +1577,12 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_set</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
         <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
         Metric {
-            name: &quot;s:foo&quot;,
-            unit: None,
+            name: &quot;s:transactions/foo@none&quot;,
             value: Set(
                 4267882815,
             ),
@@ -1390,13 +1594,12 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_gauge</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo:42|g&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|g&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
         <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
         Metric {
-            name: &quot;g:foo&quot;,
-            unit: None,
+            name: &quot;g:transactions/foo@none&quot;,
             value: Gauge(
                 42.0,
             ),
@@ -1408,23 +1611,25 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_unit</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo@second:17.5|d&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo@second:17.5|d&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
         <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">metric</span>.<span class="ident">unit</span>, <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::Second</span>));
+        <span class="kw">let</span> <span class="ident">mri</span> <span class="op">=</span> <span class="ident">MetricResourceIdentifier::parse</span>(<span class="kw-2">&amp;</span><span class="ident">metric</span>.<span class="ident">name</span>).<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(<span class="ident">mri</span>.<span class="ident">unit</span>, <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::Second</span>));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_unit_regression</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo@s:17.5|d&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo@s:17.5|d&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
         <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq!</span>(<span class="ident">metric</span>.<span class="ident">unit</span>, <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::Second</span>));
+        <span class="kw">let</span> <span class="ident">mri</span> <span class="op">=</span> <span class="ident">MetricResourceIdentifier::parse</span>(<span class="kw-2">&amp;</span><span class="ident">metric</span>.<span class="ident">name</span>).<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(<span class="ident">mri</span>.<span class="ident">unit</span>, <span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::Second</span>));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_tags</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo:17.5|d|#foo,bar:baz&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:17.5|d|#foo,bar:baz&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
         <span class="kw">let</span> <span class="ident">metric</span> <span class="op">=</span> <span class="ident">Metric::parse</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">unwrap</span>();
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>.<span class="ident">tags</span>, @<span class="string">r###&quot;
@@ -1463,7 +1668,6 @@
     <span class="kw">fn</span> <span class="ident">test_serde_json</span>() {
         <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;name&quot;: &quot;foo&quot;,
-  &quot;unit&quot;: &quot;second&quot;,
   &quot;type&quot;: &quot;c&quot;,
   &quot;value&quot;: 42.0,
   &quot;timestamp&quot;: 4711,
@@ -1477,9 +1681,6 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
         Metric {
             name: &quot;foo&quot;,
-            unit: Duration(
-                Second,
-            ),
             value: Counter(
                 42.0,
             ),
@@ -1509,7 +1710,6 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">metric</span>, @<span class="string">r###&quot;
         Metric {
             name: &quot;foo&quot;,
-            unit: None,
             value: Counter(
                 42.0,
             ),
@@ -1521,7 +1721,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_all</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo:42|c\nbar:17|c&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|c\nbar:17|c&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
 
         <span class="kw">let</span> <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Metric::parse_all</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>)
@@ -1533,7 +1733,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_all_crlf</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo:42|c\r\nbar:17|c&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|c\r\nbar:17|c&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
 
         <span class="kw">let</span> <span class="ident">metrics</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Metric</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Metric::parse_all</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>)
@@ -1545,7 +1745,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_all_empty_lines</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo:42|c\n\n\nbar:17|c&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|c\n\n\nbar:17|c&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
 
         <span class="kw">let</span> <span class="ident">metric_count</span> <span class="op">=</span> <span class="ident">Metric::parse_all</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">count</span>();
@@ -1554,7 +1754,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_parse_all_trailing</span>() {
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;foo:42|c\nbar:17|c\n&quot;</span>;
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;transactions/foo:42|c\nbar:17|c\n&quot;</span>;
         <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">UnixTimestamp::from_secs</span>(<span class="number">4711</span>);
 
         <span class="kw">let</span> <span class="ident">metric_count</span> <span class="op">=</span> <span class="ident">Metric::parse_all</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>(), <span class="ident">timestamp</span>).<span class="ident">count</span>();
