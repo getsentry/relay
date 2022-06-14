@@ -180,7 +180,7 @@ pub enum MetricNamespace {
     Sessions,
     /// Metrics extracted from transaction events.
     Transactions,
-    /// Metrics that relay either doesn't know or recognize the namespace of, and will drop before
+    /// Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
     /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
     /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
     /// this variant.
