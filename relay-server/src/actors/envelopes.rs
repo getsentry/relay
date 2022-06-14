@@ -1006,6 +1006,14 @@ impl EnvelopeProcessor {
         });
     }
 
+    fn process_replay_recordings(&self, state: &mut ProcessEnvelopeState) {
+        let replays_enabled = state.project_state.has_feature(Feature::Replays);
+        state.envelope.retain_items(|item| match item.ty() {
+            ItemType::ReplayRecording => replays_enabled,
+            _ => true,
+        });
+    }
+
     /// Creates and initializes the processing state.
     ///
     /// This applies defaults to the envelope and initializes empty rate limits.
@@ -1087,6 +1095,7 @@ impl EnvelopeProcessor {
             "android" => utils::parse_android_profile(item),
             "cocoa" => utils::parse_cocoa_profile(item),
             "typescript" => utils::parse_typescript_profile(item),
+            "rust" => utils::parse_rust_profile(item),
             _ => Err(ProfileError::PlatformNotSupported),
         }
     }
@@ -1320,7 +1329,7 @@ impl EnvelopeProcessor {
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::Profile => false,
-
+            ItemType::ReplayRecording => false,
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
         }
@@ -1834,6 +1843,7 @@ impl EnvelopeProcessor {
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_profiles(state);
+        self.process_replay_recordings(state);
 
         if state.creates_event() {
             if_processing!({

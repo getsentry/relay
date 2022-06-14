@@ -291,7 +291,8 @@ where
         let meta_tree = IntoValue::extract_meta_tree(self);
 
         if let Some(value) = self.value() {
-            use serde::private::ser::FlatMapSerializer;
+            // NOTE: This is a hack and known to be instable use of serde.
+            use serde::__private::ser::FlatMapSerializer;
             IntoValue::serialize_payload(
                 value,
                 FlatMapSerializer(&mut map_ser),

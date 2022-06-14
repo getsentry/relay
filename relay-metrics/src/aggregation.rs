@@ -148,13 +148,6 @@ impl DistributionValue {
         self.length
     }
 
-    /// Returns the size of the map used to store the distribution.
-    ///
-    /// This is only relevant for internal metrics.
-    fn internal_size(&self) -> usize {
-        self.values.len()
-    }
-
     /// Returns `true` if the map contains no elements.
     pub fn is_empty(&self) -> bool {
         self.length == 0
@@ -515,22 +508,9 @@ impl BucketValue {
         }
     }
 
-    /// Returns the number of values needed to encode the bucket (a measure of bucket
-    /// complexity).
-    pub fn relative_size(&self) -> usize {
-        match self {
-            Self::Counter(_) => 1,
-            Self::Set(s) => s.len(),
-            Self::Gauge(_) => 5,
-            Self::Distribution(m) => m.internal_size(),
-        }
-    }
-
     /// Estimates the number of bytes needed to encode the bucket value.
     /// Note that this does not necessarily match the exact memory footprint of the value,
     /// because datastructures might have a memory overhead.
-    ///
-    /// This is very similar to [`BucketValue::relative_size`], which can possibly be removed.
     pub fn cost(&self) -> usize {
         // Beside the size of [`BucketValue`], we also need to account for the cost of values
         // allocated dynamically.
@@ -874,13 +854,13 @@ pub struct AggregatorConfig {
     /// Defaults to `None`, i.e. no limit.
     pub max_total_bucket_bytes: Option<usize>,
 
-    /// Maximum amount of bytes used for metrics aggregation per project.
+    /// Maximum amount of bytes used for metrics aggregation per project key.
     ///
     /// Similar measuring technique to `max_total_bucket_bytes`, but instead of a
-    /// global/process-wide limit, it is enforced per project id.
+    /// global/process-wide limit, it is enforced per project key.
     ///
     /// Defaults to `None`, i.e. no limit.
-    pub max_project_bucket_bytes: Option<usize>,
+    pub max_project_key_bucket_bytes: Option<usize>,
 }
 
 impl AggregatorConfig {
@@ -981,7 +961,7 @@ impl Default for AggregatorConfig {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_total_bucket_bytes: None,
-            max_project_bucket_bytes: None,
+            max_project_key_bucket_bytes: None,
         }
     }
 }
@@ -1419,7 +1399,7 @@ impl Aggregator {
         self.cost_tracker.check_limits_exceeded(
             project_key,
             self.config.max_total_bucket_bytes,
-            self.config.max_project_bucket_bytes,
+            self.config.max_project_key_bucket_bytes,
         )?;
 
         let added_cost;
@@ -1576,11 +1556,6 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            let size_statsd_metrics: Vec<_> = project_buckets
-                .iter()
-                .map(|bucket| (bucket.value.ty(), bucket.value.relative_size()))
-                .collect();
-
             self.receiver
                 .send(FlushBuckets::new(project_key, project_buckets))
                 .into_actor(self)
@@ -1591,14 +1566,6 @@ impl Aggregator {
                             buckets.len()
                         );
                         slf.merge_all(project_key, buckets).ok();
-                    } else {
-                        for (bucket_type, bucket_relative_size) in size_statsd_metrics {
-                            relay_statsd::metric!(
-                                histogram(MetricHistograms::BucketRelativeSize) =
-                                    bucket_relative_size as u64,
-                                metric_type = bucket_type.as_str(),
-                            );
-                        }
                     }
                     fut::ok(())
                 })
@@ -1811,7 +1778,7 @@ mod tests {
             max_name_length: 200,
             max_tag_key_length: 200,
             max_tag_value_length: 200,
-            max_project_bucket_bytes: None,
+            max_project_key_bucket_bytes: None,
             max_total_bucket_bytes: None,
         }
     }
@@ -2714,7 +2681,7 @@ mod tests {
     #[test]
     fn test_aggregator_cost_enforcement_project() {
         let config = AggregatorConfig {
-            max_project_bucket_bytes: Some(1),
+            max_project_key_bucket_bytes: Some(1),
             ..test_config()
         };
 

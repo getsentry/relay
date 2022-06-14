@@ -54,6 +54,8 @@ pub enum Feature {
     /// Enables ingestion and normalization of profiles.
     #[serde(rename = "organizations:profiling")]
     Profiling,
+    #[serde(rename = "organizations:session-replay")]
+    Replays,
 
     /// Unused.
     ///

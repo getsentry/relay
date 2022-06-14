@@ -9,6 +9,7 @@
 - Relay is now compatible with CentOS 7 and Red Hat Enterprise Linux 7 onward (kernel version _2.6.32_), depending on _glibc 2.17_ or newer. The `crash-handler` feature, which is currently enabled in the build published to DockerHub, additionally requires _curl 7.29_ or newer. ([#1279](https://github.com/getsentry/relay/pull/1279))
 - Optionally start relay with `--upstream-dsn` to pass a Sentry DSN instead of the URL. This can be convenient when starting Relay in environments close to an SDK, where a DSN is already available. ([#1277](https://github.com/getsentry/relay/pull/1277))
 - Add a new runtime mode `--aws-runtime-api=$AWS_LAMBDA_RUNTIME_API` that integrates Relay with the AWS Extensions API lifecycle. ([#1277](https://github.com/getsentry/relay/pull/1277))
+- Add ReplayRecording ItemType. ([#1236](https://github.com/getsentry/relay/pull/1236))
 
 **Bug Fixes**:
 
@@ -25,6 +26,7 @@
 - Fix typescript profile validation. ([#1283](https://github.com/getsentry/relay/pull/1283))
 - Track memory footprint of metrics buckets. ([#1284](https://github.com/getsentry/relay/pull/1284), [#1287](https://github.com/getsentry/relay/pull/1287), [#1288](https://github.com/getsentry/relay/pull/1288))
 - Support dedicated topics per metrics usecase, drop metrics from unknown usecases. ([#1285](https://github.com/getsentry/relay/pull/1285))
+- Add support for Rust profiles ingestion ([#1296](https://github.com/getsentry/relay/pull/1296))
 
 ## 22.5.0
 

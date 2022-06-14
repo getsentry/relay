@@ -86,12 +86,6 @@ pub enum MetricHistograms {
     /// equivalent to the number of projects being flushed.
     BucketsFlushedPerProject,
 
-    /// The number of metric elements in the bucket.
-    ///
-    /// BucketRelativeSize measures how many distinct values are in a bucket and therefore
-    /// BucketRelativeSize gives you a measurement of the bucket size and complexity.
-    BucketRelativeSize,
-
     /// The reporting delay at which a bucket arrives in Relay.
     ///
     /// A positive delay indicates the bucket arrives after its stated timestamp. Large delays
@@ -110,7 +104,6 @@ impl HistogramMetric for MetricHistograms {
         match *self {
             Self::BucketsFlushed => "metrics.buckets.flushed",
             Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
-            Self::BucketRelativeSize => "metrics.buckets.relative_bucket_size",
             Self::BucketsDelay => "metrics.buckets.delay",
         }
     }
