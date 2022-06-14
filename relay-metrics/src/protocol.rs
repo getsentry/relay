@@ -221,7 +221,9 @@ impl fmt::Display for MetricNamespace {
 pub struct MetricResourceIdentifier<'a> {
     /// The metric type.
     pub ty: MetricType,
-    /// The namespace/usecase for this metric. For example `sessions` or `transactions`.
+    /// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the
+    /// case of the statsd protocol, a missing namespace is converted into the valueconverted into
+    /// the value `"custom"`.
     pub namespace: MetricNamespace,
     /// The actual name, such as `duration` as part of `d:transactions/duration@ms`
     pub name: &'a str,
@@ -439,15 +441,19 @@ pub struct Metric {
     ///
     /// MRIs have the format `<type>:<ns>/<name>@<unit>`, comprising the following components:
     ///
-    /// * **Type:** counter (`c`), set (`s`), distribution (`d`), gauge (`g`), and evaluated (`e`) for derived numeric metrics. See [`MetricType`].
+    /// * **Type:** counter (`c`), set (`s`), distribution (`d`), gauge (`g`), and evaluated (`e`)
+    ///   for derived numeric metrics (the latter is a pure query-time construct and is not relevant
+    ///   to Relay or ingestion). See [`MetricType`].
     /// * **Namespace:** Identifying the product entity and use case affiliation of the metric. See
     /// [`MetricNamespace`].
     /// * **Name:** The display name of the metric in the allowed character set.
     /// * **Unit:** The verbatim unit name. See [`MetricUnit`].
     ///
-    /// For parsing, construction and normalization, the [`MetricResourceIdentifier`] struct is used in the aggregator. It is
-    /// also used in the kafka producer to route certain namespaces to certain topics.
-    ///
+    /// Parsing a metric (or set of metrics) should not fail hard if the MRI is invalid, so this is
+    /// typed as string. Later in the metrics aggregator, the MRI is parsed using
+    /// [`MetricResourceIdentifier`] and validated for invalid characters as well.
+    /// [`MetricResourceIdentifier`] is also used in the kafka producer to route certain namespaces
+    /// to certain topics.
     pub name: String,
     /// The value of the metric.
     ///
