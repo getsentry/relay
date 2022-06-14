@@ -30,6 +30,9 @@
 //! ...
 //! ```
 //!
+//! Note that the name format used in the statsd protocol is different from the MRI: Metric names
+//! are not prefixed with `<ty>:` as the type is somewhere else in the protocol.
+//!
 //! The timestamp in the item header is used to send backdated metrics. If it is omitted,
 //! the `received` time of the envelope is assumed.
 //!

@@ -17,8 +17,8 @@ use relay_system::{Controller, Shutdown};
 
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{
-    protocol, CounterType, DistributionType, GaugeType, Metric, MetricType, MetricUnit,
-    MetricValue, SetType,
+    protocol, CounterType, DistributionType, GaugeType, Metric, MetricNamespace,
+    MetricResourceIdentifier, MetricType, MetricValue, SetType,
 };
 
 /// Interval for the flush cycle of the [`Aggregator`].
@@ -670,15 +670,10 @@ pub struct Bucket {
     pub timestamp: UnixTimestamp,
     /// The length of the time window in seconds.
     pub width: u64,
-    /// The name of the metric without its unit.
+    /// The MRI (metric resource identifier).
     ///
     /// See [`Metric::name`].
     pub name: String,
-    /// The unit of the metric value.
-    ///
-    /// See [`Metric::unit`].
-    #[serde(default, skip_serializing_if = "MetricUnit::is_none")]
-    pub unit: MetricUnit,
     /// The type and aggregated values of this bucket.
     ///
     /// See [`Metric::value`] for a mapping to inbound data.
@@ -697,7 +692,6 @@ impl Bucket {
             timestamp: key.timestamp,
             width: bucket_interval,
             name: key.metric_name,
-            unit: key.metric_unit,
             value,
             tags: key.tags,
         }
@@ -738,6 +732,9 @@ enum AggregateMetricsErrorKind {
     /// A metric bucket had invalid characters in the metric name.
     #[fail(display = "found invalid characters")]
     InvalidCharacters,
+    /// A metric bucket had an unknown namespace in the metric name.
+    #[fail(display = "found unsupported namespace")]
+    UnsupportedNamespace,
     /// A metric bucket's timestamp was out of the configured acceptable range.
     #[fail(display = "found invalid timestamp")]
     InvalidTimestamp,
@@ -760,8 +757,6 @@ struct BucketKey {
     project_key: ProjectKey,
     timestamp: UnixTimestamp,
     metric_name: String,
-    metric_type: MetricType,
-    metric_unit: MetricUnit,
     tags: BTreeMap<String, String>,
 }
 
@@ -1259,7 +1254,7 @@ impl Aggregator {
     ///
     /// Returns `Err` if the metric must be dropped.
     fn validate_metric_name(
-        key: BucketKey,
+        mut key: BucketKey,
         aggregator_config: &AggregatorConfig,
     ) -> Result<BucketKey, AggregateMetricsError> {
         let metric_name_length = key.metric_name.len();
@@ -1282,8 +1277,7 @@ impl Aggregator {
             return Err(AggregateMetricsErrorKind::InvalidStringLength.into());
         }
 
-        if !protocol::is_valid_mri(&key.metric_name) {
-            relay_log::debug!("invalid metric name {:?}", key.metric_name);
+        if let Err(err) = Self::normalize_metric_name(&mut key) {
             relay_log::configure_scope(|scope| {
                 scope.set_extra(
                     "bucket.project_key",
@@ -1291,9 +1285,32 @@ impl Aggregator {
                 );
                 scope.set_extra("bucket.metric_name", key.metric_name.into());
             });
-            return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
+            return Err(err);
         }
+
         Ok(key)
+    }
+
+    fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
+        key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
+            Ok(mri) => {
+                if matches!(mri.namespace, MetricNamespace::Unsupported) {
+                    relay_log::debug!("invalid metric namespace {:?}", key.metric_name);
+                    return Err(AggregateMetricsErrorKind::UnsupportedNamespace.into());
+                }
+
+                let mut metric_name = mri.to_string();
+                // do this so cost tracking still works accurately.
+                metric_name.shrink_to_fit();
+                metric_name
+            }
+            Err(_) => {
+                relay_log::debug!("invalid metric name {:?}", key.metric_name);
+                return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
+            }
+        };
+
+        Ok(())
     }
 
     /// Removes tags with invalid characters in the key, and validates tag values.
@@ -1390,7 +1407,6 @@ impl Aggregator {
             Entry::Occupied(mut entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeHit) += 1,
-                    metric_type = entry.key().metric_type.as_str(),
                     metric_name = &entry.key().metric_name
                 );
                 let bucket_value = &mut entry.get_mut().value;
@@ -1402,12 +1418,10 @@ impl Aggregator {
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeMiss) += 1,
-                    metric_type = entry.key().metric_type.as_str(),
                     metric_name = &entry.key().metric_name
                 );
                 relay_statsd::metric!(
                     set(MetricSets::UniqueBucketsCreated) = entry.key().as_integer_lossy(),
-                    metric_type = entry.key().metric_type.as_str(),
                     metric_name = &entry.key().metric_name
                 );
 
@@ -1439,8 +1453,6 @@ impl Aggregator {
             project_key,
             timestamp: self.config.get_bucket_timestamp(metric.timestamp, 0)?,
             metric_name: metric.name,
-            metric_type: metric.value.ty(),
-            metric_unit: metric.unit,
             tags: metric.tags,
         };
         self.merge_in(key, metric.value)
@@ -1460,8 +1472,6 @@ impl Aggregator {
                 .config
                 .get_bucket_timestamp(bucket.timestamp, bucket.width)?,
             metric_name: bucket.name,
-            metric_type: bucket.value.ty(),
-            metric_unit: bucket.unit,
             tags: bucket.tags,
         };
         self.merge_in(key, bucket.value)
@@ -1703,8 +1713,6 @@ mod tests {
 
     use super::*;
 
-    use relay_common::{DurationUnit, MetricUnit};
-
     struct BucketCountInquiry;
 
     impl Message for BucketCountInquiry {
@@ -1777,8 +1785,7 @@ mod tests {
 
     fn some_metric() -> Metric {
         Metric {
-            name: "c:foo".to_owned(),
-            unit: MetricUnit::None,
+            name: "c:transactions/foo".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -1881,9 +1888,6 @@ mod tests {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
                 name: "endpoint.response_time",
-                unit: Duration(
-                    MilliSecond,
-                ),
                 value: Distribution(
                     {
                         36.0: 1,
@@ -1919,7 +1923,6 @@ mod tests {
                 timestamp: UnixTimestamp(1615889440),
                 width: 10,
                 name: "endpoint.hits",
-                unit: None,
                 value: Counter(
                     4.0,
                 ),
@@ -2115,8 +2118,6 @@ mod tests {
             project_key,
             timestamp: UnixTimestamp::now(),
             metric_name: name,
-            metric_type: MetricType::Counter,
-            metric_unit: MetricUnit::None,
             tags: BTreeMap::from([
                 ("hello".to_owned(), "world".to_owned()),
                 ("answer".to_owned(), "42".to_owned()),
@@ -2124,7 +2125,7 @@ mod tests {
         };
         assert_eq!(
             bucket_key.cost(),
-            112 + // BucketKey
+            88 + // BucketKey
             5 + // name
             (5 + 5 + 6 + 2) // tags
         );
@@ -2157,9 +2158,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994711),
-                    metric_name: "c:foo",
-                    metric_type: Counter,
-                    metric_unit: None,
+                    metric_name: "c:transactions/foo@none",
                     tags: {},
                 },
                 Counter(
@@ -2206,9 +2205,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994710),
-                    metric_name: "c:foo",
-                    metric_type: Counter,
-                    metric_unit: None,
+                    metric_name: "c:transactions/foo@none",
                     tags: {},
                 },
                 Counter(
@@ -2219,9 +2216,7 @@ mod tests {
                 BucketKey {
                     project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
                     timestamp: UnixTimestamp(999994720),
-                    metric_name: "c:foo",
-                    metric_type: Counter,
-                    metric_unit: None,
+                    metric_name: "c:transactions/foo@none",
                     tags: {},
                 },
                 Counter(
@@ -2230,58 +2225,6 @@ mod tests {
             ),
         ]
         "###);
-    }
-
-    #[test]
-    fn test_aggregator_mixed_types() {
-        relay_test::setup();
-
-        let config = AggregatorConfig {
-            bucket_interval: 10,
-            ..test_config()
-        };
-
-        let receiver = TestReceiver::start_default().recipient();
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-
-        let mut aggregator = Aggregator::new(config, receiver);
-
-        let metric1 = some_metric();
-
-        let mut metric2 = metric1.clone();
-        metric2.value = MetricValue::Set(123);
-
-        // It's OK to have same name for different types:
-        aggregator.insert(project_key, metric1).unwrap();
-        aggregator.insert(project_key, metric2).unwrap();
-        assert_eq!(aggregator.buckets.len(), 2);
-    }
-
-    #[test]
-    fn test_aggregator_mixed_units() {
-        relay_test::setup();
-
-        let config = AggregatorConfig {
-            bucket_interval: 10,
-            ..test_config()
-        };
-
-        let receiver = TestReceiver::start_default().recipient();
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-
-        let mut aggregator = Aggregator::new(config, receiver);
-
-        let metric1 = some_metric();
-
-        let mut metric2 = metric1.clone();
-        metric2.unit = MetricUnit::Duration(DurationUnit::Second);
-
-        // It's OK to have same metric with different units:
-        aggregator.insert(project_key, metric1).unwrap();
-        aggregator.insert(project_key, metric2).unwrap();
-
-        // TODO: This should convert if units are convertible
-        assert_eq!(aggregator.buckets.len(), 2);
     }
 
     #[test]
@@ -2383,9 +2326,8 @@ mod tests {
         let mut aggregator = Aggregator::new(test_config(), receiver);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        let mut metric = Metric {
-            name: "c:foo".to_owned(),
-            unit: MetricUnit::None,
+        let metric = Metric {
+            name: "c:transactions/foo@none".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -2393,31 +2335,50 @@ mod tests {
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:foo".to_owned(),
-            metric_type: MetricType::Counter,
-            metric_unit: MetricUnit::None,
+            metric_name: "c:transactions/foo@none".to_owned(),
             tags: BTreeMap::new(),
         };
         let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
-        for (metric_value, expected_added_cost) in [
-            (MetricValue::Counter(42.), fixed_cost),
-            (MetricValue::Counter(42.), 0), // counters have constant size
-            (MetricValue::Set(123), fixed_cost + 4), // Added a new bucket + 1 element
-            (MetricValue::Set(123), 0),     // Same element in set, no change
-            (MetricValue::Set(456), 4),     // Different element in set -> +4
-            (MetricValue::Distribution(1.0), fixed_cost + 12), // New bucket + 1 element
-            (MetricValue::Distribution(1.0), 0), // no new element
-            (MetricValue::Distribution(2.0), 12), // 1 new element
-            (MetricValue::Gauge(0.3), fixed_cost), // New bucket
-            (MetricValue::Gauge(0.2), 0),   // gauge has constant size
+        for (metric_name, metric_value, expected_added_cost) in [
+            (
+                "c:transactions/foo@none",
+                MetricValue::Counter(42.),
+                fixed_cost,
+            ),
+            ("c:transactions/foo@none", MetricValue::Counter(42.), 0), // counters have constant size
+            (
+                "s:transactions/foo@none",
+                MetricValue::Set(123),
+                fixed_cost + 4,
+            ), // Added a new bucket + 1 element
+            ("s:transactions/foo@none", MetricValue::Set(123), 0), // Same element in set, no change
+            ("s:transactions/foo@none", MetricValue::Set(456), 4), // Different element in set -> +4
+            (
+                "d:transactions/foo@none",
+                MetricValue::Distribution(1.0),
+                fixed_cost + 12,
+            ), // New bucket + 1 element
+            ("d:transactions/foo@none", MetricValue::Distribution(1.0), 0), // no new element
+            (
+                "d:transactions/foo@none",
+                MetricValue::Distribution(2.0),
+                12,
+            ), // 1 new element
+            (
+                "g:transactions/foo@none",
+                MetricValue::Gauge(0.3),
+                fixed_cost,
+            ), // New bucket
+            ("g:transactions/foo@none", MetricValue::Gauge(0.2), 0), // gauge has constant size
         ] {
+            let mut metric = metric.clone();
             metric.value = metric_value;
+            metric.name = metric_name.to_string();
+
             let current_cost = aggregator.cost_tracker.total_cost;
-            aggregator.insert(project_key, metric.clone()).unwrap();
-            assert_eq!(
-                aggregator.cost_tracker.total_cost,
-                current_cost + expected_added_cost
-            );
+            aggregator.insert(project_key, metric).unwrap();
+            let total_cost = aggregator.cost_tracker.total_cost;
+            assert_eq!(total_cost, current_cost + expected_added_cost);
         }
 
         aggregator.pop_flush_buckets();
@@ -2604,9 +2565,7 @@ mod tests {
         let bucket_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:hergus.bergus".to_owned(),
-            metric_type: MetricType::Counter,
-            metric_unit: MetricUnit::None,
+            metric_name: "c:transactions/hergus.bergus".to_owned(),
             tags: {
                 let mut tags = BTreeMap::new();
                 // There are some SDKs which mess up content encodings, and interpret the raw bytes
@@ -2654,9 +2613,7 @@ mod tests {
         let short_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:a_short_metric".to_owned(),
-            metric_type: MetricType::Counter,
-            metric_unit: MetricUnit::None,
+            metric_name: "c:transactions/a_short_metric".to_owned(),
             tags: BTreeMap::new(),
         };
         assert!(Aggregator::validate_bucket_key(short_metric, &aggregator_config).is_ok());
@@ -2664,9 +2621,7 @@ mod tests {
         let long_metric = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
-            metric_type: MetricType::Counter,
-            metric_unit: MetricUnit::None,
+            metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
             tags: BTreeMap::new(),
         };
         let validation = Aggregator::validate_bucket_key(long_metric, &aggregator_config);
@@ -2679,9 +2634,7 @@ mod tests {
         let short_metric_long_tag_key = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:a_short_metric_with_long_tag_key".to_owned(),
-            metric_type: MetricType::Counter,
-            metric_unit: MetricUnit::None,
+            metric_name: "c:transactions/a_short_metric_with_long_tag_key".to_owned(),
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
         };
         let validation =
@@ -2691,9 +2644,7 @@ mod tests {
         let short_metric_long_tag_value = BucketKey {
             project_key,
             timestamp: UnixTimestamp::now(),
-            metric_name: "c:a_short_metric_with_long_tag_value".to_owned(),
-            metric_type: MetricType::Counter,
-            metric_unit: MetricUnit::None,
+            metric_name: "c:transactions/a_short_metric_with_long_tag_value".to_owned(),
                 tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
         };
         let validation =
@@ -2710,8 +2661,7 @@ mod tests {
         };
 
         let metric = Metric {
-            name: "c:foo".to_owned(),
-            unit: MetricUnit::None,
+            name: "c:transactions/foo".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),
@@ -2736,8 +2686,7 @@ mod tests {
         };
 
         let metric = Metric {
-            name: "c:foo".to_owned(),
-            unit: MetricUnit::None,
+            name: "c:transactions/foo".to_owned(),
             value: MetricValue::Counter(42.),
             timestamp: UnixTimestamp::from_secs(999994711),
             tags: BTreeMap::new(),

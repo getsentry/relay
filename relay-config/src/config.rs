@@ -779,8 +779,10 @@ pub enum KafkaTopic {
     OutcomesBilling,
     /// Session health updates.
     Sessions,
-    /// Aggregate Metrics.
-    Metrics,
+    /// Any metric that is extracted from sessions.
+    MetricsSessions,
+    /// Any metric that is extracted from transactions.
+    MetricsTransactions,
     /// Profiles
     Profiles,
     /// ReplayRecording, large blobs sent by the replay sdk
@@ -803,8 +805,14 @@ pub struct TopicAssignments {
     pub outcomes_billing: Option<TopicAssignment>,
     /// Session health topic name.
     pub sessions: TopicAssignment,
-    /// Metrics topic name.
+    /// Default topic name for all aggregate metrics. Specialized topics for session-based and
+    /// transaction-based metrics can be configured via `metrics_sessions` and
+    /// `metrics_transactions` each.
     pub metrics: TopicAssignment,
+    /// Topic name for metrics extracted from sessions. Defaults to the assignment of `metrics`.
+    pub metrics_sessions: Option<TopicAssignment>,
+    /// Topic name for metrics extracted from transactions. Defaults to the assignment of `metrics`.
+    pub metrics_transactions: Option<TopicAssignment>,
     /// Stacktrace topic name
     pub profiles: TopicAssignment,
     /// Recordings topic name.
@@ -821,7 +829,10 @@ impl TopicAssignments {
             KafkaTopic::Outcomes => &self.outcomes,
             KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
             KafkaTopic::Sessions => &self.sessions,
-            KafkaTopic::Metrics => &self.metrics,
+            KafkaTopic::MetricsSessions => self.metrics_sessions.as_ref().unwrap_or(&self.metrics),
+            KafkaTopic::MetricsTransactions => {
+                self.metrics_transactions.as_ref().unwrap_or(&self.metrics)
+            }
             KafkaTopic::Profiles => &self.profiles,
             KafkaTopic::ReplayRecordings => &self.replay_recordings,
         }
@@ -838,6 +849,8 @@ impl Default for TopicAssignments {
             outcomes_billing: None,
             sessions: "ingest-sessions".to_owned().into(),
             metrics: "ingest-metrics".to_owned().into(),
+            metrics_sessions: None,
+            metrics_transactions: None,
             profiles: "profiles".to_owned().into(),
             replay_recordings: "ingest-replay-recordings".to_owned().into(),
         }

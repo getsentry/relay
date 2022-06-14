@@ -25,6 +25,7 @@
 - Avoid potential panics when scrubbing minidumps. ([#1282](https://github.com/getsentry/relay/pull/1282))
 - Fix typescript profile validation. ([#1283](https://github.com/getsentry/relay/pull/1283))
 - Track memory footprint of metrics buckets. ([#1284](https://github.com/getsentry/relay/pull/1284), [#1287](https://github.com/getsentry/relay/pull/1287), [#1288](https://github.com/getsentry/relay/pull/1288))
+- Support dedicated topics per metrics usecase, drop metrics from unknown usecases. ([#1285](https://github.com/getsentry/relay/pull/1285))
 - Add support for Rust profiles ingestion ([#1296](https://github.com/getsentry/relay/pull/1296))
 
 ## 22.5.0
