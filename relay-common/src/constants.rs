@@ -109,6 +109,8 @@ pub enum DataCategory {
     Session = 5,
     /// A profile
     Profile = 6,
+    /// A transaction that was processed but not stored.
+    ProcessedTransaction = 7,
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
@@ -125,6 +127,7 @@ impl DataCategory {
             "attachment" => Self::Attachment,
             "session" => Self::Session,
             "profile" => Self::Profile,
+            "processed_transaction" => Self::ProcessedTransaction,
             _ => Self::Unknown,
         }
     }
@@ -139,6 +142,7 @@ impl DataCategory {
             Self::Attachment => "attachment",
             Self::Session => "session",
             Self::Profile => "profile",
+            Self::ProcessedTransaction => "processed_transaction",
             Self::Unknown => "unknown",
         }
     }
