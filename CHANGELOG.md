@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 22.6.0
 
 **Compatibility:** This version of Relay requires Sentry server `22.6.0` or newer.
 
