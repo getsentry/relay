@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Compatibility:** This version of Relay requires Sentry server `22.7.0` or newer.
+
+**Internal**:
+
+- Add filter for error about missing `Object.setPrototypeOf` to browser extension errors filter. ([#1308](https://github.com/getsentry/relay/pull/1308))
+
 ## 22.6.0
 
 **Compatibility:** This version of Relay requires Sentry server `22.6.0` or newer.
