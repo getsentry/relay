@@ -86,7 +86,9 @@ lazy_static! {
         # See: https://forum.sentry.io/t/error-in-raven-js-plugin-setsuspendstate/481/
         plugin\.setSuspendState\sis\snot\sa\sfunction|
         # Chrome extension message passing failure
-        Extension\scontext\sinvalidated
+        Extension\scontext\sinvalidated|
+        # Ancient browsers without `Object.setPrototypeOf`
+        'Object\.setPrototypeOf'\sis\snot\sa\sfunction
     "#
     )
     .expect("Invalid browser extensions filter (Exec Vals) Regex");
@@ -226,6 +228,7 @@ mod tests {
             "null is not an object (evaluating 'elt.parentNode')",
             "plugin.setSuspendState is not a function",
             "Extension context invalidated",
+            "'Object.setPrototypeOf' is not a function",
         ];
 
         for exc_value in &exceptions {
