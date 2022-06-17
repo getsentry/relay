@@ -631,6 +631,10 @@
 <span id="624">624</span>
 <span id="625">625</span>
 <span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.</span>
 
 <span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
@@ -742,6 +746,8 @@
     <span class="ident">Session</span> <span class="op">=</span> <span class="number">5</span>,
     <span class="doccomment">/// A profile</span>
     <span class="ident">Profile</span> <span class="op">=</span> <span class="number">6</span>,
+    <span class="doccomment">/// Session Replays</span>
+    <span class="ident">Replay</span> <span class="op">=</span> <span class="number">7</span>,
     <span class="doccomment">/// Any other data category not known by this Relay.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
     <span class="ident">Unknown</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>,
@@ -757,6 +763,7 @@
             <span class="string">&quot;security&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Security</span>,
             <span class="string">&quot;attachment&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Attachment</span>,
             <span class="string">&quot;session&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Session</span>,
+            <span class="string">&quot;replay&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Replay</span>,
             <span class="string">&quot;profile&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Profile</span>,
             <span class="kw">_</span> =&gt; <span class="ident"><span class="self">Self</span>::Unknown</span>,
         }
@@ -771,6 +778,7 @@
             <span class="ident"><span class="self">Self</span>::Security</span> =&gt; <span class="string">&quot;security&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Attachment</span> =&gt; <span class="string">&quot;attachment&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Session</span> =&gt; <span class="string">&quot;session&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Replay</span> =&gt; <span class="string">&quot;replay&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Profile</span> =&gt; <span class="string">&quot;profile&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Unknown</span> =&gt; <span class="string">&quot;unknown&quot;</span>,
         }

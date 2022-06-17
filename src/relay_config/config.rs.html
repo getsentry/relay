@@ -2066,6 +2066,12 @@
 <span id="2059">2059</span>
 <span id="2060">2060</span>
 <span id="2061">2061</span>
+<span id="2062">2062</span>
+<span id="2063">2063</span>
+<span id="2064">2064</span>
+<span id="2065">2065</span>
+<span id="2066">2066</span>
+<span id="2067">2067</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2853,7 +2859,9 @@
     <span class="ident">MetricsTransactions</span>,
     <span class="doccomment">/// Profiles</span>
     <span class="ident">Profiles</span>,
-    <span class="doccomment">/// ReplayRecording, large blobs sent by the replay sdk</span>
+    <span class="doccomment">/// ReplayEvents, breadcrumb + session updates for replays</span>
+    <span class="ident">ReplayEvents</span>,
+    <span class="doccomment">/// ReplayRecordings, large blobs sent by the replay sdk</span>
     <span class="ident">ReplayRecordings</span>,
 }
 
@@ -2883,6 +2891,8 @@
     <span class="kw">pub</span> <span class="ident">metrics_transactions</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TopicAssignment</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Stacktrace topic name</span>
     <span class="kw">pub</span> <span class="ident">profiles</span>: <span class="ident">TopicAssignment</span>,
+    <span class="doccomment">/// Replay Events topic name.</span>
+    <span class="kw">pub</span> <span class="ident">replay_events</span>: <span class="ident">TopicAssignment</span>,
     <span class="doccomment">/// Recordings topic name.</span>
     <span class="kw">pub</span> <span class="ident">replay_recordings</span>: <span class="ident">TopicAssignment</span>,
 }
@@ -2902,6 +2912,7 @@
                 <span class="self">self</span>.<span class="ident">metrics_transactions</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">metrics</span>)
             }
             <span class="ident">KafkaTopic::Profiles</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">profiles</span>,
+            <span class="ident">KafkaTopic::ReplayEvents</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">replay_events</span>,
             <span class="ident">KafkaTopic::ReplayRecordings</span> =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">replay_recordings</span>,
         }
     }
@@ -2920,6 +2931,7 @@
             <span class="ident">metrics_sessions</span>: <span class="prelude-val">None</span>,
             <span class="ident">metrics_transactions</span>: <span class="prelude-val">None</span>,
             <span class="ident">profiles</span>: <span class="string">&quot;profiles&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
+            <span class="ident">replay_events</span>: <span class="string">&quot;ingest-replay-events&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
             <span class="ident">replay_recordings</span>: <span class="string">&quot;ingest-replay-recordings&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>(),
         }
     }

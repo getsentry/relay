@@ -3364,6 +3364,8 @@
 <span id="3357">3357</span>
 <span id="3358">3358</span>
 <span id="3359">3359</span>
+<span id="3360">3360</span>
+<span id="3361">3361</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -4372,10 +4374,11 @@
         });
     }
 
-    <span class="kw">fn</span> <span class="ident">process_replay_recordings</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) {
+    <span class="doccomment">/// Remove replays if the feature flag is not enabled</span>
+    <span class="kw">fn</span> <span class="ident">process_replays</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) {
         <span class="kw">let</span> <span class="ident">replays_enabled</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">has_feature</span>(<span class="ident">Feature::Replays</span>);
         <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">retain_items</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
-            <span class="ident">ItemType::ReplayRecording</span> =&gt; <span class="ident">replays_enabled</span>,
+            <span class="ident">ItemType::ReplayEvent</span> <span class="op">|</span> <span class="ident">ItemType::ReplayRecording</span> =&gt; <span class="ident">replays_enabled</span>,
             <span class="kw">_</span> =&gt; <span class="bool-val">true</span>,
         });
     }
@@ -4695,6 +4698,7 @@
             <span class="ident">ItemType::MetricBuckets</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::ClientReport</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::Profile</span> =&gt; <span class="bool-val">false</span>,
+            <span class="ident">ItemType::ReplayEvent</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::ReplayRecording</span> =&gt; <span class="bool-val">false</span>,
             <span class="comment">// Without knowing more, `Unknown` items are allowed to be repeated</span>
             <span class="ident">ItemType::Unknown</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
@@ -5209,7 +5213,7 @@
         <span class="self">self</span>.<span class="ident">process_client_reports</span>(<span class="ident">state</span>);
         <span class="self">self</span>.<span class="ident">process_user_reports</span>(<span class="ident">state</span>);
         <span class="self">self</span>.<span class="ident">process_profiles</span>(<span class="ident">state</span>);
-        <span class="self">self</span>.<span class="ident">process_replay_recordings</span>(<span class="ident">state</span>);
+        <span class="self">self</span>.<span class="ident">process_replays</span>(<span class="ident">state</span>);
 
         <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">creates_event</span>() {
             <span class="macro">if_processing!</span>({

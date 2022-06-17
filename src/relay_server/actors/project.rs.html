@@ -739,6 +739,7 @@
 <span id="732">732</span>
 <span id="733">733</span>
 <span id="734">734</span>
+<span id="735">735</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -795,6 +796,7 @@
     <span class="doccomment">/// Enables ingestion and normalization of profiles.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;organizations:profiling&quot;</span>)]</span>
     <span class="ident">Profiling</span>,
+    <span class="doccomment">/// Enables ingestion of Session Replays (Replay Recordings and Replay Events)</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;organizations:session-replay&quot;</span>)]</span>
     <span class="ident">Replays</span>,
 

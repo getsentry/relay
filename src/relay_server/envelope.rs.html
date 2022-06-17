@@ -1566,6 +1566,12 @@
 <span id="1559">1559</span>
 <span id="1560">1560</span>
 <span id="1561">1561</span>
+<span id="1562">1562</span>
+<span id="1563">1563</span>
+<span id="1564">1564</span>
+<span id="1565">1565</span>
+<span id="1566">1566</span>
+<span id="1567">1567</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data</span>
@@ -1671,6 +1677,8 @@
     <span class="ident">ClientReport</span>,
     <span class="doccomment">/// Profile event payload encoded in JSON</span>
     <span class="ident">Profile</span>,
+    <span class="doccomment">/// Replay metadata and breadcrumb payload</span>
+    <span class="ident">ReplayEvent</span>,
     <span class="doccomment">/// Replay Recording data</span>
     <span class="ident">ReplayRecording</span>,
     <span class="doccomment">/// A new item type that is yet unknown by this version of Relay.</span>
@@ -1712,6 +1720,7 @@
             <span class="ident"><span class="self">Self</span>::MetricBuckets</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;metric_buckets&quot;</span>),
             <span class="ident"><span class="self">Self</span>::ClientReport</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;client_report&quot;</span>),
             <span class="ident"><span class="self">Self</span>::Profile</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;profile&quot;</span>),
+            <span class="ident"><span class="self">Self</span>::ReplayEvent</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;replay_event&quot;</span>),
             <span class="ident"><span class="self">Self</span>::ReplayRecording</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;replay_recording&quot;</span>),
             <span class="ident"><span class="self">Self</span>::Unknown</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
         }
@@ -1737,6 +1746,7 @@
             <span class="string">&quot;metric_buckets&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::MetricBuckets</span>,
             <span class="string">&quot;client_report&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::ClientReport</span>,
             <span class="string">&quot;profile&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Profile</span>,
+            <span class="string">&quot;replay_event&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::ReplayEvent</span>,
             <span class="string">&quot;replay_recording&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::ReplayRecording</span>,
             <span class="ident">other</span> =&gt; <span class="ident"><span class="self">Self</span>::Unknown</span>(<span class="ident">other</span>.<span class="ident">to_owned</span>()),
         })
@@ -2193,6 +2203,7 @@
             <span class="op">|</span> <span class="ident">ItemType::Metrics</span>
             <span class="op">|</span> <span class="ident">ItemType::MetricBuckets</span>
             <span class="op">|</span> <span class="ident">ItemType::ClientReport</span>
+            <span class="op">|</span> <span class="ident">ItemType::ReplayEvent</span>
             <span class="op">|</span> <span class="ident">ItemType::ReplayRecording</span>
             <span class="op">|</span> <span class="ident">ItemType::Profile</span> =&gt; <span class="bool-val">false</span>,
 
@@ -2215,6 +2226,7 @@
             <span class="ident">ItemType::RawSecurity</span> =&gt; <span class="bool-val">true</span>,
             <span class="ident">ItemType::UnrealReport</span> =&gt; <span class="bool-val">true</span>,
             <span class="ident">ItemType::UserReport</span> =&gt; <span class="bool-val">true</span>,
+            <span class="ident">ItemType::ReplayEvent</span> =&gt; <span class="bool-val">true</span>,
             <span class="ident">ItemType::Session</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::Sessions</span> =&gt; <span class="bool-val">false</span>,
             <span class="ident">ItemType::Metrics</span> =&gt; <span class="bool-val">false</span>,

@@ -77,6 +77,7 @@
 <span id="70">70</span>
 <span id="71">71</span>
 <span id="72">72</span>
+<span id="73">73</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">Envelope</span>, <span class="ident">ItemType</span>};
@@ -104,6 +105,7 @@
             <span class="ident">ItemType::Event</span>
             <span class="op">|</span> <span class="ident">ItemType::Transaction</span>
             <span class="op">|</span> <span class="ident">ItemType::Security</span>
+            <span class="op">|</span> <span class="ident">ItemType::ReplayEvent</span>
             <span class="op">|</span> <span class="ident">ItemType::RawSecurity</span>
             <span class="op">|</span> <span class="ident">ItemType::FormData</span> =&gt; <span class="ident">event_size</span> <span class="op">+</span><span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>(),
             <span class="ident">ItemType::Attachment</span> <span class="op">|</span> <span class="ident">ItemType::UnrealReport</span> <span class="op">|</span> <span class="ident">ItemType::ReplayRecording</span> =&gt; {
