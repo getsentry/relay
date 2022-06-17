@@ -1245,7 +1245,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_envelope_empty_item_eof() {
-        // With terminating newline after item payload
+        // Without terminating newline after item payload
         let bytes = Bytes::from(
             "\
              {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
