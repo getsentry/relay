@@ -2727,7 +2727,14 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
                     // we "expect" errors and log them as debug level.
-                    relay_log::error!("error processing envelope: {}", LogError(&error));
+                    relay_log::with_scope(
+                        |scope| {
+                            scope.set_tag("project_key", project_key);
+                        },
+                        || {
+                            relay_log::error!("error processing envelope: {}", LogError(&error));
+                        },
+                    );
                 } else {
                     relay_log::debug!("dropped envelope: {}", LogError(&error));
                 }
