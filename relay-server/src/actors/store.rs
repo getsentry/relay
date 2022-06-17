@@ -60,6 +60,7 @@ struct Producers {
     metrics_sessions: Producer,
     metrics_transactions: Producer,
     profiles: Producer,
+    replay_events: Producer,
     replay_recordings: Producer,
 }
 
@@ -79,6 +80,7 @@ impl Producers {
             KafkaTopic::MetricsSessions => Some(&self.metrics_sessions),
             KafkaTopic::MetricsTransactions => Some(&self.metrics_transactions),
             KafkaTopic::Profiles => Some(&self.profiles),
+            KafkaTopic::ReplayEvents => Some(&self.replay_events),
             KafkaTopic::ReplayRecordings => Some(&self.replay_recordings),
         }
     }
@@ -150,6 +152,11 @@ impl StoreForwarder {
                 &*config,
                 &mut reused_producers,
                 KafkaTopic::ReplayRecordings,
+            )?,
+            replay_events: make_producer(
+                &*config,
+                &mut reused_producers,
+                KafkaTopic::ReplayEvents,
             )?,
         };
 
@@ -472,6 +479,28 @@ impl StoreForwarder {
         Ok(())
     }
 
+    fn produce_replay_event(
+        &self,
+        replay_id: EventId,
+        project_id: ProjectId,
+        start_time: Instant,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = ReplayEventKafkaMessage {
+            replay_id,
+            project_id,
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            payload: item.payload(),
+        };
+        relay_log::trace!("Sending replay event to Kafka");
+        self.produce(KafkaTopic::ReplayEvents, KafkaMessage::ReplayEvent(message))?;
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "replay_event"
+        );
+        Ok(())
+    }
+
     fn produce_replay_recording_chunks(
         &self,
         replay_id: EventId,
@@ -615,6 +644,17 @@ struct EventKafkaMessage {
     /// Attachments that are potentially relevant for processing.
     attachments: Vec<ChunkedAttachment>,
 }
+#[derive(Clone, Debug, Serialize)]
+struct ReplayEventKafkaMessage {
+    /// Raw event payload.
+    payload: Bytes,
+    /// Time at which the event was received by Relay.
+    start_time: u64,
+    /// The event id.
+    replay_id: EventId,
+    /// The project id for the current event.
+    project_id: ProjectId,
+}
 
 /// Container payload for chunks of attachments.
 #[derive(Debug, Serialize)]
@@ -739,6 +779,7 @@ enum KafkaMessage {
     Session(SessionKafkaMessage),
     Metric(MetricKafkaMessage),
     Profile(ProfileKafkaMessage),
+    ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecording(ReplayRecordingKafkaMessage),
     ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
 }
@@ -753,6 +794,7 @@ impl KafkaMessage {
             KafkaMessage::Session(_) => "session",
             KafkaMessage::Metric(_) => "metric",
             KafkaMessage::Profile(_) => "profile",
+            KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecording(_) => "replay_recording",
             KafkaMessage::ReplayRecordingChunk(_) => "replay_recording_chunk",
         }
@@ -768,6 +810,7 @@ impl KafkaMessage {
             Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
             Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
             Self::Profile(_message) => Uuid::nil(),
+            Self::ReplayEvent(message) => message.replay_id.0,
             Self::ReplayRecording(message) => message.replay_id.0,
             Self::ReplayRecordingChunk(message) => message.replay_id.0,
         };
@@ -905,7 +948,12 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         event_type = "replay_recording"
                     );
                 }
-
+                ItemType::ReplayEvent => self.produce_replay_event(
+                    event_id.ok_or(StoreError::NoEventId)?,
+                    scoping.project_id,
+                    start_time,
+                    item,
+                )?,
                 _ => {}
             }
         }

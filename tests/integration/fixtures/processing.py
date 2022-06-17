@@ -51,6 +51,7 @@ def processing_config(get_topic_name):
                 "outcomes": get_topic_name("outcomes"),
                 "sessions": get_topic_name("sessions"),
                 "metrics": get_topic_name("metrics"),
+                "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
             }
 
@@ -286,6 +287,11 @@ def replay_recordings_consumer(kafka_consumer):
     return lambda: ReplayRecordingsConsumer(*kafka_consumer("replay_recordings"))
 
 
+@pytest.fixture
+def replay_events_consumer(kafka_consumer):
+    return lambda: ReplayEventsConsumer(*kafka_consumer("replay_events"))
+
+
 class MetricsConsumer(ConsumerBase):
     def get_metric(self, timeout=None):
         message = self.poll(timeout=timeout)
@@ -360,3 +366,14 @@ class ReplayRecordingsConsumer(EventsConsumer):
         v = msgpack.unpackb(message.value(), raw=False, use_list=False)
         assert v["type"] == "replay_recording", v["type"]
         return v
+
+
+class ReplayEventsConsumer(ConsumerBase):
+    def get_replay_event(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        event = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        assert event["type"] == "replay_event"
+        return json.loads(event["payload"].decode("utf8")), event

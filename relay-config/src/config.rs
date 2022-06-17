@@ -785,7 +785,9 @@ pub enum KafkaTopic {
     MetricsTransactions,
     /// Profiles
     Profiles,
-    /// ReplayRecording, large blobs sent by the replay sdk
+    /// ReplayEvents, breadcrumb + session updates for replays
+    ReplayEvents,
+    /// ReplayRecordings, large blobs sent by the replay sdk
     ReplayRecordings,
 }
 
@@ -815,6 +817,8 @@ pub struct TopicAssignments {
     pub metrics_transactions: Option<TopicAssignment>,
     /// Stacktrace topic name
     pub profiles: TopicAssignment,
+    /// Replay Events topic name.
+    pub replay_events: TopicAssignment,
     /// Recordings topic name.
     pub replay_recordings: TopicAssignment,
 }
@@ -834,6 +838,7 @@ impl TopicAssignments {
                 self.metrics_transactions.as_ref().unwrap_or(&self.metrics)
             }
             KafkaTopic::Profiles => &self.profiles,
+            KafkaTopic::ReplayEvents => &self.replay_events,
             KafkaTopic::ReplayRecordings => &self.replay_recordings,
         }
     }
@@ -852,6 +857,7 @@ impl Default for TopicAssignments {
             metrics_sessions: None,
             metrics_transactions: None,
             profiles: "profiles".to_owned().into(),
+            replay_events: "ingest-replay-events".to_owned().into(),
             replay_recordings: "ingest-replay-recordings".to_owned().into(),
         }
     }

@@ -109,6 +109,8 @@ pub enum DataCategory {
     Session = 5,
     /// A profile
     Profile = 6,
+    /// Session Replays
+    Replay = 7,
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
@@ -124,6 +126,7 @@ impl DataCategory {
             "security" => Self::Security,
             "attachment" => Self::Attachment,
             "session" => Self::Session,
+            "replay" => Self::Replay,
             "profile" => Self::Profile,
             _ => Self::Unknown,
         }
@@ -138,6 +141,7 @@ impl DataCategory {
             Self::Security => "security",
             Self::Attachment => "attachment",
             Self::Session => "session",
+            Self::Replay => "replay",
             Self::Profile => "profile",
             Self::Unknown => "unknown",
         }

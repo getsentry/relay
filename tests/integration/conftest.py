@@ -26,6 +26,7 @@ from .fixtures.processing import (
     replay_recordings_consumer,
     sessions_consumer,
     metrics_consumer,
+    replay_events_consumer,
 )  # noqa
 
 
