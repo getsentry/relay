@@ -178,7 +178,19 @@ impl UpstreamProjectSource {
         // requests, since the upstream will block the response.
         let (cache_channels, nocache_channels): (Vec<_>, Vec<_>) = (projects.iter())
             .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
-            .filter(|(_id, channel)| !channel.expired())
+            .filter(|(_id, channel)| {
+                if channel.expired() {
+                    metric!(
+                        histogram(RelayHistograms::ProjectStateAttempts) = channel.attempts,
+                        result = "timeout",
+                    );
+                    metric!(
+                        counter(RelayCounters::ProjectUpstreamCompleted) += 1,
+                        result = "timeout",
+                    );
+                }
+                !channel.expired()
+            })
             .partition(|(_id, channel)| channel.no_cache);
         let total_count = cache_channels.len() + nocache_channels.len();
 
@@ -266,9 +278,15 @@ impl UpstreamProjectSource {
                                         Some(ProjectState::err())
                                     })
                                     .unwrap_or_else(ProjectState::missing);
+                                let result = if state.invalid() { "invalid" } else { "ok" };
                                 metric!(
                                     histogram(RelayHistograms::ProjectStateAttempts) =
-                                        channel.attempts
+                                        channel.attempts,
+                                    result = result,
+                                );
+                                metric!(
+                                    counter(RelayCounters::ProjectUpstreamCompleted) += 1,
+                                    result = result,
                                 );
                                 channel.send(state.sanitize());
                             }
