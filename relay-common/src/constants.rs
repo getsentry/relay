@@ -482,18 +482,17 @@ const CUSTOM_UNIT_MAX_SIZE: usize = 15;
 
 /// Custom user-defined units without builtin conversion.
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
-pub struct CustomUnit([u8; CUSTOM_UNIT_SIZE]);
+pub struct CustomUnit([u8; CUSTOM_UNIT_MAX_SIZE]);
 
 impl CustomUnit {
     /// Parses a `CustomUnit` from a string.
     pub fn parse(s: &str) -> Result<Self, ParseMetricUnitError> {
-        if s.len() > CUSTOM_UNIT_SIZE || !s.is_ascii() {
+        if s.len() > CUSTOM_UNIT_MAX_SIZE || !s.is_ascii() {
             return Err(ParseMetricUnitError(()));
         }
 
-        let mut unit = Self(Default::default());
+        let mut unit = Self([0; CUSTOM_UNIT_MAX_SIZE]);
         unit.0[..s.len()].copy_from_slice(s.as_bytes());
-        unit.0[s.len()..].fill(0);
         unit.0.make_ascii_lowercase();
         Ok(unit)
     }
