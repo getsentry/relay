@@ -478,7 +478,7 @@ impl fmt::Display for FractionUnit {
     }
 }
 
-const CUSTOM_UNIT_SIZE: usize = 15;
+const CUSTOM_UNIT_MAX_SIZE: usize = 15;
 
 /// Custom user-defined units without builtin conversion.
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
