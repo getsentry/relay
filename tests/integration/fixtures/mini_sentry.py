@@ -40,6 +40,8 @@ class Sentry(SentryLike):
         self.hits = {}
         self.known_relays = {}
         self.fail_on_relay_error = True
+        self.request_log = []
+        self.project_config_simulate_pending = False
 
     @property
     def internal_error_dsn(self):
@@ -216,6 +218,8 @@ def mini_sentry(request):
         if flask_request.headers.get("transfer-encoding"):
             abort(400, "transfer encoding not supported")
 
+        sentry.request_log.append(flask_request.url)
+
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
     def get_challenge():
         relay_id = flask_request.json["relay_id"]
@@ -300,13 +304,14 @@ def mini_sentry(request):
         if relay_id not in authenticated_relays:
             abort(403, "relay not registered")
 
-        rv = {}
+        configs = {}
+        pending = []
         version = flask_request.args.get("version")
         if version in [None, "1"]:
             for project_id in flask_request.json["projects"]:
                 project_config = sentry.project_configs[int(project_id)]
                 if is_trusted(relay_id, project_config):
-                    rv[project_id] = project_config
+                    configs[project_id] = project_config
 
         elif version in ["2", "3"]:
             for public_key in flask_request.json["publicKeys"]:
@@ -317,17 +322,23 @@ def mini_sentry(request):
                             continue
 
                         if key["publicKey"] == public_key:
-                            # TODO 11 Nov 2020 (RaduW) horrible hack
-                            #  For some reason returning multiple public keys breaks Relay
-                            # Relay seems to work only with the first key
-                            # Need to figure out why that is.
-                            rv[public_key] = deepcopy(project_config)
-                            rv[public_key]["publicKeys"] = [key]
+                            if (
+                                version == "3"
+                                and sentry.project_config_simulate_pending
+                            ):
+                                pending.append(public_key)
+                            else:
+                                # TODO 11 Nov 2020 (RaduW) horrible hack
+                                #  For some reason returning multiple public keys breaks Relay
+                                # Relay seems to work only with the first key
+                                # Need to figure out why that is.
+                                configs[public_key] = deepcopy(project_config)
+                                configs[public_key]["publicKeys"] = [key]
 
         else:
             abort(500, "unsupported version")
 
-        return jsonify(configs=rv)
+        return jsonify(configs=configs, pending=pending)
 
     @app.route("/api/0/relays/publickeys/", methods=["POST"])
     def public_keys():

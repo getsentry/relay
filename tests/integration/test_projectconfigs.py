@@ -201,3 +201,49 @@ def test_pending_projects(mini_sentry, relay):
     print(data)
     assert public_key in data["configs"]
     assert data.get("pending") is None
+
+
+def test_fallback_to_v2(mini_sentry, relay):
+    mini_sentry.project_config_simulate_pending = True
+    relay = relay(
+        mini_sentry, wait_healthcheck=True, options={"limits": {"query_timeout": 1}}
+    )
+    project = mini_sentry.add_basic_project_config(42)
+    public_key = mini_sentry.get_dsn_public_key(42)
+
+    body = {"publicKeys": [public_key]}
+    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
+
+    def request_config():
+        return relay.post(
+            "/api/0/relays/projectconfigs/?version=3",
+            data=packed,
+            headers={
+                "X-Sentry-Relay-Id": relay.relay_id,
+                "X-Sentry-Relay-Signature": signature,
+            },
+        )
+
+    response = request_config()
+
+    assert response.ok
+    data = response.json()
+    assert public_key in data["pending"]
+    assert public_key not in data["configs"]
+
+    deadline = time.monotonic() + 15
+    while time.monotonic() <= deadline:
+        response = request_config()
+        assert response.ok
+        data = response.json()
+        if data["configs"]:
+            break
+        assert "?version=3" in mini_sentry.request_log[-1]
+        time.sleep(1)
+    else:
+        print("Relay did still not receive a project config from minisentry")
+
+    # Succesful response is version 2:
+    assert "?version=2" in mini_sentry.request_log[-1]
+    assert public_key in data["configs"]
+    assert data.get("pending") is None
