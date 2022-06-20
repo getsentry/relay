@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
+use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -21,19 +22,15 @@ use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, Upstrea
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
 
-#[macro_use]
-mod _macro {
+/// The version that will be used to query Upstream. The endpoint version is added as
+/// `version` query parameter to every outgoing request. See the `projectconfigs` endpoint for
+/// the versions that will be accepted by Relay.
+#[derive(Debug, Serialize)]
+enum GetProjectStatesVersion {
+    /// Legacy version of the project states endpoint.
+    V2,
     /// The current version of the project states endpoint.
-    ///
-    /// This is the version that will be used to query Upstream. The endpoint version is added as
-    /// `version` query parameter to every outgoing request. See the `projectconfigs` endpoint for
-    /// the versions that will be accepted by Relay.
-    #[macro_export]
-    macro_rules! project_states_version {
-        () => {
-            3
-        };
-    }
+    V3,
 }
 
 /// A query to retrieve a batch of project states from upstream.
@@ -46,6 +43,8 @@ pub struct GetProjectStates {
     pub public_keys: Vec<ProjectKey>,
     pub full_config: bool,
     pub no_cache: bool,
+    #[serde(skip_serializing)]
+    pub version: GetProjectStatesVersion,
 }
 
 /// The response of the projects states requests.
@@ -69,10 +68,10 @@ impl UpstreamQuery for GetProjectStates {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed(concat!(
-            "/api/0/relays/projectconfigs/?version=",
-            project_states_version!()
-        ))
+        Cow::Borrowed(match self.version {
+            V2 => "/api/0/relays/projectconfigs/?version=2",
+            V3 => "/api/0/relays/projectconfigs/?version=3",
+        })
     }
 
     fn priority() -> RequestPriority {
@@ -192,6 +191,11 @@ impl UpstreamProjectSource {
                 !channel.expired()
             })
             .partition(|(_id, channel)| channel.no_cache);
+
+        // nocache_channels do not need to be split into v2 and v3, because the endpoint treats them
+        // as v2 anyway: https://github.com/getsentry/sentry/blob/ba5f1280d9423a72fb8d3351036be7f217407124/src/sentry/api/endpoints/relay/project_configs.py#L90-L91
+        cache_channels.into_iter().partition(|(_id, channel)| channel.almost_expired());
+
         let total_count = cache_channels.len() + nocache_channels.len();
 
         metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
@@ -224,6 +228,7 @@ impl UpstreamProjectSource {
                     public_keys: channels_batch.keys().copied().collect(),
                     full_config: self.config.processing_enabled(),
                     no_cache: channels_batch.values().any(|c| c.no_cache),
+                    version:
                 };
 
                 // count number of http requests for project states
