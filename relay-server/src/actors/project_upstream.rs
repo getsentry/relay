@@ -129,18 +129,6 @@ pub struct UpstreamProjectSource {
     state_channels: HashMap<ProjectKey, ProjectStateChannel>,
 }
 
-type B = Vec<(ProjectKey, ProjectStateChannel)>;
-
-/// Separate regular channels from those with the `nocache` flag. The latter go in separate
-/// requests, since the upstream will block the response.
-fn partition_cache_no_cache<I>(channels: I) -> (B, B)
-where
-    I: Iterator<Item = (ProjectKey, ProjectStateChannel)>,
-{
-    let (nocache, cache) = channels.partition(|(_id, channel)| channel.no_cache);
-    (cache, nocache)
-}
-
 impl UpstreamProjectSource {
     pub fn new(config: Arc<Config>) -> Self {
         UpstreamProjectSource {
@@ -186,7 +174,9 @@ impl UpstreamProjectSource {
             .take(batch_size * num_batches)
             .collect();
 
-        let fresh_channels = (projects.iter())
+        // Separate regular channels from those with the `nocache` flag. The latter go in separate
+        // requests, since the upstream will block the response.
+        let (cache_channels, nocache_channels): (Vec<_>, Vec<_>) = (projects.iter())
             .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
             .filter(|(_id, channel)| {
                 if channel.expired() {
@@ -200,10 +190,8 @@ impl UpstreamProjectSource {
                     );
                 }
                 !channel.expired()
-            });
-
-        let (cache_channels, nocache_channels): (Vec<_>, Vec<_>) =
-            partition_cache_no_cache(fresh_channels);
+            })
+            .partition(|(_id, channel)| channel.no_cache);
         let total_count = cache_channels.len() + nocache_channels.len();
 
         metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
@@ -406,30 +394,5 @@ impl Handler<FetchProjectState> for UpstreamProjectSource {
                 .map_err(|_| ())
                 .map(|x| ProjectStateResponse::new((*x).clone())),
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use relay_common::ProjectKey;
-
-    use super::{partition_cache_no_cache, ProjectStateChannel};
-
-    #[test]
-    fn test_partition_cache_no_cache() {
-        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
-
-        let mut channel1 = ProjectStateChannel::new(Default::default());
-        channel1.no_cache();
-        let channel2 = ProjectStateChannel::new(Default::default());
-
-        let mixed = vec![(project_key1, channel1), (project_key2, channel2)];
-
-        let (cache, nocache) = partition_cache_no_cache(mixed.into_iter());
-        assert_eq!(cache.len(), 1);
-        assert!(!cache[0].1.no_cache);
-        assert_eq!(nocache.len(), 1);
-        assert!(nocache[0].1.no_cache);
     }
 }
