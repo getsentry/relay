@@ -635,6 +635,27 @@
 <span id="628">628</span>
 <span id="629">629</span>
 <span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.</span>
 
 <span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
@@ -1115,19 +1136,22 @@
     }
 }
 
+<span class="kw">const</span> <span class="ident">CUSTOM_UNIT_MAX_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">15</span>;
+
 <span class="doccomment">/// Custom user-defined units without builtin conversion.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CustomUnit</span>([<span class="ident">u8</span>; <span class="number">15</span>]);
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CustomUnit</span>([<span class="ident">u8</span>; <span class="ident">CUSTOM_UNIT_MAX_SIZE</span>]);
 
 <span class="kw">impl</span> <span class="ident">CustomUnit</span> {
     <span class="doccomment">/// Parses a `CustomUnit` from a string.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ParseMetricUnitError</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="ident">s</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">15</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">s</span>.<span class="ident">is_ascii</span>() {
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">s</span>.<span class="ident">is_ascii</span>() {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseMetricUnitError</span>(()));
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unit</span> <span class="op">=</span> <span class="self">Self</span>(<span class="ident">Default::default</span>());
-        <span class="ident">unit</span>.<span class="number">0</span>.<span class="ident">copy_from_slice</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unit</span> <span class="op">=</span> <span class="self">Self</span>([<span class="number">0</span>; <span class="ident">CUSTOM_UNIT_MAX_SIZE</span>]);
+        <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="ident">unit</span>.<span class="number">0</span>.<span class="ident">get_mut</span>(..<span class="ident">s</span>.<span class="ident">len</span>()).<span class="ident">ok_or</span>(<span class="ident">ParseMetricUnitError</span>(()))<span class="question-mark">?</span>;
+        <span class="ident">slice</span>.<span class="ident">copy_from_slice</span>(<span class="ident">s</span>.<span class="ident">as_bytes</span>());
         <span class="ident">unit</span>.<span class="number">0</span>.<span class="ident">make_ascii_lowercase</span>();
         <span class="prelude-val">Ok</span>(<span class="ident">unit</span>)
     }
@@ -1135,9 +1159,9 @@
     <span class="doccomment">/// Returns the string representation of this unit.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="comment">// Safety: The string is already validated to be of length 32 and valid ASCII when</span>
-        <span class="comment">// constructing `ProjectKey`.</span>
-        <span class="kw">unsafe</span> { <span class="ident">std::str::from_utf8_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>) }
+        <span class="comment">// Safety: The string is already validated to be valid ASCII when</span>
+        <span class="comment">// parsing `CustomUnit`.</span>
+        <span class="kw">unsafe</span> { <span class="ident">std::str::from_utf8_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>).<span class="ident">trim_end_matches</span>(<span class="string">&#39;\0&#39;</span>) }
     }
 }
 
@@ -1263,6 +1287,24 @@
 
     <span class="kw">fn</span> <span class="ident">json_schema</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;mut</span> <span class="ident">schemars::gen::SchemaGenerator</span>) -&gt; <span class="ident">schemars::schema::Schema</span> {
         <span class="ident">String::json_schema</span>(<span class="ident">gen</span>)
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::CustomUnit</span>;
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_custom_unit_parse</span>() {
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;foo&quot;</span>, <span class="ident">CustomUnit::parse</span>(<span class="string">&quot;Foo&quot;</span>).<span class="ident">unwrap</span>().<span class="ident">as_str</span>());
+        <span class="macro">assert_eq!</span>(
+            <span class="string">&quot;0123456789abcde&quot;</span>,
+            <span class="ident">CustomUnit::parse</span>(<span class="string">&quot;0123456789abcde&quot;</span>).<span class="ident">unwrap</span>().<span class="ident">as_str</span>()
+        );
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            <span class="ident">CustomUnit::parse</span>(<span class="string">&quot;this_is_a_unit_that_is_too_long&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>)
+        ));
     }
 }
 </code></pre></div>
