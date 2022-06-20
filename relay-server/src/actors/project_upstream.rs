@@ -175,7 +175,7 @@ impl UpstreamProjectSource {
 
         // Separate regular channels from those with the `nocache` flag. The latter go in separate
         // requests, since the upstream will block the response.
-        let (cache_channels, nocache_channels): (Vec<_>, Vec<_>) = (projects.iter())
+        let (nocache_channels, cache_channels): (Vec<_>, Vec<_>) = (projects.iter())
             .filter_map(|id| Some((*id, self.state_channels.remove(id)?)))
             .filter(|(_id, channel)| {
                 if channel.expired() {
