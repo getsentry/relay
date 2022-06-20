@@ -501,8 +501,8 @@ impl CustomUnit {
     /// Returns the string representation of this unit.
     #[inline]
     pub fn as_str(&self) -> &str {
-        // Safety: The string is already validated to be of length 32 and valid ASCII when
-        // constructing `ProjectKey`.
+        // Safety: The string is already validated to be valid ASCII when
+        // parsing `CustomUnit`.
         unsafe { std::str::from_utf8_unchecked(&self.0).trim_end_matches('\0') }
     }
 }

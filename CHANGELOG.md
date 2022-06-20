@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Parse custom units with length < 15 without crashing. ([#1311](https://github.com/getsentry/relay/pull/1311))
+
 ## 22.6.0
 
 **Compatibility:** This version of Relay requires Sentry server `22.6.0` or newer.
