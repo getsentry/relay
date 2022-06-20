@@ -478,19 +478,22 @@ impl fmt::Display for FractionUnit {
     }
 }
 
+const CUSTOM_UNIT_SIZE: usize = 15;
+
 /// Custom user-defined units without builtin conversion.
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
-pub struct CustomUnit([u8; 15]);
+pub struct CustomUnit([u8; CUSTOM_UNIT_SIZE]);
 
 impl CustomUnit {
     /// Parses a `CustomUnit` from a string.
     pub fn parse(s: &str) -> Result<Self, ParseMetricUnitError> {
-        if s.len() > 15 || !s.is_ascii() {
+        if s.len() > CUSTOM_UNIT_SIZE || !s.is_ascii() {
             return Err(ParseMetricUnitError(()));
         }
 
         let mut unit = Self(Default::default());
-        unit.0.copy_from_slice(s.as_bytes());
+        unit.0[0..s.len()].copy_from_slice(s.as_bytes());
+        unit.0[s.len()..].fill(0);
         unit.0.make_ascii_lowercase();
         Ok(unit)
     }
@@ -500,7 +503,7 @@ impl CustomUnit {
     pub fn as_str(&self) -> &str {
         // Safety: The string is already validated to be of length 32 and valid ASCII when
         // constructing `ProjectKey`.
-        unsafe { std::str::from_utf8_unchecked(&self.0) }
+        unsafe { std::str::from_utf8_unchecked(&self.0).trim_end_matches('\0') }
     }
 }
 
@@ -626,5 +629,23 @@ impl schemars::JsonSchema for MetricUnit {
 
     fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
         String::json_schema(gen)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::CustomUnit;
+
+    #[test]
+    fn test_custom_unit_parse() {
+        assert_eq!("foo", CustomUnit::parse("Foo").unwrap().as_str());
+        assert_eq!(
+            "0123456789abcde",
+            CustomUnit::parse("0123456789abcde").unwrap().as_str()
+        );
+        assert!(matches!(
+            CustomUnit::parse("this_is_a_unit_that_is_too_long"),
+            Err(_)
+        ));
     }
 }
