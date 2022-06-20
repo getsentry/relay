@@ -235,6 +235,26 @@ impl UpstreamProjectSource {
                     version: if channels_batch.values().any(|c| c.almost_expired()) {
                         // For the time being, we assume that V2 is the more stable endpoint, so if
                         // we fail to fetch the project config within half the timeout, fall back to V2.
+
+                        relay_log::with_scope(
+                            |scope| {
+                                let attempts_per_key: BTreeMap<String, u64> = channels_batch
+                                    .iter()
+                                    .filter(|(_, v)| v.almost_expired())
+                                    .map(|(k, v)| (k.to_string(), v.attempts))
+                                    .collect();
+                                scope.set_extra(
+                                    "attempts_per_key",
+                                    serde_json::to_value(attempts_per_key).unwrap_or_default(),
+                                );
+                            },
+                            || {
+                                relay_log::error!(
+                                    "Failed to fetch project config from V3 endpoint"
+                                );
+                            },
+                        );
+
                         GetProjectStatesVersion::V2
                     } else {
                         GetProjectStatesVersion::V3
