@@ -494,6 +494,14 @@
 <span id="487">487</span>
 <span id="488">488</span>
 <span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -891,6 +899,13 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// A cache entry is created immediately and the project state requested from the upstream.</span>
     <span class="ident">ProjectCacheMiss</span>,
+    <span class="doccomment">/// Number of times an upstream request for a project config is completed.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Completion can be because a result was returned or because the config request was</span>
+    <span class="doccomment">/// dropped after there still was no response after a timeout.  This metrics has tags</span>
+    <span class="doccomment">/// for `result` and `attempts` indicating whether it was succesful or a timeout and how</span>
+    <span class="doccomment">/// many attempts were made respectively.</span>
+    <span class="ident">ProjectUpstreamCompleted</span>,
     <span class="doccomment">/// Number of Relay server starts.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This can be used to track unwanted restarts due to crashes or termination.</span>
@@ -968,6 +983,7 @@
             <span class="ident">RelayCounters::ProjectStateGet</span> =&gt; <span class="string">&quot;project_state.get&quot;</span>,
             <span class="ident">RelayCounters::ProjectStateRequest</span> =&gt; <span class="string">&quot;project_state.request&quot;</span>,
             <span class="ident">RelayCounters::ProjectStateNoCache</span> =&gt; <span class="string">&quot;project_state.no_cache&quot;</span>,
+            <span class="ident">RelayCounters::ProjectUpstreamCompleted</span> =&gt; <span class="string">&quot;project_upstream.completed&quot;</span>,
             <span class="ident">RelayCounters::ProjectCacheHit</span> =&gt; <span class="string">&quot;project_cache.hit&quot;</span>,
             <span class="ident">RelayCounters::ProjectCacheMiss</span> =&gt; <span class="string">&quot;project_cache.miss&quot;</span>,
             <span class="ident">RelayCounters::ServerStarting</span> =&gt; <span class="string">&quot;server.starting&quot;</span>,
