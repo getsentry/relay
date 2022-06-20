@@ -487,12 +487,13 @@ pub struct CustomUnit([u8; CUSTOM_UNIT_MAX_SIZE]);
 impl CustomUnit {
     /// Parses a `CustomUnit` from a string.
     pub fn parse(s: &str) -> Result<Self, ParseMetricUnitError> {
-        if s.len() > CUSTOM_UNIT_MAX_SIZE || !s.is_ascii() {
+        if !s.is_ascii() {
             return Err(ParseMetricUnitError(()));
         }
 
         let mut unit = Self([0; CUSTOM_UNIT_MAX_SIZE]);
-        unit.0[..s.len()].copy_from_slice(s.as_bytes());
+        let slice = unit.0.get_mut(..s.len()).ok_or(ParseMetricUnitError(()))?;
+        slice.copy_from_slice(s.as_bytes());
         unit.0.make_ascii_lowercase();
         Ok(unit)
     }
