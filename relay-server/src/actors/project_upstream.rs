@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
-use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -39,12 +38,12 @@ enum GetProjectStatesVersion {
 /// invalid project keys instead of failing the entire batch.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetProjectStates {
-    pub public_keys: Vec<ProjectKey>,
-    pub full_config: bool,
-    pub no_cache: bool,
+struct GetProjectStates {
+    public_keys: Vec<ProjectKey>,
+    full_config: bool,
+    no_cache: bool,
     #[serde(skip_serializing)]
-    pub version: GetProjectStatesVersion,
+    version: GetProjectStatesVersion,
 }
 
 /// The response of the projects states requests.
@@ -68,9 +67,9 @@ impl UpstreamQuery for GetProjectStates {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed(match self.version {
-            V2 => "/api/0/relays/projectconfigs/?version=2",
-            V3 => "/api/0/relays/projectconfigs/?version=3",
+        Cow::Borrowed(match &self.version {
+            GetProjectStatesVersion::V2 => "/api/0/relays/projectconfigs/?version=2",
+            GetProjectStatesVersion::V3 => "/api/0/relays/projectconfigs/?version=3",
         })
     }
 
@@ -88,6 +87,9 @@ struct ProjectStateChannel {
     sender: oneshot::Sender<Arc<ProjectState>>,
     receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
     deadline: Instant,
+    /// After the soft deadline has passed, we request project configs from the V2 endpoint
+    /// which is currently considered more stable
+    soft_deadline: Instant,
     no_cache: bool,
     attempts: u64,
 }
@@ -96,10 +98,12 @@ impl ProjectStateChannel {
     pub fn new(timeout: Duration) -> Self {
         let (sender, receiver) = oneshot::channel();
 
+        let now = Instant::now();
         Self {
             sender,
             receiver: receiver.shared(),
-            deadline: Instant::now() + timeout,
+            deadline: now + timeout,
+            soft_deadline: now + timeout / 2,
             no_cache: false,
             attempts: 0,
         }
@@ -119,6 +123,10 @@ impl ProjectStateChannel {
 
     pub fn expired(&self) -> bool {
         Instant::now() > self.deadline
+    }
+
+    pub fn almost_expired(&self) -> bool {
+        Instant::now() > self.soft_deadline
     }
 }
 
@@ -192,10 +200,6 @@ impl UpstreamProjectSource {
             })
             .partition(|(_id, channel)| channel.no_cache);
 
-        // nocache_channels do not need to be split into v2 and v3, because the endpoint treats them
-        // as v2 anyway: https://github.com/getsentry/sentry/blob/ba5f1280d9423a72fb8d3351036be7f217407124/src/sentry/api/endpoints/relay/project_configs.py#L90-L91
-        cache_channels.into_iter().partition(|(_id, channel)| channel.almost_expired());
-
         let total_count = cache_channels.len() + nocache_channels.len();
 
         metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
@@ -228,7 +232,13 @@ impl UpstreamProjectSource {
                     public_keys: channels_batch.keys().copied().collect(),
                     full_config: self.config.processing_enabled(),
                     no_cache: channels_batch.values().any(|c| c.no_cache),
-                    version:
+                    version: if channels_batch.values().any(|c| c.almost_expired()) {
+                        // For the time being, we assume that V2 is the more stable endpoint, so if
+                        // we fail to fetch the project config within half the timeout, fall back to V2.
+                        GetProjectStatesVersion::V2
+                    } else {
+                        GetProjectStatesVersion::V3
+                    },
                 };
 
                 // count number of http requests for project states
