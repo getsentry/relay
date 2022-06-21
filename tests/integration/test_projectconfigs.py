@@ -224,26 +224,23 @@ def test_fallback_to_v2(mini_sentry, relay):
             },
         )
 
+    # Trigger a config request
     response = request_config()
-
     assert response.ok
     data = response.json()
     assert public_key in data["pending"]
     assert public_key not in data["configs"]
 
-    deadline = time.monotonic() + 15
-    while time.monotonic() <= deadline:
-        response = request_config()
-        assert response.ok
-        data = response.json()
-        if data["configs"]:
-            break
-        assert "?version=3" in mini_sentry.request_log[-1]
-        time.sleep(1)
-    else:
-        print("Relay did still not receive a project config from minisentry")
+    # Give relay time to query sentry:
+    time.sleep(1)
 
-    # Succesful response is version 2:
+    # Relay attempted to query version 3, but then fell back to version 2:
+    assert "?version=3" in mini_sentry.request_log[-2]
     assert "?version=2" in mini_sentry.request_log[-1]
+
+    # Verify that valid config is now available:
+    response = request_config()
+    assert response.ok
+    data = response.json()
     assert public_key in data["configs"]
     assert data.get("pending") is None

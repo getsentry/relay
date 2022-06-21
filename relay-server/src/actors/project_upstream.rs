@@ -24,8 +24,8 @@ use crate::utils::{self, ErrorBoundary};
 /// The version that will be used to query Upstream. The endpoint version is added as
 /// `version` query parameter to every outgoing request. See the `projectconfigs` endpoint for
 /// the versions that will be accepted by Relay.
-#[derive(Debug, Serialize)]
-enum GetProjectStatesVersion {
+#[derive(Debug)]
+pub enum GetProjectStatesVersion {
     /// Legacy version of the project states endpoint.
     V2,
     /// The current version of the project states endpoint.
@@ -38,7 +38,7 @@ enum GetProjectStatesVersion {
 /// invalid project keys instead of failing the entire batch.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct GetProjectStates {
+pub struct GetProjectStates {
     public_keys: Vec<ProjectKey>,
     full_config: bool,
     no_cache: bool,
@@ -234,8 +234,7 @@ impl UpstreamProjectSource {
                     no_cache: channels_batch.values().any(|c| c.no_cache),
                     version: if channels_batch.values().any(|c| c.almost_expired()) {
                         // For the time being, we assume that V2 is the more stable endpoint, so if
-                        // we fail to fetch the project config within half the timeout, fall back to V2.
-
+                        // we fail to fetch the project config within half the timeout period, fall back to V2.
                         relay_log::with_scope(
                             |scope| {
                                 let attempts_per_key: BTreeMap<String, u64> = channels_batch
