@@ -234,9 +234,16 @@ def test_fallback_to_v2(mini_sentry, relay):
     # Give relay time to query sentry:
     time.sleep(1)
 
+    # Error was logged:
+    _, last_error = mini_sentry.test_failures[-1]
+    assert "Failed to fetch project config from V3 endpoint" in str(last_error)
+    mini_sentry.test_failures.clear()
+
     # Relay attempted to query version 3, but then fell back to version 2:
-    assert "?version=3" in mini_sentry.request_log[-2]
-    assert "?version=2" in mini_sentry.request_log[-1]
+    assert "?version=3" in mini_sentry.request_log[-3]
+    assert "?version=2" in mini_sentry.request_log[-2]
+
+    assert "/envelope/" in mini_sentry.request_log[-1]  # The error that was logged
 
     # Verify that valid config is now available:
     response = request_config()
