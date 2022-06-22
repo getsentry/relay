@@ -185,8 +185,7 @@ pub fn extract_session_metrics<T: SessionLike>(
         }
     }
 
-    // Count durations for all exited sessions. Note that right now, in the product we
-    // really only use durations from session.status=exited.
+    // Count durations only for exited sessions, since Sentry doesn't use durations for other types of sessions.
     if let Some((duration, status)) = session.final_duration() {
         if status == SessionStatus::Exited {
             target.push(Metric::new_mri(
