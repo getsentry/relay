@@ -92,17 +92,6 @@ pub fn extract_session_metrics<T: SessionLike>(
             timestamp,
             with_tag(&tags, "session.status", "init"),
         ));
-
-        if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(Metric::new_mri(
-                METRIC_NAMESPACE,
-                "user",
-                MetricUnit::None,
-                MetricValue::set_from_str(distinct_id),
-                timestamp,
-                with_tag(&tags, "session.status", "init"),
-            ));
-        }
     }
 
     // Mark the session as errored, which includes fatal sessions.
@@ -136,6 +125,18 @@ pub fn extract_session_metrics<T: SessionLike>(
                 with_tag(&tags, "session.status", "errored"),
             ));
         }
+    } else if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
+        // For session updates without errors, we collect the user without a session.status tag.
+        // To get the number of healthy users (i.e. users without a single errored session), query
+        // |users| - |users{session.status:errored}|
+        target.push(Metric::new_mri(
+            METRIC_NAMESPACE,
+            "user",
+            MetricUnit::None,
+            MetricValue::set_from_str(distinct_id),
+            timestamp,
+            tags.clone(),
+        ));
     }
 
     // Record fatal sessions for crash rate computation. This is a strict subset of errored
@@ -184,35 +185,17 @@ pub fn extract_session_metrics<T: SessionLike>(
         }
     }
 
-    // Count durations for all exited/crashed sessions. Note that right now, in the product we
-    // really only use durations from session.status=exited, but decided it may be worth ingesting
-    // this data in case we need it. If we need to cut cost, this is one place to start though.
+    // Count durations for all exited sessions. Note that right now, in the product we
+    // really only use durations from session.status=exited.
     if let Some((duration, status)) = session.final_duration() {
-        target.push(Metric::new_mri(
-            METRIC_NAMESPACE,
-            "duration",
-            MetricUnit::Duration(DurationUnit::Second),
-            MetricValue::Distribution(duration),
-            timestamp,
-            with_tag(&tags, "session.status", status),
-        ));
-    }
-
-    // Some SDKs only provide user information on subsequent updates (not when init==true), so
-    // collect the user ID here as well.
-    // We could also add the user ID to the "init" tag, but collecting it under a separate "ok" tag
-    // might help us with validation / debugging.
-    if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-        if session.total_count() == 0 && session.all_errors().is_none() {
-            // Assuming that aggregate items always have a total_count > 0,
-            // this is a session update to a healthy, individual session (init == false).
+        if status == SessionStatus::Exited {
             target.push(Metric::new_mri(
                 METRIC_NAMESPACE,
-                "user",
-                MetricUnit::None,
-                MetricValue::set_from_str(distinct_id),
+                "duration",
+                MetricUnit::Duration(DurationUnit::Second),
+                MetricValue::Distribution(duration),
                 timestamp,
-                with_tag(&tags, "session.status", SessionStatus::Ok),
+                with_tag(&tags, "session.status", status),
             ));
         }
     }
@@ -287,7 +270,7 @@ mod tests {
         assert_eq!(user_metric.timestamp, started());
         assert_eq!(user_metric.name, "s:sessions/user@none");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
-        assert_eq!(user_metric.tags["session.status"], "init");
+        assert!(!user_metric.tags.contains_key("session.status"));
         assert_eq!(user_metric.tags["release"], "1.0.0");
         assert_eq!(user_metric.tags["sdk"], client);
     }
@@ -316,7 +299,7 @@ mod tests {
         let user_metric = &metrics[0];
         assert_eq!(user_metric.name, "s:sessions/user@none");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
-        assert_eq!(user_metric.tags["session.status"], "ok");
+        assert!(!user_metric.tags.contains_key("session.status"));
     }
 
     #[test]
@@ -343,7 +326,7 @@ mod tests {
         update3.errors = 123;
 
         for (update, expected_metrics) in vec![
-            (update1, 4), // init == true, so expect 4 metrics
+            (update1, 3), // init == true, so expect 3 metrics
             (update2, 2),
             (update3, 2),
         ] {
@@ -431,17 +414,17 @@ mod tests {
 
         assert_eq!(metrics.len(), 2); // duration and user ID
 
-        let duration_metric = &metrics[0];
+        let duration_metric = &metrics[1];
         assert_eq!(duration_metric.name, "d:sessions/duration@second");
         assert!(matches!(
             duration_metric.value,
             MetricValue::Distribution(_)
         ));
 
-        let user_metric = &metrics[1];
+        let user_metric = &metrics[0];
         assert_eq!(user_metric.name, "s:sessions/user@none");
         assert!(matches!(user_metric.value, MetricValue::Set(_)));
-        assert_eq!(user_metric.tags["session.status"], "ok");
+        assert!(!user_metric.tags.contains_key("session.status"));
     }
 
     #[test]
@@ -536,19 +519,6 @@ mod tests {
                 name: "c:sessions/session@none",
                 value: Counter(
                     15.0,
-                ),
-                timestamp: UnixTimestamp(1581084961),
-                tags: {
-                    "environment": "development",
-                    "release": "my-project-name@1.0.0",
-                    "sdk": "sentry-test/1.0",
-                    "session.status": "init",
-                },
-            },
-            Metric {
-                name: "s:sessions/user@none",
-                value: Set(
-                    3097475539,
                 ),
                 timestamp: UnixTimestamp(1581084961),
                 tags: {
