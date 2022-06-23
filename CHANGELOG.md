@@ -9,6 +9,7 @@
 **Internal**:
 
 - Fall back to version 2 project config if version 3 fails. ([#1314](https://github.com/getsentry/relay/pull/1314))
+- Reduce number of metrics extracted for release health. ([#1316](https://github.com/getsentry/relay/pull/1316))
 
 ## 22.6.0
 
