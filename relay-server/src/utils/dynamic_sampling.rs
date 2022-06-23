@@ -2,19 +2,13 @@
 //!
 use std::net::IpAddr;
 
-use actix::prelude::*;
-use futures::{future, prelude::*};
-
 use relay_common::ProjectKey;
 use relay_general::protocol::{Event, EventId};
 use relay_sampling::{
     get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId, SamplingResult,
 };
 
-use crate::actors::envelopes::EnvelopeContext;
-use crate::actors::outcome::Outcome::FilteredSampling;
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::envelope::{Envelope, ItemType};
 
 /// Checks whether an event should be kept or removed by dynamic sampling.
@@ -73,7 +67,7 @@ fn sample_transaction_internal(
     let trace_context = envelope.trace_context();
     // let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
 
-    let trace_context = match (trace_context) {
+    let trace_context = match trace_context {
         // we don't have what we need, can't sample the transactions in this envelope
         None => {
             return Ok(());
@@ -245,7 +239,7 @@ mod tests {
 
         let state = get_project_state(Some(0.0), RuleType::Trace);
 
-        let result = sample_transaction_internal(&mut envelope, &state, true);
+        let result = sample_transaction_internal(&envelope, &state, true);
         assert!(result.is_ok());
         // the transaction item and dependent items should have been removed
         assert_eq!(envelope.len(), 1);
@@ -255,10 +249,10 @@ mod tests {
     /// Should keep transaction when no trace context is present
     fn test_should_keep_transaction_no_trace() {
         //create an envelope with a event and a transaction
-        let mut envelope = new_envelope(false);
+        let envelope = new_envelope(false);
         let state = get_project_state(Some(0.0), RuleType::Trace);
 
-        let result = sample_transaction_internal(&mut envelope, &state, true);
+        let result = sample_transaction_internal(&envelope, &state, true);
         assert!(result.is_ok());
         // both the event and the transaction item should have been left in the envelope
         assert_eq!(envelope.len(), 3);
@@ -269,10 +263,10 @@ mod tests {
     /// transaction
     fn test_should_signal_when_envelope_becomes_empty() {
         //create an envelope with a event and a transaction
-        let mut envelope = new_envelope(true);
+        let envelope = new_envelope(true);
         let state = get_project_state(Some(0.0), RuleType::Trace);
 
-        let result = sample_transaction_internal(&mut envelope, &state, true);
+        let result = sample_transaction_internal(&envelope, &state, true);
         assert!(result.is_err());
         let rule_id = result.unwrap_err();
         // we got back the rule id

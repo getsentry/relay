@@ -1812,7 +1812,7 @@ impl EnvelopeProcessor {
     }
 
     /// Run dynamic sampling rules on trace header to see if we keep the event or remove it.
-    fn sample_trace(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn sample_trace(&self, state: &ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let sampling_project_state = match &state.sampling_project_state {
             // nothing to sample
             None => {
@@ -1822,7 +1822,7 @@ impl EnvelopeProcessor {
         };
 
         let result = utils::sample_trace(
-            &mut state.envelope,
+            &state.envelope,
             sampling_project_state,
             self.config.processing_enabled(),
         );
