@@ -66,7 +66,7 @@ impl EqCondition {
     fn matches_event(&self, event: &Event) -> bool {
         self.matches(event)
     }
-    fn matches_trace(&self, trace: &TraceContext) -> bool {
+    fn matches_trace(&self, trace: &DynamicSamplingContext) -> bool {
         self.matches(trace)
     }
 
@@ -172,7 +172,7 @@ impl GlobCondition {
     fn matches_event(&self, event: &Event) -> bool {
         self.matches(event)
     }
-    fn matches_trace(&self, trace: &TraceContext) -> bool {
+    fn matches_trace(&self, trace: &DynamicSamplingContext) -> bool {
         self.matches(trace)
     }
 
@@ -200,8 +200,8 @@ impl CustomCondition {
     fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
         Event::get_custom_operator(&self.name)(self, event, ip_addr)
     }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
-        TraceContext::get_custom_operator(&self.name)(self, trace, ip_addr)
+    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
+        DynamicSamplingContext::get_custom_operator(&self.name)(self, trace, ip_addr)
     }
 }
 
@@ -223,7 +223,7 @@ impl OrCondition {
             .iter()
             .any(|cond| cond.matches_event(event, ip_addr))
     }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
         self.inner
             .iter()
             .any(|cond| cond.matches_trace(trace, ip_addr))
@@ -248,7 +248,7 @@ impl AndCondition {
             .iter()
             .all(|cond| cond.matches_event(event, ip_addr))
     }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
         self.inner
             .iter()
             .all(|cond| cond.matches_trace(trace, ip_addr))
@@ -271,7 +271,7 @@ impl NotCondition {
     fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
         !self.inner.matches_event(event, ip_addr)
     }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
         !self.inner.matches_trace(trace, ip_addr)
     }
 }
@@ -330,7 +330,7 @@ impl RuleCondition {
             RuleCondition::Custom(condition) => condition.matches_event(event, ip_addr),
         }
     }
-    pub fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+    pub fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
         match self {
             RuleCondition::Eq(condition) => condition.matches_trace(trace),
             RuleCondition::Gte(condition) => condition.matches_trace(trace),
@@ -609,7 +609,7 @@ fn csp_matcher(condition: &CustomCondition, event: &Event, _ip_addr: Option<IpAd
     }
 }
 
-impl FieldValueProvider for TraceContext {
+impl FieldValueProvider for DynamicSamplingContext {
     fn get_value(&self, field_name: &str) -> Value {
         match field_name {
             "trace.release" => match self.release {
@@ -684,7 +684,7 @@ pub struct TraceUserContext {
 
 /// TraceContext created by the first Sentry SDK in the call chain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TraceContext {
+pub struct DynamicSamplingContext {
     /// IID created by SDK to represent the current call flow
     pub trace_id: Uuid,
     /// the project key
@@ -706,7 +706,7 @@ pub struct TraceContext {
     pub transaction: Option<String>,
 }
 
-impl TraceContext {
+impl DynamicSamplingContext {
     /// Returns whether a trace should be retained based on sampling rules.
     ///
     /// If [`SamplingResult::NoDecision`] is returned, then no rule matched this trace. In this
@@ -751,7 +751,7 @@ pub fn get_matching_event_rule<'a>(
 
 fn get_matching_trace_rule<'a>(
     config: &'a SamplingConfig,
-    trace: &TraceContext,
+    trace: &DynamicSamplingContext,
     ip_addr: Option<IpAddr>,
     ty: RuleType,
 ) -> Option<&'a SamplingRule> {
@@ -957,7 +957,7 @@ mod tests {
 
     #[test]
     fn test_field_value_provider_trace_filled() {
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
@@ -990,7 +990,7 @@ mod tests {
 
     #[test]
     fn test_field_value_provider_trace_empty() {
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
@@ -1004,7 +1004,7 @@ mod tests {
         assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
         assert_eq!(Value::Null, tc.get_value("trace.user.transaction"));
 
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
@@ -1106,7 +1106,7 @@ mod tests {
             ("match no conditions", and(vec![])),
         ];
 
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
@@ -1279,7 +1279,7 @@ mod tests {
             ("empty", false, or(vec![])),
         ];
 
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1339,7 +1339,7 @@ mod tests {
             ("empty", true, and(vec![])),
         ];
 
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1376,7 +1376,7 @@ mod tests {
             ),
         ];
 
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1436,7 +1436,7 @@ mod tests {
             ),
         ];
 
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1651,7 +1651,7 @@ mod tests {
             eq("trace.environment", &["debug"], true),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
@@ -1672,7 +1672,7 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.environment", &["debug"], true),
         ]);
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1690,7 +1690,7 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1711,7 +1711,7 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1728,7 +1728,7 @@ mod tests {
             "did not match with missing transaction"
         );
         let condition = and(vec![]);
-        let tc = TraceContext {
+        let tc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
@@ -1805,7 +1805,7 @@ mod tests {
             next_id: None,
         };
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1825,7 +1825,7 @@ mod tests {
             "did not match the expected first rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.2".to_string()),
@@ -1845,7 +1845,7 @@ mod tests {
             "did not match the expected second rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.3".to_string()),
@@ -1865,7 +1865,7 @@ mod tests {
             "did not match the expected third rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1885,7 +1885,7 @@ mod tests {
             "did not match the expected fourth rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
