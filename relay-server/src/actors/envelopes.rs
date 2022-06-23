@@ -379,6 +379,9 @@ struct ProcessEnvelopeState {
     /// The state of the project that this envelope belongs to.
     project_state: Arc<ProjectState>,
 
+    /// The state of the project that initiated the current trace.
+    sampling_project_state: Option<Arc<ProjectState>>,
+
     /// The id of the project that this envelope is ingested into.
     ///
     /// This identifier can differ from the one stated in the Envelope's DSN if the key was moved to
@@ -1025,6 +1028,7 @@ impl EnvelopeProcessor {
         let ProcessEnvelope {
             mut envelope,
             project_state,
+            sampling_project_state,
             start_time: _,
             scoping,
         } = message;
@@ -1062,6 +1066,7 @@ impl EnvelopeProcessor {
             rate_limits: RateLimits::new(),
             extracted_metrics: Vec::new(),
             project_state,
+            sampling_project_state,
             project_id,
             envelope_context,
         })
@@ -1806,7 +1811,37 @@ impl EnvelopeProcessor {
         Ok(())
     }
 
-    /// Run dynamic sampling rules to see if we keep the event or remove it.
+    /// Run dynamic sampling rules on trace header to see if we keep the event or remove it.
+    fn sample_trace(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let sampling_project_state = match &state.sampling_project_state {
+            // nothing to sample
+            None => {
+                return Ok(());
+            }
+            Some(s) => s.as_ref(),
+        };
+
+        let result = utils::sample_trace(
+            &mut state.envelope,
+            sampling_project_state,
+            self.config.processing_enabled(),
+        );
+        match result {
+            Ok(_) => {
+                state.envelope_context.update(&state.envelope);
+                Ok(())
+            }
+            Err(rule_id) => {
+                state
+                    .envelope_context
+                    .send_outcomes(Outcome::FilteredSampling(rule_id));
+
+                Err(ProcessingError::TraceSampled(rule_id))
+            }
+        }
+    }
+
+    /// Run dynamic sampling rules on event body to see if we keep the event or remove it.
     fn sample_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let event = match &state.event.0 {
             None => return Ok(()), // can't process without an event
@@ -1865,6 +1900,7 @@ impl EnvelopeProcessor {
                 self.extract_transaction_metrics(state)?;
             });
 
+            self.sample_trace(state)?;
             self.sample_event(state)?;
 
             if_processing!({
@@ -1985,6 +2021,7 @@ impl Default for EnvelopeProcessor {
 struct ProcessEnvelope {
     pub envelope: Envelope,
     pub project_state: Arc<ProjectState>,
+    pub sampling_project_state: Option<Arc<ProjectState>>,
     pub start_time: Instant,
     pub scoping: Scoping,
 }
@@ -2548,7 +2585,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
         let processor = self.processor.clone();
         let capture = self.config.relay_mode() == RelayMode::Capture;
-        let processing_enabled = self.config.processing_enabled();
 
         let HandleEnvelope {
             envelope,
@@ -2556,7 +2592,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             start_time,
         } = message;
 
-        let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
+        let sampling_project_key = utils::get_sampling_key(&envelope);
 
         let event_id = envelope.event_id();
         let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_envelope(&envelope)));
@@ -2598,20 +2634,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 }
             }))
             .and_then(clone!(envelope_context, |envelope| {
-                utils::sample_trace(
-                    envelope,
-                    sampling_project_key,
-                    false,
-                    processing_enabled,
-                    *envelope_context.borrow(),
-                )
-                // outcomes already handled
-                .map_err(ProcessingError::TraceSampled)
-            }))
-            .and_then(clone!(envelope_context, |envelope| {
-                // update the context since sample_tracing might have dropped parts of the envelope
-                envelope_context.borrow_mut().update(&envelope);
-
                 // get the state for the current project. we can always fetch the cached version
                 // even if the no_cache flag was passed, as the cache was updated prior in
                 // `CheckEnvelope`.
@@ -2631,9 +2653,39 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     .map(|state| (envelope, state))
             }))
             .and_then(clone!(envelope_context, |(envelope, project_state)| {
+                // get the state for the sampling project.
+                // TODO: Could this run concurrently with main project cache fetch?
+                // FIXME: Actually run trace sampling
+                dbg!(sampling_project_key);
+                if let Some(sampling_project_key) = sampling_project_key {
+                    let future = ProjectCache::from_registry()
+                        .send(GetProjectState::new(sampling_project_key))
+                        .then(move |sampling_project_state| {
+                            dbg!(&sampling_project_state);
+                            match sampling_project_state {
+                                Ok(Ok(sampling_project_state)) => Box::new(future::ok((
+                                    envelope,
+                                    project_state,
+                                    Some(sampling_project_state),
+                                ))),
+                                // mailbox error or error getting the project, give up and leave envelope unsampled
+                                _ => Box::new(future::ok((envelope, project_state, None))),
+                            }
+                        });
+                    Box::new(future) as ResponseFuture<_, _>
+                } else {
+                    Box::new(future::ok((envelope, project_state, None)))
+                }
+            }))
+            .and_then(clone!(envelope_context, |(
+                envelope,
+                project_state,
+                sampling_project_state,
+            )| {
                 let message = ProcessEnvelope {
                     envelope,
                     project_state,
+                    sampling_project_state,
                     start_time,
                     scoping: envelope_context.borrow().scoping(),
                 };
@@ -3084,9 +3136,11 @@ mod tests {
             .process(ProcessEnvelope {
                 envelope,
                 project_state: Arc::new(ProjectState::allowed()),
+                sampling_project_state: None,
                 start_time: Instant::now(),
                 scoping: Scoping {
                     project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+
                     organization_id: 1,
                     project_id: ProjectId::new(1),
                     key_id: None,
@@ -3141,6 +3195,7 @@ mod tests {
                 .process(ProcessEnvelope {
                     envelope,
                     project_state: Arc::new(ProjectState::allowed()),
+                    sampling_project_state: None,
                     start_time: Instant::now(),
                     scoping: Scoping {
                         project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -3197,6 +3252,7 @@ mod tests {
                 .process(ProcessEnvelope {
                     envelope,
                     project_state: Arc::new(ProjectState::allowed()),
+                    sampling_project_state: None,
                     start_time: Instant::now(),
                     scoping: Scoping {
                         project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -3259,6 +3315,7 @@ mod tests {
                 .process(ProcessEnvelope {
                     envelope,
                     project_state: Arc::new(ProjectState::allowed()),
+                    sampling_project_state: None,
                     start_time: Instant::now(),
                     scoping: Scoping {
                         project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
