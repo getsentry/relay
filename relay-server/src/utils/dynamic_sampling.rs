@@ -64,10 +64,7 @@ fn sample_transaction_internal(
         return Ok(());
     }
 
-    let trace_context = envelope.trace_context();
-    // let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
-
-    let trace_context = match trace_context {
+    let trace_context = match envelope.trace_context() {
         // we don't have what we need, can't sample the transactions in this envelope
         None => {
             return Ok(());
@@ -226,23 +223,6 @@ mod tests {
             SamplingResult::NoDecision,
             should_keep_event(&event, None, &proj_state, true)
         );
-    }
-
-    #[test]
-    /// Should remove transaction from envelope when a matching rule is detected
-    fn test_should_drop_transaction() {
-        //create an envelope with a event and a transaction
-        let mut envelope = new_envelope(true);
-        // add an item that is not dependent on the transaction (i.e. will not be dropped with it)
-        let session_item = Item::new(ItemType::Session);
-        envelope.add_item(session_item);
-
-        let state = get_project_state(Some(0.0), RuleType::Trace);
-
-        let result = sample_transaction_internal(&envelope, &state, true);
-        assert!(result.is_ok());
-        // the transaction item and dependent items should have been removed
-        assert_eq!(envelope.len(), 1);
     }
 
     #[test]
