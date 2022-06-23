@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Parse custom units with length < 15 without crashing. ([#1312](https://github.com/getsentry/relay/pull/1312))
+- Extract metrics also from trace-sampled transactions. ([#1317](https://github.com/getsentry/relay/pull/1317))
 
 **Internal**:
 

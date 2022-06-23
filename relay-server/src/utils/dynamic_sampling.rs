@@ -82,7 +82,9 @@ fn sample_transaction_internal(
     }
 }
 
-/// TODO: docs
+/// Returns the project key defined in the `trace` header of the envelope, if defined.
+/// If there are no transactions in the envelope, we return None here, because there is nothing
+/// to sample by trace.
 pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
 
@@ -223,6 +225,15 @@ mod tests {
             SamplingResult::NoDecision,
             should_keep_event(&event, None, &proj_state, true)
         );
+    }
+
+    #[test]
+    fn test_basic_trace_sampling() {
+        //create an envelope with a event and a transaction
+        let envelope = new_envelope(true);
+        let state = get_project_state(Some(0.0), RuleType::Trace);
+        let result = sample_transaction_internal(&envelope, &state, true);
+        assert!(result.is_err());
     }
 
     #[test]

@@ -2650,7 +2650,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             .and_then(move |(envelope, project_state)| {
                 // get the state for the sampling project.
                 // TODO: Could this run concurrently with main project cache fetch?
-                dbg!(sampling_project_key);
                 if let Some(sampling_project_key) = sampling_project_key {
                     let future = ProjectCache::from_registry()
                         .send(GetProjectState::new(sampling_project_key))
