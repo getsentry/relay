@@ -54,12 +54,8 @@ pub fn should_keep_event(
 }
 
 /// Execute dynamic sampling on an envelope using the provided project state.
-///
-/// This function potentially removes the transaction item from the envelpoe if that transaction
-/// item should be sampled out according to the dynamic sampling configuration and the trace
-/// context.
 fn sample_transaction_internal(
-    envelope: &mut Envelope,
+    envelope: &Envelope,
     project_state: &ProjectState,
     processing_enabled: bool,
 ) -> Result<(), RuleId> {
@@ -75,34 +71,20 @@ fn sample_transaction_internal(
     }
 
     let trace_context = envelope.trace_context();
-    let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
+    // let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
 
-    let trace_context = match (trace_context, transaction_item) {
+    let trace_context = match (trace_context) {
         // we don't have what we need, can't sample the transactions in this envelope
-        (None, _) | (_, None) => return Ok(()),
+        None => {
+            return Ok(());
+        }
         // see if we need to sample the transaction
-        (Some(trace_context), Some(_)) => trace_context,
+        Some(trace_context) => trace_context,
     };
 
     let client_ip = envelope.meta().client_addr();
     if let SamplingResult::Drop(rule_id) = trace_context.should_keep(client_ip, sampling_config) {
-        // remove transaction and dependent items
-        if envelope
-            .take_item_by(|item| item.ty() == &ItemType::Transaction)
-            .is_some()
-        {
-            // we have removed the transaction from the envelope
-            // also remove any dependent items (all items that require event need to go)
-            envelope.retain_items(|item| !item.requires_event());
-        }
-
-        if envelope.is_empty() {
-            // if after we removed the transaction we ended up with an empty envelope
-            // return an error so we can generate an outcome for the rule that dropped the transaction
-            Err(rule_id)
-        } else {
-            Ok(())
-        }
+        Err(rule_id)
     } else {
         // if we don't have a decision yet keep the transaction
         Ok(())
@@ -120,7 +102,7 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 }
 
 pub fn sample_trace(
-    envelope: &mut Envelope,
+    envelope: &Envelope,
     project_state: &ProjectState,
     processing_enabled: bool,
 ) -> Result<(), RuleId> {

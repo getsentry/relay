@@ -148,6 +148,7 @@ def test_it_removes_transactions(mini_sentry, relay):
     envelope = Envelope()
     transaction, trace_id, event_id = _create_transaction_item()
     envelope.add_transaction(transaction)
+    print("ENVELOPE", envelope)
     _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
 
     # send the event, the transaction should be removed.

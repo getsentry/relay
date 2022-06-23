@@ -1826,23 +1826,18 @@ impl EnvelopeProcessor {
             sampling_project_state,
             self.config.processing_enabled(),
         );
-        match result {
-            Ok(_) => {
-                state.envelope_context.update(&state.envelope);
-                Ok(())
-            }
-            Err(rule_id) => {
-                state
-                    .envelope_context
-                    .send_outcomes(Outcome::FilteredSampling(rule_id));
 
-                Err(ProcessingError::TraceSampled(rule_id))
-            }
-        }
+        result.map_err(|rule_id| {
+            state
+                .envelope_context
+                .send_outcomes(Outcome::FilteredSampling(rule_id));
+
+            ProcessingError::TraceSampled(rule_id)
+        })
     }
 
     /// Run dynamic sampling rules on event body to see if we keep the event or remove it.
-    fn sample_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn sample_event(&self, state: &ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let event = match &state.event.0 {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
@@ -2652,16 +2647,14 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     }))
                     .map(|state| (envelope, state))
             }))
-            .and_then(clone!(envelope_context, |(envelope, project_state)| {
+            .and_then(move |(envelope, project_state)| {
                 // get the state for the sampling project.
                 // TODO: Could this run concurrently with main project cache fetch?
-                // FIXME: Actually run trace sampling
                 dbg!(sampling_project_key);
                 if let Some(sampling_project_key) = sampling_project_key {
                     let future = ProjectCache::from_registry()
                         .send(GetProjectState::new(sampling_project_key))
                         .then(move |sampling_project_state| {
-                            dbg!(&sampling_project_state);
                             match sampling_project_state {
                                 Ok(Ok(sampling_project_state)) => Box::new(future::ok((
                                     envelope,
@@ -2676,7 +2669,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 } else {
                     Box::new(future::ok((envelope, project_state, None)))
                 }
-            }))
+            })
             .and_then(clone!(envelope_context, |(
                 envelope,
                 project_state,
