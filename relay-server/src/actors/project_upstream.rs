@@ -104,7 +104,7 @@ impl ProjectStateChannel {
             receiver: receiver.shared(),
             deadline: now + timeout,
             // after 1/3 of the time, fall back to v2 project config requests
-            soft_deadline: now + timeout / 3,
+            soft_deadline: now + timeout / 5,
             no_cache: false,
             attempts: 0,
         }
