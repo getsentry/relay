@@ -565,7 +565,7 @@ impl Default for Limits {
             max_api_payload_size: ByteSize::mebibytes(20),
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
-            max_profile_size: ByteSize::mebibytes(10),
+            max_profile_size: ByteSize::mebibytes(100),
             max_thread_count: num_cpus::get(),
             query_timeout: 30,
             max_connection_rate: 256,
