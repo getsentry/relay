@@ -103,6 +103,8 @@ pub enum ItemType {
     ClientReport,
     /// Profile event payload encoded in JSON
     Profile,
+    /// Replay metadata and breadcrumb payload
+    ReplayEvent,
     /// Replay Recording data
     ReplayRecording,
     /// A new item type that is yet unknown by this version of Relay.
@@ -144,6 +146,7 @@ impl fmt::Display for ItemType {
             Self::MetricBuckets => write!(f, "metric_buckets"),
             Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
+            Self::ReplayEvent => write!(f, "replay_event"),
             Self::ReplayRecording => write!(f, "replay_recording"),
             Self::Unknown(s) => s.fmt(f),
         }
@@ -169,6 +172,7 @@ impl std::str::FromStr for ItemType {
             "metric_buckets" => Self::MetricBuckets,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
+            "replay_event" => Self::ReplayEvent,
             "replay_recording" => Self::ReplayRecording,
             other => Self::Unknown(other.to_owned()),
         })
@@ -625,6 +629,7 @@ impl Item {
             | ItemType::Metrics
             | ItemType::MetricBuckets
             | ItemType::ClientReport
+            | ItemType::ReplayEvent
             | ItemType::ReplayRecording
             | ItemType::Profile => false,
 
@@ -647,6 +652,7 @@ impl Item {
             ItemType::RawSecurity => true,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
+            ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
             ItemType::Metrics => false,
@@ -1245,7 +1251,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_envelope_empty_item_eof() {
-        // With terminating newline after item payload
+        // Without terminating newline after item payload
         let bytes = Bytes::from(
             "\
              {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\

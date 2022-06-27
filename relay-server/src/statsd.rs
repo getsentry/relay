@@ -395,6 +395,13 @@ pub enum RelayCounters {
     ///
     /// A cache entry is created immediately and the project state requested from the upstream.
     ProjectCacheMiss,
+    /// Number of times an upstream request for a project config is completed.
+    ///
+    /// Completion can be because a result was returned or because the config request was
+    /// dropped after there still was no response after a timeout.  This metrics has tags
+    /// for `result` and `attempts` indicating whether it was succesful or a timeout and how
+    /// many attempts were made respectively.
+    ProjectUpstreamCompleted,
     /// Number of Relay server starts.
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
@@ -472,6 +479,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
             RelayCounters::ProjectStateNoCache => "project_state.no_cache",
+            RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",
             RelayCounters::ProjectCacheHit => "project_cache.hit",
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
             RelayCounters::ServerStarting => "server.starting",

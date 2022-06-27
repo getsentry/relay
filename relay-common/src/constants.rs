@@ -109,8 +109,10 @@ pub enum DataCategory {
     Session = 5,
     /// A profile
     Profile = 6,
+    /// Session Replays
+    Replay = 7,
     /// A transaction that was processed but not stored.
-    ProcessedTransaction = 7,
+    ProcessedTransaction = 8,
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
@@ -127,6 +129,7 @@ impl DataCategory {
             "attachment" => Self::Attachment,
             "session" => Self::Session,
             "profile" => Self::Profile,
+            "replay" => Self::Replay,
             "processed_transaction" => Self::ProcessedTransaction,
             _ => Self::Unknown,
         }
@@ -142,6 +145,7 @@ impl DataCategory {
             Self::Attachment => "attachment",
             Self::Session => "session",
             Self::Profile => "profile",
+            Self::Replay => "replay",
             Self::ProcessedTransaction => "processed_transaction",
             Self::Unknown => "unknown",
         }
@@ -478,19 +482,22 @@ impl fmt::Display for FractionUnit {
     }
 }
 
+const CUSTOM_UNIT_MAX_SIZE: usize = 15;
+
 /// Custom user-defined units without builtin conversion.
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
-pub struct CustomUnit([u8; 15]);
+pub struct CustomUnit([u8; CUSTOM_UNIT_MAX_SIZE]);
 
 impl CustomUnit {
     /// Parses a `CustomUnit` from a string.
     pub fn parse(s: &str) -> Result<Self, ParseMetricUnitError> {
-        if s.len() > 15 || !s.is_ascii() {
+        if !s.is_ascii() {
             return Err(ParseMetricUnitError(()));
         }
 
-        let mut unit = Self(Default::default());
-        unit.0.copy_from_slice(s.as_bytes());
+        let mut unit = Self([0; CUSTOM_UNIT_MAX_SIZE]);
+        let slice = unit.0.get_mut(..s.len()).ok_or(ParseMetricUnitError(()))?;
+        slice.copy_from_slice(s.as_bytes());
         unit.0.make_ascii_lowercase();
         Ok(unit)
     }
@@ -498,9 +505,9 @@ impl CustomUnit {
     /// Returns the string representation of this unit.
     #[inline]
     pub fn as_str(&self) -> &str {
-        // Safety: The string is already validated to be of length 32 and valid ASCII when
-        // constructing `ProjectKey`.
-        unsafe { std::str::from_utf8_unchecked(&self.0) }
+        // Safety: The string is already validated to be valid ASCII when
+        // parsing `CustomUnit`.
+        unsafe { std::str::from_utf8_unchecked(&self.0).trim_end_matches('\0') }
     }
 }
 
@@ -626,5 +633,23 @@ impl schemars::JsonSchema for MetricUnit {
 
     fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
         String::json_schema(gen)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::CustomUnit;
+
+    #[test]
+    fn test_custom_unit_parse() {
+        assert_eq!("foo", CustomUnit::parse("Foo").unwrap().as_str());
+        assert_eq!(
+            "0123456789abcde",
+            CustomUnit::parse("0123456789abcde").unwrap().as_str()
+        );
+        assert!(matches!(
+            CustomUnit::parse("this_is_a_unit_that_is_too_long"),
+            Err(_)
+        ));
     }
 }

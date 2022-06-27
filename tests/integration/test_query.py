@@ -159,7 +159,6 @@ def test_query_retry_maxed_out(
     This is not specific to processing or store, but here we have the outcomes
     consumer which we can use to assert that an event has been dropped.
     """
-
     request_count = 0
 
     outcomes_consumer = outcomes_consumer()
@@ -192,7 +191,11 @@ def test_query_retry_maxed_out(
 
         for (_, error) in mini_sentry.test_failures[:-1]:
             assert isinstance(error, AssertionError)
-            assert "error fetching project states" in str(error)
+            error_msg = str(error)
+            assert (
+                "Failed to fetch project config from V3 endpoint" in error_msg
+                or "error fetching project states" in error_msg
+            )
 
         _, last_error = mini_sentry.test_failures[-1]
         assert "failed to resolve project information" in str(last_error)

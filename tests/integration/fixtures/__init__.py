@@ -166,7 +166,6 @@ class SentryLike(object):
             "X-Sentry-Auth": self.get_auth_header(project_id, dsn_key_idx),
             **(headers or {}),
         }
-
         response = self.post(url, headers=headers, data=envelope.serialize())
         response.raise_for_status()
 
@@ -193,6 +192,14 @@ class SentryLike(object):
             "public_key": self.get_dsn_public_key(project_id),
         }
         envelope.headers["trace"] = trace_info
+
+        self.send_envelope(project_id, envelope)
+
+    def send_replay_event(self, project_id, payload, item_headers=None):
+        envelope = Envelope()
+        envelope.add_item(Item(payload=PayloadRef(json=payload), type="replay_event"))
+        if envelope.headers is None:
+            envelope.headers = {}
 
         self.send_envelope(project_id, envelope)
 

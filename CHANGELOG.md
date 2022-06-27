@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Parse custom units with length < 15 without crashing. ([#1312](https://github.com/getsentry/relay/pull/1312))
+
+**Internal**:
+
+- Fall back to version 2 project config if version 3 fails. ([#1314](https://github.com/getsentry/relay/pull/1314))
+- Reduce number of metrics extracted for release health. ([#1316](https://github.com/getsentry/relay/pull/1316))
+
+## 22.6.0
+
 **Compatibility:** This version of Relay requires Sentry server `22.6.0` or newer.
 
 **Features**:
@@ -9,7 +20,8 @@
 - Relay is now compatible with CentOS 7 and Red Hat Enterprise Linux 7 onward (kernel version _2.6.32_), depending on _glibc 2.17_ or newer. The `crash-handler` feature, which is currently enabled in the build published to DockerHub, additionally requires _curl 7.29_ or newer. ([#1279](https://github.com/getsentry/relay/pull/1279))
 - Optionally start relay with `--upstream-dsn` to pass a Sentry DSN instead of the URL. This can be convenient when starting Relay in environments close to an SDK, where a DSN is already available. ([#1277](https://github.com/getsentry/relay/pull/1277))
 - Add a new runtime mode `--aws-runtime-api=$AWS_LAMBDA_RUNTIME_API` that integrates Relay with the AWS Extensions API lifecycle. ([#1277](https://github.com/getsentry/relay/pull/1277))
-- Add ReplayRecording ItemType. ([#1236](https://github.com/getsentry/relay/pull/1236))
+- Add Replay ItemTypes. ([#1236](https://github.com/getsentry/relay/pull/1236), ([#1239](https://github.com/getsentry/relay/pull/1239)
+  )
 
 **Bug Fixes**:
 

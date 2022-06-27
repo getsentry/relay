@@ -277,7 +277,6 @@ def test_session_metrics_non_processing(
                     "sdk": "raven-node/2.6.3",
                     "environment": "production",
                     "release": "sentry-test@1.0.0",
-                    "session.status": "init",
                 },
                 "timestamp": ts,
                 "width": 1,
@@ -403,7 +402,6 @@ def test_session_metrics_processing(
             "sdk": "raven-node/2.6.3",
             "environment": "production",
             "release": "sentry-test@1.0.0",
-            "session.status": "init",
         },
     }
 

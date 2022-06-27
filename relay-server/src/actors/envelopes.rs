@@ -1006,10 +1006,11 @@ impl EnvelopeProcessor {
         });
     }
 
-    fn process_replay_recordings(&self, state: &mut ProcessEnvelopeState) {
+    /// Remove replays if the feature flag is not enabled
+    fn process_replays(&self, state: &mut ProcessEnvelopeState) {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
         state.envelope.retain_items(|item| match item.ty() {
-            ItemType::ReplayRecording => replays_enabled,
+            ItemType::ReplayEvent | ItemType::ReplayRecording => replays_enabled,
             _ => true,
         });
     }
@@ -1329,6 +1330,7 @@ impl EnvelopeProcessor {
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::Profile => false,
+            ItemType::ReplayEvent => false,
             ItemType::ReplayRecording => false,
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
@@ -1843,7 +1845,7 @@ impl EnvelopeProcessor {
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_profiles(state);
-        self.process_replay_recordings(state);
+        self.process_replays(state);
 
         if state.creates_event() {
             if_processing!({
@@ -2727,7 +2729,14 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     // Errors are only logged for what we consider an internal discard reason. These
                     // indicate errors in the infrastructure or implementation bugs. In other cases,
                     // we "expect" errors and log them as debug level.
-                    relay_log::error!("error processing envelope: {}", LogError(&error));
+                    relay_log::with_scope(
+                        |scope| {
+                            scope.set_tag("project_key", project_key);
+                        },
+                        || {
+                            relay_log::error!("error processing envelope: {}", LogError(&error));
+                        },
+                    );
                 } else {
                     relay_log::debug!("dropped envelope: {}", LogError(&error));
                 }
