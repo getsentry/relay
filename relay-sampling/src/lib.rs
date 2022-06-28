@@ -620,20 +620,20 @@ impl FieldValueProvider for DynamicSamplingContext {
                 None => Value::Null,
                 Some(ref s) => s.as_str().into(),
             },
-            "trace.user.id" => self.user.as_ref().map_or(Value::Null, |user| {
-                if user.id().is_empty() {
+            "trace.user.id" => {
+                if self.user.user_id.is_empty() {
                     Value::Null
                 } else {
-                    user.id().into()
+                    self.user.user_id.as_str().into()
                 }
-            }),
-            "trace.user.segment" => self.user.as_ref().map_or(Value::Null, |user| {
-                if user.segment().is_empty() {
+            }
+            "trace.user.segment" => {
+                if self.user.user_segment.is_empty() {
                     Value::Null
                 } else {
-                    user.segment().into()
+                    self.user.user_segment.as_str().into()
                 }
-            }),
+            }
             "trace.transaction" => match self.transaction {
                 None => Value::Null,
                 Some(ref s) => s.as_str().into(),
@@ -712,9 +712,10 @@ impl<'de> Deserialize<'de> for TraceUserContext {
         let helper = Helper::deserialize(deserializer)?;
 
         if helper.user_id.is_empty() && helper.user_segment.is_empty() {
+            let user = helper.user.unwrap_or_default();
             Ok(TraceUserContext {
-                user_segment: helper.user.unwrap_or_default().segment,
-                user_id: helper.user.unwrap_or_default().id,
+                user_segment: user.segment,
+                user_id: user.id,
             })
         } else {
             Ok(TraceUserContext {
@@ -1038,7 +1039,7 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: None,
+            user: TraceUserContext::default(),
             environment: None,
             transaction: None,
         };
@@ -1052,7 +1053,7 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: Some(TraceUserContext::default()),
+            user: TraceUserContext::default(),
             environment: None,
             transaction: None,
         };
@@ -1154,10 +1155,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
-            user: Some(TraceUserContextOuter::Nested(TraceUserContext {
-                segment: "vip".into(),
-                id: "user-id".into(),
-            })),
+            user: TraceUserContext {
+                user_segment: "vip".into(),
+                user_id: "user-id".into(),
+            },
             environment: Some("debug".into()),
             transaction: Some("transaction1".into()),
         };
@@ -1327,12 +1328,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1389,12 +1388,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1428,12 +1425,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1490,12 +1485,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1707,12 +1700,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1730,7 +1721,7 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: None,
+            user: TraceUserContext::default(),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1748,12 +1739,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: None,
             transaction: Some("transaction1".into()),
         };
@@ -1771,12 +1760,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: None,
         };
@@ -1790,7 +1777,7 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: None,
+            user: TraceUserContext::default(),
             environment: None,
             transaction: None,
         };
@@ -1867,12 +1854,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1889,12 +1874,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.2".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1911,12 +1894,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.3".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1933,12 +1914,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "vip".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("production".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1955,12 +1934,10 @@ mod tests {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContextOuter::Nested {
-                user: TraceUserContext {
-                    segment: "all".to_owned(),
-                    id: "user-id".to_owned(),
-                },
-            }),
+            user: TraceUserContext {
+                user_segment: "all".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -2016,9 +1993,8 @@ mod tests {
         // TODO: test default values, missing keys, ...
         for json in jsons {
             let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-            let user = dsc.user.as_ref().unwrap();
-            assert_eq!(user.id(), "some-id");
-            assert_eq!(user.segment(), "all");
+            assert_eq!(dsc.user.user_id, "some-id");
+            assert_eq!(dsc.user.user_segment, "all");
         }
     }
 }
