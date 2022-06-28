@@ -502,6 +502,14 @@
 <span id="495">495</span>
 <span id="496">496</span>
 <span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -890,6 +898,12 @@
     <span class="doccomment">/// A maximum of 1 such requests per second is allowed per project key. This metric counts only</span>
     <span class="doccomment">/// permitted requests.</span>
     <span class="ident">ProjectStateNoCache</span>,
+    <span class="doccomment">/// Number of times a project state is requested from the central Redis cache.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This has a tag `hit` with values `true` or `false`.  If false the request will be</span>
+    <span class="doccomment">/// sent to the sentry endpoint.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">ProjectStateRedis</span>,
     <span class="doccomment">/// Number of times a project is looked up from the cache.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The cache may contain and outdated or expired project state. In that case, the project state</span>
@@ -983,6 +997,8 @@
             <span class="ident">RelayCounters::ProjectStateGet</span> =&gt; <span class="string">&quot;project_state.get&quot;</span>,
             <span class="ident">RelayCounters::ProjectStateRequest</span> =&gt; <span class="string">&quot;project_state.request&quot;</span>,
             <span class="ident">RelayCounters::ProjectStateNoCache</span> =&gt; <span class="string">&quot;project_state.no_cache&quot;</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">RelayCounters::ProjectStateRedis</span> =&gt; <span class="string">&quot;project_state.redis.requests&quot;</span>,
             <span class="ident">RelayCounters::ProjectUpstreamCompleted</span> =&gt; <span class="string">&quot;project_upstream.completed&quot;</span>,
             <span class="ident">RelayCounters::ProjectCacheHit</span> =&gt; <span class="string">&quot;project_cache.hit&quot;</span>,
             <span class="ident">RelayCounters::ProjectCacheMiss</span> =&gt; <span class="string">&quot;project_cache.miss&quot;</span>,
