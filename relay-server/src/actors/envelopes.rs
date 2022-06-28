@@ -380,6 +380,7 @@ struct ProcessEnvelopeState {
     project_state: Arc<ProjectState>,
 
     /// The state of the project that initiated the current trace.
+    /// This is the config used for trace-based dynamic sampling.
     sampling_project_state: Option<Arc<ProjectState>>,
 
     /// The id of the project that this envelope is ingested into.
