@@ -1983,14 +1983,43 @@ mod tests {
                 }
             }"#,
             r#"{
-            "trace_id": "00000000-0000-0000-0000-000000000000",
-            "public_key": "abd0f232775f45feab79864e580d160b",
-            "user_id": "some-id",
-            "user_segment": "all"
-        }"#,
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all"
+            }"#,
+            // testing some edgecases to see whether they behave as expected, but we don't actually
+            // rely on this behavior anywhere (ignoring Hyrum's law). it would be fine for them to
+            // change, we just have to be conscious about it.
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "",
+                "user_segment": "",
+                "user": {
+                    "id": "some-id",
+                    "segment": "all"
+                }
+            }"#,
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all",
+                "user": {
+                    "id": "bogus-id",
+                    "segment": "nothing"
+                }
+            }"#,
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all",
+                "user": null
+            }"#,
         ];
 
-        // TODO: test default values, missing keys, ...
         for json in jsons {
             let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
             assert_eq!(dsc.user.user_id, "some-id");
