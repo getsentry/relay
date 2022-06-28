@@ -228,7 +228,7 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_trace_sampling() {
+    fn test_unsampled_envelope_with_sample_rate() {
         //create an envelope with a event and a transaction
         let envelope = new_envelope(true);
         let state = get_project_state(Some(0.0), RuleType::Trace);
