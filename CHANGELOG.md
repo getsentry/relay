@@ -14,6 +14,7 @@
 
 - Fall back to version 2 project config if version 3 fails. ([#1314](https://github.com/getsentry/relay/pull/1314))
 - Reduce number of metrics extracted for release health. ([#1316](https://github.com/getsentry/relay/pull/1316))
+- Indicate with thread is the main thread in thread metadata for profiles. ([#1320](https://github.com/getsentry/relay/pull/1320))
 
 ## 22.6.0
 
