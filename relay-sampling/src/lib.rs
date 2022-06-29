@@ -2026,4 +2026,31 @@ mod tests {
             assert_eq!(dsc.user.user_segment, "all");
         }
     }
+
+    #[test]
+    fn test_parse_user_partial() {
+        // in that case we might have two different sdks merging data and we at least shouldn't mix
+        // data together
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "user": {
+                "segment": "all"
+            }
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "user_id": "hello",
+        }
+        "###);
+    }
 }
