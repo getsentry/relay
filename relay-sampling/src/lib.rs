@@ -2079,6 +2079,7 @@ mod tests {
           "release": None,
           "environment": None,
           "transaction": None,
+          "sample_rate": None,
           "user_id": "hello",
         }
         "###);
