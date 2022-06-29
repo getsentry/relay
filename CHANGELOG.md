@@ -12,12 +12,10 @@
 
 **Internal**:
 
-- Fall back to version 2 project config if version 3 fails. ([#1314](https://github.com/getsentry/relay/pull/1314))
 - Reduce number of metrics extracted for release health. ([#1316](https://github.com/getsentry/relay/pull/1316))
 - Extend trace sampling protocol to deal with flat user data. ([#1318](https://github.com/getsentry/relay/pull/1318))
 - Indicate which thread is the main thread in thread metadata for profiles. ([#1320](https://github.com/getsentry/relay/pull/1320))
 - Increase profile maximum size by an order of magnitude. ([#1321](https://github.com/getsentry/relay/pull/1321))
-- Revert fallback to v2 project config, v3 is reliable now. ([#1325](https://github.com/getsentry/relay/pull/1325))
 
 ## 22.6.0
 
