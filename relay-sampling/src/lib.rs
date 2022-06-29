@@ -729,7 +729,7 @@ impl<'de> Deserialize<'de> for TraceUserContext {
 /// TraceContext created by the first Sentry SDK in the call chain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DynamicSamplingContext {
-    /// ID created by SDK to represent the current call flow.
+    /// ID created by clients to represent the current call flow.
     pub trace_id: Uuid,
     /// The project key.
     pub public_key: ProjectKey,
