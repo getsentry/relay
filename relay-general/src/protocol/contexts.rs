@@ -704,11 +704,11 @@ impl Contexts {
             .get_or_insert_with(|| ContextInner(context_builder()))
     }
 
-    pub fn get_context_mut<S>(&mut self, key: S) -> Option<&mut Context> where S: AsRef<str> {
-        Some(&mut self.get_mut(key.as_ref())?
-            .value_mut()
-            .as_mut()?
-            .0)
+    pub fn get_context_mut<S>(&mut self, key: S) -> Option<&mut Context>
+    where
+        S: AsRef<str>,
+    {
+        Some(&mut self.get_mut(key.as_ref())?.value_mut().as_mut()?.0)
     }
 }
 
