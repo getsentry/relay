@@ -1618,7 +1618,7 @@
 
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">EventId</span>, <span class="ident">EventType</span>};
 <span class="kw">use</span> <span class="ident">relay_general::types::Value</span>;
-<span class="kw">use</span> <span class="ident">relay_sampling::TraceContext</span>;
+<span class="kw">use</span> <span class="ident">relay_sampling::DynamicSamplingContext</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors</span>::{<span class="ident">PartialMeta</span>, <span class="ident">RequestMeta</span>};
@@ -2284,7 +2284,7 @@
 
     <span class="doccomment">/// Trace context associated with the request</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
-    <span class="ident">trace</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ErrorBoundary</span><span class="op">&lt;</span><span class="ident">TraceContext</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">trace</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ErrorBoundary</span><span class="op">&lt;</span><span class="ident">DynamicSamplingContext</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Other attributes for forward compatibility.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">flatten</span>)]</span>
@@ -2527,7 +2527,7 @@
         })
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">trace_context</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">TraceContext</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sampling_context</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">headers</span>.<span class="ident">trace</span> {
             <span class="ident">Option::None</span> =&gt; <span class="prelude-val">None</span>,
             <span class="ident">Option::Some</span>(<span class="ident">ErrorBoundary::Err</span>(<span class="kw">_</span>)) =&gt; <span class="prelude-val">None</span>,

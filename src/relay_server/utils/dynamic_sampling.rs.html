@@ -337,7 +337,7 @@
         <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
     }
 
-    <span class="kw">let</span> <span class="ident">trace_context</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">envelope</span>.<span class="ident">trace_context</span>() {
+    <span class="kw">let</span> <span class="ident">trace_context</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">envelope</span>.<span class="ident">sampling_context</span>() {
         <span class="comment">// we don&#39;t have what we need, can&#39;t sample the transactions in this envelope</span>
         <span class="prelude-val">None</span> =&gt; {
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
@@ -364,7 +364,7 @@
     <span class="comment">// if there are no transactions to sample, return here</span>
     <span class="ident">transaction_item</span><span class="question-mark">?</span>;
 
-    <span class="ident">envelope</span>.<span class="ident">trace_context</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">tc</span><span class="op">|</span> <span class="ident">tc</span>.<span class="ident">public_key</span>)
+    <span class="ident">envelope</span>.<span class="ident">sampling_context</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">dsc</span><span class="op">|</span> <span class="ident">dsc</span>.<span class="ident">public_key</span>)
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sample_trace</span>(
