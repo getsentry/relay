@@ -10,7 +10,7 @@ use std::net::IpAddr;
 
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Number, Value};
 
 use relay_common::{EventType, ProjectKey, Uuid};
@@ -31,7 +31,7 @@ pub enum RuleType {
     Error,
 }
 
-/// The result of a sampling operation returned by [`TraceContext::should_keep`].
+/// The result of a sampling operation returned by [`DynamicSamplingContext::should_keep`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SamplingResult {
     /// Keep the event.
@@ -66,7 +66,7 @@ impl EqCondition {
     fn matches_event(&self, event: &Event) -> bool {
         self.matches(event)
     }
-    fn matches_trace(&self, trace: &TraceContext) -> bool {
+    fn matches_trace(&self, trace: &DynamicSamplingContext) -> bool {
         self.matches(trace)
     }
 
@@ -128,7 +128,7 @@ macro_rules! impl_cmp_condition {
             fn matches_event(&self, event: &Event) -> bool {
                 self.matches(event)
             }
-            fn matches_trace(&self, trace: &TraceContext) -> bool {
+            fn matches_trace(&self, trace: &DynamicSamplingContext) -> bool {
                 self.matches(trace)
             }
 
@@ -172,7 +172,7 @@ impl GlobCondition {
     fn matches_event(&self, event: &Event) -> bool {
         self.matches(event)
     }
-    fn matches_trace(&self, trace: &TraceContext) -> bool {
+    fn matches_trace(&self, trace: &DynamicSamplingContext) -> bool {
         self.matches(trace)
     }
 
@@ -200,8 +200,8 @@ impl CustomCondition {
     fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
         Event::get_custom_operator(&self.name)(self, event, ip_addr)
     }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
-        TraceContext::get_custom_operator(&self.name)(self, trace, ip_addr)
+    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
+        DynamicSamplingContext::get_custom_operator(&self.name)(self, trace, ip_addr)
     }
 }
 
@@ -223,7 +223,7 @@ impl OrCondition {
             .iter()
             .any(|cond| cond.matches_event(event, ip_addr))
     }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
         self.inner
             .iter()
             .any(|cond| cond.matches_trace(trace, ip_addr))
@@ -248,7 +248,7 @@ impl AndCondition {
             .iter()
             .all(|cond| cond.matches_event(event, ip_addr))
     }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
         self.inner
             .iter()
             .all(|cond| cond.matches_trace(trace, ip_addr))
@@ -271,7 +271,7 @@ impl NotCondition {
     fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
         !self.inner.matches_event(event, ip_addr)
     }
-    fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
         !self.inner.matches_trace(trace, ip_addr)
     }
 }
@@ -330,7 +330,7 @@ impl RuleCondition {
             RuleCondition::Custom(condition) => condition.matches_event(event, ip_addr),
         }
     }
-    pub fn matches_trace(&self, trace: &TraceContext, ip_addr: Option<IpAddr>) -> bool {
+    pub fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
         match self {
             RuleCondition::Eq(condition) => condition.matches_trace(trace),
             RuleCondition::Gte(condition) => condition.matches_trace(trace),
@@ -609,7 +609,7 @@ fn csp_matcher(condition: &CustomCondition, event: &Event, _ip_addr: Option<IpAd
     }
 }
 
-impl FieldValueProvider for TraceContext {
+impl FieldValueProvider for DynamicSamplingContext {
     fn get_value(&self, field_name: &str) -> Value {
         match field_name {
             "trace.release" => match self.release {
@@ -620,20 +620,20 @@ impl FieldValueProvider for TraceContext {
                 None => Value::Null,
                 Some(ref s) => s.as_str().into(),
             },
-            "trace.user.id" => self.user.as_ref().map_or(Value::Null, |user| {
-                if user.id.is_empty() {
+            "trace.user.id" => {
+                if self.user.user_id.is_empty() {
                     Value::Null
                 } else {
-                    user.id.as_str().into()
+                    self.user.user_id.as_str().into()
                 }
-            }),
-            "trace.user.segment" => self.user.as_ref().map_or(Value::Null, |user| {
-                if user.segment.is_empty() {
+            }
+            "trace.user.segment" => {
+                if self.user.user_segment.is_empty() {
                     Value::Null
                 } else {
-                    user.segment.as_str().into()
+                    self.user.user_segment.as_str().into()
                 }
-            }),
+            }
             "trace.transaction" => match self.transaction {
                 None => Value::Null,
                 Some(ref s) => s.as_str().into(),
@@ -674,39 +674,84 @@ impl SamplingConfig {
 }
 
 /// The User related information in the trace context
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+///
+/// This is more of a mixin to be used in the DynamicSamplingContext
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct TraceUserContext {
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub segment: String,
+    pub user_segment: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub id: String,
+    pub user_id: String,
 }
 
-/// TraceContext created by the first Sentry SDK in the call chain.
+impl<'de> Deserialize<'de> for TraceUserContext {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize, Default)]
+        struct Nested {
+            #[serde(default)]
+            pub segment: String,
+            #[serde(default)]
+            pub id: String,
+        }
+
+        #[derive(Deserialize)]
+        struct Helper {
+            // Nested implements default, but we used to accept user=null (not sure if any SDK
+            // sends this though)
+            #[serde(default)]
+            user: Option<Nested>,
+            #[serde(default)]
+            user_segment: String,
+            #[serde(default)]
+            user_id: String,
+        }
+
+        let helper = Helper::deserialize(deserializer)?;
+
+        if helper.user_id.is_empty() && helper.user_segment.is_empty() {
+            let user = helper.user.unwrap_or_default();
+            Ok(TraceUserContext {
+                user_segment: user.segment,
+                user_id: user.id,
+            })
+        } else {
+            Ok(TraceUserContext {
+                user_segment: helper.user_segment,
+                user_id: helper.user_id,
+            })
+        }
+    }
+}
+
+/// DynamicSamplingContext created by the first Sentry SDK in the call chain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TraceContext {
-    /// IID created by SDK to represent the current call flow
+pub struct DynamicSamplingContext {
+    /// ID created by clients to represent the current call flow.
     pub trace_id: Uuid,
-    /// the project key
+    /// The project key.
     pub public_key: ProjectKey,
-    /// the release
+    /// The release.
     #[serde(default)]
     pub release: Option<String>,
-    /// the user specific identifier ( e.g. a user segment, or similar created by the SDK
-    /// from the user object)
-    #[serde(default)]
-    pub user: Option<TraceUserContext>,
-    /// the environment
+    /// The environment.
     #[serde(default)]
     pub environment: Option<String>,
-    /// the name of the transaction extracted from the `transaction` field in the starting transaction
+    /// The name of the transaction extracted from the `transaction` field in the starting
+    /// transaction.
     ///
-    /// set on transaction start, or via `scope.transaction`
+    /// Set on transaction start, or via `scope.transaction`.
     #[serde(default)]
     pub transaction: Option<String>,
+    /// The user specific identifier ( e.g. a user segment, or similar created by the SDK
+    /// from the user object).
+    #[serde(flatten, default)]
+    pub user: TraceUserContext,
 }
 
-impl TraceContext {
+impl DynamicSamplingContext {
     /// Returns whether a trace should be retained based on sampling rules.
     ///
     /// If [`SamplingResult::NoDecision`] is returned, then no rule matched this trace. In this
@@ -751,7 +796,7 @@ pub fn get_matching_event_rule<'a>(
 
 fn get_matching_trace_rule<'a>(
     config: &'a SamplingConfig,
-    trace: &TraceContext,
+    trace: &DynamicSamplingContext,
     ip_addr: Option<IpAddr>,
     ty: RuleType,
 ) -> Option<&'a SamplingRule> {
@@ -957,63 +1002,66 @@ mod tests {
 
     #[test]
     fn test_field_value_provider_trace_filled() {
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
-            user: Some(TraceUserContext {
-                segment: "user-seg".into(),
-                id: "user-id".into(),
-            }),
+            user: TraceUserContext {
+                user_segment: "user-seg".into(),
+                user_id: "user-id".into(),
+            },
             environment: Some("prod".into()),
             transaction: Some("transaction1".into()),
         };
 
-        assert_eq!(Value::String("1.1.1".into()), tc.get_value("trace.release"));
+        assert_eq!(
+            Value::String("1.1.1".into()),
+            dsc.get_value("trace.release")
+        );
         assert_eq!(
             Value::String("prod".into()),
-            tc.get_value("trace.environment")
+            dsc.get_value("trace.environment")
         );
         assert_eq!(
             Value::String("user-id".into()),
-            tc.get_value("trace.user.id")
+            dsc.get_value("trace.user.id")
         );
         assert_eq!(
             Value::String("user-seg".into()),
-            tc.get_value("trace.user.segment")
+            dsc.get_value("trace.user.segment")
         );
         assert_eq!(
             Value::String("transaction1".into()),
-            tc.get_value("trace.transaction")
+            dsc.get_value("trace.transaction")
         )
     }
 
     #[test]
     fn test_field_value_provider_trace_empty() {
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: None,
+            user: TraceUserContext::default(),
             environment: None,
             transaction: None,
         };
-        assert_eq!(Value::Null, tc.get_value("trace.release"));
-        assert_eq!(Value::Null, tc.get_value("trace.environment"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.id"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.transaction"));
+        assert_eq!(Value::Null, dsc.get_value("trace.release"));
+        assert_eq!(Value::Null, dsc.get_value("trace.environment"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.transaction"));
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: Some(TraceUserContext::default()),
+            user: TraceUserContext::default(),
             environment: None,
             transaction: None,
         };
-        assert_eq!(Value::Null, tc.get_value("trace.user.id"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
     }
 
     #[test]
@@ -1106,21 +1154,21 @@ mod tests {
             ("match no conditions", and(vec![])),
         ];
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
-            user: Some(TraceUserContext {
-                segment: "vip".into(),
-                id: "user-id".into(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".into(),
+                user_id: "user-id".into(),
+            },
             environment: Some("debug".into()),
             transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches_trace(&tc, None), "{}", failure_name);
+            assert!(condition.matches_trace(&dsc, None), "{}", failure_name);
         }
     }
 
@@ -1279,14 +1327,14 @@ mod tests {
             ("empty", false, or(vec![])),
         ];
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1294,7 +1342,7 @@ mod tests {
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&tc, None) == *expected,
+                condition.matches_trace(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1339,14 +1387,14 @@ mod tests {
             ("empty", true, and(vec![])),
         ];
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1354,7 +1402,7 @@ mod tests {
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&tc, None) == *expected,
+                condition.matches_trace(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1376,14 +1424,14 @@ mod tests {
             ),
         ];
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1391,7 +1439,7 @@ mod tests {
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&tc, None) == *expected,
+                condition.matches_trace(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1436,21 +1484,21 @@ mod tests {
             ),
         ];
 
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!condition.matches_trace(&tc, None), "{}", failure_name);
+            assert!(!condition.matches_trace(&dsc, None), "{}", failure_name);
         }
     }
 
@@ -1651,20 +1699,20 @@ mod tests {
             eq("trace.environment", &["debug"], true),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches_trace(&dsc, None),
             "did not match with missing release"
         );
 
@@ -1672,17 +1720,17 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.environment", &["debug"], true),
         ]);
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: None,
+            user: TraceUserContext::default(),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches_trace(&dsc, None),
             "did not match with missing user segment"
         );
 
@@ -1690,20 +1738,20 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: None,
             transaction: Some("transaction1".into()),
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches_trace(&dsc, None),
             "did not match with missing environment"
         );
 
@@ -1711,34 +1759,34 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: None,
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches_trace(&dsc, None),
             "did not match with missing transaction"
         );
         let condition = and(vec![]);
-        let tc = TraceContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
-            user: None,
+            user: TraceUserContext::default(),
             environment: None,
             transaction: None,
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches_trace(&dsc, None),
             "did not match with missing release, user segment, environment and transaction"
         );
     }
@@ -1805,14 +1853,14 @@ mod tests {
             next_id: None,
         };
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1825,14 +1873,14 @@ mod tests {
             "did not match the expected first rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.2".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1845,14 +1893,14 @@ mod tests {
             "did not match the expected second rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.3".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1865,14 +1913,14 @@ mod tests {
             "did not match the expected third rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "vip".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("production".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1885,14 +1933,14 @@ mod tests {
             "did not match the expected fourth rule"
         );
 
-        let trace_context = TraceContext {
+        let trace_context = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
-            user: Some(TraceUserContext {
-                segment: "all".to_owned(),
-                id: "user-id".to_owned(),
-            }),
+            user: TraceUserContext {
+                user_segment: "all".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
         };
@@ -1923,5 +1971,89 @@ mod tests {
         let val1 = pseudo_random_from_uuid(id);
         let val2 = pseudo_random_from_uuid(id);
         assert!(val1 + f64::EPSILON > val2 && val2 + f64::EPSILON > val1);
+    }
+
+    #[test]
+    /// Test parse user
+    fn parse_user() {
+        let jsons = [
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user": {
+                    "id": "some-id",
+                    "segment": "all"
+                }
+            }"#,
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all"
+            }"#,
+            // testing some edgecases to see whether they behave as expected, but we don't actually
+            // rely on this behavior anywhere (ignoring Hyrum's law). it would be fine for them to
+            // change, we just have to be conscious about it.
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "",
+                "user_segment": "",
+                "user": {
+                    "id": "some-id",
+                    "segment": "all"
+                }
+            }"#,
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all",
+                "user": {
+                    "id": "bogus-id",
+                    "segment": "nothing"
+                }
+            }"#,
+            r#"{
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "some-id",
+                "user_segment": "all",
+                "user": null
+            }"#,
+        ];
+
+        for json in jsons {
+            let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+            assert_eq!(dsc.user.user_id, "some-id");
+            assert_eq!(dsc.user.user_segment, "all");
+        }
+    }
+
+    #[test]
+    fn test_parse_user_partial() {
+        // in that case we might have two different sdks merging data and we at least shouldn't mix
+        // data together
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "user": {
+                "segment": "all"
+            }
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "user_id": "hello",
+        }
+        "###);
     }
 }

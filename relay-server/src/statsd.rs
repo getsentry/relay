@@ -386,6 +386,12 @@ pub enum RelayCounters {
     /// A maximum of 1 such requests per second is allowed per project key. This metric counts only
     /// permitted requests.
     ProjectStateNoCache,
+    /// Number of times a project state is requested from the central Redis cache.
+    ///
+    /// This has a tag `hit` with values `true` or `false`.  If false the request will be
+    /// sent to the sentry endpoint.
+    #[cfg(feature = "processing")]
+    ProjectStateRedis,
     /// Number of times a project is looked up from the cache.
     ///
     /// The cache may contain and outdated or expired project state. In that case, the project state
@@ -479,6 +485,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
             RelayCounters::ProjectStateNoCache => "project_state.no_cache",
+            #[cfg(feature = "processing")]
+            RelayCounters::ProjectStateRedis => "project_state.redis.requests",
             RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",
             RelayCounters::ProjectCacheHit => "project_cache.hit",
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
