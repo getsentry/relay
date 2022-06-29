@@ -2556,7 +2556,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
             start_time,
         } = message;
 
-        let sampling_project_key = envelope.trace_context().map(|tc| tc.public_key);
+        let sampling_project_key = envelope.sampling_context().map(|tc| tc.public_key);
 
         let event_id = envelope.event_id();
         let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_envelope(&envelope)));

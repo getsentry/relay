@@ -79,7 +79,7 @@ fn sample_transaction_internal(
         return Ok(envelope);
     }
 
-    let trace_context = envelope.trace_context();
+    let trace_context = envelope.sampling_context();
     let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
 
     let trace_context = match (trace_context, transaction_item) {
@@ -133,7 +133,7 @@ pub fn sample_trace(
         None => return Box::new(future::ok(envelope)),
         Some(project) => project,
     };
-    let trace_context = envelope.trace_context();
+    let trace_context = envelope.sampling_context();
     let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
 
     // if there is no trace context or there are no transactions to sample return here

@@ -953,7 +953,7 @@ impl Envelope {
         })
     }
 
-    pub fn trace_context(&self) -> Option<&DynamicSamplingContext> {
+    pub fn sampling_context(&self) -> Option<&DynamicSamplingContext> {
         match &self.headers.trace {
             Option::None => None,
             Option::Some(ErrorBoundary::Err(_)) => None,
