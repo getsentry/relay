@@ -1002,7 +1002,7 @@ mod tests {
 
     #[test]
     fn test_field_value_provider_trace_filled() {
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
@@ -1014,28 +1014,31 @@ mod tests {
             transaction: Some("transaction1".into()),
         };
 
-        assert_eq!(Value::String("1.1.1".into()), tc.get_value("trace.release"));
+        assert_eq!(
+            Value::String("1.1.1".into()),
+            dsc.get_value("trace.release")
+        );
         assert_eq!(
             Value::String("prod".into()),
-            tc.get_value("trace.environment")
+            dsc.get_value("trace.environment")
         );
         assert_eq!(
             Value::String("user-id".into()),
-            tc.get_value("trace.user.id")
+            dsc.get_value("trace.user.id")
         );
         assert_eq!(
             Value::String("user-seg".into()),
-            tc.get_value("trace.user.segment")
+            dsc.get_value("trace.user.segment")
         );
         assert_eq!(
             Value::String("transaction1".into()),
-            tc.get_value("trace.transaction")
+            dsc.get_value("trace.transaction")
         )
     }
 
     #[test]
     fn test_field_value_provider_trace_empty() {
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
@@ -1043,13 +1046,13 @@ mod tests {
             environment: None,
             transaction: None,
         };
-        assert_eq!(Value::Null, tc.get_value("trace.release"));
-        assert_eq!(Value::Null, tc.get_value("trace.environment"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.id"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.transaction"));
+        assert_eq!(Value::Null, dsc.get_value("trace.release"));
+        assert_eq!(Value::Null, dsc.get_value("trace.environment"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.transaction"));
 
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
@@ -1057,8 +1060,8 @@ mod tests {
             environment: None,
             transaction: None,
         };
-        assert_eq!(Value::Null, tc.get_value("trace.user.id"));
-        assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
+        assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
     }
 
     #[test]
@@ -1151,7 +1154,7 @@ mod tests {
             ("match no conditions", and(vec![])),
         ];
 
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".into()),
@@ -1165,7 +1168,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches_trace(&tc, None), "{}", failure_name);
+            assert!(condition.matches_trace(&dsc, None), "{}", failure_name);
         }
     }
 
@@ -1324,7 +1327,7 @@ mod tests {
             ("empty", false, or(vec![])),
         ];
 
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1339,7 +1342,7 @@ mod tests {
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&tc, None) == *expected,
+                condition.matches_trace(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1384,7 +1387,7 @@ mod tests {
             ("empty", true, and(vec![])),
         ];
 
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1399,7 +1402,7 @@ mod tests {
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&tc, None) == *expected,
+                condition.matches_trace(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1421,7 +1424,7 @@ mod tests {
             ),
         ];
 
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1436,7 +1439,7 @@ mod tests {
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&tc, None) == *expected,
+                condition.matches_trace(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1481,7 +1484,7 @@ mod tests {
             ),
         ];
 
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1495,7 +1498,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!condition.matches_trace(&tc, None), "{}", failure_name);
+            assert!(!condition.matches_trace(&dsc, None), "{}", failure_name);
         }
     }
 
@@ -1696,7 +1699,7 @@ mod tests {
             eq("trace.environment", &["debug"], true),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
@@ -1709,7 +1712,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches_trace(&dsc, None),
             "did not match with missing release"
         );
 
@@ -1717,7 +1720,7 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.environment", &["debug"], true),
         ]);
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1727,7 +1730,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches_trace(&dsc, None),
             "did not match with missing user segment"
         );
 
@@ -1735,7 +1738,7 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1748,7 +1751,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches_trace(&dsc, None),
             "did not match with missing environment"
         );
 
@@ -1756,7 +1759,7 @@ mod tests {
             glob("trace.release", &["1.1.1"]),
             eq("trace.user.segment", &["vip"], true),
         ]);
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: Some("1.1.1".to_string()),
@@ -1769,11 +1772,11 @@ mod tests {
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches_trace(&dsc, None),
             "did not match with missing transaction"
         );
         let condition = and(vec![]);
-        let tc = DynamicSamplingContext {
+        let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
             release: None,
@@ -1783,7 +1786,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches_trace(&tc, None),
+            condition.matches_trace(&dsc, None),
             "did not match with missing release, user segment, environment and transaction"
         );
     }
