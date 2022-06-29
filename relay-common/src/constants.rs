@@ -112,7 +112,7 @@ pub enum DataCategory {
     /// Session Replays
     Replay = 7,
     /// A transaction that was processed but not stored.
-    ProcessedTransaction = 8,
+    TransactionProcessed = 8,
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
@@ -130,7 +130,7 @@ impl DataCategory {
             "session" => Self::Session,
             "profile" => Self::Profile,
             "replay" => Self::Replay,
-            "processed_transaction" => Self::ProcessedTransaction,
+            "transaction_processed" => Self::TransactionProcessed,
             _ => Self::Unknown,
         }
     }
@@ -146,7 +146,7 @@ impl DataCategory {
             Self::Session => "session",
             Self::Profile => "profile",
             Self::Replay => "replay",
-            Self::ProcessedTransaction => "processed_transaction",
+            Self::TransactionProcessed => "transaction_processed",
             Self::Unknown => "unknown",
         }
     }
