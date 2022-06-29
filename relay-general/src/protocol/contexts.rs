@@ -496,6 +496,12 @@ pub struct TraceContext {
     /// excluding its immediate child spans.
     pub exclusive_time: Annotated<f64>,
 
+    /// The SDK-side sample rate as reported in the envelope's `trace.sample_rate` header.
+    ///
+    /// The server takes this field from envelope headers and writes it back into the event. SDKs
+    /// should not ever send this value.
+    pub client_sample_rate: Annotated<f64>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -696,6 +702,13 @@ impl Contexts {
             .or_insert_with(Annotated::empty)
             .value_mut()
             .get_or_insert_with(|| ContextInner(context_builder()))
+    }
+
+    pub fn get_context_mut<S>(&mut self, key: S) -> Option<&mut Context> where S: AsRef<str> {
+        Some(&mut self.get_mut(key.as_ref())?
+            .value_mut()
+            .as_mut()?
+            .0)
     }
 }
 
@@ -933,6 +946,7 @@ fn test_trace_context_roundtrip() {
   "op": "http",
   "status": "ok",
   "exclusive_time": 0.0,
+  "client_sample_rate": 0.5,
   "other": "value",
   "type": "trace"
 }"#;
@@ -943,6 +957,7 @@ fn test_trace_context_roundtrip() {
         op: Annotated::new("http".into()),
         status: Annotated::new(SpanStatus::Ok),
         exclusive_time: Annotated::new(0.0),
+        client_sample_rate: Annotated::new(0.5),
         other: {
             let mut map = Object::new();
             map.insert(

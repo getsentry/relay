@@ -23,6 +23,7 @@ relay-log = { path = "../relay-log" }
 sentry-types = "0.20.0"
 schemars = { version = "0.8.1", features = ["uuid", "chrono"], optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
+serde_json = "1.0.55"
 
 [dev-dependencies]
 serde_test = "1.0.125"

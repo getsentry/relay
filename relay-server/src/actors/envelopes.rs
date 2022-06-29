@@ -29,7 +29,7 @@ use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
     IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
+    SessionAttributes, SessionUpdate, Timestamp, UserReport, Values, Context as EventContext
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -1808,11 +1808,22 @@ impl EnvelopeProcessor {
 
     /// Run dynamic sampling rules to see if we keep the event or remove it.
     fn sample_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let event = match &state.event.0 {
+        let event = match &mut state.event.0 {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
         };
         let client_ip = state.envelope.meta().client_addr();
+
+        if let Some(ref sampling_context) = state.envelope.trace_context() {
+            if let Some(client_sample_rate) = sampling_context.sample_rate {
+                if let Some(ref mut contexts) = event.contexts.value_mut() {
+                    if let Some(EventContext::Trace(ref mut trace_context)) = contexts.get_context_mut("trace") {
+                        trace_context.client_sample_rate = Annotated::from(client_sample_rate.0);
+                    }
+                }
+            }
+        }
+
         match utils::should_keep_event(
             event,
             client_ip,

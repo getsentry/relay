@@ -13,7 +13,7 @@ use rand_pcg::Pcg32;
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
 
-use relay_common::{EventType, ProjectKey, Uuid};
+use relay_common::{EventType, ProjectKey, Uuid, JsonStringifiedValue};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::{Context, Event};
 use relay_general::store;
@@ -32,7 +32,7 @@ pub enum RuleType {
 }
 
 /// The result of a sampling operation returned by [`TraceContext::should_keep`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SamplingResult {
     /// Keep the event.
     Keep,
@@ -704,6 +704,11 @@ pub struct TraceContext {
     /// set on transaction start, or via `scope.transaction`
     #[serde(default)]
     pub transaction: Option<String>,
+
+    /// The same rate with which this trace was sampled. This is a number between 
+    ///
+    #[serde(default)]
+    pub sample_rate: Option<JsonStringifiedValue<f64>>,
 }
 
 impl TraceContext {
@@ -716,7 +721,11 @@ impl TraceContext {
         if let Some(rule) = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace) {
             let rate = pseudo_random_from_uuid(self.trace_id);
 
-            if rate < rule.sample_rate {
+            let client_sample_rate = self.sample_rate.map(|x| x.0);
+
+            let adjusted_sample_rate = (rule.sample_rate / client_sample_rate.unwrap_or(1.0)).clamp(0.0, 1.0);
+
+            if rate < adjusted_sample_rate {
                 SamplingResult::Keep
             } else {
                 SamplingResult::Drop(rule.id)
@@ -967,6 +976,7 @@ mod tests {
             }),
             environment: Some("prod".into()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         assert_eq!(Value::String("1.1.1".into()), tc.get_value("trace.release"));
@@ -997,6 +1007,7 @@ mod tests {
             user: None,
             environment: None,
             transaction: None,
+            sample_rate: None,
         };
         assert_eq!(Value::Null, tc.get_value("trace.release"));
         assert_eq!(Value::Null, tc.get_value("trace.environment"));
@@ -1011,6 +1022,7 @@ mod tests {
             user: Some(TraceUserContext::default()),
             environment: None,
             transaction: None,
+            sample_rate: None,
         };
         assert_eq!(Value::Null, tc.get_value("trace.user.id"));
         assert_eq!(Value::Null, tc.get_value("trace.user.segment"));
@@ -1116,6 +1128,7 @@ mod tests {
             }),
             environment: Some("debug".into()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         for (rule_test_name, condition) in conditions.iter() {
@@ -1289,6 +1302,7 @@ mod tests {
             }),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1349,6 +1363,7 @@ mod tests {
             }),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1386,6 +1401,7 @@ mod tests {
             }),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1446,6 +1462,7 @@ mod tests {
             }),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         for (rule_test_name, condition) in conditions.iter() {
@@ -1661,6 +1678,7 @@ mod tests {
             }),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         assert!(
@@ -1679,6 +1697,7 @@ mod tests {
             user: None,
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         assert!(
@@ -1700,6 +1719,7 @@ mod tests {
             }),
             environment: None,
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         assert!(
@@ -1721,6 +1741,7 @@ mod tests {
             }),
             environment: Some("debug".to_string()),
             transaction: None,
+            sample_rate: None,
         };
 
         assert!(
@@ -1735,6 +1756,7 @@ mod tests {
             user: None,
             environment: None,
             transaction: None,
+            sample_rate: None,
         };
 
         assert!(
@@ -1815,6 +1837,7 @@ mod tests {
             }),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1835,6 +1858,7 @@ mod tests {
             }),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1855,6 +1879,7 @@ mod tests {
             }),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1875,6 +1900,7 @@ mod tests {
             }),
             environment: Some("production".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1895,6 +1921,7 @@ mod tests {
             }),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
