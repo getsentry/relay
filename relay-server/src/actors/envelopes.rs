@@ -1839,7 +1839,7 @@ impl EnvelopeProcessor {
 
     /// Run dynamic sampling rules on event body to see if we keep the event or remove it.
     fn sample_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let event = match &state.event.0 {
+        let event = match &mut state.event.0 {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
         };
