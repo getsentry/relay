@@ -5,6 +5,7 @@
 **Features**:
 
 - Extract metrics also from trace-sampled transactions. ([#1317](https://github.com/getsentry/relay/pull/1317))
+- Extract metrics from a configurable amount of custom transaction measurements. ([#1324](https://github.com/getsentry/relay/pull/1324))
 
 **Bug Fixes**:
 
