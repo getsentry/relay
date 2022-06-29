@@ -64,7 +64,7 @@ fn sample_transaction_internal(
         return Ok(());
     }
 
-    let trace_context = match envelope.trace_context() {
+    let trace_context = match envelope.sampling_context() {
         // we don't have what we need, can't sample the transactions in this envelope
         None => {
             return Ok(());
@@ -91,7 +91,7 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     // if there are no transactions to sample, return here
     transaction_item?;
 
-    envelope.trace_context().map(|tc| tc.public_key)
+    envelope.sampling_context().map(|dsc| dsc.public_key)
 }
 
 pub fn sample_trace(
