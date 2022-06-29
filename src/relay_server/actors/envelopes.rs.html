@@ -3366,6 +3366,56 @@
 <span id="3359">3359</span>
 <span id="3360">3360</span>
 <span id="3361">3361</span>
+<span id="3362">3362</span>
+<span id="3363">3363</span>
+<span id="3364">3364</span>
+<span id="3365">3365</span>
+<span id="3366">3366</span>
+<span id="3367">3367</span>
+<span id="3368">3368</span>
+<span id="3369">3369</span>
+<span id="3370">3370</span>
+<span id="3371">3371</span>
+<span id="3372">3372</span>
+<span id="3373">3373</span>
+<span id="3374">3374</span>
+<span id="3375">3375</span>
+<span id="3376">3376</span>
+<span id="3377">3377</span>
+<span id="3378">3378</span>
+<span id="3379">3379</span>
+<span id="3380">3380</span>
+<span id="3381">3381</span>
+<span id="3382">3382</span>
+<span id="3383">3383</span>
+<span id="3384">3384</span>
+<span id="3385">3385</span>
+<span id="3386">3386</span>
+<span id="3387">3387</span>
+<span id="3388">3388</span>
+<span id="3389">3389</span>
+<span id="3390">3390</span>
+<span id="3391">3391</span>
+<span id="3392">3392</span>
+<span id="3393">3393</span>
+<span id="3394">3394</span>
+<span id="3395">3395</span>
+<span id="3396">3396</span>
+<span id="3397">3397</span>
+<span id="3398">3398</span>
+<span id="3399">3399</span>
+<span id="3400">3400</span>
+<span id="3401">3401</span>
+<span id="3402">3402</span>
+<span id="3403">3403</span>
+<span id="3404">3404</span>
+<span id="3405">3405</span>
+<span id="3406">3406</span>
+<span id="3407">3407</span>
+<span id="3408">3408</span>
+<span id="3409">3409</span>
+<span id="3410">3410</span>
+<span id="3411">3411</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3746,6 +3796,10 @@
 
     <span class="doccomment">/// The state of the project that this envelope belongs to.</span>
     <span class="ident">project_state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// The state of the project that initiated the current trace.</span>
+    <span class="doccomment">/// This is the config used for trace-based dynamic sampling.</span>
+    <span class="ident">sampling_project_state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// The id of the project that this envelope is ingested into.</span>
     <span class="doccomment">///</span>
@@ -4393,6 +4447,7 @@
         <span class="kw">let</span> <span class="ident">ProcessEnvelope</span> {
             <span class="kw-2">mut</span> <span class="ident">envelope</span>,
             <span class="ident">project_state</span>,
+            <span class="ident">sampling_project_state</span>,
             <span class="ident">start_time</span>: <span class="kw">_</span>,
             <span class="ident">scoping</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
@@ -4430,6 +4485,7 @@
             <span class="ident">rate_limits</span>: <span class="ident">RateLimits::new</span>(),
             <span class="ident">extracted_metrics</span>: <span class="ident">Vec::new</span>(),
             <span class="ident">project_state</span>,
+            <span class="ident">sampling_project_state</span>,
             <span class="ident">project_id</span>,
             <span class="ident">envelope_context</span>,
         })
@@ -5174,8 +5230,33 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Run dynamic sampling rules to see if we keep the event or remove it.</span>
-    <span class="kw">fn</span> <span class="ident">sample_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Run dynamic sampling rules on trace header to see if we keep the event or remove it.</span>
+    <span class="kw">fn</span> <span class="ident">sample_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">sampling_project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">sampling_project_state</span> {
+            <span class="comment">// nothing to sample</span>
+            <span class="prelude-val">None</span> =&gt; {
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+            }
+            <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_ref</span>(),
+        };
+
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">utils::sample_trace</span>(
+            <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">envelope</span>,
+            <span class="ident">sampling_project_state</span>,
+            <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>(),
+        );
+
+        <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">rule_id</span><span class="op">|</span> {
+            <span class="ident">state</span>
+                .<span class="ident">envelope_context</span>
+                .<span class="ident">send_outcomes</span>(<span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>));
+
+            <span class="ident">ProcessingError::TraceSampled</span>(<span class="ident">rule_id</span>)
+        })
+    }
+
+    <span class="doccomment">/// Run dynamic sampling rules on event body to see if we keep the event or remove it.</span>
+    <span class="kw">fn</span> <span class="ident">sample_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">event</span>.<span class="number">0</span> {
             <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()), <span class="comment">// can&#39;t process without an event</span>
             <span class="prelude-val">Some</span>(<span class="ident">event</span>) =&gt; <span class="ident">event</span>,
@@ -5233,6 +5314,7 @@
                 <span class="self">self</span>.<span class="ident">extract_transaction_metrics</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
             });
 
+            <span class="self">self</span>.<span class="ident">sample_trace</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
             <span class="self">self</span>.<span class="ident">sample_event</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
 
             <span class="macro">if_processing!</span>({
@@ -5353,6 +5435,7 @@
 <span class="kw">struct</span> <span class="ident">ProcessEnvelope</span> {
     <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
     <span class="kw">pub</span> <span class="ident">project_state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">sampling_project_state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">start_time</span>: <span class="ident">Instant</span>,
     <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
 }
@@ -5916,7 +5999,6 @@
 
         <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">processor</span>.<span class="ident">clone</span>();
         <span class="kw">let</span> <span class="ident">capture</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode::Capture</span>;
-        <span class="kw">let</span> <span class="ident">processing_enabled</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>();
 
         <span class="kw">let</span> <span class="ident">HandleEnvelope</span> {
             <span class="ident">envelope</span>,
@@ -5924,7 +6006,7 @@
             <span class="ident">start_time</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
 
-        <span class="kw">let</span> <span class="ident">sampling_project_key</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">trace_context</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">tc</span><span class="op">|</span> <span class="ident">tc</span>.<span class="ident">public_key</span>);
+        <span class="kw">let</span> <span class="ident">sampling_project_key</span> <span class="op">=</span> <span class="ident">utils::get_sampling_key</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
 
         <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
         <span class="kw">let</span> <span class="ident">envelope_context</span> <span class="op">=</span> <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">EnvelopeContext::from_envelope</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>)));
@@ -5966,20 +6048,6 @@
                 }
             }))
             .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">envelope</span><span class="op">|</span> {
-                <span class="ident">utils::sample_trace</span>(
-                    <span class="ident">envelope</span>,
-                    <span class="ident">sampling_project_key</span>,
-                    <span class="bool-val">false</span>,
-                    <span class="ident">processing_enabled</span>,
-                    <span class="kw-2">*</span><span class="ident">envelope_context</span>.<span class="ident">borrow</span>(),
-                )
-                <span class="comment">// outcomes already handled</span>
-                .<span class="ident">map_err</span>(<span class="ident">ProcessingError::TraceSampled</span>)
-            }))
-            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span><span class="ident">envelope</span><span class="op">|</span> {
-                <span class="comment">// update the context since sample_tracing might have dropped parts of the envelope</span>
-                <span class="ident">envelope_context</span>.<span class="ident">borrow_mut</span>().<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
-
                 <span class="comment">// get the state for the current project. we can always fetch the cached version</span>
                 <span class="comment">// even if the no_cache flag was passed, as the cache was updated prior in</span>
                 <span class="comment">// `CheckEnvelope`.</span>
@@ -5998,10 +6066,37 @@
                     }))
                     .<span class="ident">map</span>(<span class="op">|</span><span class="ident">state</span><span class="op">|</span> (<span class="ident">envelope</span>, <span class="ident">state</span>))
             }))
-            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">project_state</span>)<span class="op">|</span> {
+            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">project_state</span>)<span class="op">|</span> {
+                <span class="comment">// get the state for the sampling project.</span>
+                <span class="comment">// TODO: Could this run concurrently with main project cache fetch?</span>
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sampling_project_key</span>) <span class="op">=</span> <span class="ident">sampling_project_key</span> {
+                    <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">ProjectCache::from_registry</span>()
+                        .<span class="ident">send</span>(<span class="ident">GetProjectState::new</span>(<span class="ident">sampling_project_key</span>))
+                        .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">sampling_project_state</span><span class="op">|</span> {
+                            <span class="kw">match</span> <span class="ident">sampling_project_state</span> {
+                                <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(<span class="ident">sampling_project_state</span>)) =&gt; <span class="ident">Box::new</span>(<span class="ident">future::ok</span>((
+                                    <span class="ident">envelope</span>,
+                                    <span class="ident">project_state</span>,
+                                    <span class="prelude-val">Some</span>(<span class="ident">sampling_project_state</span>),
+                                ))),
+                                <span class="comment">// mailbox error or error getting the project, give up and leave envelope unsampled</span>
+                                <span class="kw">_</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">future::ok</span>((<span class="ident">envelope</span>, <span class="ident">project_state</span>, <span class="prelude-val">None</span>))),
+                            }
+                        });
+                    <span class="ident">Box::new</span>(<span class="ident">future</span>) <span class="kw">as</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>
+                } <span class="kw">else</span> {
+                    <span class="ident">Box::new</span>(<span class="ident">future::ok</span>((<span class="ident">envelope</span>, <span class="ident">project_state</span>, <span class="prelude-val">None</span>)))
+                }
+            })
+            .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">envelope_context</span>, <span class="op">|</span>(
+                <span class="ident">envelope</span>,
+                <span class="ident">project_state</span>,
+                <span class="ident">sampling_project_state</span>,
+            )<span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">ProcessEnvelope</span> {
                     <span class="ident">envelope</span>,
                     <span class="ident">project_state</span>,
+                    <span class="ident">sampling_project_state</span>,
                     <span class="ident">start_time</span>,
                     <span class="ident">scoping</span>: <span class="ident">envelope_context</span>.<span class="ident">borrow</span>().<span class="ident">scoping</span>(),
                 };
@@ -6452,9 +6547,11 @@
             .<span class="ident">process</span>(<span class="ident">ProcessEnvelope</span> {
                 <span class="ident">envelope</span>,
                 <span class="ident">project_state</span>: <span class="ident">Arc::new</span>(<span class="ident">ProjectState::allowed</span>()),
+                <span class="ident">sampling_project_state</span>: <span class="prelude-val">None</span>,
                 <span class="ident">start_time</span>: <span class="ident">Instant::now</span>(),
                 <span class="ident">scoping</span>: <span class="ident">Scoping</span> {
                     <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
+
                     <span class="ident">organization_id</span>: <span class="number">1</span>,
                     <span class="ident">project_id</span>: <span class="ident">ProjectId::new</span>(<span class="number">1</span>),
                     <span class="ident">key_id</span>: <span class="prelude-val">None</span>,
@@ -6509,6 +6606,7 @@
                 .<span class="ident">process</span>(<span class="ident">ProcessEnvelope</span> {
                     <span class="ident">envelope</span>,
                     <span class="ident">project_state</span>: <span class="ident">Arc::new</span>(<span class="ident">ProjectState::allowed</span>()),
+                    <span class="ident">sampling_project_state</span>: <span class="prelude-val">None</span>,
                     <span class="ident">start_time</span>: <span class="ident">Instant::now</span>(),
                     <span class="ident">scoping</span>: <span class="ident">Scoping</span> {
                         <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
@@ -6565,6 +6663,7 @@
                 .<span class="ident">process</span>(<span class="ident">ProcessEnvelope</span> {
                     <span class="ident">envelope</span>,
                     <span class="ident">project_state</span>: <span class="ident">Arc::new</span>(<span class="ident">ProjectState::allowed</span>()),
+                    <span class="ident">sampling_project_state</span>: <span class="prelude-val">None</span>,
                     <span class="ident">start_time</span>: <span class="ident">Instant::now</span>(),
                     <span class="ident">scoping</span>: <span class="ident">Scoping</span> {
                         <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
@@ -6627,6 +6726,7 @@
                 .<span class="ident">process</span>(<span class="ident">ProcessEnvelope</span> {
                     <span class="ident">envelope</span>,
                     <span class="ident">project_state</span>: <span class="ident">Arc::new</span>(<span class="ident">ProjectState::allowed</span>()),
+                    <span class="ident">sampling_project_state</span>: <span class="prelude-val">None</span>,
                     <span class="ident">start_time</span>: <span class="ident">Instant::now</span>(),
                     <span class="ident">scoping</span>: <span class="ident">Scoping</span> {
                         <span class="ident">project_key</span>: <span class="ident">ProjectKey::parse</span>(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).<span class="ident">unwrap</span>(),
