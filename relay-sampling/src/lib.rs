@@ -31,7 +31,7 @@ pub enum RuleType {
     Error,
 }
 
-/// The result of a sampling operation returned by [`TraceContext::should_keep`].
+/// The result of a sampling operation returned by [`DynamicSamplingContext::should_keep`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SamplingResult {
     /// Keep the event.
@@ -675,7 +675,7 @@ impl SamplingConfig {
 
 /// The User related information in the trace context
 ///
-/// This is more of a mixin to be used in the TraceContext
+/// This is more of a mixin to be used in the DynamicSamplingContext
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct TraceUserContext {
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -726,7 +726,7 @@ impl<'de> Deserialize<'de> for TraceUserContext {
     }
 }
 
-/// TraceContext created by the first Sentry SDK in the call chain.
+/// DynamicSamplingContext created by the first Sentry SDK in the call chain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DynamicSamplingContext {
     /// ID created by clients to represent the current call flow.
