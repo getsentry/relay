@@ -445,6 +445,7 @@ mod tests {
     use super::*;
 
     use crate::metrics_extraction::TaggingRule;
+    use insta::assert_debug_snapshot;
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
@@ -870,6 +871,83 @@ mod tests {
             assert_eq!(metric.tags.len(), 2);
             assert!(!metric.tags.contains_key("satisfaction"));
         }
+    }
+
+    #[test]
+    fn test_custom_measurements() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:02+0100",
+            "measurements": {
+                "custom1": {"value": 41},
+                "fcp": {"value": 0.123},
+                "custom2": {"value": 42, "unit": "second"},
+                "custom3": {"value": 43}
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/measurements.fcp@millisecond"
+            ],
+            "customMeasurements": {
+                "limit": 2
+            }
+        }
+        "#,
+        )
+        .unwrap();
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_debug_snapshot!(metrics, @r###"
+            [
+                Metric {
+                    name: "d:transactions/measurements.custom1@none",
+                    value: Distribution(
+                        41.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "measurement_rating": "good",
+                        "platform": "other",
+                        "transaction": "foo",
+                    },
+                },
+                Metric {
+                    name: "d:transactions/measurements.fcp@millisecond",
+                    value: Distribution(
+                        0.123,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "measurement_rating": "good",
+                        "platform": "other",
+                        "transaction": "foo",
+                    },
+                },
+                Metric {
+                    name: "d:transactions/measurements.custom2@second",
+                    value: Distribution(
+                        42.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "measurement_rating": "good",
+                        "platform": "other",
+                        "transaction": "foo",
+                    },
+                },
+            ]
+        "###);
     }
 
     #[test]
