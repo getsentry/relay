@@ -159,6 +159,9 @@ struct Sample {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ThreadMetadata {
+    #[serde(default)]
+    is_main_thread: bool,
+
     #[serde(default, skip_serializing_if = "String::is_empty")]
     name: String,
     priority: u32,
