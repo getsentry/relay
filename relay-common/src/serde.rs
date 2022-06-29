@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 /// For example, this struct:
 ///
 /// ```rust
+/// # use relay_common::JsonStringifiedValue;
+/// use serde::Deserialize;
+///
 /// #[derive(Deserialize)]
 /// struct TraceContext {
 ///     sample_rate: JsonStringifiedValue<f64>,
