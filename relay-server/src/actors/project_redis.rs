@@ -6,9 +6,11 @@ use relay_common::ProjectKey;
 use relay_config::Config;
 use relay_log::LogError;
 use relay_redis::{RedisError, RedisPool};
+use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
+use crate::statsd::RelayCounters;
 
 pub struct RedisProjectSource {
     config: Arc<Config>,
@@ -52,8 +54,17 @@ impl RedisProjectSource {
             .map_err(RedisError::Redis)?;
 
         let raw_response = match raw_response_opt {
-            Some(response) => response,
-            None => return Ok(None),
+            Some(response) => {
+                metric!(counter(RelayCounters::ProjectStateRedis) += 1, hit = "true");
+                response
+            }
+            None => {
+                metric!(
+                    counter(RelayCounters::ProjectStateRedis) += 1,
+                    hit = "false"
+                );
+                return Ok(None);
+            }
         };
 
         Ok(serde_json::from_str(&raw_response)?)

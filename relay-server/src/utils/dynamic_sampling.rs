@@ -2,19 +2,13 @@
 //!
 use std::net::IpAddr;
 
-use actix::prelude::*;
-use futures::{future, prelude::*};
-
 use relay_common::ProjectKey;
 use relay_general::protocol::{Event, EventId};
 use relay_sampling::{
     get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId, SamplingResult,
 };
 
-use crate::actors::envelopes::EnvelopeContext;
-use crate::actors::outcome::Outcome::FilteredSampling;
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{GetCachedProjectState, GetProjectState, ProjectCache};
 use crate::envelope::{Envelope, ItemType};
 
 /// Checks whether an event should be kept or removed by dynamic sampling.
@@ -54,131 +48,58 @@ pub fn should_keep_event(
 }
 
 /// Execute dynamic sampling on an envelope using the provided project state.
-///
-/// This function potentially removes the transaction item from the envelpoe if that transaction
-/// item should be sampled out according to the dynamic sampling configuration and the trace
-/// context.
 fn sample_transaction_internal(
-    mut envelope: Envelope,
-    project_state: Option<&ProjectState>,
+    envelope: &Envelope,
+    project_state: &ProjectState,
     processing_enabled: bool,
-) -> Result<Envelope, RuleId> {
-    let project_state = match project_state {
-        None => return Ok(envelope),
-        Some(project_state) => project_state,
-    };
-
+) -> Result<(), RuleId> {
     let sampling_config = match project_state.config.dynamic_sampling {
         // without sampling config we cannot sample transactions so give up here
-        None => return Ok(envelope),
+        None => return Ok(()),
         Some(ref sampling_config) => sampling_config,
     };
 
     // when we have unsupported rules disable sampling for non processing relays
     if !processing_enabled && sampling_config.has_unsupported_rules() {
-        return Ok(envelope);
+        return Ok(());
     }
 
-    let trace_context = envelope.trace_context();
-    let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
-
-    let trace_context = match (trace_context, transaction_item) {
+    let trace_context = match envelope.sampling_context() {
         // we don't have what we need, can't sample the transactions in this envelope
-        (None, _) | (_, None) => return Ok(envelope),
+        None => {
+            return Ok(());
+        }
         // see if we need to sample the transaction
-        (Some(trace_context), Some(_)) => trace_context,
+        Some(trace_context) => trace_context,
     };
 
     let client_ip = envelope.meta().client_addr();
     if let SamplingResult::Drop(rule_id) = trace_context.should_keep(client_ip, sampling_config) {
-        // remove transaction and dependent items
-        if envelope
-            .take_item_by(|item| item.ty() == &ItemType::Transaction)
-            .is_some()
-        {
-            // we have removed the transaction from the envelope
-            // also remove any dependent items (all items that require event need to go)
-            envelope.retain_items(|item| !item.requires_event());
-        }
-
-        if envelope.is_empty() {
-            // if after we removed the transaction we ended up with an empty envelope
-            // return an error so we can generate an outcome for the rule that dropped the transaction
-            Err(rule_id)
-        } else {
-            Ok(envelope)
-        }
+        Err(rule_id)
     } else {
         // if we don't have a decision yet keep the transaction
-        Ok(envelope)
+        Ok(())
     }
 }
 
-/// Execute dynamic sampling on the given envelope.
-///
-/// Computes a sampling decision based on the envelope's trace context and sampling rules in the
-/// provided project. If the trace is to be dropped, transaction-related items are removed from the
-/// envelope. Trace sampling never applies to error events.
-///
-/// Returns `Ok` if there are remaining items in the envelope. Returns `Err` with the matching rule
-/// identifier if all elements have been removed.
-pub fn sample_trace(
-    envelope: Envelope,
-    project_key: Option<ProjectKey>,
-    fast_processing: bool,
-    processing_enabled: bool,
-    envelope_context: EnvelopeContext,
-) -> ResponseFuture<Envelope, RuleId> {
-    let project_key = match project_key {
-        None => return Box::new(future::ok(envelope)),
-        Some(project) => project,
-    };
-    let trace_context = envelope.trace_context();
+/// Returns the project key defined in the `trace` header of the envelope, if defined.
+/// If there are no transactions in the envelope, we return None here, because there is nothing
+/// to sample by trace.
+pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     let transaction_item = envelope.get_item_by(|item| item.ty() == &ItemType::Transaction);
 
-    // if there is no trace context or there are no transactions to sample return here
-    if trace_context.is_none() || transaction_item.is_none() {
-        return Box::new(future::ok(envelope));
-    }
+    // if there are no transactions to sample, return here
+    transaction_item?;
 
-    // we have a trace_context and we have a transaction_item see if we can sample them
-    let future = if fast_processing {
-        let future = ProjectCache::from_registry()
-            .send(GetCachedProjectState::new(project_key))
-            .then(move |project_state| {
-                let project_state = match project_state {
-                    // error getting the project, give up and return envelope unchanged
-                    Err(_) => return Ok(envelope),
-                    Ok(project_state) => project_state,
-                };
-                sample_transaction_internal(envelope, project_state.as_deref(), processing_enabled)
-            });
+    envelope.sampling_context().map(|dsc| dsc.public_key)
+}
 
-        Box::new(future) as ResponseFuture<_, _>
-    } else {
-        let future = ProjectCache::from_registry()
-            .send(GetProjectState::new(project_key))
-            .then(move |project_state| {
-                let project_state = match project_state {
-                    // error getting the project, give up and return envelope unchanged
-                    Err(_) => return Ok(envelope),
-                    Ok(project_state) => project_state,
-                };
-                sample_transaction_internal(
-                    envelope,
-                    project_state.ok().as_deref(),
-                    processing_enabled,
-                )
-            });
-
-        Box::new(future)
-    };
-
-    Box::new(future.map_err(move |rule_id| {
-        // if the envelope is sampled, send outcomes
-        envelope_context.send_outcomes(FilteredSampling(rule_id));
-        rule_id
-    }))
+pub fn sample_trace(
+    envelope: &Envelope,
+    project_state: &ProjectState,
+    processing_enabled: bool,
+) -> Result<(), RuleId> {
+    sample_transaction_internal(envelope, project_state, processing_enabled)
 }
 
 #[cfg(test)]
@@ -307,21 +228,12 @@ mod tests {
     }
 
     #[test]
-    /// Should remove transaction from envelope when a matching rule is detected
-    fn test_should_drop_transaction() {
+    fn test_unsampled_envelope_with_sample_rate() {
         //create an envelope with a event and a transaction
-        let mut envelope = new_envelope(true);
-        // add an item that is not dependent on the transaction (i.e. will not be dropped with it)
-        let session_item = Item::new(ItemType::Session);
-        envelope.add_item(session_item);
-
+        let envelope = new_envelope(true);
         let state = get_project_state(Some(0.0), RuleType::Trace);
-
-        let result = sample_transaction_internal(envelope, Some(&state), true);
-        assert!(result.is_ok());
-        let envelope = result.unwrap();
-        // the transaction item and dependent items should have been removed
-        assert_eq!(envelope.len(), 1);
+        let result = sample_transaction_internal(&envelope, &state, true);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -331,22 +243,8 @@ mod tests {
         let envelope = new_envelope(false);
         let state = get_project_state(Some(0.0), RuleType::Trace);
 
-        let result = sample_transaction_internal(envelope, Some(&state), true);
+        let result = sample_transaction_internal(&envelope, &state, true);
         assert!(result.is_ok());
-        let envelope = result.unwrap();
-        // both the event and the transaction item should have been left in the envelope
-        assert_eq!(envelope.len(), 3);
-    }
-
-    #[test]
-    /// When no state is provided the envelope should be left unchanged
-    fn test_should_keep_transactions_no_state() {
-        //create an envelope with a event and a transaction
-        let envelope = new_envelope(true);
-
-        let result = sample_transaction_internal(envelope, None, true);
-        assert!(result.is_ok());
-        let envelope = result.unwrap();
         // both the event and the transaction item should have been left in the envelope
         assert_eq!(envelope.len(), 3);
     }
@@ -359,7 +257,7 @@ mod tests {
         let envelope = new_envelope(true);
         let state = get_project_state(Some(0.0), RuleType::Trace);
 
-        let result = sample_transaction_internal(envelope, Some(&state), true);
+        let result = sample_transaction_internal(&envelope, &state, true);
         assert!(result.is_err());
         let rule_id = result.unwrap_err();
         // we got back the rule id
