@@ -1528,7 +1528,7 @@ impl EnvelopeProcessor {
                     if let Some(EventContext::Trace(ref mut trace_context)) =
                         contexts.get_context_mut("trace")
                     {
-                        trace_context.client_sample_rate = Annotated::from(client_sample_rate.0);
+                        trace_context.client_sample_rate = Annotated::from(client_sample_rate);
                     }
                 }
             }

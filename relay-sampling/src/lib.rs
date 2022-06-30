@@ -13,7 +13,7 @@ use rand_pcg::Pcg32;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Number, Value};
 
-use relay_common::{EventType, JsonStringifiedValue, ProjectKey, Uuid};
+use relay_common::{as_string, EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::{Context, Event};
 use relay_general::store;
@@ -749,9 +749,10 @@ pub struct DynamicSamplingContext {
     /// Set on transaction start, or via `scope.transaction`.
     #[serde(default)]
     pub transaction: Option<String>,
-    /// The same rate with which this trace was sampled. This is a float between 0 and 1.
-    #[serde(default)]
-    pub sample_rate: Option<JsonStringifiedValue<f64>>,
+    /// The sample rate with which this trace was sampled in the SDK. This is a float between 0 and
+    /// 1.
+    #[serde(default, with = "as_string", skip_serializing_if = "Option::is_none")]
+    pub sample_rate: Option<f64>,
     /// The user specific identifier ( e.g. a user segment, or similar created by the SDK
     /// from the user object).
     #[serde(flatten, default)]
@@ -762,7 +763,7 @@ impl DynamicSamplingContext {
     /// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
     /// the matching rule.
     pub fn adjust_sample_rate(&self, rule_sample_rate: f64) -> f64 {
-        let client_sample_rate = self.sample_rate.map(|x| x.0).unwrap_or(1.0);
+        let client_sample_rate = self.sample_rate.unwrap_or(1.0);
         let mut adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
 
         if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
@@ -2115,7 +2116,6 @@ mod tests {
           "release": None,
           "environment": None,
           "transaction": None,
-          "sample_rate": None,
           "user_id": "hello",
         }
         "###);
@@ -2214,16 +2214,16 @@ mod tests {
     fn test_adjust_sample_rate() {
         let mut dsc = default_sampling_context();
 
-        dsc.sample_rate = Some(JsonStringifiedValue(0.0));
+        dsc.sample_rate = Some(0.0);
         assert_eq!(dsc.adjust_sample_rate(0.5), 1.0);
 
-        dsc.sample_rate = Some(JsonStringifiedValue(1.0));
+        dsc.sample_rate = Some(1.0);
         assert_eq!(dsc.adjust_sample_rate(0.5), 0.5);
 
-        dsc.sample_rate = Some(JsonStringifiedValue(0.1));
+        dsc.sample_rate = Some(0.1);
         assert_eq!(dsc.adjust_sample_rate(0.5), 1.0);
 
-        dsc.sample_rate = Some(JsonStringifiedValue(0.5));
+        dsc.sample_rate = Some(0.5);
         assert_eq!(dsc.adjust_sample_rate(0.1), 0.2);
     }
 }

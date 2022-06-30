@@ -6,27 +6,25 @@ use serde::{Deserialize, Serialize};
 /// For example, this struct:
 ///
 /// ```rust
-/// # use relay_common::JsonStringifiedValue;
+/// use relay_common::as_string;
 /// use serde::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct TraceContext {
+///     #[serde(with = "as_string")]
 ///     sample_rate: JsonStringifiedValue<f64>,
 /// }
 /// ```
 ///
 /// ...deserializes from `{"sample_rate": "1.0"}` and `{"sample_rate": 1.0}`, and serializes to
 /// `{"sample_rate": "1.0"}`
-///
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-pub struct JsonStringifiedValue<T>(pub T);
+pub mod as_string {
+    use super::*;
 
-impl<'de, T> Deserialize<'de> for JsonStringifiedValue<T>
-where
-    for<'de2> T: Deserialize<'de2>,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    /// Deserialize a value from a nested json string
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
+        for<'de2> T: Deserialize<'de2>,
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
@@ -41,31 +39,32 @@ where
         let helper = Helper::<T>::deserialize(deserializer)?;
 
         match helper {
-            Helper::Verbatim(value) => Ok(JsonStringifiedValue(value)),
+            Helper::Verbatim(value) => Ok(value),
             Helper::String(value) => {
-                let rv = serde_json::from_str(&value)
-                    .map_err(|e| serde::de::Error::custom(e.to_string()))?;
-                Ok(JsonStringifiedValue(rv))
+                serde_json::from_str(&value).map_err(|e| serde::de::Error::custom(e.to_string()))
             }
         }
     }
-}
 
-impl<T: Serialize> Serialize for JsonStringifiedValue<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    /// Serialize a value as JSON string
+    pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
+        T: Serialize,
         S: Serializer,
     {
         let string =
-            serde_json::to_string(&self.0).map_err(|e| serde::ser::Error::custom(e.to_string()))?;
+            serde_json::to_string(value).map_err(|e| serde::ser::Error::custom(e.to_string()))?;
         string.serialize(serializer)
     }
 }
 
 #[test]
 fn test_basic() {
-    let value = serde_json::from_str::<JsonStringifiedValue<f32>>("42.0").unwrap();
+    #[derive(Deserialize)]
+    struct JsonStringifiedValue(#[serde(with = "as_string")] f32);
+
+    let value = serde_json::from_str::<JsonStringifiedValue>("42.0").unwrap();
     assert_eq!(value.0, 42.0);
-    let value = serde_json::from_str::<JsonStringifiedValue<f32>>("\"42.0\"").unwrap();
+    let value = serde_json::from_str::<JsonStringifiedValue>("\"42.0\"").unwrap();
     assert_eq!(value.0, 42.0);
 }
