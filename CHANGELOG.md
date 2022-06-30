@@ -5,7 +5,7 @@
 **Features**:
 
 - Extract metrics also from trace-sampled transactions. ([#1317](https://github.com/getsentry/relay/pull/1317))
-- Extract metrics from a configurable amount of custom transaction measurements. ([#1324](https://github.com/getsentry/relay/pull/1324))
+
 
 **Bug Fixes**:
 
@@ -16,6 +16,7 @@
 - Fall back to version 2 project config if version 3 fails. ([#1314](https://github.com/getsentry/relay/pull/1314))
 - Reduce number of metrics extracted for release health. ([#1316](https://github.com/getsentry/relay/pull/1316))
 - Indicate with thread is the main thread in thread metadata for profiles. ([#1320](https://github.com/getsentry/relay/pull/1320))
+- Extract metrics from a configurable amount of custom transaction measurements. ([#1324](https://github.com/getsentry/relay/pull/1324))
 
 ## 22.6.0
 
