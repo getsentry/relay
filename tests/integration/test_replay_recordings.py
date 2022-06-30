@@ -81,6 +81,7 @@ def test_replay_recordings_processing(
         },
         "replay_id": replay_id,
         "project_id": project_id,
+        "retention_days": 90,
     }
 
     outcomes_consumer.assert_empty()

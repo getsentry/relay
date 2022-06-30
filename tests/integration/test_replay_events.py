@@ -1,7 +1,7 @@
 def generate_replay_event():
     return {
         "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
-        "seq_id": 0,
+        "sequence_id": 0,
         "type": "replay_event",
         "transaction": "/organizations/:orgId/performance/:eventSlug/",
         "start_timestamp": 1597976392.6542819,
@@ -30,12 +30,10 @@ def test_replay_event_with_processing(
 
     relay.send_replay_event(42, replay_item)
 
-    replay_event, _ = replay_events_consumer.get_replay_event()
-    assert (
-        replay_event["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
-    )
-    assert "trace" in replay_event["contexts"]
-    assert replay_event["seq_id"] == 0
+    replay_event, replay_event_message = replay_events_consumer.get_replay_event()
+    assert replay_event["type"] == "replay_event"
+    assert replay_event["replay_id"] == "d2132d31b39445f1938d7e21b6bf0ec4"
+    assert replay_event_message["retention_days"] == 90
 
 
 def test_replay_events_without_processing(mini_sentry, relay_chain):
