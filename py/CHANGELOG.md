@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.13
 
 - Add a data category constant for Replays. ([#1239](https://github.com/getsentry/relay/pull/1239))
 - Add data category constant for processed transactions, encompassing all transactions that have been received and sent through dynamic sampling as well as metrics extraction. ([#1306](https://github.com/getsentry/relay/pull/1306))
