@@ -956,7 +956,10 @@ impl Envelope {
     pub fn sampling_context(&self) -> Option<&DynamicSamplingContext> {
         match &self.headers.trace {
             Option::None => None,
-            Option::Some(ErrorBoundary::Err(_)) => None,
+            Option::Some(ErrorBoundary::Err(e)) => {
+                relay_log::debug!("failed to parse sampling context: {:?}", e);
+                None
+            }
             Option::Some(ErrorBoundary::Ok(t)) => Some(t),
         }
     }

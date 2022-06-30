@@ -1,4 +1,5 @@
 import uuid
+import json
 
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
@@ -114,7 +115,14 @@ def _add_sampling_config(
     return rules
 
 
-def _add_trace_info(envelope, trace_id, public_key, release=None, user_segment=None):
+def _add_trace_info(
+    envelope,
+    trace_id,
+    public_key,
+    release=None,
+    user_segment=None,
+    client_sample_rate=None,
+):
     """
     Adds trace information to an envelope (to the envelope headers)
     """
@@ -129,6 +137,10 @@ def _add_trace_info(envelope, trace_id, public_key, release=None, user_segment=N
 
     if user_segment is not None:
         trace_info["user"] = user_segment
+
+    if client_sample_rate is not None:
+        # yes, sdks ought to send this as string and so do we
+        trace_info["sample_rate"] = json.dumps(client_sample_rate)
 
 
 def test_it_removes_transactions(mini_sentry, relay):
@@ -207,11 +219,16 @@ def _create_event_envelope(public_key):
     return envelope, trace_id, event_id
 
 
-def _create_transaction_envelope(public_key):
+def _create_transaction_envelope(public_key, client_sample_rate=None):
     envelope = Envelope()
     transaction, trace_id, event_id = _create_transaction_item()
     envelope.add_transaction(transaction)
-    _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
+    _add_trace_info(
+        envelope,
+        trace_id=trace_id,
+        public_key=public_key,
+        client_sample_rate=client_sample_rate,
+    )
     return envelope, trace_id, event_id
 
 
@@ -514,3 +531,39 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
 
         outcomes = mini_sentry.captured_outcomes.get(timeout=2)
         assert outcomes is not None
+
+
+def test_client_sample_rate_adjusted(mini_sentry, relay):
+    """
+    Tests that the client sample rate is honored when applying server-side
+    sampling. Do so by sending an envelope with a very low reported client sample rate
+    and a sampling rule with the same sample rate. The server should adjust
+    itself to 1.0. The chances of this test passing without the adjustment in
+    place are very low (but not 0).
+    """
+    project_id = 42
+    relay = relay(mini_sentry)
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    # the closer to 0, the less flaky the test is
+    # still needs to be distinguishable from 0 in a f32 in rust
+    SAMPLE_RATE = 0.00001
+    _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type="trace")
+
+    envelope, trace_id, event_id = _create_transaction_envelope(
+        public_key, client_sample_rate=SAMPLE_RATE
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    received_envelope = mini_sentry.captured_events.get(timeout=1)
+    event = received_envelope.get_transaction_event()
+    assert event["contexts"]["trace"]["client_sample_rate"] == SAMPLE_RATE
+
+    envelope, trace_id, event_id = _create_transaction_envelope(
+        public_key, client_sample_rate=1.0
+    )
+
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_events.get(timeout=1)

@@ -727,6 +727,10 @@ impl<'de> Deserialize<'de> for TraceUserContext {
 }
 
 /// DynamicSamplingContext created by the first Sentry SDK in the call chain.
+///
+/// Because SDKs need to funnel this data through the baggage header, this needs to be
+/// representable as `HashMap<String, String>`, meaning no nested dictionaries/objects, arrays or
+/// other non-string values.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DynamicSamplingContext {
     /// ID created by clients to represent the current call flow.
@@ -745,8 +749,7 @@ pub struct DynamicSamplingContext {
     /// Set on transaction start, or via `scope.transaction`.
     #[serde(default)]
     pub transaction: Option<String>,
-    /// The same rate with which this trace was sampled. This is a number between
-    ///
+    /// The same rate with which this trace was sampled. This is a float between 0 and 1.
     #[serde(default)]
     pub sample_rate: Option<JsonStringifiedValue<f64>>,
     /// The user specific identifier ( e.g. a user segment, or similar created by the SDK
@@ -763,14 +766,24 @@ impl DynamicSamplingContext {
     /// configuration is invalid.
     pub fn should_keep(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> SamplingResult {
         if let Some(rule) = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace) {
+            let client_sample_rate = self.sample_rate.map(|x| x.0).unwrap_or(1.0);
+            let mut adjusted_sample_rate = (rule.sample_rate / client_sample_rate).clamp(0.0, 1.0);
+
+            if !adjusted_sample_rate.is_normal() {
+                // adjusted_sample_rate is infinite or NaN. This is a bug.
+                //
+                // - infinite should not happen because we clamped the number.
+                // - NaN can happen if the client_sample_rate is 0, which is bogus because the SDK
+                //   should've dropped the envelope. In that case let's pretend the sample rate was
+                //   not sent, because clearly the sampling decision across the trace is still 1.
+                //   The most likely explanation is that the SDK is reporting its own sample rate
+                //   setting instead of the one from the continued trace.
+                adjusted_sample_rate = 1.0;
+            }
+
             let rate = pseudo_random_from_uuid(self.trace_id);
 
-            let client_sample_rate = self.sample_rate.map(|x| x.0);
-
-            let adjusted_sample_rate =
-                (rule.sample_rate / client_sample_rate.unwrap_or(1.0)).clamp(0.0, 1.0);
-
-            if rate < adjusted_sample_rate {
+            if rate < rule.sample_rate {
                 SamplingResult::Keep
             } else {
                 SamplingResult::Drop(rule.id)
@@ -830,7 +843,7 @@ mod tests {
     use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 
-    use insta::assert_ron_snapshot;
+    use insta::{assert_json_snapshot, assert_ron_snapshot};
 
     use relay_general::protocol::{
         Contexts, Csp, DeviceContext, Exception, Headers, IpAddr, JsonLenientString, LenientString,
@@ -2081,6 +2094,30 @@ mod tests {
           "transaction": None,
           "sample_rate": None,
           "user_id": "hello",
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_sample_rate() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "0.5"
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        assert_json_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": null,
+          "environment": null,
+          "transaction": null,
+          "sample_rate": "0.5",
+          "user_id": "hello"
         }
         "###);
     }
