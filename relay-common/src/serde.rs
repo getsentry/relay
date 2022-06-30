@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// #[derive(Deserialize)]
 /// struct TraceContext {
 ///     #[serde(with = "as_string")]
-///     sample_rate: JsonStringifiedValue<f64>,
+///     sample_rate: f64,
 /// }
 /// ```
 ///

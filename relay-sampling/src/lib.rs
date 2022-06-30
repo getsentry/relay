@@ -4,7 +4,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 
@@ -757,6 +757,9 @@ pub struct DynamicSamplingContext {
     /// from the user object).
     #[serde(flatten, default)]
     pub user: TraceUserContext,
+    /// Spillover values for backwards/forwards compat
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
 impl DynamicSamplingContext {
@@ -855,7 +858,7 @@ mod tests {
     use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 
-    use insta::{assert_json_snapshot, assert_ron_snapshot};
+    use insta::assert_ron_snapshot;
 
     use relay_general::protocol::{
         Contexts, Csp, DeviceContext, Exception, Headers, IpAddr, JsonLenientString, LenientString,
@@ -874,6 +877,7 @@ mod tests {
             transaction: None,
             sample_rate: None,
             user: TraceUserContext::default(),
+            other: BTreeMap::new(),
         }
     }
 
@@ -1059,6 +1063,7 @@ mod tests {
             environment: Some("prod".into()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert_eq!(
@@ -1093,6 +1098,7 @@ mod tests {
             environment: None,
             transaction: None,
             sample_rate: None,
+            other: BTreeMap::new(),
         };
         assert_eq!(Value::Null, dsc.get_value("trace.release"));
         assert_eq!(Value::Null, dsc.get_value("trace.environment"));
@@ -1108,6 +1114,7 @@ mod tests {
             environment: None,
             transaction: None,
             sample_rate: None,
+            other: BTreeMap::new(),
         };
         assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
         assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
@@ -1214,6 +1221,7 @@ mod tests {
             environment: Some("debug".into()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
@@ -1388,6 +1396,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1449,6 +1458,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1487,6 +1497,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1548,6 +1559,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
@@ -1764,6 +1776,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
@@ -1783,6 +1796,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
@@ -1805,6 +1819,7 @@ mod tests {
             environment: None,
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
@@ -1827,6 +1842,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: None,
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
@@ -1842,6 +1858,7 @@ mod tests {
             environment: None,
             transaction: None,
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
@@ -1923,6 +1940,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1944,6 +1962,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1965,6 +1984,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1986,6 +2006,7 @@ mod tests {
             environment: Some("production".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -2007,6 +2028,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -2132,15 +2154,15 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        assert_json_snapshot!(dsc, @r###"
+        assert_ron_snapshot!(dsc, @r###"
         {
           "trace_id": "00000000-0000-0000-0000-000000000000",
           "public_key": "abd0f232775f45feab79864e580d160b",
-          "release": null,
-          "environment": null,
-          "transaction": null,
+          "release": None,
+          "environment": None,
+          "transaction": None,
           "sample_rate": "0.5",
-          "user_id": "hello"
+          "user_id": "hello",
         }
         "###);
     }
@@ -2158,15 +2180,15 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        assert_json_snapshot!(dsc, @r###"
+        assert_ron_snapshot!(dsc, @r###"
         {
           "trace_id": "00000000-0000-0000-0000-000000000000",
           "public_key": "abd0f232775f45feab79864e580d160b",
-          "release": null,
-          "environment": null,
-          "transaction": null,
+          "release": None,
+          "environment": None,
+          "transaction": None,
           "sample_rate": "0.00001",
-          "user_id": "hello"
+          "user_id": "hello",
         }
         "###);
     }
@@ -2197,17 +2219,18 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        assert_json_snapshot!(dsc, @r###"
+        assert_ron_snapshot!(dsc, @r###"
         {
           "trace_id": "00000000-0000-0000-0000-000000000000",
           "public_key": "abd0f232775f45feab79864e580d160b",
-          "release": null,
-          "environment": null,
-          "transaction": null,
+          "release": None,
+          "environment": None,
+          "transaction": None,
           "sample_rate": "0.1",
-          "user_id": "hello"
+          "user_id": "hello",
         }
         "###);
+        assert_eq!(dsc.sample_rate, Some(0.1));
     }
 
     #[test]
