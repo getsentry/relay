@@ -43,6 +43,13 @@ def _create_event_item(environment=None, release=None):
     item = {
         "event_id": event_id,
         "message": "Hello, World!",
+        "contexts": {
+            "trace": {
+                "trace_id": trace_id,
+                "span_id": "FA90FDEAD5F74052",
+                "type": "trace",
+            }
+        },
         "extra": {"id": event_id},
     }
     if environment is not None:
@@ -210,11 +217,16 @@ def test_it_keeps_transactions(mini_sentry, relay):
         mini_sentry.captured_outcomes.get(timeout=2)
 
 
-def _create_event_envelope(public_key):
+def _create_event_envelope(public_key, client_sample_rate=None):
     envelope = Envelope()
     event, trace_id, event_id = _create_event_item()
     envelope.add_event(event)
-    _add_trace_info(envelope, trace_id=trace_id, public_key=public_key)
+    _add_trace_info(
+        envelope,
+        trace_id=trace_id,
+        public_key=public_key,
+        client_sample_rate=client_sample_rate,
+    )
 
     return envelope, trace_id, event_id
 
@@ -533,7 +545,15 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
         assert outcomes is not None
 
 
-def test_client_sample_rate_adjusted(mini_sentry, relay):
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [
+        ("error", _create_event_envelope),
+        ("transaction", _create_transaction_envelope),
+        ("trace", _create_transaction_envelope),
+    ],
+)
+def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factory):
     """
     Tests that the client sample rate is honored when applying server-side
     sampling. Do so by sending an envelope with a very low reported client sample rate
@@ -549,27 +569,29 @@ def test_client_sample_rate_adjusted(mini_sentry, relay):
     # the closer to 0, the less flaky the test is
     # still needs to be distinguishable from 0 in a f32 in rust
     SAMPLE_RATE = 0.001
-    _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type="trace")
+    _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type=rule_type)
 
-    envelope, trace_id, event_id = _create_transaction_envelope(
+    envelope, trace_id, event_id = event_factory(
         public_key, client_sample_rate=SAMPLE_RATE
     )
 
     relay.send_envelope(project_id, envelope)
 
     received_envelope = mini_sentry.captured_events.get(timeout=1)
-    event = received_envelope.get_transaction_event()
+    if rule_type == "error":
+        event = received_envelope.get_event()
+    else:
+        event = received_envelope.get_transaction_event()
     assert event["contexts"]["trace"]["client_sample_rate"] == SAMPLE_RATE
 
-    envelope, trace_id, event_id = _create_transaction_envelope(
-        public_key, client_sample_rate=1.0
-    )
+    envelope, trace_id, event_id = event_factory(public_key, client_sample_rate=1.0)
 
     relay.send_envelope(project_id, envelope)
 
     # Relay is sending a client report, skip over it
     received_envelope = mini_sentry.captured_events.get(timeout=1)
     assert received_envelope.get_transaction_event() is None
+    assert received_envelope.get_event() is None
 
     with pytest.raises(queue.Empty):
         mini_sentry.captured_events.get(timeout=1)

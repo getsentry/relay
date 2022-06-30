@@ -1858,6 +1858,7 @@ impl EnvelopeProcessor {
         let client_ip = state.envelope.meta().client_addr();
 
         match utils::should_keep_event(
+            state.envelope.sampling_context(),
             event,
             client_ip,
             &state.project_state,
