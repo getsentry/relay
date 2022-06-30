@@ -1522,7 +1522,7 @@ impl EnvelopeProcessor {
             event._metrics = Annotated::new(metrics);
         }
 
-        if let Some(ref sampling_context) = envelope.sampling_context() {
+        if let Some(sampling_context) = envelope.sampling_context() {
             if let Some(client_sample_rate) = sampling_context.sample_rate {
                 if let Some(ref mut contexts) = event.contexts.value_mut() {
                     if let Some(EventContext::Trace(ref mut trace_context)) =

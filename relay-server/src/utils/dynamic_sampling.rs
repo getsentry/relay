@@ -209,23 +209,21 @@ mod tests {
             ..Event::default()
         };
 
-        let sampling_context = DynamicSamplingContext::default();
-
         let proj_state = get_project_state(Some(0.0), RuleType::Error);
 
         assert_eq!(
             SamplingResult::Drop(RuleId(1)),
-            should_keep_event(&sampling_context, &event, None, &proj_state, true)
+            should_keep_event(None, &event, None, &proj_state, true)
         );
         let proj_state = get_project_state(Some(1.0), RuleType::Error);
         assert_eq!(
             SamplingResult::Keep,
-            should_keep_event(&sampling_context, &event, None, &proj_state, true)
+            should_keep_event(None, &event, None, &proj_state, true)
         );
         let proj_state = get_project_state(None, RuleType::Error);
         assert_eq!(
             SamplingResult::NoDecision,
-            should_keep_event(&event, None, &proj_state, true)
+            should_keep_event(None, &event, None, &proj_state, true)
         );
     }
 
