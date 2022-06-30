@@ -9,6 +9,7 @@
 **Bug Fixes**:
 
 - Parse custom units with length < 15 without crashing. ([#1312](https://github.com/getsentry/relay/pull/1312))
+- Split large metrics requests into smaller batches. This avoids failed metrics submission and lost Release Health data due to `413 Payload Too Large` errors on the upstream. ([#1326](https://github.com/getsentry/relay/pull/1326))
 
 **Internal**:
 
