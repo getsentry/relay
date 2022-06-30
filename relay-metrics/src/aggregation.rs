@@ -772,7 +772,7 @@ impl Bucket {
     /// This is an approximate function. The bucket is not actually serialized, but rather its
     /// footprint is estimated through the number of data points contained. See
     /// [`estimated_size`](Self::estimated_size) for more information.
-    pub fn split_at(mut self, size: usize) -> (Option<Bucket>, Option<Bucket>) {
+    fn split_at(mut self, size: usize) -> (Option<Bucket>, Option<Bucket>) {
         // If there's enough space for the entire bucket, do not perform a split.
         if size >= self.estimated_size() {
             return (Some(self), None);
