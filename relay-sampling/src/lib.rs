@@ -769,7 +769,7 @@ impl DynamicSamplingContext {
             let client_sample_rate = self.sample_rate.map(|x| x.0).unwrap_or(1.0);
             let mut adjusted_sample_rate = (rule.sample_rate / client_sample_rate).clamp(0.0, 1.0);
 
-            if !adjusted_sample_rate.is_normal() {
+            if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
                 // adjusted_sample_rate is infinite or NaN. This is a bug.
                 //
                 // - infinite should not happen because we clamped the number.
@@ -783,7 +783,7 @@ impl DynamicSamplingContext {
 
             let rate = pseudo_random_from_uuid(self.trace_id);
 
-            if rate < rule.sample_rate {
+            if rate < adjusted_sample_rate {
                 SamplingResult::Keep
             } else {
                 SamplingResult::Drop(rule.id)
