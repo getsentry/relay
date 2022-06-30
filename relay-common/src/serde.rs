@@ -21,16 +21,21 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
 pub struct JsonStringifiedValue<T>(pub T);
 
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for JsonStringifiedValue<T> {
+impl<'de, T> Deserialize<'de> for JsonStringifiedValue<T>
+where
+    for<'de2> T: Deserialize<'de2>,
+{
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
         #[serde(untagged)]
-        enum Helper<'a, T> {
+        enum Helper<T> {
             Verbatim(T),
-            String(&'a str),
+            // can't change this to borrowed string, otherwise deserialization within an
+            // ErrorBoundary silently fails for some reason
+            String(String),
         }
 
         let helper = Helper::<T>::deserialize(deserializer)?;
@@ -38,7 +43,9 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for JsonStringifiedValue<T> {
         match helper {
             Helper::Verbatim(value) => Ok(JsonStringifiedValue(value)),
             Helper::String(value) => {
-                serde_json::from_str(value).map_err(|e| serde::de::Error::custom(e.to_string()))
+                let rv = serde_json::from_str(&value)
+                    .map_err(|e| serde::de::Error::custom(e.to_string()))?;
+                Ok(JsonStringifiedValue(rv))
             }
         }
     }
@@ -53,4 +60,12 @@ impl<T: Serialize> Serialize for JsonStringifiedValue<T> {
             serde_json::to_string(&self.0).map_err(|e| serde::ser::Error::custom(e.to_string()))?;
         string.serialize(serializer)
     }
+}
+
+#[test]
+fn test_basic() {
+    let value = serde_json::from_str::<JsonStringifiedValue<f32>>("42.0").unwrap();
+    assert_eq!(value.0, 42.0);
+    let value = serde_json::from_str::<JsonStringifiedValue<f32>>("\"42.0\"").unwrap();
+    assert_eq!(value.0, 42.0);
 }

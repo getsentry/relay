@@ -1522,6 +1522,18 @@ impl EnvelopeProcessor {
             event._metrics = Annotated::new(metrics);
         }
 
+        if let Some(ref sampling_context) = envelope.sampling_context() {
+            if let Some(client_sample_rate) = sampling_context.sample_rate {
+                if let Some(ref mut contexts) = event.contexts.value_mut() {
+                    if let Some(EventContext::Trace(ref mut trace_context)) =
+                        contexts.get_context_mut("trace")
+                    {
+                        trace_context.client_sample_rate = Annotated::from(client_sample_rate.0);
+                    }
+                }
+            }
+        }
+
         // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
         // clock drift correction that assumes the event timestamp is the sent_at time. This
         // should be removed as soon as legacy ingestion has been removed.
@@ -1838,14 +1850,14 @@ impl EnvelopeProcessor {
     }
 
     /// Run dynamic sampling rules on event body to see if we keep the event or remove it.
-    fn sample_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let event = match &mut state.event.0 {
+    fn sample_event(&self, state: &ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let event = match &state.event.0 {
             None => return Ok(()), // can't process without an event
             Some(event) => event,
         };
         let client_ip = state.envelope.meta().client_addr();
 
-        let sampling_result = match utils::should_keep_event(
+        match utils::should_keep_event(
             event,
             client_ip,
             &state.project_state,
@@ -1856,26 +1868,12 @@ impl EnvelopeProcessor {
                     .envelope_context
                     .send_outcomes(Outcome::FilteredSampling(rule_id));
 
-                return Err(ProcessingError::EventSampled(rule_id));
+                Err(ProcessingError::EventSampled(rule_id))
             }
             SamplingResult::Keep => Ok(()),
             // Not enough info to make a definite evaluation, keep the event
             SamplingResult::NoDecision => Ok(()),
-        };
-
-        if let Some(ref sampling_context) = state.envelope.sampling_context() {
-            if let Some(client_sample_rate) = sampling_context.sample_rate {
-                if let Some(ref mut contexts) = event.contexts.value_mut() {
-                    if let Some(EventContext::Trace(ref mut trace_context)) =
-                        contexts.get_context_mut("trace")
-                    {
-                        trace_context.client_sample_rate = Annotated::from(client_sample_rate.0);
-                    }
-                }
-            }
         }
-
-        sampling_result
     }
 
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {

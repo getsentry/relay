@@ -548,7 +548,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay):
 
     # the closer to 0, the less flaky the test is
     # still needs to be distinguishable from 0 in a f32 in rust
-    SAMPLE_RATE = 0.00001
+    SAMPLE_RATE = 0.001
     _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type="trace")
 
     envelope, trace_id, event_id = _create_transaction_envelope(
@@ -564,6 +564,12 @@ def test_client_sample_rate_adjusted(mini_sentry, relay):
     envelope, trace_id, event_id = _create_transaction_envelope(
         public_key, client_sample_rate=1.0
     )
+
+    relay.send_envelope(project_id, envelope)
+
+    # Relay is sending a client report, skip over it
+    received_envelope = mini_sentry.captured_events.get(timeout=1)
+    assert received_envelope.get_transaction_event() is None
 
     with pytest.raises(queue.Empty):
         mini_sentry.captured_events.get(timeout=1)
