@@ -774,6 +774,10 @@ impl DynamicSamplingContext {
             //   not sent, because clearly the sampling decision across the trace is still 1.
             //   The most likely explanation is that the SDK is reporting its own sample rate
             //   setting instead of the one from the continued trace.
+            //
+            // since we write back the client_sample_rate into the event's trace context, it should
+            // be possible to find those values + sdk versions via snuba
+            relay_log::warn!("adjusted sample rate ended up being inf/nan");
             adjusted_sample_rate = 1.0;
         }
 
