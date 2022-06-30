@@ -390,66 +390,6 @@
 <span id="383">383</span>
 <span id="384">384</span>
 <span id="385">385</span>
-<span id="386">386</span>
-<span id="387">387</span>
-<span id="388">388</span>
-<span id="389">389</span>
-<span id="390">390</span>
-<span id="391">391</span>
-<span id="392">392</span>
-<span id="393">393</span>
-<span id="394">394</span>
-<span id="395">395</span>
-<span id="396">396</span>
-<span id="397">397</span>
-<span id="398">398</span>
-<span id="399">399</span>
-<span id="400">400</span>
-<span id="401">401</span>
-<span id="402">402</span>
-<span id="403">403</span>
-<span id="404">404</span>
-<span id="405">405</span>
-<span id="406">406</span>
-<span id="407">407</span>
-<span id="408">408</span>
-<span id="409">409</span>
-<span id="410">410</span>
-<span id="411">411</span>
-<span id="412">412</span>
-<span id="413">413</span>
-<span id="414">414</span>
-<span id="415">415</span>
-<span id="416">416</span>
-<span id="417">417</span>
-<span id="418">418</span>
-<span id="419">419</span>
-<span id="420">420</span>
-<span id="421">421</span>
-<span id="422">422</span>
-<span id="423">423</span>
-<span id="424">424</span>
-<span id="425">425</span>
-<span id="426">426</span>
-<span id="427">427</span>
-<span id="428">428</span>
-<span id="429">429</span>
-<span id="430">430</span>
-<span id="431">431</span>
-<span id="432">432</span>
-<span id="433">433</span>
-<span id="434">434</span>
-<span id="435">435</span>
-<span id="436">436</span>
-<span id="437">437</span>
-<span id="438">438</span>
-<span id="439">439</span>
-<span id="440">440</span>
-<span id="441">441</span>
-<span id="442">442</span>
-<span id="443">443</span>
-<span id="444">444</span>
-<span id="445">445</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -473,17 +413,6 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="self">self</span>, <span class="ident">ErrorBoundary</span>};
 
-<span class="doccomment">/// The version that will be used to query Upstream. The endpoint version is added as</span>
-<span class="doccomment">/// `version` query parameter to every outgoing request. See the `projectconfigs` endpoint for</span>
-<span class="doccomment">/// the versions that will be accepted by Relay.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">GetProjectStatesVersion</span> {
-    <span class="doccomment">/// Legacy version of the project states endpoint.</span>
-    <span class="ident">V2</span>,
-    <span class="doccomment">/// The current version of the project states endpoint.</span>
-    <span class="ident">V3</span>,
-}
-
 <span class="doccomment">/// A query to retrieve a batch of project states from upstream.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This query does not implement `Deserialize`. To parse the query, use a wrapper that skips</span>
@@ -494,8 +423,6 @@
     <span class="ident">public_keys</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ProjectKey</span><span class="op">&gt;</span>,
     <span class="ident">full_config</span>: <span class="ident">bool</span>,
     <span class="ident">no_cache</span>: <span class="ident">bool</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing</span>)]</span>
-    <span class="ident">version</span>: <span class="ident">GetProjectStatesVersion</span>,
 }
 
 <span class="doccomment">/// The response of the projects states requests.</span>
@@ -519,10 +446,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">str</span><span class="op">&gt;</span> {
-        <span class="ident">Cow::Borrowed</span>(<span class="kw">match</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">version</span> {
-            <span class="ident">GetProjectStatesVersion::V2</span> =&gt; <span class="string">&quot;/api/0/relays/projectconfigs/?version=2&quot;</span>,
-            <span class="ident">GetProjectStatesVersion::V3</span> =&gt; <span class="string">&quot;/api/0/relays/projectconfigs/?version=3&quot;</span>,
-        })
+        <span class="ident">Cow::Borrowed</span>(<span class="string">&quot;/api/0/relays/projectconfigs/?version=3&quot;</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">priority</span>() -&gt; <span class="ident">RequestPriority</span> {
@@ -539,9 +463,6 @@
     <span class="ident">sender</span>: <span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">receiver</span>: <span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">deadline</span>: <span class="ident">Instant</span>,
-    <span class="doccomment">/// After the soft deadline has passed, we request project configs from the V2 endpoint</span>
-    <span class="doccomment">/// which is currently considered more stable</span>
-    <span class="ident">soft_deadline</span>: <span class="ident">Instant</span>,
     <span class="ident">no_cache</span>: <span class="ident">bool</span>,
     <span class="ident">attempts</span>: <span class="ident">u64</span>,
 }
@@ -555,8 +476,6 @@
             <span class="ident">sender</span>,
             <span class="ident">receiver</span>: <span class="ident">receiver</span>.<span class="ident">shared</span>(),
             <span class="ident">deadline</span>: <span class="ident">now</span> <span class="op">+</span> <span class="ident">timeout</span>,
-            <span class="comment">// after 1/3 of the time, fall back to v2 project config requests</span>
-            <span class="ident">soft_deadline</span>: <span class="ident">now</span> <span class="op">+</span> <span class="ident">timeout</span> <span class="op">/</span> <span class="number">3</span>,
             <span class="ident">no_cache</span>: <span class="bool-val">false</span>,
             <span class="ident">attempts</span>: <span class="number">0</span>,
         }
@@ -576,10 +495,6 @@
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expired</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="ident">Instant::now</span>() <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">deadline</span>
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">soft_expired</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="ident">Instant::now</span>() <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">soft_deadline</span>
     }
 }
 
@@ -655,14 +570,7 @@
         <span class="kw">let</span> (<span class="ident">nocache_channels</span>, <span class="ident">cache_channels</span>): (<span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>) <span class="op">=</span>
             <span class="ident">fresh_channels</span>.<span class="ident">partition</span>(<span class="op">|</span>(<span class="ident">_id</span>, <span class="ident">channel</span>)<span class="op">|</span> <span class="ident">channel</span>.<span class="ident">no_cache</span>);
 
-        <span class="comment">// We want to split out channels that are almost expired so we can try them with v2 instead of v3.</span>
-        <span class="comment">// This is not necessary for nocache_channels, because it is treated as v2 by sentry anyway.</span>
-        <span class="kw">let</span> (<span class="ident">soft_expired_channels</span>, <span class="ident">cache_channels</span>): (<span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>) <span class="op">=</span> <span class="ident">cache_channels</span>
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">partition</span>(<span class="op">|</span>(<span class="ident">_id</span>, <span class="ident">channel</span>)<span class="op">|</span> <span class="ident">channel</span>.<span class="ident">soft_expired</span>());
-
-        <span class="kw">let</span> <span class="ident">total_count</span> <span class="op">=</span>
-            <span class="ident">soft_expired_channels</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="ident">cache_channels</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="ident">nocache_channels</span>.<span class="ident">len</span>();
+        <span class="kw">let</span> <span class="ident">total_count</span> <span class="op">=</span> <span class="ident">cache_channels</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="ident">nocache_channels</span>.<span class="ident">len</span>();
 
         <span class="macro">metric!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms::ProjectStatePending</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">state_channels</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
 
@@ -675,12 +583,10 @@
 
         <span class="kw">let</span> <span class="ident">request_start</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
 
-        <span class="kw">let</span> <span class="ident">soft_expired_batches</span> <span class="op">=</span> <span class="ident">soft_expired_channels</span>.<span class="ident">into_iter</span>().<span class="ident">chunks</span>(<span class="ident">batch_size</span>);
         <span class="kw">let</span> <span class="ident">cache_batches</span> <span class="op">=</span> <span class="ident">cache_channels</span>.<span class="ident">into_iter</span>().<span class="ident">chunks</span>(<span class="ident">batch_size</span>);
         <span class="kw">let</span> <span class="ident">nocache_batches</span> <span class="op">=</span> <span class="ident">nocache_channels</span>.<span class="ident">into_iter</span>().<span class="ident">chunks</span>(<span class="ident">batch_size</span>);
-        <span class="kw">let</span> <span class="ident">requests</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">soft_expired_batches</span>
+        <span class="kw">let</span> <span class="ident">requests</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">cache_batches</span>
             .<span class="ident">into_iter</span>()
-            .<span class="ident">chain</span>(<span class="ident">cache_batches</span>.<span class="ident">into_iter</span>())
             .<span class="ident">chain</span>(<span class="ident">nocache_batches</span>.<span class="ident">into_iter</span>())
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">channels_batch</span><span class="op">|</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">channels_batch</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">channels_batch</span>.<span class="ident">collect</span>();
@@ -697,32 +603,6 @@
                     <span class="ident">public_keys</span>: <span class="ident">channels_batch</span>.<span class="ident">keys</span>().<span class="ident">copied</span>().<span class="ident">collect</span>(),
                     <span class="ident">full_config</span>: <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>(),
                     <span class="ident">no_cache</span>: <span class="ident">channels_batch</span>.<span class="ident">values</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">no_cache</span>),
-                    <span class="ident">version</span>: <span class="kw">if</span> <span class="ident">channels_batch</span>.<span class="ident">values</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">soft_expired</span>()) {
-                        <span class="comment">// For the time being, we assume that V2 is the more stable endpoint, so if</span>
-                        <span class="comment">// we fail to fetch the project config within half the timeout period, fall back to V2.</span>
-                        <span class="ident">relay_log::with_scope</span>(
-                            <span class="op">|</span><span class="ident">scope</span><span class="op">|</span> {
-                                <span class="kw">let</span> <span class="ident">attempts_per_key</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">channels_batch</span>
-                                    .<span class="ident">iter</span>()
-                                    .<span class="ident">filter</span>(<span class="op">|</span>(<span class="kw">_</span>, <span class="ident">v</span>)<span class="op">|</span> <span class="ident">v</span>.<span class="ident">soft_expired</span>())
-                                    .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">v</span>)<span class="op">|</span> (<span class="ident">k</span>.<span class="ident">to_string</span>(), <span class="ident">v</span>.<span class="ident">attempts</span>))
-                                    .<span class="ident">collect</span>();
-                                <span class="ident">scope</span>.<span class="ident">set_extra</span>(
-                                    <span class="string">&quot;attempts_per_key&quot;</span>,
-                                    <span class="ident">serde_json::to_value</span>(<span class="ident">attempts_per_key</span>).<span class="ident">unwrap_or_default</span>(),
-                                );
-                            },
-                            <span class="op">|</span><span class="op">|</span> {
-                                <span class="macro">relay_log::error!</span>(
-                                    <span class="string">&quot;Failed to fetch project config from V3 endpoint&quot;</span>
-                                );
-                            },
-                        );
-
-                        <span class="ident">GetProjectStatesVersion::V2</span>
-                    } <span class="kw">else</span> {
-                        <span class="ident">GetProjectStatesVersion::V3</span>
-                    },
                 };
 
                 <span class="comment">// count number of http requests for project states</span>
