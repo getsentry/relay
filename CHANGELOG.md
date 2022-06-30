@@ -17,6 +17,7 @@
 - Extend trace sampling protocol to deal with flat user data. ([#1318](https://github.com/getsentry/relay/pull/1318))
 - Indicate which thread is the main thread in thread metadata for profiles. ([#1320](https://github.com/getsentry/relay/pull/1320))
 - Increase profile maximum size by an order of magnitude. ([#1321](https://github.com/getsentry/relay/pull/1321))
+- Add data category constant for processed transactions, encompassing all transactions that have been received and sent through dynamic sampling as well as metrics extraction. ([#1306](https://github.com/getsentry/relay/pull/1306))
 
 ## 22.6.0
 
