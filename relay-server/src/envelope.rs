@@ -44,7 +44,7 @@ use smallvec::SmallVec;
 
 use relay_general::protocol::{EventId, EventType};
 use relay_general::types::Value;
-use relay_sampling::TraceContext;
+use relay_sampling::DynamicSamplingContext;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
@@ -710,7 +710,7 @@ pub struct EnvelopeHeaders<M = RequestMeta> {
 
     /// Trace context associated with the request
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    trace: Option<ErrorBoundary<TraceContext>>,
+    trace: Option<ErrorBoundary<DynamicSamplingContext>>,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
@@ -953,7 +953,7 @@ impl Envelope {
         })
     }
 
-    pub fn trace_context(&self) -> Option<&TraceContext> {
+    pub fn sampling_context(&self) -> Option<&DynamicSamplingContext> {
         match &self.headers.trace {
             Option::None => None,
             Option::Some(ErrorBoundary::Err(_)) => None,

@@ -45,6 +45,14 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_PROFILE = 6,
   /**
+   * Session Replays
+   */
+  RELAY_DATA_CATEGORY_REPLAY = 7,
+  /**
+   * A transaction that was processed but not stored.
+   */
+  RELAY_DATA_CATEGORY_TRANSACTION_PROCESSED = 8,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,

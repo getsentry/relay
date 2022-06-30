@@ -21,17 +21,6 @@ use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, Upstrea
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
 
-/// The version that will be used to query Upstream. The endpoint version is added as
-/// `version` query parameter to every outgoing request. See the `projectconfigs` endpoint for
-/// the versions that will be accepted by Relay.
-#[derive(Debug)]
-pub enum GetProjectStatesVersion {
-    /// Legacy version of the project states endpoint.
-    V2,
-    /// The current version of the project states endpoint.
-    V3,
-}
-
 /// A query to retrieve a batch of project states from upstream.
 ///
 /// This query does not implement `Deserialize`. To parse the query, use a wrapper that skips
@@ -42,8 +31,6 @@ pub struct GetProjectStates {
     public_keys: Vec<ProjectKey>,
     full_config: bool,
     no_cache: bool,
-    #[serde(skip_serializing)]
-    version: GetProjectStatesVersion,
 }
 
 /// The response of the projects states requests.
@@ -67,10 +54,7 @@ impl UpstreamQuery for GetProjectStates {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed(match &self.version {
-            GetProjectStatesVersion::V2 => "/api/0/relays/projectconfigs/?version=2",
-            GetProjectStatesVersion::V3 => "/api/0/relays/projectconfigs/?version=3",
-        })
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=3")
     }
 
     fn priority() -> RequestPriority {
@@ -87,9 +71,6 @@ struct ProjectStateChannel {
     sender: oneshot::Sender<Arc<ProjectState>>,
     receiver: Shared<oneshot::Receiver<Arc<ProjectState>>>,
     deadline: Instant,
-    /// After the soft deadline has passed, we request project configs from the V2 endpoint
-    /// which is currently considered more stable
-    soft_deadline: Instant,
     no_cache: bool,
     attempts: u64,
 }
@@ -103,8 +84,6 @@ impl ProjectStateChannel {
             sender,
             receiver: receiver.shared(),
             deadline: now + timeout,
-            // after 1/3 of the time, fall back to v2 project config requests
-            soft_deadline: now + timeout / 3,
             no_cache: false,
             attempts: 0,
         }
@@ -124,10 +103,6 @@ impl ProjectStateChannel {
 
     pub fn expired(&self) -> bool {
         Instant::now() > self.deadline
-    }
-
-    pub fn soft_expired(&self) -> bool {
-        Instant::now() > self.soft_deadline
     }
 }
 
@@ -203,14 +178,7 @@ impl UpstreamProjectSource {
         let (nocache_channels, cache_channels): (Vec<_>, Vec<_>) =
             fresh_channels.partition(|(_id, channel)| channel.no_cache);
 
-        // We want to split out channels that are almost expired so we can try them with v2 instead of v3.
-        // This is not necessary for nocache_channels, because it is treated as v2 by sentry anyway.
-        let (soft_expired_channels, cache_channels): (Vec<_>, Vec<_>) = cache_channels
-            .into_iter()
-            .partition(|(_id, channel)| channel.soft_expired());
-
-        let total_count =
-            soft_expired_channels.len() + cache_channels.len() + nocache_channels.len();
+        let total_count = cache_channels.len() + nocache_channels.len();
 
         metric!(histogram(RelayHistograms::ProjectStatePending) = self.state_channels.len() as u64);
 
@@ -223,12 +191,10 @@ impl UpstreamProjectSource {
 
         let request_start = Instant::now();
 
-        let soft_expired_batches = soft_expired_channels.into_iter().chunks(batch_size);
         let cache_batches = cache_channels.into_iter().chunks(batch_size);
         let nocache_batches = nocache_channels.into_iter().chunks(batch_size);
-        let requests: Vec<_> = soft_expired_batches
+        let requests: Vec<_> = cache_batches
             .into_iter()
-            .chain(cache_batches.into_iter())
             .chain(nocache_batches.into_iter())
             .map(|channels_batch| {
                 let mut channels_batch: BTreeMap<_, _> = channels_batch.collect();
@@ -245,32 +211,6 @@ impl UpstreamProjectSource {
                     public_keys: channels_batch.keys().copied().collect(),
                     full_config: self.config.processing_enabled(),
                     no_cache: channels_batch.values().any(|c| c.no_cache),
-                    version: if channels_batch.values().any(|c| c.soft_expired()) {
-                        // For the time being, we assume that V2 is the more stable endpoint, so if
-                        // we fail to fetch the project config within half the timeout period, fall back to V2.
-                        relay_log::with_scope(
-                            |scope| {
-                                let attempts_per_key: BTreeMap<String, u64> = channels_batch
-                                    .iter()
-                                    .filter(|(_, v)| v.soft_expired())
-                                    .map(|(k, v)| (k.to_string(), v.attempts))
-                                    .collect();
-                                scope.set_extra(
-                                    "attempts_per_key",
-                                    serde_json::to_value(attempts_per_key).unwrap_or_default(),
-                                );
-                            },
-                            || {
-                                relay_log::error!(
-                                    "Failed to fetch project config from V3 endpoint"
-                                );
-                            },
-                        );
-
-                        GetProjectStatesVersion::V2
-                    } else {
-                        GetProjectStatesVersion::V3
-                    },
                 };
 
                 // count number of http requests for project states
