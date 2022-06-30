@@ -113,6 +113,11 @@ pub enum DataCategory {
     Replay = 7,
     /// A transaction that was processed but not stored.
     TransactionProcessed = 8,
+    //
+    // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
+    // `make header` to regenerate the C-binding. This allows using the data category from Python.
+    // Rerun this step every time the **code name** of the variant is updated.
+    //
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
