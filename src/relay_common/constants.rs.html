@@ -656,6 +656,15 @@
 <span id="649">649</span>
 <span id="650">650</span>
 <span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.</span>
 
 <span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
@@ -769,6 +778,13 @@
     <span class="ident">Profile</span> <span class="op">=</span> <span class="number">6</span>,
     <span class="doccomment">/// Session Replays</span>
     <span class="ident">Replay</span> <span class="op">=</span> <span class="number">7</span>,
+    <span class="doccomment">/// A transaction that was processed but not stored.</span>
+    <span class="ident">TransactionProcessed</span> <span class="op">=</span> <span class="number">8</span>,
+    <span class="comment">//</span>
+    <span class="comment">// IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run</span>
+    <span class="comment">// `make header` to regenerate the C-binding. This allows using the data category from Python.</span>
+    <span class="comment">// Rerun this step every time the **code name** of the variant is updated.</span>
+    <span class="comment">//</span>
     <span class="doccomment">/// Any other data category not known by this Relay.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">other</span>)]</span>
     <span class="ident">Unknown</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>,
@@ -784,8 +800,9 @@
             <span class="string">&quot;security&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Security</span>,
             <span class="string">&quot;attachment&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Attachment</span>,
             <span class="string">&quot;session&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Session</span>,
-            <span class="string">&quot;replay&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Replay</span>,
             <span class="string">&quot;profile&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Profile</span>,
+            <span class="string">&quot;replay&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::Replay</span>,
+            <span class="string">&quot;transaction_processed&quot;</span> =&gt; <span class="ident"><span class="self">Self</span>::TransactionProcessed</span>,
             <span class="kw">_</span> =&gt; <span class="ident"><span class="self">Self</span>::Unknown</span>,
         }
     }
@@ -799,8 +816,9 @@
             <span class="ident"><span class="self">Self</span>::Security</span> =&gt; <span class="string">&quot;security&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Attachment</span> =&gt; <span class="string">&quot;attachment&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Session</span> =&gt; <span class="string">&quot;session&quot;</span>,
-            <span class="ident"><span class="self">Self</span>::Replay</span> =&gt; <span class="string">&quot;replay&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Profile</span> =&gt; <span class="string">&quot;profile&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::Replay</span> =&gt; <span class="string">&quot;replay&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::TransactionProcessed</span> =&gt; <span class="string">&quot;transaction_processed&quot;</span>,
             <span class="ident"><span class="self">Self</span>::Unknown</span> =&gt; <span class="string">&quot;unknown&quot;</span>,
         }
     }
