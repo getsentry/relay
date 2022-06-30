@@ -111,6 +111,13 @@ pub enum DataCategory {
     Profile = 6,
     /// Session Replays
     Replay = 7,
+    /// A transaction that was processed but not stored.
+    TransactionProcessed = 8,
+    //
+    // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
+    // `make header` to regenerate the C-binding. This allows using the data category from Python.
+    // Rerun this step every time the **code name** of the variant is updated.
+    //
     /// Any other data category not known by this Relay.
     #[serde(other)]
     Unknown = -1,
@@ -126,8 +133,9 @@ impl DataCategory {
             "security" => Self::Security,
             "attachment" => Self::Attachment,
             "session" => Self::Session,
-            "replay" => Self::Replay,
             "profile" => Self::Profile,
+            "replay" => Self::Replay,
+            "transaction_processed" => Self::TransactionProcessed,
             _ => Self::Unknown,
         }
     }
@@ -141,8 +149,9 @@ impl DataCategory {
             Self::Security => "security",
             Self::Attachment => "attachment",
             Self::Session => "session",
-            Self::Replay => "replay",
             Self::Profile => "profile",
+            Self::Replay => "replay",
+            Self::TransactionProcessed => "transaction_processed",
             Self::Unknown => "unknown",
         }
     }

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add a data category constant for Replays. ([#1239](https://github.com/getsentry/relay/pull/1239))
+- Add data category constant for processed transactions, encompassing all transactions that have been received and sent through dynamic sampling as well as metrics extraction. ([#1306](https://github.com/getsentry/relay/pull/1306))
+- Extend trace sampling protocol to deal with flat user data. ([#1318](https://github.com/getsentry/relay/pull/1318))
+
 ## 0.8.12
 
 - Fix missing profile data category in the python library of 0.8.11 by regenerating the header for C-bindings. ([#1278](https://github.com/getsentry/relay/pull/1278))

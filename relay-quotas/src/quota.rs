@@ -105,7 +105,8 @@ impl CategoryUnit {
             | DataCategory::Transaction
             | DataCategory::Replay
             | DataCategory::Security
-            | DataCategory::Profile => Some(Self::Count),
+            | DataCategory::Profile
+            | DataCategory::TransactionProcessed => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
             DataCategory::Unknown => None,
