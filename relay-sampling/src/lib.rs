@@ -860,6 +860,18 @@ mod tests {
 
     use super::*;
 
+    fn default_sampling_context() -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: Uuid::default(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: None,
+            environment: None,
+            transaction: None,
+            sample_rate: None,
+            user: TraceUserContext::default(),
+        }
+    }
+
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
         RuleCondition::Eq(EqCondition {
             name: name.to_owned(),
@@ -2127,5 +2139,87 @@ mod tests {
           "user_id": "hello"
         }
         "###);
+    }
+
+    #[test]
+    fn test_parse_sample_rate_scientific_notation() {
+        // we don't really want SDKs to send this because it's not on the spec, but if they do we
+        // should serialize into non-scientific notation for maximum compat
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "1e-5"
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        assert_json_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": null,
+          "environment": null,
+          "transaction": null,
+          "sample_rate": "0.00001",
+          "user_id": "hello"
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_sample_rate_bogus() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "bogus"
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_parse_sample_rate_integer() {
+        // we don't want SDKs to send sample_rate as integer (it should be string), but if they do,
+        // we should not just fail parsing
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": 0.1
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        assert_json_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": null,
+          "environment": null,
+          "transaction": null,
+          "sample_rate": "0.1",
+          "user_id": "hello"
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_adjust_sample_rate() {
+        let mut dsc = default_sampling_context();
+
+        dsc.sample_rate = Some(JsonStringifiedValue(0.0));
+        assert_eq!(dsc.adjust_sample_rate(0.5), 1.0);
+
+        dsc.sample_rate = Some(JsonStringifiedValue(1.0));
+        assert_eq!(dsc.adjust_sample_rate(0.5), 0.5);
+
+        dsc.sample_rate = Some(JsonStringifiedValue(0.1));
+        assert_eq!(dsc.adjust_sample_rate(0.5), 1.0);
+
+        dsc.sample_rate = Some(JsonStringifiedValue(0.5));
+        assert_eq!(dsc.adjust_sample_rate(0.1), 0.2);
     }
 }
