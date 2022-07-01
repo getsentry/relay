@@ -63,13 +63,6 @@ pub struct EqCondition {
 }
 
 impl EqCondition {
-    fn matches_event(&self, event: &Event) -> bool {
-        self.matches(event)
-    }
-    fn matches_trace(&self, trace: &DynamicSamplingContext) -> bool {
-        self.matches(trace)
-    }
-
     fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
         let value = value_provider.get_value(self.name.as_str());
 
@@ -125,13 +118,6 @@ macro_rules! impl_cmp_condition {
         }
 
         impl $struct_name {
-            fn matches_event(&self, event: &Event) -> bool {
-                self.matches(event)
-            }
-            fn matches_trace(&self, trace: &DynamicSamplingContext) -> bool {
-                self.matches(trace)
-            }
-
             fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
                 let value = match value_provider.get_value(self.name.as_str()) {
                     Value::Number(x) => x,
@@ -169,13 +155,6 @@ pub struct GlobCondition {
 }
 
 impl GlobCondition {
-    fn matches_event(&self, event: &Event) -> bool {
-        self.matches(event)
-    }
-    fn matches_trace(&self, trace: &DynamicSamplingContext) -> bool {
-        self.matches(trace)
-    }
-
     fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
         value_provider
             .get_value(self.name.as_str())
@@ -197,11 +176,8 @@ pub struct CustomCondition {
 }
 
 impl CustomCondition {
-    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
-        Event::get_custom_operator(&self.name)(self, event, ip_addr)
-    }
-    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
-        DynamicSamplingContext::get_custom_operator(&self.name)(self, trace, ip_addr)
+    fn matches<T: FieldValueProvider>(&self, value_provider: &T, ip_addr: Option<IpAddr>) -> bool {
+        T::get_custom_operator(&self.name)(self, value_provider, ip_addr)
     }
 }
 
@@ -218,15 +194,9 @@ impl OrCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
-        self.inner
-            .iter()
-            .any(|cond| cond.matches_event(event, ip_addr))
-    }
-    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
-        self.inner
-            .iter()
-            .any(|cond| cond.matches_trace(trace, ip_addr))
+
+    fn matches<T: FieldValueProvider>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool {
+        self.inner.iter().any(|cond| cond.matches(value, ip_addr))
     }
 }
 
@@ -243,15 +213,8 @@ impl AndCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
-        self.inner
-            .iter()
-            .all(|cond| cond.matches_event(event, ip_addr))
-    }
-    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
-        self.inner
-            .iter()
-            .all(|cond| cond.matches_trace(trace, ip_addr))
+    fn matches<T: FieldValueProvider>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool {
+        self.inner.iter().all(|cond| cond.matches(value, ip_addr))
     }
 }
 
@@ -268,11 +231,9 @@ impl NotCondition {
     fn supported(&self) -> bool {
         self.inner.supported()
     }
-    fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
-        !self.inner.matches_event(event, ip_addr)
-    }
-    fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
-        !self.inner.matches_trace(trace, ip_addr)
+
+    fn matches<T: FieldValueProvider>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool {
+        !self.inner.matches(value, ip_addr)
     }
 }
 
@@ -315,34 +276,19 @@ impl RuleCondition {
             RuleCondition::Custom(_) => true,
         }
     }
-    pub fn matches_event(&self, event: &Event, ip_addr: Option<IpAddr>) -> bool {
+    pub fn matches<T: FieldValueProvider>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool {
         match self {
-            RuleCondition::Eq(condition) => condition.matches_event(event),
-            RuleCondition::Lte(condition) => condition.matches_event(event),
-            RuleCondition::Gte(condition) => condition.matches_event(event),
-            RuleCondition::Gt(condition) => condition.matches_event(event),
-            RuleCondition::Lt(condition) => condition.matches_event(event),
-            RuleCondition::Glob(condition) => condition.matches_event(event),
-            RuleCondition::And(conditions) => conditions.matches_event(event, ip_addr),
-            RuleCondition::Or(conditions) => conditions.matches_event(event, ip_addr),
-            RuleCondition::Not(condition) => condition.matches_event(event, ip_addr),
+            RuleCondition::Eq(condition) => condition.matches(value),
+            RuleCondition::Lte(condition) => condition.matches(value),
+            RuleCondition::Gte(condition) => condition.matches(value),
+            RuleCondition::Gt(condition) => condition.matches(value),
+            RuleCondition::Lt(condition) => condition.matches(value),
+            RuleCondition::Glob(condition) => condition.matches(value),
+            RuleCondition::And(conditions) => conditions.matches(value, ip_addr),
+            RuleCondition::Or(conditions) => conditions.matches(value, ip_addr),
+            RuleCondition::Not(condition) => condition.matches(value, ip_addr),
             RuleCondition::Unsupported => false,
-            RuleCondition::Custom(condition) => condition.matches_event(event, ip_addr),
-        }
-    }
-    pub fn matches_trace(&self, trace: &DynamicSamplingContext, ip_addr: Option<IpAddr>) -> bool {
-        match self {
-            RuleCondition::Eq(condition) => condition.matches_trace(trace),
-            RuleCondition::Gte(condition) => condition.matches_trace(trace),
-            RuleCondition::Lte(condition) => condition.matches_trace(trace),
-            RuleCondition::Gt(condition) => condition.matches_trace(trace),
-            RuleCondition::Lt(condition) => condition.matches_trace(trace),
-            RuleCondition::Glob(condition) => condition.matches_trace(trace),
-            RuleCondition::And(conditions) => conditions.matches_trace(trace, ip_addr),
-            RuleCondition::Or(conditions) => conditions.matches_trace(trace, ip_addr),
-            RuleCondition::Not(condition) => condition.matches_trace(trace, ip_addr),
-            RuleCondition::Unsupported => false,
-            RuleCondition::Custom(condition) => condition.matches_trace(trace, ip_addr),
+            RuleCondition::Custom(condition) => condition.matches(value, ip_addr),
         }
     }
 }
@@ -377,7 +323,7 @@ impl SamplingRule {
 /// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
-trait FieldValueProvider {
+pub trait FieldValueProvider {
     /// gets the value of a field
     fn get_value(&self, path: &str) -> Value;
     /// what type of rule can be applied to this provider
@@ -840,60 +786,40 @@ impl DynamicSamplingContext {
 
         adjusted_sample_rate
     }
+}
 
-    /// Returns whether a trace should be retained based on sampling rules.
-    ///
-    /// If [`SamplingResult::NoDecision`] is returned, then no rule matched this trace. In this
-    /// case, the caller may decide whether to keep the trace or not. The same is returned if the
-    /// configuration is invalid.
-    pub fn should_keep(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> SamplingResult {
-        if let Some(rule) = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace) {
-            let adjusted_sample_rate = self.adjusted_sample_rate(rule.sample_rate);
-            let rate = pseudo_random_from_uuid(self.trace_id);
-
-            if rate < adjusted_sample_rate {
-                SamplingResult::Keep
-            } else {
-                SamplingResult::Drop(rule.id)
-            }
-        } else {
-            SamplingResult::NoDecision
+pub fn get_matching_trace_rule<'a>(
+    config: &'a SamplingConfig,
+    sampling_context: &DynamicSamplingContext,
+    ip_addr: Option<IpAddr>,
+) -> Option<&'a SamplingRule> {
+    for rule in &config.rules {
+        if rule.ty == RuleType::Trace && rule.condition.matches(sampling_context, ip_addr) {
+            return Some(rule);
         }
     }
+
+    None
 }
 
-/// Returns the type of rule that applies to a particular event.
-pub fn rule_type_for_event(event: &Event) -> RuleType {
-    if let Some(EventType::Transaction) = &event.ty.0 {
-        RuleType::Transaction
-    } else {
-        RuleType::Error
-    }
-}
-
-/// Returns the first event rule that matches the event.
 pub fn get_matching_event_rule<'a>(
     config: &'a SamplingConfig,
     event: &Event,
     ip_addr: Option<IpAddr>,
-    ty: RuleType,
 ) -> Option<&'a SamplingRule> {
-    config
-        .rules
-        .iter()
-        .find(|rule| rule.ty == ty && rule.condition.matches_event(event, ip_addr))
-}
+    let ty = if let Some(EventType::Transaction) = &event.ty.0 {
+        RuleType::Transaction
+    } else {
+        RuleType::Error
+    };
 
-fn get_matching_trace_rule<'a>(
-    config: &'a SamplingConfig,
-    trace: &DynamicSamplingContext,
-    ip_addr: Option<IpAddr>,
-    ty: RuleType,
-) -> Option<&'a SamplingRule> {
-    config
-        .rules
-        .iter()
-        .find(|rule| rule.ty == ty && rule.condition.matches_trace(trace, ip_addr))
+    for rule in &config.rules {
+        if rule.ty == ty && rule.condition.matches(event, ip_addr) {
+            return Some(rule);
+        }
+    }
+
+    None
 }
 
 /// Generates a pseudo random number by seeding the generator with the given id.
@@ -1279,7 +1205,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(condition.matches_trace(&dsc, None), "{}", failure_name);
+            assert!(condition.matches(&dsc, None), "{}", failure_name);
         }
     }
 
@@ -1357,7 +1283,7 @@ mod tests {
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-            assert!(condition.matches_event(&evt, ip_addr), "{}", failure_name);
+            assert!(condition.matches(&evt, ip_addr), "{}", failure_name);
         }
     }
 
@@ -1376,7 +1302,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        assert!(condition.matches_event(&evt, None));
+        assert!(condition.matches(&evt, None));
     }
 
     #[test]
@@ -1397,7 +1323,7 @@ mod tests {
             }),
             ..Event::default()
         };
-        assert!(condition.matches_event(&evt, None));
+        assert!(condition.matches(&evt, None));
     }
 
     #[test]
@@ -1455,7 +1381,7 @@ mod tests {
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&dsc, None) == *expected,
+                condition.matches(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1517,7 +1443,7 @@ mod tests {
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&dsc, None) == *expected,
+                condition.matches(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1556,7 +1482,7 @@ mod tests {
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
             assert!(
-                condition.matches_trace(&dsc, None) == *expected,
+                condition.matches(&dsc, None) == *expected,
                 "{}",
                 failure_name
             );
@@ -1617,7 +1543,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{}'!!!", rule_test_name);
-            assert!(!condition.matches_trace(&dsc, None), "{}", failure_name);
+            assert!(!condition.matches(&dsc, None), "{}", failure_name);
         }
     }
 
@@ -1833,7 +1759,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches_trace(&dsc, None),
+            condition.matches(&dsc, None),
             "did not match with missing release"
         );
 
@@ -1853,7 +1779,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches_trace(&dsc, None),
+            condition.matches(&dsc, None),
             "did not match with missing user segment"
         );
 
@@ -1876,7 +1802,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches_trace(&dsc, None),
+            condition.matches(&dsc, None),
             "did not match with missing environment"
         );
 
@@ -1899,7 +1825,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches_trace(&dsc, None),
+            condition.matches(&dsc, None),
             "did not match with missing transaction"
         );
         let condition = and(vec![]);
@@ -1915,7 +1841,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches_trace(&dsc, None),
+            condition.matches(&dsc, None),
             "did not match with missing release, user segment, environment and transaction"
         );
     }
@@ -1996,7 +1922,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, None);
         // complete match with first rule
         assert_eq!(
             result.unwrap().id,
@@ -2018,7 +1944,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, None);
         // should mach the second rule because of the release
         assert_eq!(
             result.unwrap().id,
@@ -2040,7 +1966,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, None);
         // should match the third rule because of the unknown release
         assert_eq!(
             result.unwrap().id,
@@ -2062,7 +1988,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, None);
         // should match the fourth rule because of the unknown environment
         assert_eq!(
             result.unwrap().id,
@@ -2084,7 +2010,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
+        let result = get_matching_trace_rule(&rules, &trace_context, None);
         // should match the fourth rule because of the unknown user segment
         assert_eq!(
             result.unwrap().id,
