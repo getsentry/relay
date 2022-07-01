@@ -587,7 +587,7 @@ tuple_meta_structure!(11, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
 tuple_meta_structure!(12, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 
 #[cfg(test)]
-use crate::testutils::{assert_annotated_snapshot, assert_eq_dbg, assert_eq_str};
+use crate::testutils::{assert_eq_dbg, assert_eq_str};
 
 #[test]
 fn test_unsigned_integers() {

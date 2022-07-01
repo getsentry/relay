@@ -76,9 +76,7 @@ impl Processor for RemoveOtherProcessor {
 use {
     crate::processor::process_value,
     crate::protocol::ContextInner,
-    crate::testutils::{
-        assert_annotated_snapshot, assert_eq_dbg, assert_eq_str, get_path, get_value,
-    },
+    crate::testutils::{assert_eq_dbg, get_value},
 };
 
 #[test]
