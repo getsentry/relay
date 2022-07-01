@@ -388,6 +388,9 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
     }
 }
 
+#[cfg(test)]
+use crate::testutils::{assert_annotated_snapshot, assert_eq_dbg, assert_eq_str};
+
 #[test]
 fn test_string_trimming() {
     use crate::processor::MaxChars;

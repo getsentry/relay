@@ -81,7 +81,10 @@ pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> Processin
 }
 
 #[cfg(test)]
-use crate::types::Object;
+use {
+    crate::testutils::{assert_eq_dbg, assert_eq_str},
+    crate::types::Object,
+};
 
 #[test]
 fn test_format_python() {

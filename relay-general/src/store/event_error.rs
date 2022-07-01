@@ -63,6 +63,7 @@ impl Processor for EmitEventErrors {
 #[cfg(test)]
 use {
     crate::processor::process_value,
+    crate::testutils::{assert_eq_dbg, assert_eq_str},
     crate::types::{ErrorKind, Object, Value},
 };
 

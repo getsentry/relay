@@ -1084,6 +1084,8 @@ impl SecurityReportType {
 mod tests {
     use super::*;
 
+    use crate::testutils::{assert_annotated_snapshot, assert_eq_dbg, assert_eq_str};
+
     #[test]
     fn test_unsplit_uri() {
         assert_eq!(unsplit_uri("", ""), "");

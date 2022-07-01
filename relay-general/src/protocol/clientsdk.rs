@@ -64,6 +64,9 @@ pub struct ClientSdkInfo {
     pub other: Object<Value>,
 }
 
+#[cfg(test)]
+use crate::testutils::{assert_eq_dbg, assert_eq_str};
+
 #[test]
 fn test_client_sdk_roundtrip() {
     use crate::types::Map;

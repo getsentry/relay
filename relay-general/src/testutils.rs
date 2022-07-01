@@ -20,6 +20,8 @@ macro_rules! assert_eq_str {
     };
 }
 
+pub(crate) use assert_eq_str;
+
 macro_rules! assert_eq_bytes_str {
     ($left:expr, $right:expr) => {
         match (&$left, &$right) {
@@ -37,6 +39,8 @@ macro_rules! assert_eq_bytes_str {
     };
 }
 
+pub(crate) use assert_eq_bytes_str;
+
 macro_rules! assert_eq_dbg {
     ($left:expr, $right:expr) => {
         match (&$left, &$right) {
@@ -53,6 +57,8 @@ macro_rules! assert_eq_dbg {
         assert_eq_dbg!($left, $right)
     };
 }
+
+pub(crate) use assert_eq_dbg;
 
 macro_rules! assert_annotated_snapshot {
     ($value:expr, @$snapshot:literal) => {
@@ -92,6 +98,8 @@ macro_rules! assert_annotated_snapshot {
     };
 }
 
+pub(crate) use assert_annotated_snapshot;
+
 /// Returns `&Annotated<T>` for the annotated value at the given path.
 macro_rules! get_path {
     (@access $root:ident,) => {};
@@ -113,6 +121,8 @@ macro_rules! get_path {
     }};
 }
 
+pub(crate) use get_path;
+
 /// Returns `Option<&V>` for the value at the given path.
 macro_rules! get_value {
     (@access $root:ident,) => {};
@@ -133,6 +143,8 @@ macro_rules! get_value {
         $root
     }};
 }
+
+pub(crate) use get_value;
 
 #[cfg(feature = "uaparser")]
 /// Creates an Event with the specified user agent.

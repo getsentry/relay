@@ -78,6 +78,9 @@ pub struct User {
     pub other: Object<Value>,
 }
 
+#[cfg(test)]
+use crate::testutils::{assert_eq_dbg, assert_eq_str};
+
 #[test]
 fn test_geo_roundtrip() {
     use crate::types::Map;

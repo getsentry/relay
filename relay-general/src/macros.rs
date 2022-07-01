@@ -55,8 +55,7 @@ pub(crate) use derive_string_meta_structure;
 ///
 /// Usage:
 ///
-/// ```rust
-/// # use crate::macros::derive_fromstr_and_display;
+/// ```ignore
 /// // derive fail for this or whatever you need. The type must be ZST though.
 /// struct ValueTypeError;
 ///

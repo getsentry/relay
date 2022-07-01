@@ -174,6 +174,9 @@ where
     }
 }
 
+#[cfg(test)]
+use crate::testutils::assert_eq_dbg;
+
 #[test]
 fn test_chunk_split() {
     let remarks = vec![Remark::with_range(

@@ -235,6 +235,7 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
 mod tests {
     use super::*;
     use crate::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
+    use crate::testutils::{assert_eq_dbg, assert_eq_str};
     use crate::types::Object;
     use chrono::{TimeZone, Utc};
 

@@ -361,6 +361,7 @@ use {
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
         Request,
     },
+    crate::testutils::{assert_annotated_snapshot, assert_eq_dbg, assert_eq_str},
     crate::types::{Annotated, Object, Value},
 };
 

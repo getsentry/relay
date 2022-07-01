@@ -481,7 +481,10 @@ pub struct DebugMeta {
 }
 
 #[cfg(test)]
-use crate::types::Map;
+use {
+    crate::testutils::{assert_eq_dbg, assert_eq_str},
+    crate::types::Map,
+};
 
 #[test]
 fn test_debug_image_proguard_roundtrip() {
