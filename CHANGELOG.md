@@ -5,7 +5,7 @@
 **Features**:
 
 - Extract metrics also from trace-sampled transactions. ([#1317](https://github.com/getsentry/relay/pull/1317))
-
+- Support `transaction_info` on event payloads. ([#1330](https://github.com/getsentry/relay/pull/1330))
 
 **Bug Fixes**:
 
