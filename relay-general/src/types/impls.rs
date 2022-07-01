@@ -2,6 +2,7 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
+use crate::macros::derive_string_meta_structure;
 use crate::types::{
     Annotated, Array, Empty, Error, FromValue, IntoValue, Map, Meta, MetaMap, MetaTree, Object,
     SkipSerialization, Value,

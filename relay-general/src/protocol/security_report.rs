@@ -11,6 +11,7 @@ use serde::de::{Error, IgnoredAny};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::macros::derive_fromstr_and_display;
 use crate::protocol::{
     Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
 };

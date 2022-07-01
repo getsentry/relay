@@ -8,6 +8,7 @@ use schemars::schema::Schema;
 
 use serde::{Serialize, Serializer};
 
+use crate::macros::derive_string_meta_structure;
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
