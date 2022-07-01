@@ -13,9 +13,6 @@ pub enum TransactionSource {
     Custom,
     /// Raw URL, potentially containing identifiers.
     Url,
-    /// The SDK is configured to send a [`route`](Self::Route), but has to fall back to a raw URL
-    /// for this particular transaction.
-    UrlFallback,
     /// Parametrized URL or route.
     Route,
     /// Name of the view handling the request.
@@ -38,7 +35,6 @@ impl FromStr for TransactionSource {
         match s {
             "custom" => Ok(Self::Custom),
             "url" => Ok(Self::Url),
-            "url-fallback" => Ok(Self::UrlFallback),
             "route" => Ok(Self::Route),
             "view" => Ok(Self::View),
             "component" => Ok(Self::Component),
@@ -54,7 +50,6 @@ impl fmt::Display for TransactionSource {
         match self {
             Self::Custom => write!(f, "custom"),
             Self::Url => write!(f, "url"),
-            Self::UrlFallback => write!(f, "url-fallback"),
             Self::Route => write!(f, "route"),
             Self::View => write!(f, "view"),
             Self::Component => write!(f, "component"),
@@ -133,15 +128,6 @@ pub struct TransactionInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_url_fallback_roundtrip() {
-        let json = r#""url-fallback""#;
-        let source = Annotated::new(TransactionSource::UrlFallback);
-
-        assert_eq_dbg!(source, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, source.payload_to_json_pretty().unwrap());
-    }
 
     #[test]
     fn test_other_source_roundtrip() {
