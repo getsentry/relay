@@ -128,6 +128,7 @@ mod tests {
     use crate::pii::{DataScrubbingConfig, PiiConfig, PiiProcessor};
     use crate::processor::{process_value, ProcessingState};
     use crate::protocol::Event;
+    use crate::testutils::{assert_annotated_snapshot, assert_eq_dbg};
     use crate::types::FromValue;
 
     use super::to_pii_config as to_pii_config_impl;

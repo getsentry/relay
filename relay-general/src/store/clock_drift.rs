@@ -21,7 +21,7 @@ impl ClockCorrection {
     }
 
     fn at_least(self, lower_bound: Duration) -> Option<Self> {
-        if self.drift.num_seconds().abs() as u64 >= lower_bound.as_secs() {
+        if self.drift.num_seconds().unsigned_abs() >= lower_bound.as_secs() {
             Some(self)
         } else {
             None

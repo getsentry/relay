@@ -1,6 +1,7 @@
 //! Common facilities for ingesting events through store-like endpoints.
 
 use std::cell::RefCell;
+use std::fmt::Write;
 use std::rc::Rc;
 
 use actix::prelude::*;
@@ -472,11 +473,12 @@ pub fn normpath(route: &str) -> String {
     let mut pattern = String::new();
     for (i, segment) in route.trim_matches('/').split('/').enumerate() {
         // Apparently the leading slash needs to be explicit and cannot be part of a pattern
-        pattern.push_str(&format!(
+        let _ = write!(
+            pattern,
             "/{{multislash{i}:/*}}{segment}",
             i = i,
             segment = segment
-        ));
+        );
     }
 
     if route.ends_with('/') {

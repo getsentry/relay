@@ -72,6 +72,9 @@ impl std::ops::DerefMut for Tags {
     }
 }
 
+#[cfg(test)]
+use crate::testutils::{assert_eq_dbg, assert_eq_str};
+
 #[test]
 fn test_tags_from_object() {
     let json = r#"{

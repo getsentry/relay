@@ -5,6 +5,7 @@ use failure::Fail;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::macros::derive_fromstr_and_display;
 use crate::protocol::IpAddr;
 
 /// The type of session event we're dealing with.
@@ -294,6 +295,8 @@ impl SessionAggregates {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::testutils::{assert_eq_dbg, assert_eq_str};
 
     #[test]
     fn test_session_default_values() {

@@ -6,6 +6,7 @@ use enumset::{EnumSet, EnumSetType};
 use failure::Fail;
 use smallvec::SmallVec;
 
+use crate::macros::derive_fromstr_and_display;
 use crate::processor::{ProcessValue, SelectorPathItem, SelectorSpec};
 use crate::types::Annotated;
 

@@ -8,6 +8,7 @@ use schemars::schema::Schema;
 
 use serde::{Serialize, Serializer};
 
+use crate::macros::derive_string_meta_structure;
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
@@ -531,6 +532,9 @@ pub struct Event {
     #[metastructure(additional_properties, pii = "true")]
     pub other: Object<Value>,
 }
+
+#[cfg(test)]
+use crate::testutils::{assert_eq_dbg, assert_eq_str};
 
 #[test]
 fn test_event_roundtrip() {

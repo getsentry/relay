@@ -507,6 +507,7 @@ mod tests {
     use itertools::Itertools;
 
     use crate::pii::PiiConfig;
+    use crate::testutils::assert_eq_bytes_str;
 
     use super::*;
 
