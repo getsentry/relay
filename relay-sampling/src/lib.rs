@@ -821,7 +821,7 @@ impl DynamicSamplingContext {
     pub fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
         let client_sample_rate = self.sample_rate.unwrap_or(1.0);
 
-        if client_sample_rate == 0.0 {
+        if client_sample_rate <= 0.0 {
             // client_sample_rate is 0, which is bogus because the SDK should've dropped the
             // envelope. In that case let's pretend the sample rate was not sent, because clearly
             // the sampling decision across the trace is still 1. The most likely explanation is
@@ -830,7 +830,7 @@ impl DynamicSamplingContext {
             //
             // since we write back the client_sample_rate into the event's trace context, it should
             // be possible to find those values + sdk versions via snuba
-            relay_log::warn!("adjusted sample rate ended up being nan");
+            relay_log::warn!("client sample rate is <= 0");
             rule_sample_rate
         } else {
             let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
@@ -2250,7 +2250,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_sample_rate_integer() {
+    fn test_parse_sample_rate_number() {
         let json = r#"
         {
             "trace_id": "00000000-0000-0000-0000-000000000000",
@@ -2263,11 +2263,24 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_sample_rate_negative() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "-0.1"
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
     fn test_adjust_sample_rate() {
         let mut dsc = default_sampling_context();
 
         dsc.sample_rate = Some(0.0);
-        assert_eq!(dsc.adjusted_sample_rate(0.5), 1.0);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
 
         dsc.sample_rate = Some(1.0);
         assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
@@ -2277,5 +2290,8 @@ mod tests {
 
         dsc.sample_rate = Some(0.5);
         assert_eq!(dsc.adjusted_sample_rate(0.1), 0.2);
+
+        dsc.sample_rate = Some(-0.5);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
     }
 }
