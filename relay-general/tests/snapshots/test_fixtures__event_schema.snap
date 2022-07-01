@@ -2849,33 +2849,16 @@ expression: event_json_schema()
     },
     "TransactionSource": {
       "description": "Describes how the name of the transaction was determined.",
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "custom",
-            "url",
-            "url-fallback",
-            "route",
-            "view",
-            "component",
-            "task",
-            "unknown"
-          ]
-        },
-        {
-          "description": "Any other unknown source that is not explicitly defined above.",
-          "type": "object",
-          "required": [
-            "other"
-          ],
-          "properties": {
-            "other": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
-        }
+      "type": "string",
+      "enum": [
+        "custom",
+        "url",
+        "url-fallback",
+        "route",
+        "view",
+        "component",
+        "task",
+        "unknown"
       ]
     },
     "User": {

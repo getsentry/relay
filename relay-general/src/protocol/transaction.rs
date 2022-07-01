@@ -27,6 +27,7 @@ pub enum TransactionSource {
     /// This is the default value set by Relay for legacy SDKs.
     Unknown,
     /// Any other unknown source that is not explicitly defined above.
+    #[schemars(skip)]
     Other(String),
 }
 
