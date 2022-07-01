@@ -134,6 +134,18 @@ impl<'a> NormalizeProcessor<'a> {
         }
     }
 
+    fn normalize_trace_context(&self, event: &mut Event) {
+        if let Some(client_sample_rate) = self.config.client_sample_rate {
+            if let Some(ref mut contexts) = event.contexts.value_mut() {
+                if let Some(Context::Trace(ref mut trace_context)) =
+                    contexts.get_context_mut("trace")
+                {
+                    trace_context.client_sample_rate = Annotated::from(client_sample_rate);
+                }
+            }
+        }
+    }
+
     /// Ensures that the `release` and `dist` fields match up.
     fn normalize_release_dist(&self, event: &mut Event) {
         normalize_dist(event.dist.value_mut());
@@ -509,6 +521,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         self.normalize_measurements(event);
         self.normalize_breakdowns(event);
         self.normalize_spans(event);
+        self.normalize_trace_context(event);
 
         Ok(())
     }

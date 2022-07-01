@@ -582,7 +582,6 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
         event = received_envelope.get_event()
     else:
         event = received_envelope.get_transaction_event()
-    assert event["contexts"]["trace"]["client_sample_rate"] == SAMPLE_RATE
 
     envelope, trace_id, event_id = event_factory(public_key, client_sample_rate=1.0)
 

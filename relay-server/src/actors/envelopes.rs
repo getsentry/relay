@@ -27,9 +27,9 @@ use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    self, Breadcrumb, ClientReport, Context as EventContext, Csp, Event, EventId, EventType,
-    ExpectCt, ExpectStaple, Hpkp, IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType,
-    SessionAggregates, SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
+    self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
+    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
+    SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -1522,18 +1522,6 @@ impl EnvelopeProcessor {
             event._metrics = Annotated::new(metrics);
         }
 
-        if let Some(sampling_context) = envelope.sampling_context() {
-            if let Some(client_sample_rate) = sampling_context.sample_rate {
-                if let Some(ref mut contexts) = event.contexts.value_mut() {
-                    if let Some(EventContext::Trace(ref mut trace_context)) =
-                        contexts.get_context_mut("trace")
-                    {
-                        trace_context.client_sample_rate = Annotated::from(client_sample_rate);
-                    }
-                }
-            }
-        }
-
         // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
         // clock drift correction that assumes the event timestamp is the sent_at time. This
         // should be removed as soon as legacy ingestion has been removed.
@@ -1604,6 +1592,7 @@ impl EnvelopeProcessor {
             received_at: Some(envelope_context.received_at),
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
+            client_sample_rate: envelope.sampling_context().and_then(|ctx| ctx.sample_rate),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_deref());
