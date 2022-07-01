@@ -2230,7 +2230,7 @@ mod tests {
             "sample_rate": "1e-5"
         }
         "#;
-        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
     }
 
     #[test]
