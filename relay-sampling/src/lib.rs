@@ -818,7 +818,7 @@ pub struct DynamicSamplingContext {
 impl DynamicSamplingContext {
     /// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
     /// the matching rule.
-    pub fn adjust_sample_rate(&self, rule_sample_rate: f64) -> f64 {
+    pub fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
         let client_sample_rate = self.sample_rate.unwrap_or(1.0);
         let mut adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
 
@@ -848,7 +848,7 @@ impl DynamicSamplingContext {
     /// configuration is invalid.
     pub fn should_keep(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> SamplingResult {
         if let Some(rule) = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace) {
-            let adjusted_sample_rate = self.adjust_sample_rate(rule.sample_rate);
+            let adjusted_sample_rate = self.adjusted_sample_rate(rule.sample_rate);
             let rate = pseudo_random_from_uuid(self.trace_id);
 
             if rate < adjusted_sample_rate {
@@ -2264,15 +2264,15 @@ mod tests {
         let mut dsc = default_sampling_context();
 
         dsc.sample_rate = Some(0.0);
-        assert_eq!(dsc.adjust_sample_rate(0.5), 1.0);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 1.0);
 
         dsc.sample_rate = Some(1.0);
-        assert_eq!(dsc.adjust_sample_rate(0.5), 0.5);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
 
         dsc.sample_rate = Some(0.1);
-        assert_eq!(dsc.adjust_sample_rate(0.5), 1.0);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 1.0);
 
         dsc.sample_rate = Some(0.5);
-        assert_eq!(dsc.adjust_sample_rate(0.1), 0.2);
+        assert_eq!(dsc.adjusted_sample_rate(0.1), 0.2);
     }
 }

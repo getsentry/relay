@@ -40,7 +40,7 @@ pub fn should_keep_event(
     let ty = rule_type_for_event(event);
     if let Some(rule) = get_matching_event_rule(sampling_config, event, ip_addr, ty) {
         let adjusted_sample_rate = if let Some(sampling_context) = sampling_context {
-            sampling_context.adjust_sample_rate(rule.sample_rate)
+            sampling_context.adjusted_sample_rate(rule.sample_rate)
         } else {
             rule.sample_rate
         };
