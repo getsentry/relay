@@ -820,25 +820,28 @@ impl DynamicSamplingContext {
     /// the matching rule.
     pub fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
         let client_sample_rate = self.sample_rate.unwrap_or(1.0);
-        let mut adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
 
-        if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
-            // adjusted_sample_rate is infinite or NaN. This is a bug.
-            //
-            // - infinite should not happen because we clamped the number.
-            // - NaN can happen if the client_sample_rate is 0, which is bogus because the SDK
-            //   should've dropped the envelope. In that case let's pretend the sample rate was
-            //   not sent, because clearly the sampling decision across the trace is still 1.
-            //   The most likely explanation is that the SDK is reporting its own sample rate
-            //   setting instead of the one from the continued trace.
+        if client_sample_rate == 0.0 {
+            // client_sample_rate is 0, which is bogus because the SDK should've dropped the
+            // envelope. In that case let's pretend the sample rate was not sent, because clearly
+            // the sampling decision across the trace is still 1. The most likely explanation is
+            // that the SDK is reporting its own sample rate setting instead of the one from the
+            // continued trace.
             //
             // since we write back the client_sample_rate into the event's trace context, it should
             // be possible to find those values + sdk versions via snuba
-            relay_log::warn!("adjusted sample rate ended up being inf/nan");
-            adjusted_sample_rate = 1.0;
+            relay_log::warn!("adjusted sample rate ended up being nan");
+            rule_sample_rate
+        } else {
+            let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
+            if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
+                relay_log::error!("adjusted sample rate ended up being nan/inf");
+                debug_assert!(false);
+                rule_sample_rate
+            } else {
+                adjusted_sample_rate
+            }
         }
-
-        adjusted_sample_rate
     }
 
     /// Returns whether a trace should be retained based on sampling rules.
