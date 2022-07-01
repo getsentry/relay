@@ -366,6 +366,7 @@ mod tests {
     use crate::pii::processor::PiiProcessor;
     use crate::pii::{Redaction, ReplaceRedaction};
     use crate::processor::{process_value, ProcessingState, ValueType};
+    use crate::testutils::{assert_eq_dbg, assert_eq_str};
     use crate::types::{Annotated, Remark, RemarkType};
 
     use super::{BUILTIN_RULES, BUILTIN_RULES_MAP};

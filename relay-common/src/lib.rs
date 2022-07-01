@@ -5,7 +5,6 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-#[macro_use]
 mod macros;
 
 mod cell;
@@ -19,6 +18,7 @@ mod utils;
 pub use crate::cell::*;
 pub use crate::constants::*;
 pub use crate::glob::*;
+pub use crate::macros::*;
 pub use crate::project::*;
 pub use crate::retry::*;
 pub use crate::time::*;

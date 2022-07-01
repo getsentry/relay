@@ -105,6 +105,7 @@ fn verify_value_characters(
 mod tests {
     use super::SchemaProcessor;
     use crate::processor::{process_value, ProcessingState};
+    use crate::testutils::assert_eq_dbg;
     use crate::types::{Annotated, Array, Error, Object};
 
     fn assert_nonempty_base<T>()

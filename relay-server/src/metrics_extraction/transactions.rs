@@ -43,6 +43,14 @@ struct SatisfactionConfig {
     transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
 }
 
+/// Configuration for extracting custom measurements from transaction payloads.
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CustomMeasurementConfig {
+    /// The maximum number of custom measurements to extract. Defaults to zero.
+    limit: usize,
+}
+
 /// Configuration for extracting metrics from transaction payloads.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -50,6 +58,7 @@ pub struct TransactionMetricsConfig {
     extract_metrics: BTreeSet<String>,
     extract_custom_tags: BTreeSet<String>,
     satisfaction_thresholds: Option<SatisfactionConfig>,
+    custom_measurements: CustomMeasurementConfig,
 }
 
 #[cfg(feature = "processing")]
@@ -268,9 +277,19 @@ pub fn extract_transaction_metrics(
 
     let before_len = target.len();
 
+    let mut custom_measurement_budget = config.custom_measurements.limit;
     let push_metric = |metric: Metric| {
         if config.extract_metrics.contains(&metric.name) {
+            // Anything in config.extract_metrics is considered a known / builtin metric,
+            // as opposed to custom measurements.
             target.push(metric);
+        } else if custom_measurement_budget > 0
+            && metric.name.starts_with("d:transactions/measurements.")
+        {
+            // We allow a fixed amount of custom measurements in addition to
+            // the known / builtin metrics.
+            target.push(metric);
+            custom_measurement_budget -= 1;
         } else {
             relay_log::trace!("dropping metric {} because of allow-list", metric.name);
         }
@@ -445,6 +464,7 @@ mod tests {
     use super::*;
 
     use crate::metrics_extraction::TaggingRule;
+    use insta::assert_debug_snapshot;
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
@@ -870,6 +890,81 @@ mod tests {
             assert_eq!(metric.tags.len(), 2);
             assert!(!metric.tags.contains_key("satisfaction"));
         }
+    }
+
+    #[test]
+    fn test_custom_measurements() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:02+0100",
+            "measurements": {
+                "a_custom1": {"value": 41},
+                "fcp": {"value": 0.123},
+                "g_custom2": {"value": 42, "unit": "second"},
+                "h_custom3": {"value": 43}
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/measurements.fcp@millisecond"
+            ],
+            "customMeasurements": {
+                "limit": 2
+            }
+        }
+        "#,
+        )
+        .unwrap();
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_debug_snapshot!(metrics, @r###"
+            [
+                Metric {
+                    name: "d:transactions/measurements.a_custom1@none",
+                    value: Distribution(
+                        41.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "platform": "other",
+                        "transaction": "foo",
+                    },
+                },
+                Metric {
+                    name: "d:transactions/measurements.fcp@millisecond",
+                    value: Distribution(
+                        0.123,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "measurement_rating": "good",
+                        "platform": "other",
+                        "transaction": "foo",
+                    },
+                },
+                Metric {
+                    name: "d:transactions/measurements.g_custom2@second",
+                    value: Distribution(
+                        42.0,
+                    ),
+                    timestamp: UnixTimestamp(1619420402),
+                    tags: {
+                        "platform": "other",
+                        "transaction": "foo",
+                    },
+                },
+            ]
+        "###);
     }
 
     #[test]

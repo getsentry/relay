@@ -173,7 +173,7 @@ pub fn normalize_context(context: &mut Context) {
 }
 
 #[cfg(test)]
-use crate::protocol::LenientString;
+use {crate::protocol::LenientString, crate::testutils::assert_eq_dbg};
 
 #[test]
 fn test_dotnet_framework_48_without_build_id() {

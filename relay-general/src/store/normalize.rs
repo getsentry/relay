@@ -732,6 +732,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 use crate::{
     processor::process_value,
     protocol::{PairList, TagEntry},
+    testutils::{assert_eq_dbg, get_path, get_value},
 };
 
 #[cfg(test)]

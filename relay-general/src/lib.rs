@@ -12,11 +12,9 @@
 #[macro_use]
 extern crate relay_general_derive;
 
-#[macro_use]
 mod macros;
 
 #[cfg(test)]
-#[macro_use]
 mod testutils;
 
 pub mod pii;

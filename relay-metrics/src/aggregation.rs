@@ -1,7 +1,7 @@
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 use std::fmt;
-use std::iter::FromIterator;
+use std::iter::{FromIterator, FusedIterator};
 use std::mem;
 use std::time::{Duration, Instant};
 
@@ -23,6 +23,14 @@ use crate::{
 
 /// Interval for the flush cycle of the [`Aggregator`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
+
+/// The average size of values when serialized.
+const AVG_VALUE_SIZE: usize = 8;
+
+/// The fraction of [`AggregatorConfig::max_flush_bytes`] at which buckets will be split. A value of
+/// `2` means that all buckets smaller than half of max_flush_bytes will be moved in their entirety,
+/// and buckets larger will be split up.
+const BUCKET_SPLIT_FACTOR: usize = 32;
 
 /// A snapshot of values within a [`Bucket`].
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
@@ -295,18 +303,34 @@ impl fmt::Debug for DistributionValue {
 }
 
 impl Extend<f64> for DistributionValue {
-    fn extend<T: IntoIterator<Item = f64>>(&mut self, iter: T) {
+    fn extend<T: IntoIterator<Item = DistributionType>>(&mut self, iter: T) {
         for value in iter.into_iter() {
             self.insert(value);
         }
     }
 }
 
-impl Extend<(f64, Count)> for DistributionValue {
+impl Extend<(DistributionType, Count)> for DistributionValue {
     fn extend<T: IntoIterator<Item = (DistributionType, Count)>>(&mut self, iter: T) {
         for (value, count) in iter.into_iter() {
             self.insert_multi(value, count);
         }
+    }
+}
+
+impl FromIterator<DistributionType> for DistributionValue {
+    fn from_iter<T: IntoIterator<Item = DistributionType>>(iter: T) -> Self {
+        let mut value = Self::default();
+        value.extend(iter);
+        value
+    }
+}
+
+impl FromIterator<(DistributionType, Count)> for DistributionValue {
+    fn from_iter<T: IntoIterator<Item = (DistributionType, Count)>>(iter: T) -> Self {
+        let mut value = Self::default();
+        value.extend(iter);
+        value
     }
 }
 
@@ -508,9 +532,25 @@ impl BucketValue {
         }
     }
 
+    /// Returns the number of raw data points in this value.
+    pub fn len(&self) -> usize {
+        match self {
+            BucketValue::Counter(_) => 1,
+            BucketValue::Distribution(distribution) => distribution.len() as usize,
+            BucketValue::Set(set) => set.len(),
+            BucketValue::Gauge(_) => 5,
+        }
+    }
+
+    /// Returns `true` if this bucket contains no values.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Estimates the number of bytes needed to encode the bucket value.
+    ///
     /// Note that this does not necessarily match the exact memory footprint of the value,
-    /// because datastructures might have a memory overhead.
+    /// because data structures have a memory overhead.
     pub fn cost(&self) -> usize {
         // Beside the size of [`BucketValue`], we also need to account for the cost of values
         // allocated dynamically.
@@ -584,6 +624,14 @@ impl MergeValue for MetricValue {
 
         Ok(())
     }
+}
+
+/// Estimates the number of bytes needed to encode the tags.
+///
+/// Note that this does not necessarily match the exact memory footprint of the tags,
+/// because data structures or their serialization have overheads.
+fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
+    tags.iter().map(|(k, v)| k.capacity() + v.capacity()).sum()
 }
 
 /// Error returned when parsing or serializing a [`Bucket`].
@@ -711,6 +759,78 @@ impl Bucket {
     pub fn serialize_all(buckets: &[Self]) -> Result<String, ParseBucketError> {
         serde_json::to_string(&buckets).map_err(ParseBucketError)
     }
+
+    /// Splits this bucket if its estimated serialization size exceeds a threshold.
+    ///
+    /// There are three possible return values:
+    ///  - `(Some, None)` if the bucket fits entirely into the size budget. There is no split.
+    ///  - `(None, Some)` if the size budget cannot even hold the bucket name and tags. There is no
+    ///    split, the entire bucket is moved.
+    ///  - `(Some, Some)` if the bucket fits partially. Remaining values are moved into a new bucket
+    ///    with all other information cloned.
+    ///
+    /// This is an approximate function. The bucket is not actually serialized, but rather its
+    /// footprint is estimated through the number of data points contained. See
+    /// [`estimated_size`](Self::estimated_size) for more information.
+    fn split_at(mut self, size: usize) -> (Option<Bucket>, Option<Bucket>) {
+        // If there's enough space for the entire bucket, do not perform a split.
+        if size >= self.estimated_size() {
+            return (Some(self), None);
+        }
+
+        // If the bucket key can't even fit into the remaining length, move the entire bucket into
+        // the right-hand side.
+        let own_size = self.estimated_own_size();
+        if size < own_size {
+            return (None, Some(self));
+        }
+
+        // Perform a split with the remaining space after adding the key. We assume an average
+        // length of 8 bytes per value and compute the number of items fitting into the left side.
+        let split_at = (size - own_size) / AVG_VALUE_SIZE;
+
+        match self.value {
+            BucketValue::Counter(_) => (None, Some(self)),
+            BucketValue::Distribution(ref mut distribution) => {
+                let org = std::mem::take(distribution);
+                let mut new_bucket = self.clone();
+
+                let mut iter = org.iter_values();
+                self.value = BucketValue::Distribution((&mut iter).take(split_at).collect());
+                new_bucket.value = BucketValue::Distribution(iter.collect());
+
+                (Some(self), Some(new_bucket))
+            }
+            BucketValue::Set(ref mut set) => {
+                let org = std::mem::take(set);
+                let mut new_bucket = self.clone();
+
+                let mut iter = org.into_iter();
+                self.value = BucketValue::Set((&mut iter).take(split_at).collect());
+                new_bucket.value = BucketValue::Set(iter.collect());
+
+                (Some(self), Some(new_bucket))
+            }
+            BucketValue::Gauge(_) => (None, Some(self)),
+        }
+    }
+
+    /// Estimates the number of bytes needed to serialize the bucket without value.
+    ///
+    /// Note that this does not match the exact size of the serialized payload. Instead, the size is
+    /// approximated through tags and a static overhead.
+    fn estimated_own_size(&self) -> usize {
+        50 + self.name.len() + tags_cost(&self.tags)
+    }
+
+    /// Estimates the number of bytes needed to serialize the bucket.
+    ///
+    /// Note that this does not match the exact size of the serialized payload. Instead, the size is
+    /// approximated through the number of contained values, assuming an average size of serialized
+    /// values.
+    fn estimated_size(&self) -> usize {
+        self.estimated_own_size() + self.value.len() * AVG_VALUE_SIZE
+    }
 }
 
 /// Any error that may occur during aggregation.
@@ -779,15 +899,11 @@ impl BucketKey {
     }
 
     /// Estimates the number of bytes needed to encode the bucket key.
+    ///
     /// Note that this does not necessarily match the exact memory footprint of the key,
-    /// because datastructures might have a memory overhead.
+    /// because data structures have a memory overhead.
     fn cost(&self) -> usize {
-        mem::size_of::<Self>()
-            + self.metric_name.capacity()
-            + self
-                .tags
-                .iter()
-                .fold(0, |acc, (k, v)| acc + k.capacity() + v.capacity())
+        mem::size_of::<Self>() + self.metric_name.capacity() + tags_cost(&self.tags)
     }
 }
 
@@ -819,6 +935,14 @@ pub struct AggregatorConfig {
     /// Unlike `initial_delay`, the debounce delay starts with the exact moment the first metric
     /// is added to a backdated bucket.
     pub debounce_delay: u64,
+
+    /// The approximate maximum number of bytes submitted within one flush cycle.
+    ///
+    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
+    /// the cumulative length of their keys, and the number of raw values. Since final serialization
+    /// adds some additional overhead, this number is approxmate and some safety margin should be
+    /// left to hard limits.
+    pub max_flush_bytes: usize,
 
     /// The age in seconds of the oldest allowed bucket timestamp.
     ///
@@ -955,6 +1079,7 @@ impl Default for AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 30,
             debounce_delay: 10,
+            max_flush_bytes: 50_000_000,        // 50 MB
             max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
             max_secs_in_future: 60,             // 1 minute
             max_name_length: 200,
@@ -1163,6 +1288,75 @@ impl fmt::Debug for CostTracker {
             .finish()
     }
 }
+
+/// An iterator returning batches of buckets fitting into a size budget.
+///
+/// The size budget is given through `max_flush_bytes`, though this is an approximate number. On
+/// every iteration, this iterator returns a `Vec<Bucket>` which serializes into a buffer of the
+/// specified size. Buckets at the end of each batch may be split to fit into the batch.
+///
+/// Since this uses an approximate function to estimate the size of buckets, the actual serialized
+/// payload may exceed the size. The estimation function is built in a way to guarantee the same
+/// order of magnitude.
+struct CappedBucketIter {
+    buckets: std::vec::IntoIter<Bucket>,
+    next_bucket: Option<Bucket>,
+    max_flush_bytes: usize,
+}
+
+impl CappedBucketIter {
+    pub fn new(buckets: Vec<Bucket>, max_flush_bytes: usize) -> Self {
+        let mut buckets = buckets.into_iter();
+        let next_bucket = buckets.next();
+
+        Self {
+            buckets,
+            next_bucket,
+            max_flush_bytes,
+        }
+    }
+}
+
+impl Iterator for CappedBucketIter {
+    type Item = Vec<Bucket>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut current_batch = Vec::new();
+        let mut remaining_bytes = self.max_flush_bytes;
+
+        while let Some(bucket) = self.next_bucket.take() {
+            let bucket_size = bucket.estimated_size();
+            if bucket_size <= remaining_bytes {
+                // the bucket fits
+                remaining_bytes -= bucket_size;
+                current_batch.push(bucket);
+                self.next_bucket = self.buckets.next();
+            } else if bucket_size < self.max_flush_bytes / BUCKET_SPLIT_FACTOR {
+                // the bucket is too small to split, move it entirely
+                self.next_bucket = Some(bucket);
+                break;
+            } else {
+                // the bucket is big enough to split
+                let (left, right) = bucket.split_at(remaining_bytes);
+                if let Some(left) = left {
+                    current_batch.push(left);
+                }
+
+                self.next_bucket = right;
+                break;
+            }
+        }
+
+        if current_batch.is_empty() {
+            self.next_bucket = None; // fuse
+            None
+        } else {
+            Some(current_batch)
+        }
+    }
+}
+
+impl FusedIterator for CappedBucketIter {}
 
 /// A collector of [`Metric`] submissions.
 ///
@@ -1556,21 +1750,23 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            self.receiver
-                .send(FlushBuckets::new(project_key, project_buckets))
-                .into_actor(self)
-                .and_then(move |result, slf, _ctx| {
-                    if let Err(buckets) = result {
-                        relay_log::trace!(
-                            "returned {} buckets from receiver, merging back",
-                            buckets.len()
-                        );
-                        slf.merge_all(project_key, buckets).ok();
-                    }
-                    fut::ok(())
-                })
-                .drop_err()
-                .spawn(context);
+            for batch in CappedBucketIter::new(project_buckets, self.config.max_flush_bytes) {
+                self.receiver
+                    .send(FlushBuckets::new(project_key, batch))
+                    .into_actor(self)
+                    .and_then(move |result, slf, _ctx| {
+                        if let Err(buckets) = result {
+                            relay_log::trace!(
+                                "returned {} buckets from receiver, merging back",
+                                buckets.len()
+                            );
+                            slf.merge_all(project_key, buckets).ok();
+                        }
+                        fut::ok(())
+                    })
+                    .drop_err()
+                    .spawn(context);
+            }
         }
 
         relay_statsd::metric!(histogram(MetricHistograms::BucketsFlushed) = total_bucket_count);
@@ -1773,6 +1969,7 @@ mod tests {
             bucket_interval: 1,
             initial_delay: 0,
             debounce_delay: 0,
+            max_flush_bytes: 50_000_000,
             max_secs_in_past: 50 * 365 * 24 * 60 * 60,
             max_secs_in_future: 50 * 365 * 24 * 60 * 60,
             max_name_length: 200,
@@ -2383,6 +2580,78 @@ mod tests {
 
         aggregator.pop_flush_buckets();
         assert_eq!(aggregator.cost_tracker.total_cost, 0);
+    }
+
+    #[test]
+    fn test_capped_iter_empty() {
+        let buckets = vec![];
+
+        let mut iter = CappedBucketIter::new(buckets, 200);
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_capped_iter_single() {
+        let json = r#"[
+          {
+            "name": "endpoint.response_time",
+            "unit": "millisecond",
+            "value": [36, 49, 57, 68],
+            "type": "d",
+            "timestamp": 1615889440,
+            "width": 10,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+
+        let mut iter = CappedBucketIter::new(buckets, 200);
+        let batch = iter.next().unwrap();
+        assert_eq!(batch.len(), 1);
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_capped_iter_split() {
+        let json = r#"[
+          {
+            "name": "endpoint.response_time",
+            "unit": "millisecond",
+            "value": [1, 1, 1, 1],
+            "type": "d",
+            "timestamp": 1615889440,
+            "width": 10,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+
+        // 58 is a magic number obtained by experimentation that happens to split this bucket
+        let mut iter = CappedBucketIter::new(buckets, 108);
+        let batch1 = iter.next().unwrap();
+        assert_eq!(batch1.len(), 1);
+
+        match batch1.first().unwrap().value {
+            BucketValue::Distribution(ref dist) => assert_eq!(dist.len(), 2),
+            _ => unreachable!(),
+        }
+
+        let batch2 = iter.next().unwrap();
+        assert_eq!(batch2.len(), 1);
+
+        match batch2.first().unwrap().value {
+            BucketValue::Distribution(ref dist) => assert_eq!(dist.len(), 2),
+            _ => unreachable!(),
+        }
+
+        assert!(iter.next().is_none());
     }
 
     #[test]

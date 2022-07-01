@@ -189,10 +189,7 @@ pub fn normalize_request(request: &mut Request) -> ProcessingResult {
 }
 
 #[cfg(test)]
-use crate::protocol::PairList;
-
-#[cfg(test)]
-use crate::types::Object;
+use {crate::protocol::PairList, crate::testutils::assert_eq_dbg, crate::types::Object};
 
 #[test]
 fn test_url_truncation() {

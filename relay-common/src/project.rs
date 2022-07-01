@@ -1,6 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
 
+use crate::macros::impl_str_serde;
+
 #[doc(inline)]
 pub use sentry_types::{ParseProjectIdError, ProjectId};
 

@@ -744,6 +744,9 @@ impl FromValue for Contexts {
     }
 }
 
+#[cfg(test)]
+use crate::testutils::{assert_eq_dbg, assert_eq_str};
+
 #[test]
 fn test_device_context_roundtrip() {
     let json = r#"{

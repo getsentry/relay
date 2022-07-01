@@ -184,6 +184,7 @@ mod tests {
 
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId};
+    use crate::testutils::{assert_annotated_snapshot, assert_eq_dbg};
     use crate::types::Object;
 
     fn new_test_event() -> Annotated<Event> {
