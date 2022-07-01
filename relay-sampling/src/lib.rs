@@ -798,7 +798,7 @@ pub struct DynamicSamplingContext {
     /// Set on transaction start, or via `scope.transaction`.
     #[serde(default)]
     pub transaction: Option<String>,
-    /// The sample rate with which this trace was sampled in the SDK. This is a float between 0 and
+    /// The sample rate with which this trace was sampled in the client. This is a float between 0 and
     /// 1.
     #[serde(
         default,
