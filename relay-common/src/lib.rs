@@ -13,7 +13,6 @@ mod constants;
 mod glob;
 mod project;
 mod retry;
-mod serde;
 mod time;
 mod utils;
 
@@ -22,7 +21,6 @@ pub use crate::constants::*;
 pub use crate::glob::*;
 pub use crate::project::*;
 pub use crate::retry::*;
-pub use crate::serde::*;
 pub use crate::time::*;
 pub use crate::utils::*;
 

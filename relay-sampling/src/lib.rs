@@ -10,10 +10,10 @@ use std::net::IpAddr;
 
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
 
-use relay_common::{as_string, EventType, ProjectKey, Uuid};
+use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::{Context, Event};
 use relay_general::store;
@@ -726,6 +726,55 @@ impl<'de> Deserialize<'de> for TraceUserContext {
     }
 }
 
+mod sample_rate_as_string {
+    use super::*;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // be super-strict with what kind of integers are accepted
+        let value = match Option::<String>::deserialize(deserializer)? {
+            Some(value) => value,
+            None => return Ok(None),
+        };
+
+        if !value.as_bytes().first().map_or(false, u8::is_ascii_digit) {
+            return Err(serde::de::Error::custom(
+                "first character needs to be ascii digit",
+            ));
+        }
+
+        if !value.as_bytes().last().map_or(false, u8::is_ascii_digit) {
+            return Err(serde::de::Error::custom(
+                "last character needs to be ascii digit",
+            ));
+        }
+
+        for b in value.as_bytes() {
+            if !b.is_ascii_digit() && *b != b'.' {
+                return Err(serde::de::Error::custom("invalid characters"));
+            }
+        }
+
+        let parsed_value = value
+            .parse::<f64>()
+            .map_err(|e| serde::de::Error::custom(e.to_string()))?;
+
+        Ok(Some(parsed_value))
+    }
+
+    pub fn serialize<S>(value: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value {
+            Some(float) => float.to_string().serialize(serializer),
+            None => value.serialize(serializer),
+        }
+    }
+}
+
 /// DynamicSamplingContext created by the first Sentry SDK in the call chain.
 ///
 /// Because SDKs need to funnel this data through the baggage header, this needs to be
@@ -751,7 +800,11 @@ pub struct DynamicSamplingContext {
     pub transaction: Option<String>,
     /// The sample rate with which this trace was sampled in the SDK. This is a float between 0 and
     /// 1.
-    #[serde(default, with = "as_string", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        with = "sample_rate_as_string",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sample_rate: Option<f64>,
     /// The user specific identifier ( e.g. a user segment, or similar created by the SDK
     /// from the user object).
@@ -2169,8 +2222,6 @@ mod tests {
 
     #[test]
     fn test_parse_sample_rate_scientific_notation() {
-        // we don't really want SDKs to send this because it's not on the spec, but if they do we
-        // should serialize into non-scientific notation for maximum compat
         let json = r#"
         {
             "trace_id": "00000000-0000-0000-0000-000000000000",
@@ -2179,18 +2230,7 @@ mod tests {
             "sample_rate": "1e-5"
         }
         "#;
-        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        assert_ron_snapshot!(dsc, @r###"
-        {
-          "trace_id": "00000000-0000-0000-0000-000000000000",
-          "public_key": "abd0f232775f45feab79864e580d160b",
-          "release": None,
-          "environment": None,
-          "transaction": None,
-          "sample_rate": "0.00001",
-          "user_id": "hello",
-        }
-        "###);
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
     }
 
     #[test]
@@ -2208,8 +2248,6 @@ mod tests {
 
     #[test]
     fn test_parse_sample_rate_integer() {
-        // we don't want SDKs to send sample_rate as integer (it should be string), but if they do,
-        // we should not just fail parsing
         let json = r#"
         {
             "trace_id": "00000000-0000-0000-0000-000000000000",
@@ -2218,19 +2256,7 @@ mod tests {
             "sample_rate": 0.1
         }
         "#;
-        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        assert_ron_snapshot!(dsc, @r###"
-        {
-          "trace_id": "00000000-0000-0000-0000-000000000000",
-          "public_key": "abd0f232775f45feab79864e580d160b",
-          "release": None,
-          "environment": None,
-          "transaction": None,
-          "sample_rate": "0.1",
-          "user_id": "hello",
-        }
-        "###);
-        assert_eq!(dsc.sample_rate, Some(0.1));
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
     }
 
     #[test]
