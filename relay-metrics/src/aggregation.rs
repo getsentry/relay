@@ -789,7 +789,7 @@ impl Bucket {
 
         // If the bucket key can't even fit into the remaining length, move the entire bucket into
         // the right-hand side.
-        let own_size = self.estimated_own_size();
+        let own_size = self.estimated_base_size();
         if size < (own_size + AVG_VALUE_SIZE) {
             // split_at must not be zero
             return (None, Some(self));
@@ -829,7 +829,7 @@ impl Bucket {
     ///
     /// Note that this does not match the exact size of the serialized payload. Instead, the size is
     /// approximated through tags and a static overhead.
-    fn estimated_own_size(&self) -> usize {
+    fn estimated_base_size(&self) -> usize {
         50 + self.name.len() + tags_cost(&self.tags)
     }
 
@@ -839,7 +839,7 @@ impl Bucket {
     /// approximated through the number of contained values, assuming an average size of serialized
     /// values.
     fn estimated_size(&self) -> usize {
-        self.estimated_own_size() + self.value.len() * AVG_VALUE_SIZE
+        self.estimated_base_size() + self.value.len() * AVG_VALUE_SIZE
     }
 }
 
@@ -1323,7 +1323,7 @@ impl<T: Iterator<Item = Bucket>> Iterator for CappedBucketIter<T> {
         }
 
         if current_batch.is_empty() {
-            self.next_bucket = None; // fuse
+            debug_assert!(self.next_bucket.is_none());
             None
         } else {
             Some(current_batch)
