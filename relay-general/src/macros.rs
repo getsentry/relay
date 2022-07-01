@@ -54,6 +54,7 @@ macro_rules! derive_string_meta_structure {
 /// Usage:
 ///
 /// ```rust
+/// # use crate::derive_fromstr_and_display;
 /// // derive fail for this or whatever you need. The type must be ZST though.
 /// struct ValueTypeError;
 ///
@@ -99,3 +100,5 @@ macro_rules! derive_fromstr_and_display {
         }
     }
 }
+
+pub(crate) use derive_fromstr_and_display;
