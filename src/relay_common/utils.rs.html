@@ -191,11 +191,15 @@
 <span id="184">184</span>
 <span id="185">185</span>
 <span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::str</span>;
 
 <span class="kw">use</span> <span class="ident">lazy_static::lazy_static</span>;
 <span class="kw">use</span> <span class="ident">regex::Regex</span>;
+
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::macros::impl_str_serde</span>;
 
 <span class="macro">lazy_static!</span> {
     <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">GLOB_RE</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;\?|\*\*|\*&quot;#</span>).<span class="ident">unwrap</span>();
@@ -378,5 +382,5 @@
     );
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.0 (a8314ef7d 2022-06-27)" ></div>
 </body></html>

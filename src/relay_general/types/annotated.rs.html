@@ -539,6 +539,9 @@
 <span id="532">532</span>
 <span id="533">533</span>
 <span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
@@ -979,6 +982,9 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::assert_eq_str</span>;
+
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_annotated_deserialize_with_meta</span>() {
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::ErrorKind</span>;
@@ -1074,5 +1080,5 @@
     );
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.0 (a8314ef7d 2022-06-27)" ></div>
 </body></html>

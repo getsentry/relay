@@ -665,6 +665,8 @@
 <span id="658">658</span>
 <span id="659">659</span>
 <span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.</span>
 
 <span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
@@ -674,6 +676,8 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;jsonschema&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">schemars::JsonSchema</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::macros::impl_str_serde</span>;
 
 <span class="doccomment">/// The type of an event.</span>
 <span class="doccomment">///</span>
@@ -1326,5 +1330,5 @@
     }
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.0 (a8314ef7d 2022-06-27)" ></div>
 </body></html>

@@ -454,6 +454,9 @@
 <span id="447">447</span>
 <span id="448">448</span>
 <span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Error</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
 
 <span class="doccomment">/// POSIX signal with optional extended data.</span>
@@ -712,6 +715,9 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils</span>::{<span class="ident">assert_eq_dbg</span>, <span class="ident">assert_eq_str</span>};
+
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_mechanism_roundtrip</span>() {
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Map</span>;
@@ -904,5 +910,5 @@
     <span class="macro">assert_eq_str!</span>(<span class="ident">output</span>, <span class="ident">mechanism</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.0 (a8314ef7d 2022-06-27)" ></div>
 </body></html>

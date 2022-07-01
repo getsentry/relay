@@ -113,6 +113,8 @@
 <span id="106">106</span>
 <span id="107">107</span>
 <span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DataCategory</span>, <span class="ident">UnixTimestamp</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
@@ -156,6 +158,8 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils</span>::{<span class="ident">assert_eq_dbg</span>, <span class="ident">assert_eq_str</span>};
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_client_report_roundtrip</span>() {
@@ -222,5 +226,5 @@
     }
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.0 (a8314ef7d 2022-06-27)" ></div>
 </body></html>

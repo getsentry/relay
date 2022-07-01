@@ -219,6 +219,9 @@
 <span id="212">212</span>
 <span id="213">213</span>
 <span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Utilities for dealing with annotated strings.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This module contains the `split` and `join` function to destructure and recombine strings by</span>
@@ -395,6 +398,9 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::assert_eq_dbg</span>;
+
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">test_chunk_split</span>() {
     <span class="kw">let</span> <span class="ident">remarks</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Remark::with_range</span>(
@@ -434,5 +440,5 @@
     );
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.0 (a8314ef7d 2022-06-27)" ></div>
 </body></html>

@@ -246,6 +246,7 @@
 <span id="239">239</span>
 <span id="240">240</span>
 <span id="241">241</span>
+<span id="242">242</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Event</span>, <span class="ident">EventProcessingError</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>};
@@ -311,6 +312,7 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">use</span> {
     <span class="ident"><span class="kw">crate</span>::processor::process_value</span>,
+    <span class="ident"><span class="kw">crate</span>::testutils::assert_eq_dbg</span>,
     <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">ErrorKind</span>, <span class="ident">Object</span>, <span class="ident">Value</span>},
 };
 
@@ -488,5 +490,5 @@
     );
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.0 (a8314ef7d 2022-06-27)" ></div>
 </body></html>

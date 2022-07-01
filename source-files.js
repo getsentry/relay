@@ -1,4 +1,4 @@
-var N = null;var sourcesIndex = {};
+var sourcesIndex = {};
 sourcesIndex["document_metrics"] = {"name":"","files":["main.rs"]};
 sourcesIndex["generate_schema"] = {"name":"","files":["main.rs"]};
 sourcesIndex["process_event"] = {"name":"","files":["main.rs"]};

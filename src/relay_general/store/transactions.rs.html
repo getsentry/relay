@@ -967,6 +967,7 @@
 <span id="960">960</span>
 <span id="961">961</span>
 <span id="962">962</span>
+<span id="963">963</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Span</span>, <span class="ident">Timestamp</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>};
@@ -1153,6 +1154,7 @@
 
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::process_value</span>;
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Contexts</span>, <span class="ident">SpanId</span>, <span class="ident">TraceContext</span>, <span class="ident">TraceId</span>};
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils</span>::{<span class="ident">assert_annotated_snapshot</span>, <span class="ident">assert_eq_dbg</span>};
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Object</span>;
 
     <span class="kw">fn</span> <span class="ident">new_test_event</span>() -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span> {
@@ -1930,5 +1932,5 @@
     }
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.0 (a8314ef7d 2022-06-27)" ></div>
 </body></html>
