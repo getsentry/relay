@@ -134,6 +134,9 @@ fn is_valid_measurement_name(name: &str) -> bool {
             .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.'))
 }
 
+#[cfg(test)]
+use crate::testutils::{assert_eq_dbg, assert_eq_str};
+
 #[test]
 fn test_measurements_serialization() {
     use crate::protocol::Event;

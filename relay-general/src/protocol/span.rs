@@ -56,6 +56,7 @@ pub struct Span {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testutils::{assert_eq_dbg, assert_eq_str};
     use chrono::{TimeZone, Utc};
 
     #[test]

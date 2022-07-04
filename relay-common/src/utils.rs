@@ -4,6 +4,8 @@ use std::str;
 use lazy_static::lazy_static;
 use regex::Regex;
 
+use crate::macros::impl_str_serde;
+
 lazy_static! {
     static ref GLOB_RE: Regex = Regex::new(r#"\?|\*\*|\*"#).unwrap();
 }

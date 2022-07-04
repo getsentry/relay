@@ -500,6 +500,9 @@ pub struct Request {
     pub other: Object<Value>,
 }
 
+#[cfg(test)]
+use crate::testutils::{assert_eq_dbg, assert_eq_str};
+
 #[test]
 fn test_header_normalization() {
     let json = r#"{

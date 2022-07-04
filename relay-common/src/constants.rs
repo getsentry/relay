@@ -8,6 +8,8 @@ use std::str::FromStr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::macros::impl_str_serde;
+
 /// The type of an event.
 ///
 /// The event type determines how Sentry handles the event and has an impact on processing, rate

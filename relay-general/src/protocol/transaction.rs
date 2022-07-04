@@ -128,14 +128,15 @@ pub struct TransactionInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testutils;
 
     #[test]
     fn test_other_source_roundtrip() {
         let json = r#""something-new""#;
         let source = Annotated::new(TransactionSource::Other("something-new".to_owned()));
 
-        assert_eq_dbg!(source, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, source.payload_to_json_pretty().unwrap());
+        testutils::assert_eq_dbg!(source, Annotated::from_json(json).unwrap());
+        testutils::assert_eq_str!(json, source.payload_to_json_pretty().unwrap());
     }
 
     #[test]
@@ -150,7 +151,7 @@ mod tests {
             original: Annotated::new("/auth/login/john123/".to_owned()),
         });
 
-        assert_eq_dbg!(info, Annotated::from_json(json).unwrap());
-        assert_eq_str!(json, info.to_json_pretty().unwrap());
+        testutils::assert_eq_dbg!(info, Annotated::from_json(json).unwrap());
+        testutils::assert_eq_str!(json, info.to_json_pretty().unwrap());
     }
 }

@@ -68,6 +68,9 @@ pub struct Exception {
     pub other: Object<Value>,
 }
 
+#[cfg(test)]
+use crate::testutils::{assert_eq_dbg, assert_eq_str};
+
 #[test]
 fn test_exception_roundtrip() {
     use crate::types::Map;

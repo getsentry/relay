@@ -438,6 +438,9 @@ where
     }
 }
 
+#[cfg(test)]
+use crate::testutils::assert_eq_str;
+
 #[test]
 fn test_annotated_deserialize_with_meta() {
     use crate::types::ErrorKind;

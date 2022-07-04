@@ -73,7 +73,11 @@ impl Processor for RemoveOtherProcessor {
 }
 
 #[cfg(test)]
-use {crate::processor::process_value, crate::protocol::ContextInner};
+use {
+    crate::processor::process_value,
+    crate::protocol::ContextInner,
+    crate::testutils::{assert_eq_dbg, get_value},
+};
 
 #[test]
 fn test_remove_legacy_attributes() {
