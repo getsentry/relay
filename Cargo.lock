@@ -3296,7 +3296,6 @@ dependencies = [
  "schemars",
  "sentry-types 0.20.1",
  "serde",
- "serde_json",
  "serde_test",
 ]
 

@@ -4,6 +4,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
@@ -734,7 +735,7 @@ mod sample_rate_as_string {
         D: Deserializer<'de>,
     {
         // be super-strict with what kind of integers are accepted
-        let value = match Option::<String>::deserialize(deserializer)? {
+        let value = match Option::<Cow<'_, str>>::deserialize(deserializer)? {
             Some(value) => value,
             None => return Ok(None),
         };
