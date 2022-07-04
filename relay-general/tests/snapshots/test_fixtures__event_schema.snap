@@ -1,5 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
+assertion_line: 106
 expression: event_json_schema()
 ---
 {
@@ -345,6 +346,18 @@ expression: event_json_schema()
           "type": [
             "string",
             "null"
+          ]
+        },
+        "transaction_info": {
+          "description": " Additional information about the name of the transaction.",
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TransactionInfo"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "type": {
@@ -2810,6 +2823,50 @@ expression: event_json_schema()
         {
           "type": "string"
         }
+      ]
+    },
+    "TransactionInfo": {
+      "description": " Additional information about the name of the transaction.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "original": {
+              "description": " The unmodified transaction name as obtained by the source.\n\n This value will only be set if the transaction name was modified during event processing.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source": {
+              "description": " Describes how the name of the transaction was determined.\n\n This will be used by the server to decide whether or not to scrub identifiers from the\n transaction name, or replace the entire name with a placeholder.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/TransactionSource"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "TransactionSource": {
+      "description": "Describes how the name of the transaction was determined.",
+      "type": "string",
+      "enum": [
+        "custom",
+        "url",
+        "route",
+        "view",
+        "component",
+        "task",
+        "unknown"
       ]
     },
     "User": {
