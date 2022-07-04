@@ -2853,7 +2853,6 @@ expression: event_json_schema()
       "enum": [
         "custom",
         "url",
-        "url-fallback",
         "route",
         "view",
         "component",

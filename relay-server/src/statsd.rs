@@ -453,7 +453,6 @@ pub enum RelayCounters {
     ///  - `source`: The source of the transaction name on the client. See the [transaction source
     ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
     ///    for all valid values.
-    #[cfg(feature = "processing")]
     EventTransactionSource,
     /// Number of HTTP requests reaching Relay.
     Requests,

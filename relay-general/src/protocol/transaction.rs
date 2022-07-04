@@ -7,7 +7,7 @@ use crate::types::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerial
 /// Describes how the name of the transaction was determined.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
-#[schemars(rename_all = "kebab-case")]
+#[cfg_attr(feature = "jsonschema", schemars(rename_all = "kebab-case"))]
 pub enum TransactionSource {
     /// User-defined name set through `set_transaction_name`.
     Custom,
@@ -24,7 +24,7 @@ pub enum TransactionSource {
     /// This is the default value set by Relay for legacy SDKs.
     Unknown,
     /// Any other unknown source that is not explicitly defined above.
-    #[schemars(skip)]
+    #[cfg_attr(feature = "jsonschema", schemars(skip))]
     Other(String),
 }
 

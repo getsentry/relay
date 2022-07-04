@@ -29,7 +29,7 @@ use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
     IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
+    SessionAttributes, SessionUpdate, Timestamp, TransactionSource, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -66,7 +66,6 @@ use {
     crate::service::ServerErrorKind,
     crate::utils::{EnvelopeLimiter, ErrorBoundary},
     failure::ResultExt,
-    relay_general::protocol::TransactionSource,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
