@@ -139,6 +139,9 @@
 <span id="132">132</span>
 <span id="133">133</span>
 <span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility code for sentry&#39;s internal store.</span>
 <span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -202,6 +205,9 @@
 
     <span class="doccomment">/// Emit additional span attributes based on given configuration.</span>
     <span class="kw">pub</span> <span class="ident">span_attributes</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SpanAttribute</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// The SDK&#39;s sample rate as communicated via envelope headers.</span>
+    <span class="kw">pub</span> <span class="ident">client_sample_rate</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// The processor that normalizes events for store.</span>
