@@ -62,7 +62,7 @@ pub struct StoreConfig {
     /// Emit additional span attributes based on given configuration.
     pub span_attributes: BTreeSet<SpanAttribute>,
 
-    /// The SDK's sample rate as communicated via envelope headers
+    /// The SDK's sample rate as communicated via envelope headers.
     pub client_sample_rate: Option<f64>,
 }
 
