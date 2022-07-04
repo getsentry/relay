@@ -13,7 +13,8 @@ use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
     ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
-    RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, User, Values,
+    RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TransactionInfo,
+    User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -255,6 +256,10 @@ pub struct Event {
     /// `UserView`), in a task queue it might be the function + module name.
     #[metastructure(max_chars = "culprit", trim_whitespace = "true")]
     pub transaction: Annotated<String>,
+
+    /// Additional information about the name of the transaction.
+    #[metastructure(skip_serialization = "empty")]
+    pub transaction_info: Annotated<TransactionInfo>,
 
     /// Time since the start of the transaction until the error occurred.
     pub time_spent: Annotated<u64>,

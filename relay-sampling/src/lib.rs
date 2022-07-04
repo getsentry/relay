@@ -4,6 +4,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
@@ -680,7 +681,7 @@ mod sample_rate_as_string {
         D: Deserializer<'de>,
     {
         // be super-strict with what kind of integers are accepted
-        let value = match Option::<String>::deserialize(deserializer)? {
+        let value = match Option::<Cow<'_, str>>::deserialize(deserializer)? {
             Some(value) => value,
             None => return Ok(None),
         };
@@ -744,7 +745,7 @@ pub struct DynamicSamplingContext {
     /// Set on transaction start, or via `scope.transaction`.
     #[serde(default)]
     pub transaction: Option<String>,
-    /// The sample rate with which this trace was sampled in the SDK. This is a float between 0 and
+    /// The sample rate with which this trace was sampled in the client. This is a float between 0 and
     /// 1.
     #[serde(
         default,
@@ -766,25 +767,27 @@ impl DynamicSamplingContext {
     /// the matching rule.
     pub fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
         let client_sample_rate = self.sample_rate.unwrap_or(1.0);
-        let mut adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
-
-        if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
-            // adjusted_sample_rate is infinite or NaN. This is a bug.
-            //
-            // - infinite should not happen because we clamped the number.
-            // - NaN can happen if the client_sample_rate is 0, which is bogus because the SDK
-            //   should've dropped the envelope. In that case let's pretend the sample rate was
-            //   not sent, because clearly the sampling decision across the trace is still 1.
-            //   The most likely explanation is that the SDK is reporting its own sample rate
-            //   setting instead of the one from the continued trace.
+        if client_sample_rate <= 0.0 {
+            // client_sample_rate is 0, which is bogus because the SDK should've dropped the
+            // envelope. In that case let's pretend the sample rate was not sent, because clearly
+            // the sampling decision across the trace is still 1. The most likely explanation is
+            // that the SDK is reporting its own sample rate setting instead of the one from the
+            // continued trace.
             //
             // since we write back the client_sample_rate into the event's trace context, it should
             // be possible to find those values + sdk versions via snuba
-            relay_log::warn!("adjusted sample rate ended up being inf/nan");
-            adjusted_sample_rate = 1.0;
+            relay_log::warn!("client sample rate is <= 0");
+            rule_sample_rate
+        } else {
+            let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
+            if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
+                relay_log::error!("adjusted sample rate ended up being nan/inf");
+                debug_assert!(false);
+                rule_sample_rate
+            } else {
+                adjusted_sample_rate
+            }
         }
-
-        adjusted_sample_rate
     }
 }
 
@@ -2156,7 +2159,7 @@ mod tests {
             "sample_rate": "1e-5"
         }
         "#;
-        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
     }
 
     #[test]
@@ -2173,7 +2176,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_sample_rate_integer() {
+    fn test_parse_sample_rate_number() {
         let json = r#"
         {
             "trace_id": "00000000-0000-0000-0000-000000000000",
@@ -2186,11 +2189,24 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_sample_rate_negative() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "-0.1"
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
     fn test_adjust_sample_rate() {
         let mut dsc = default_sampling_context();
 
         dsc.sample_rate = Some(0.0);
-        assert_eq!(dsc.adjusted_sample_rate(0.5), 1.0);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
 
         dsc.sample_rate = Some(1.0);
         assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
@@ -2200,5 +2216,8 @@ mod tests {
 
         dsc.sample_rate = Some(0.5);
         assert_eq!(dsc.adjusted_sample_rate(0.1), 0.2);
+
+        dsc.sample_rate = Some(-0.5);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
     }
 }

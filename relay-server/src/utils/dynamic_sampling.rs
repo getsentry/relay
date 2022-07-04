@@ -6,7 +6,7 @@ use relay_common::ProjectKey;
 use relay_general::protocol::Event;
 use relay_sampling::{
     get_matching_event_rule, get_matching_trace_rule, pseudo_random_from_uuid,
-    DynamicSamplingContext, SamplingResult,
+    DynamicSamplingContext, RuleId, SamplingResult,
 };
 
 use crate::actors::project::ProjectState;

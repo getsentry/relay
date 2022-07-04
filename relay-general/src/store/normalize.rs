@@ -135,13 +135,9 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     fn normalize_trace_context(&self, event: &mut Event) {
-        if let Some(client_sample_rate) = self.config.client_sample_rate {
-            if let Some(ref mut contexts) = event.contexts.value_mut() {
-                if let Some(Context::Trace(ref mut trace_context)) =
-                    contexts.get_context_mut("trace")
-                {
-                    trace_context.client_sample_rate = Annotated::from(client_sample_rate);
-                }
+        if let Some(ref mut contexts) = event.contexts.value_mut() {
+            if let Some(Context::Trace(ref mut trace_context)) = contexts.get_context_mut("trace") {
+                trace_context.client_sample_rate = Annotated::from(self.config.client_sample_rate);
             }
         }
     }
