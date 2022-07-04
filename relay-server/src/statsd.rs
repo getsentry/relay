@@ -450,6 +450,9 @@ pub enum RelayCounters {
     /// The number of transaction events processed by the source of the transaction name.
     ///
     /// This metric is tagged with:
+    ///  - `platform`: The event's platform, such as `"javascript"`.
+    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
+    ///    Sentry's SDKs and defaults to "proprietary".
     ///  - `source`: The source of the transaction name on the client. See the [transaction source
     ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
     ///    for all valid values.

@@ -1530,7 +1530,9 @@ impl EnvelopeProcessor {
 
                 metric!(
                     counter(RelayCounters::EventTransactionSource) += 1,
-                    source = &source.to_string()
+                    source = &source.to_string(),
+                    sdk = envelope.meta().client_name().unwrap_or("proprietary"),
+                    platform = event.platform.as_str().unwrap_or("other"),
                 );
             }
         }
