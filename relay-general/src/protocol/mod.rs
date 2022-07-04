@@ -25,6 +25,7 @@ mod stacktrace;
 mod tags;
 mod templateinfo;
 mod thread;
+mod transaction;
 mod types;
 mod user;
 mod user_report;
@@ -68,6 +69,7 @@ pub use self::stacktrace::{Frame, FrameData, FrameVars, RawStacktrace, Stacktrac
 pub use self::tags::{TagEntry, Tags};
 pub use self::templateinfo::TemplateInfo;
 pub use self::thread::{Thread, ThreadId};
+pub use self::transaction::{TransactionInfo, TransactionSource};
 pub use self::types::{
     datetime_to_timestamp, Addr, AsPair, InvalidRegVal, IpAddr, JsonLenientString, LenientString,
     Level, PairList, ParseLevelError, RegVal, Timestamp, Values,

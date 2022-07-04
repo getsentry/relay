@@ -204,8 +204,19 @@ pub struct RequestMeta<D = PartialDsn> {
 
 impl<D> RequestMeta<D> {
     /// Returns the client that sent this event (Sentry SDK identifier).
+    ///
+    /// The client is formatted as `"sdk/version"`, for example `"raven-node/2.6.3"`.
     pub fn client(&self) -> Option<&str> {
         self.client.as_deref()
+    }
+
+    /// Returns the name of the client that sent the event without version.
+    ///
+    /// If the client is not sent in standard format, this method returns `None`.
+    pub fn client_name(&self) -> Option<&str> {
+        let client = self.client()?;
+        let (name, _version) = client.split_once('/')?;
+        Some(name)
     }
 
     /// Returns the protocol version of the event payload.
