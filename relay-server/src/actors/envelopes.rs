@@ -66,6 +66,7 @@ use {
     crate::service::ServerErrorKind,
     crate::utils::{EnvelopeLimiter, ErrorBoundary},
     failure::ResultExt,
+    relay_general::protocol::TransactionSource,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -1520,6 +1521,19 @@ impl EnvelopeProcessor {
             }
 
             event._metrics = Annotated::new(metrics);
+
+            if event.ty.value() == Some(&EventType::Transaction) {
+                let source = event
+                    .transaction_info
+                    .value()
+                    .and_then(|info| info.source.value())
+                    .unwrap_or(&TransactionSource::Unknown);
+
+                metric!(
+                    counter(RelayCounters::EventTransactionSource) += 1,
+                    source = &source.to_string()
+                );
+            }
         }
 
         // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy

@@ -447,6 +447,14 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `version`: The event protocol version number defaulting to `7`.
     EventProtocol,
+    /// The number of transaction events processed by the source of the transaction name.
+    ///
+    /// This metric is tagged with:
+    ///  - `source`: The source of the transaction name on the client. See the [transaction source
+    ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
+    ///    for all valid values.
+    #[cfg(feature = "processing")]
+    EventTransactionSource,
     /// Number of HTTP requests reaching Relay.
     Requests,
     /// Number of completed HTTP requests.
@@ -496,6 +504,7 @@ impl CounterMetric for RelayCounters {
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingProduceError => "processing.produce.error",
             RelayCounters::EventProtocol => "event.protocol",
+            RelayCounters::EventTransactionSource => "event.transaction_source",
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
