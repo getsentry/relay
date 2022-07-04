@@ -1830,7 +1830,7 @@ impl EnvelopeProcessor {
 
         match utils::should_keep_event(
             state.envelope.sampling_context(),
-            event,
+            state.event.value(),
             client_ip,
             &state.project_state,
             state.sampling_project_state.as_deref(),
