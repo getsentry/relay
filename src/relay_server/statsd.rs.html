@@ -510,6 +510,17 @@
 <span id="503">503</span>
 <span id="504">504</span>
 <span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -959,6 +970,16 @@
     <span class="doccomment">/// This metric is tagged with:</span>
     <span class="doccomment">///  - `version`: The event protocol version number defaulting to `7`.</span>
     <span class="ident">EventProtocol</span>,
+    <span class="doccomment">/// The number of transaction events processed by the source of the transaction name.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This metric is tagged with:</span>
+    <span class="doccomment">///  - `platform`: The event&#39;s platform, such as `&quot;javascript&quot;`.</span>
+    <span class="doccomment">///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for</span>
+    <span class="doccomment">///    Sentry&#39;s SDKs and defaults to &quot;proprietary&quot;.</span>
+    <span class="doccomment">///  - `source`: The source of the transaction name on the client. See the [transaction source</span>
+    <span class="doccomment">///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)</span>
+    <span class="doccomment">///    for all valid values.</span>
+    <span class="ident">EventTransactionSource</span>,
     <span class="doccomment">/// Number of HTTP requests reaching Relay.</span>
     <span class="ident">Requests</span>,
     <span class="doccomment">/// Number of completed HTTP requests.</span>
@@ -1008,6 +1029,7 @@
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">RelayCounters::ProcessingProduceError</span> =&gt; <span class="string">&quot;processing.produce.error&quot;</span>,
             <span class="ident">RelayCounters::EventProtocol</span> =&gt; <span class="string">&quot;event.protocol&quot;</span>,
+            <span class="ident">RelayCounters::EventTransactionSource</span> =&gt; <span class="string">&quot;event.transaction_source&quot;</span>,
             <span class="ident">RelayCounters::Requests</span> =&gt; <span class="string">&quot;requests&quot;</span>,
             <span class="ident">RelayCounters::ResponsesStatusCodes</span> =&gt; <span class="string">&quot;responses.status_codes&quot;</span>,
             <span class="ident">RelayCounters::EvictingStaleProjectCaches</span> =&gt; <span class="string">&quot;project_cache.eviction&quot;</span>,

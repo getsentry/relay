@@ -81,6 +81,8 @@
 <span id="74">74</span>
 <span id="75">75</span>
 <span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implements the sentry event protocol.</span>
 
 <span class="kw">mod</span> <span class="ident">breadcrumb</span>;
@@ -108,6 +110,7 @@
 <span class="kw">mod</span> <span class="ident">tags</span>;
 <span class="kw">mod</span> <span class="ident">templateinfo</span>;
 <span class="kw">mod</span> <span class="ident">thread</span>;
+<span class="kw">mod</span> <span class="ident">transaction</span>;
 <span class="kw">mod</span> <span class="ident">types</span>;
 <span class="kw">mod</span> <span class="ident">user</span>;
 <span class="kw">mod</span> <span class="ident">user_report</span>;
@@ -151,6 +154,7 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::tags</span>::{<span class="ident">TagEntry</span>, <span class="ident">Tags</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::templateinfo::TemplateInfo</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::thread</span>::{<span class="ident">Thread</span>, <span class="ident">ThreadId</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::transaction</span>::{<span class="ident">TransactionInfo</span>, <span class="ident">TransactionSource</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::types</span>::{
     <span class="ident">datetime_to_timestamp</span>, <span class="ident">Addr</span>, <span class="ident">AsPair</span>, <span class="ident">InvalidRegVal</span>, <span class="ident">IpAddr</span>, <span class="ident">JsonLenientString</span>, <span class="ident">LenientString</span>,
     <span class="ident">Level</span>, <span class="ident">PairList</span>, <span class="ident">ParseLevelError</span>, <span class="ident">RegVal</span>, <span class="ident">Timestamp</span>, <span class="ident">Values</span>,

@@ -770,6 +770,11 @@
 <span id="763">763</span>
 <span id="764">764</span>
 <span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
 
@@ -785,7 +790,8 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{
     <span class="ident">Breadcrumb</span>, <span class="ident">Breakdowns</span>, <span class="ident">ClientSdkInfo</span>, <span class="ident">Contexts</span>, <span class="ident">Csp</span>, <span class="ident">DebugMeta</span>, <span class="ident">Exception</span>, <span class="ident">ExpectCt</span>,
     <span class="ident">ExpectStaple</span>, <span class="ident">Fingerprint</span>, <span class="ident">Hpkp</span>, <span class="ident">LenientString</span>, <span class="ident">Level</span>, <span class="ident">LogEntry</span>, <span class="ident">Measurements</span>, <span class="ident">Metrics</span>,
-    <span class="ident">RelayInfo</span>, <span class="ident">Request</span>, <span class="ident">Span</span>, <span class="ident">Stacktrace</span>, <span class="ident">Tags</span>, <span class="ident">TemplateInfo</span>, <span class="ident">Thread</span>, <span class="ident">Timestamp</span>, <span class="ident">User</span>, <span class="ident">Values</span>,
+    <span class="ident">RelayInfo</span>, <span class="ident">Request</span>, <span class="ident">Span</span>, <span class="ident">Stacktrace</span>, <span class="ident">Tags</span>, <span class="ident">TemplateInfo</span>, <span class="ident">Thread</span>, <span class="ident">Timestamp</span>, <span class="ident">TransactionInfo</span>,
+    <span class="ident">User</span>, <span class="ident">Values</span>,
 };
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{
     <span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Empty</span>, <span class="ident">ErrorKind</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>, <span class="ident">Object</span>, <span class="ident">SkipSerialization</span>, <span class="ident">Value</span>,
@@ -1027,6 +1033,10 @@
     <span class="doccomment">/// `UserView`), in a task queue it might be the function + module name.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">max_chars</span> <span class="op">=</span> <span class="string">&quot;culprit&quot;</span>, <span class="ident">trim_whitespace</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">transaction</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Additional information about the name of the transaction.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">skip_serialization</span> <span class="op">=</span> <span class="string">&quot;empty&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">transaction_info</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">TransactionInfo</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Time since the start of the transaction until the error occurred.</span>
     <span class="kw">pub</span> <span class="ident">time_spent</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,

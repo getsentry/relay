@@ -3416,6 +3416,21 @@
 <span id="3409">3409</span>
 <span id="3410">3410</span>
 <span id="3411">3411</span>
+<span id="3412">3412</span>
+<span id="3413">3413</span>
+<span id="3414">3414</span>
+<span id="3415">3415</span>
+<span id="3416">3416</span>
+<span id="3417">3417</span>
+<span id="3418">3418</span>
+<span id="3419">3419</span>
+<span id="3420">3420</span>
+<span id="3421">3421</span>
+<span id="3422">3422</span>
+<span id="3423">3423</span>
+<span id="3424">3424</span>
+<span id="3425">3425</span>
+<span id="3426">3426</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3447,7 +3462,7 @@
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
     <span class="self">self</span>, <span class="ident">Breadcrumb</span>, <span class="ident">ClientReport</span>, <span class="ident">Csp</span>, <span class="ident">Event</span>, <span class="ident">EventId</span>, <span class="ident">EventType</span>, <span class="ident">ExpectCt</span>, <span class="ident">ExpectStaple</span>, <span class="ident">Hpkp</span>,
     <span class="ident">IpAddr</span>, <span class="ident">LenientString</span>, <span class="ident">Metrics</span>, <span class="ident">RelayInfo</span>, <span class="ident">SecurityReportType</span>, <span class="ident">SessionAggregates</span>,
-    <span class="ident">SessionAttributes</span>, <span class="ident">SessionUpdate</span>, <span class="ident">Timestamp</span>, <span class="ident">UserReport</span>, <span class="ident">Values</span>,
+    <span class="ident">SessionAttributes</span>, <span class="ident">SessionUpdate</span>, <span class="ident">Timestamp</span>, <span class="ident">TransactionSource</span>, <span class="ident">UserReport</span>, <span class="ident">Values</span>,
 };
 <span class="kw">use</span> <span class="ident">relay_general::store::ClockDriftProcessor</span>;
 <span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
@@ -4938,6 +4953,21 @@
             }
 
             <span class="ident">event</span>.<span class="ident">_metrics</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">metrics</span>);
+
+            <span class="kw">if</span> <span class="ident">event</span>.<span class="ident">ty</span>.<span class="ident">value</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">EventType::Transaction</span>) {
+                <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">event</span>
+                    .<span class="ident">transaction_info</span>
+                    .<span class="ident">value</span>()
+                    .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">info</span><span class="op">|</span> <span class="ident">info</span>.<span class="ident">source</span>.<span class="ident">value</span>())
+                    .<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="ident">TransactionSource::Unknown</span>);
+
+                <span class="macro">metric!</span>(
+                    <span class="ident">counter</span>(<span class="ident">RelayCounters::EventTransactionSource</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+                    <span class="ident">source</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">source</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">sdk</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_name</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;proprietary&quot;</span>),
+                    <span class="ident">platform</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">platform</span>.<span class="ident">as_str</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;other&quot;</span>),
+                );
+            }
         }
 
         <span class="comment">// TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy</span>
