@@ -4,13 +4,14 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use std::collections::HashMap;
+use std::borrow::Cow;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 
 use rand::{distributions::Uniform, Rng};
 use rand_pcg::Pcg32;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
 
 use relay_common::{EventType, ProjectKey, Uuid};
@@ -726,7 +727,60 @@ impl<'de> Deserialize<'de> for TraceUserContext {
     }
 }
 
+mod sample_rate_as_string {
+    use super::*;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // be super-strict with what kind of integers are accepted
+        let value = match Option::<Cow<'_, str>>::deserialize(deserializer)? {
+            Some(value) => value,
+            None => return Ok(None),
+        };
+
+        if !value.as_bytes().first().map_or(false, u8::is_ascii_digit) {
+            return Err(serde::de::Error::custom(
+                "first character needs to be ascii digit",
+            ));
+        }
+
+        if !value.as_bytes().last().map_or(false, u8::is_ascii_digit) {
+            return Err(serde::de::Error::custom(
+                "last character needs to be ascii digit",
+            ));
+        }
+
+        for b in value.as_bytes() {
+            if !b.is_ascii_digit() && *b != b'.' {
+                return Err(serde::de::Error::custom("invalid characters"));
+            }
+        }
+
+        let parsed_value = value
+            .parse::<f64>()
+            .map_err(|e| serde::de::Error::custom(e.to_string()))?;
+
+        Ok(Some(parsed_value))
+    }
+
+    pub fn serialize<S>(value: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value {
+            Some(float) => float.to_string().serialize(serializer),
+            None => value.serialize(serializer),
+        }
+    }
+}
+
 /// DynamicSamplingContext created by the first Sentry SDK in the call chain.
+///
+/// Because SDKs need to funnel this data through the baggage header, this needs to be
+/// representable as `HashMap<String, String>`, meaning no nested dictionaries/objects, arrays or
+/// other non-string values.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DynamicSamplingContext {
     /// ID created by clients to represent the current call flow.
@@ -745,13 +799,52 @@ pub struct DynamicSamplingContext {
     /// Set on transaction start, or via `scope.transaction`.
     #[serde(default)]
     pub transaction: Option<String>,
+    /// The sample rate with which this trace was sampled in the client. This is a float between 0 and
+    /// 1.
+    #[serde(
+        default,
+        with = "sample_rate_as_string",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub sample_rate: Option<f64>,
     /// The user specific identifier ( e.g. a user segment, or similar created by the SDK
     /// from the user object).
     #[serde(flatten, default)]
     pub user: TraceUserContext,
+    /// Spillover values for backwards/forwards compat
+    #[serde(flatten, default)]
+    pub other: BTreeMap<String, Value>,
 }
 
 impl DynamicSamplingContext {
+    /// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
+    /// the matching rule.
+    pub fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
+        let client_sample_rate = self.sample_rate.unwrap_or(1.0);
+
+        if client_sample_rate <= 0.0 {
+            // client_sample_rate is 0, which is bogus because the SDK should've dropped the
+            // envelope. In that case let's pretend the sample rate was not sent, because clearly
+            // the sampling decision across the trace is still 1. The most likely explanation is
+            // that the SDK is reporting its own sample rate setting instead of the one from the
+            // continued trace.
+            //
+            // since we write back the client_sample_rate into the event's trace context, it should
+            // be possible to find those values + sdk versions via snuba
+            relay_log::warn!("client sample rate is <= 0");
+            rule_sample_rate
+        } else {
+            let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
+            if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
+                relay_log::error!("adjusted sample rate ended up being nan/inf");
+                debug_assert!(false);
+                rule_sample_rate
+            } else {
+                adjusted_sample_rate
+            }
+        }
+    }
+
     /// Returns whether a trace should be retained based on sampling rules.
     ///
     /// If [`SamplingResult::NoDecision`] is returned, then no rule matched this trace. In this
@@ -759,9 +852,10 @@ impl DynamicSamplingContext {
     /// configuration is invalid.
     pub fn should_keep(&self, ip_addr: Option<IpAddr>, config: &SamplingConfig) -> SamplingResult {
         if let Some(rule) = get_matching_trace_rule(config, self, ip_addr, RuleType::Trace) {
+            let adjusted_sample_rate = self.adjusted_sample_rate(rule.sample_rate);
             let rate = pseudo_random_from_uuid(self.trace_id);
 
-            if rate < rule.sample_rate {
+            if rate < adjusted_sample_rate {
                 SamplingResult::Keep
             } else {
                 SamplingResult::Drop(rule.id)
@@ -830,6 +924,19 @@ mod tests {
     use relay_general::types::Annotated;
 
     use super::*;
+
+    fn default_sampling_context() -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: Uuid::default(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: None,
+            environment: None,
+            transaction: None,
+            sample_rate: None,
+            user: TraceUserContext::default(),
+            other: BTreeMap::new(),
+        }
+    }
 
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
         RuleCondition::Eq(EqCondition {
@@ -1012,6 +1119,8 @@ mod tests {
             },
             environment: Some("prod".into()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert_eq!(
@@ -1045,6 +1154,8 @@ mod tests {
             user: TraceUserContext::default(),
             environment: None,
             transaction: None,
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
         assert_eq!(Value::Null, dsc.get_value("trace.release"));
         assert_eq!(Value::Null, dsc.get_value("trace.environment"));
@@ -1059,6 +1170,8 @@ mod tests {
             user: TraceUserContext::default(),
             environment: None,
             transaction: None,
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
         assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
         assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
@@ -1164,6 +1277,8 @@ mod tests {
             },
             environment: Some("debug".into()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
@@ -1337,6 +1452,8 @@ mod tests {
             },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1397,6 +1514,8 @@ mod tests {
             },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1434,6 +1553,8 @@ mod tests {
             },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, expected, condition) in conditions.iter() {
@@ -1494,6 +1615,8 @@ mod tests {
             },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         for (rule_test_name, condition) in conditions.iter() {
@@ -1709,6 +1832,8 @@ mod tests {
             },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
@@ -1727,6 +1852,8 @@ mod tests {
             user: TraceUserContext::default(),
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
@@ -1748,6 +1875,8 @@ mod tests {
             },
             environment: None,
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
@@ -1769,6 +1898,8 @@ mod tests {
             },
             environment: Some("debug".to_string()),
             transaction: None,
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
@@ -1783,6 +1914,8 @@ mod tests {
             user: TraceUserContext::default(),
             environment: None,
             transaction: None,
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         assert!(
@@ -1863,6 +1996,8 @@ mod tests {
             },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1883,6 +2018,8 @@ mod tests {
             },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1903,6 +2040,8 @@ mod tests {
             },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1923,6 +2062,8 @@ mod tests {
             },
             environment: Some("production".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -1943,6 +2084,8 @@ mod tests {
             },
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
+            sample_rate: None,
+            other: BTreeMap::new(),
         };
 
         let result = get_matching_trace_rule(&rules, &trace_context, None, RuleType::Trace);
@@ -2055,5 +2198,101 @@ mod tests {
           "user_id": "hello",
         }
         "###);
+    }
+
+    #[test]
+    fn test_parse_sample_rate() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "0.5"
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "sample_rate": "0.5",
+          "user_id": "hello",
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_sample_rate_scientific_notation() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "1e-5"
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_parse_sample_rate_bogus() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "bogus"
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_parse_sample_rate_number() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": 0.1
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_parse_sample_rate_negative() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sample_rate": "-0.1"
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_adjust_sample_rate() {
+        let mut dsc = default_sampling_context();
+
+        dsc.sample_rate = Some(0.0);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
+
+        dsc.sample_rate = Some(1.0);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
+
+        dsc.sample_rate = Some(0.1);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 1.0);
+
+        dsc.sample_rate = Some(0.5);
+        assert_eq!(dsc.adjusted_sample_rate(0.1), 0.2);
+
+        dsc.sample_rate = Some(-0.5);
+        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
     }
 }

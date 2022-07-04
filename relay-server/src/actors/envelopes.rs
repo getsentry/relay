@@ -1607,6 +1607,7 @@ impl EnvelopeProcessor {
             received_at: Some(envelope_context.received_at),
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
+            client_sample_rate: envelope.sampling_context().and_then(|ctx| ctx.sample_rate),
         };
 
         let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_deref());
@@ -1859,7 +1860,9 @@ impl EnvelopeProcessor {
             Some(event) => event,
         };
         let client_ip = state.envelope.meta().client_addr();
+
         match utils::should_keep_event(
+            state.envelope.sampling_context(),
             event,
             client_ip,
             &state.project_state,

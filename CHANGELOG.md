@@ -5,6 +5,7 @@
 **Features**:
 
 - Extract metrics also from trace-sampled transactions. ([#1317](https://github.com/getsentry/relay/pull/1317))
+- Adjust sample rate by envelope header's sample_rate. ([#1327](https://github.com/getsentry/relay/pull/1327))
 - Support `transaction_info` on event payloads. ([#1330](https://github.com/getsentry/relay/pull/1330))
 
 **Bug Fixes**:

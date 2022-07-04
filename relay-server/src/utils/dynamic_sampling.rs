@@ -5,7 +5,8 @@ use std::net::IpAddr;
 use relay_common::ProjectKey;
 use relay_general::protocol::{Event, EventId};
 use relay_sampling::{
-    get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, RuleId, SamplingResult,
+    get_matching_event_rule, pseudo_random_from_uuid, rule_type_for_event, DynamicSamplingContext,
+    RuleId, SamplingResult,
 };
 
 use crate::actors::project::ProjectState;
@@ -13,6 +14,7 @@ use crate::envelope::{Envelope, ItemType};
 
 /// Checks whether an event should be kept or removed by dynamic sampling.
 pub fn should_keep_event(
+    sampling_context: Option<&DynamicSamplingContext>,
     event: &Event,
     ip_addr: Option<IpAddr>,
     project_state: &ProjectState,
@@ -37,8 +39,14 @@ pub fn should_keep_event(
 
     let ty = rule_type_for_event(event);
     if let Some(rule) = get_matching_event_rule(sampling_config, event, ip_addr, ty) {
+        let adjusted_sample_rate = if let Some(sampling_context) = sampling_context {
+            sampling_context.adjusted_sample_rate(rule.sample_rate)
+        } else {
+            rule.sample_rate
+        };
+
         let random_number = pseudo_random_from_uuid(event_id);
-        if random_number < rule.sample_rate {
+        if random_number < adjusted_sample_rate {
             return SamplingResult::Keep;
         }
         return SamplingResult::Drop(rule.id);
@@ -48,7 +56,7 @@ pub fn should_keep_event(
 }
 
 /// Execute dynamic sampling on an envelope using the provided project state.
-fn sample_transaction_internal(
+pub fn sample_trace(
     envelope: &Envelope,
     project_state: &ProjectState,
     processing_enabled: bool,
@@ -92,14 +100,6 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     transaction_item?;
 
     envelope.sampling_context().map(|dsc| dsc.public_key)
-}
-
-pub fn sample_trace(
-    envelope: &Envelope,
-    project_state: &ProjectState,
-    processing_enabled: bool,
-) -> Result<(), RuleId> {
-    sample_transaction_internal(envelope, project_state, processing_enabled)
 }
 
 #[cfg(test)]
@@ -213,17 +213,17 @@ mod tests {
 
         assert_eq!(
             SamplingResult::Drop(RuleId(1)),
-            should_keep_event(&event, None, &proj_state, true)
+            should_keep_event(None, &event, None, &proj_state, true)
         );
         let proj_state = get_project_state(Some(1.0), RuleType::Error);
         assert_eq!(
             SamplingResult::Keep,
-            should_keep_event(&event, None, &proj_state, true)
+            should_keep_event(None, &event, None, &proj_state, true)
         );
         let proj_state = get_project_state(None, RuleType::Error);
         assert_eq!(
             SamplingResult::NoDecision,
-            should_keep_event(&event, None, &proj_state, true)
+            should_keep_event(None, &event, None, &proj_state, true)
         );
     }
 
@@ -232,7 +232,7 @@ mod tests {
         //create an envelope with a event and a transaction
         let envelope = new_envelope(true);
         let state = get_project_state(Some(0.0), RuleType::Trace);
-        let result = sample_transaction_internal(&envelope, &state, true);
+        let result = sample_trace(&envelope, &state, true);
         assert!(result.is_err());
     }
 
@@ -243,7 +243,7 @@ mod tests {
         let envelope = new_envelope(false);
         let state = get_project_state(Some(0.0), RuleType::Trace);
 
-        let result = sample_transaction_internal(&envelope, &state, true);
+        let result = sample_trace(&envelope, &state, true);
         assert!(result.is_ok());
         // both the event and the transaction item should have been left in the envelope
         assert_eq!(envelope.len(), 3);
@@ -257,7 +257,7 @@ mod tests {
         let envelope = new_envelope(true);
         let state = get_project_state(Some(0.0), RuleType::Trace);
 
-        let result = sample_transaction_internal(&envelope, &state, true);
+        let result = sample_trace(&envelope, &state, true);
         assert!(result.is_err());
         let rule_id = result.unwrap_err();
         // we got back the rule id
