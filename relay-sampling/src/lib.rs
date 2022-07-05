@@ -35,12 +35,11 @@ pub enum RuleType {
 /// The result of a sampling operation returned by [`DynamicSamplingContext::should_keep`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SamplingResult {
-    /// Keep the event.
+    /// Keep the event. Relay either applied a sampling rule or was unable to parse all rules (so
+    /// it bailed out)
     Keep,
     /// Drop the event, due to the rule with provided identifier.
     Drop(RuleId),
-    /// No decision can be made.
-    NoDecision,
 }
 
 /// A condition that checks the values using the equality operator.
@@ -177,7 +176,10 @@ pub struct CustomCondition {
 }
 
 impl CustomCondition {
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T, ip_addr: Option<IpAddr>) -> bool {
+    fn matches<T>(&self, value_provider: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
         T::get_custom_operator(&self.name)(self, value_provider, ip_addr)
     }
 }
@@ -618,6 +620,50 @@ impl SamplingConfig {
     pub fn has_unsupported_rules(&self) -> bool {
         !self.rules.iter().all(SamplingRule::supported)
     }
+
+    /// Get the first rule of type [`RuleType::Trace`] whose conditions match on the given sampling
+    /// context.
+    ///
+    /// This is a function separate from `get_matching_event_rule` because trace rules can
+    /// (theoretically) be applied even if there's no event. Also we expect that trace rules are
+    /// executed before event rules.
+    pub fn get_matching_trace_rule<'a>(
+        &'a self,
+        sampling_context: &DynamicSamplingContext,
+        ip_addr: Option<IpAddr>,
+    ) -> Option<&'a SamplingRule> {
+        for rule in &self.rules {
+            if rule.ty == RuleType::Trace && rule.condition.matches(sampling_context, ip_addr) {
+                return Some(rule);
+            }
+        }
+
+        None
+    }
+
+    /// Get the first rule of type [`RuleType::Transaction`] or [`RuleType::Error`] whose conditions
+    /// match the given event.
+    ///
+    /// The rule type to filter by is inferred from the event's type.
+    pub fn get_matching_event_rule<'a>(
+        &'a self,
+        event: &Event,
+        ip_addr: Option<IpAddr>,
+    ) -> Option<&'a SamplingRule> {
+        let ty = if let Some(EventType::Transaction) = &event.ty.0 {
+            RuleType::Transaction
+        } else {
+            RuleType::Error
+        };
+
+        for rule in &self.rules {
+            if rule.ty == ty && rule.condition.matches(event, ip_addr) {
+                return Some(rule);
+            }
+        }
+
+        None
+    }
 }
 
 /// The User related information in the trace context
@@ -789,40 +835,6 @@ impl DynamicSamplingContext {
             }
         }
     }
-}
-
-pub fn get_matching_trace_rule<'a>(
-    config: &'a SamplingConfig,
-    sampling_context: &DynamicSamplingContext,
-    ip_addr: Option<IpAddr>,
-) -> Option<&'a SamplingRule> {
-    for rule in &config.rules {
-        if rule.ty == RuleType::Trace && rule.condition.matches(sampling_context, ip_addr) {
-            return Some(rule);
-        }
-    }
-
-    None
-}
-
-pub fn get_matching_event_rule<'a>(
-    config: &'a SamplingConfig,
-    event: &Event,
-    ip_addr: Option<IpAddr>,
-) -> Option<&'a SamplingRule> {
-    let ty = if let Some(EventType::Transaction) = &event.ty.0 {
-        RuleType::Transaction
-    } else {
-        RuleType::Error
-    };
-
-    for rule in &config.rules {
-        if rule.ty == ty && rule.condition.matches(event, ip_addr) {
-            return Some(rule);
-        }
-    }
-
-    None
 }
 
 /// Generates a pseudo random number by seeding the generator with the given id.
@@ -1925,7 +1937,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None);
+        let result = rules.get_matching_trace_rule(&trace_context, None);
         // complete match with first rule
         assert_eq!(
             result.unwrap().id,
@@ -1947,7 +1959,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None);
+        let result = rules.get_matching_trace_rule(&trace_context, None);
         // should mach the second rule because of the release
         assert_eq!(
             result.unwrap().id,
@@ -1969,7 +1981,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None);
+        let result = rules.get_matching_trace_rule(&trace_context, None);
         // should match the third rule because of the unknown release
         assert_eq!(
             result.unwrap().id,
@@ -1991,7 +2003,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None);
+        let result = rules.get_matching_trace_rule(&trace_context, None);
         // should match the fourth rule because of the unknown environment
         assert_eq!(
             result.unwrap().id,
@@ -2013,7 +2025,7 @@ mod tests {
             other: BTreeMap::new(),
         };
 
-        let result = get_matching_trace_rule(&rules, &trace_context, None);
+        let result = rules.get_matching_trace_rule(&trace_context, None);
         // should match the fourth rule because of the unknown user segment
         assert_eq!(
             result.unwrap().id,

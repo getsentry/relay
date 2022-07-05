@@ -2,61 +2,114 @@
 //!
 use std::net::IpAddr;
 
-use relay_common::ProjectKey;
+use relay_common::{ProjectKey, Uuid};
 use relay_general::protocol::Event;
 use relay_sampling::{
-    get_matching_event_rule, get_matching_trace_rule, pseudo_random_from_uuid,
-    DynamicSamplingContext, SamplingResult,
+    pseudo_random_from_uuid, DynamicSamplingContext, SamplingConfig, SamplingResult, SamplingRule,
 };
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
 
+macro_rules! or_ok_none {
+    ($e:expr) => {
+        match $e {
+            Some(x) => x,
+            None => return Ok(None),
+        }
+    };
+}
+
+fn check_unsupported_rules(
+    processing_enabled: bool,
+    sampling_config: &SamplingConfig,
+) -> Result<(), SamplingResult> {
+    // when we have unsupported rules disable sampling for non processing relays
+    if sampling_config.has_unsupported_rules() {
+        if !processing_enabled {
+            return Err(SamplingResult::Keep);
+        } else {
+            relay_log::error!("found unsupported rules even as processing relay");
+        }
+    }
+
+    Ok(())
+}
+
+fn get_trace_sampling_rule<'a>(
+    processing_enabled: bool,
+    sampling_project_state: Option<&'a ProjectState>,
+    sampling_context: Option<&DynamicSamplingContext>,
+    ip_addr: Option<IpAddr>,
+) -> Result<Option<(&'a SamplingRule, Uuid)>, SamplingResult> {
+    let sampling_context = or_ok_none!(sampling_context);
+
+    if sampling_project_state.is_none() {
+        relay_log::trace!("found sampling context, but no corresponding project state");
+    }
+    let sampling_project_state = or_ok_none!(sampling_project_state);
+    let sampling_config = or_ok_none!(&sampling_project_state.config.dynamic_sampling);
+    check_unsupported_rules(processing_enabled, sampling_config)?;
+
+    let rule = or_ok_none!(sampling_config.get_matching_trace_rule(sampling_context, ip_addr));
+    Ok(Some((rule, sampling_context.trace_id)))
+}
+
+fn get_event_sampling_rule<'a>(
+    processing_enabled: bool,
+    project_state: &'a ProjectState,
+    event: Option<&Event>,
+    ip_addr: Option<IpAddr>,
+) -> Result<Option<(&'a SamplingRule, Uuid)>, SamplingResult> {
+    if let Some(event) = event {
+        if let Some(event_id) = event.id.value() {
+            if let Some(ref sampling_config) = project_state.config.dynamic_sampling {
+                check_unsupported_rules(processing_enabled, sampling_config)?;
+
+                if let Some(rule) = sampling_config.get_matching_event_rule(event, ip_addr) {
+                    Ok(Some((rule, event_id.0)))
+                } else {
+                    Ok(None)
+                }
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    } else {
+        Ok(None)
+    }
+}
+
 /// Checks whether an event should be kept or removed by dynamic sampling.
+///
+/// This runs both trace- and event/transaction/error-based rules at once.
 pub fn should_keep_event(
     sampling_context: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
     project_state: &ProjectState,
-    trace_root_project_state: Option<&ProjectState>,
+    sampling_project_state: Option<&ProjectState>,
     processing_enabled: bool,
 ) -> SamplingResult {
-    let mut matching_rule = None;
+    let matching_trace_rule = match get_trace_sampling_rule(
+        processing_enabled,
+        sampling_project_state,
+        sampling_context,
+        ip_addr,
+    ) {
+        Ok(rule_and_uuid) => rule_and_uuid,
+        Err(sampling_result) => return sampling_result,
+    };
 
-    if let (Some(sampling_context), Some(trace_root_project_state)) =
-        (sampling_context, trace_root_project_state)
-    {
-        if let Some(ref sampling_config) = trace_root_project_state.config.dynamic_sampling {
-            // when we have unsupported rules disable sampling for non processing relays
-            if !processing_enabled && sampling_config.has_unsupported_rules() {
-                return SamplingResult::Keep;
-            }
+    let matching_event_rule =
+        match get_event_sampling_rule(processing_enabled, project_state, event, ip_addr) {
+            Ok(rule_and_uuid) => rule_and_uuid,
+            Err(sampling_result) => return sampling_result,
+        };
 
-            if let Some(rule) = get_matching_trace_rule(sampling_config, sampling_context, ip_addr)
-            {
-                matching_rule = Some((rule, sampling_context.trace_id));
-            }
-        }
-    }
-
-    if matching_rule.is_none() {
-        if let Some(event) = event {
-            if let Some(event_id) = event.id.0 {
-                if let Some(ref sampling_config) = project_state.config.dynamic_sampling {
-                    // when we have unsupported rules disable sampling for non processing relays
-                    if !processing_enabled && sampling_config.has_unsupported_rules() {
-                        return SamplingResult::Keep;
-                    }
-
-                    if let Some(rule) = get_matching_event_rule(sampling_config, event, ip_addr) {
-                        matching_rule = Some((rule, event_id.0));
-                    }
-                }
-            }
-        }
-    }
-
-    if let Some((rule, uuid)) = matching_rule {
+    for (rule, uuid) in matching_trace_rule.into_iter().chain(matching_event_rule) {
         let adjusted_sample_rate = if let Some(sampling_context) = sampling_context {
             sampling_context.adjusted_sample_rate(rule.sample_rate)
         } else {
@@ -66,12 +119,13 @@ pub fn should_keep_event(
         let random_number = pseudo_random_from_uuid(uuid);
 
         if random_number < adjusted_sample_rate {
-            return SamplingResult::Keep;
+            continue;
         }
+
         return SamplingResult::Drop(rule.id);
     }
 
-    SamplingResult::NoDecision
+    SamplingResult::Keep
 }
 
 /// Returns the project key defined in the `trace` header of the envelope, if defined.
@@ -207,7 +261,7 @@ mod tests {
         );
         let proj_state = get_project_state(None, RuleType::Error);
         assert_eq!(
-            SamplingResult::NoDecision,
+            SamplingResult::Keep,
             should_keep_event(None, Some(&event), None, &proj_state, None, true)
         );
     }
@@ -245,7 +299,7 @@ mod tests {
             Some(&sampling_state),
             true,
         );
-        assert_eq!(result, SamplingResult::NoDecision);
+        assert_eq!(result, SamplingResult::Keep);
         // both the event and the transaction item should have been left in the envelope
         assert_eq!(envelope.len(), 3);
     }

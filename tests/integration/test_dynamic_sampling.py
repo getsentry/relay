@@ -6,14 +6,14 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
 
 
-def _create_transaction_item():
+def _create_transaction_item(trace_id=None, event_id=None):
     """
     Creates an transaction item that can be added to an envelope
 
     :return: a tuple (transaction_item, trace_id)
     """
-    trace_id = uuid.uuid4().hex
-    event_id = uuid.uuid4().hex
+    trace_id = trace_id or uuid.uuid4().hex
+    event_id = event_id or uuid.uuid4().hex
     item = {
         "event_id": event_id,
         "type": "transaction",
@@ -33,13 +33,13 @@ def _create_transaction_item():
     return item, trace_id, event_id
 
 
-def _create_event_item(environment=None, release=None):
+def _create_event_item(environment=None, release=None, trace_id=None, event_id=None):
     """
     Creates an event with the specified environment and release
     :return: a tuple (event_item, event_id)
     """
-    event_id = uuid.uuid4().hex
-    trace_id = uuid.uuid4().hex
+    event_id = event_id or uuid.uuid4().hex
+    trace_id = trace_id or uuid.uuid4().hex
     item = {
         "event_id": event_id,
         "message": "Hello, World!",
@@ -217,9 +217,11 @@ def test_it_keeps_transactions(mini_sentry, relay):
         mini_sentry.captured_outcomes.get(timeout=2)
 
 
-def _create_event_envelope(public_key, client_sample_rate=None):
+def _create_event_envelope(
+    public_key, client_sample_rate=None, trace_id=None, event_id=None
+):
     envelope = Envelope()
-    event, trace_id, event_id = _create_event_item()
+    event, trace_id, event_id = _create_event_item(trace_id=trace_id, event_id=event_id)
     envelope.add_event(event)
     _add_trace_info(
         envelope,
@@ -231,9 +233,13 @@ def _create_event_envelope(public_key, client_sample_rate=None):
     return envelope, trace_id, event_id
 
 
-def _create_transaction_envelope(public_key, client_sample_rate=None):
+def _create_transaction_envelope(
+    public_key, client_sample_rate=None, trace_id=None, event_id=None
+):
     envelope = Envelope()
-    transaction, trace_id, event_id = _create_transaction_item()
+    transaction, trace_id, event_id = _create_transaction_item(
+        trace_id=trace_id, event_id=event_id
+    )
     envelope.add_transaction(transaction)
     _add_trace_info(
         envelope,
@@ -368,6 +374,11 @@ def test_bad_dynamic_rules_in_processing_relays(
         consumer.assert_empty()
     else:
         consumer.get_event()
+
+    assert any(
+        "found unsupported rules" in str(e) for (_, e) in mini_sentry.test_failures
+    )
+    mini_sentry.test_failures.clear()
 
 
 @pytest.mark.parametrize(
@@ -594,3 +605,55 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
 
     with pytest.raises(queue.Empty):
         mini_sentry.captured_events.get(timeout=1)
+
+
+@pytest.mark.parametrize(
+    "rule_type, event_factory",
+    [
+        ("error", _create_event_envelope),
+        ("transaction", _create_transaction_envelope),
+        ("trace", _create_transaction_envelope),
+    ],
+)
+def test_relay_chain(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    rule_type,
+    event_factory,
+    events_consumer,
+    transactions_consumer,
+):
+    """
+    Tests that nested relays do not end up double-sampling. This is guaranteed
+    by the fact that we never actually use an RNG, but hash either the event-
+    or trace-id.
+    """
+
+    project_id = 42
+    relay = relay(relay(relay_with_processing()))
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    mini_sentry.add_full_project_config(project_id)
+
+    SAMPLE_RATE = 0.001
+
+    # A trace ID that gets hashed to a value lower than 0.001
+    magic_uuid = "414e119d37694a32869f9d81b76a0b70"
+
+    _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type=rule_type)
+
+    envelope, trace_id, event_id = event_factory(
+        public_key,
+        trace_id=None if rule_type != "trace" else magic_uuid,
+        event_id=None if rule_type == "trace" else magic_uuid,
+    )
+    relay.send_envelope(project_id, envelope)
+
+    if rule_type == "error":
+        events_consumer = events_consumer()
+    else:
+        events_consumer = transactions_consumer()
+
+    events_consumer.get_event()

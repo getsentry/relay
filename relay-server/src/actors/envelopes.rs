@@ -1844,8 +1844,6 @@ impl EnvelopeProcessor {
                 Err(ProcessingError::Sampled(rule_id))
             }
             SamplingResult::Keep => Ok(()),
-            // Not enough info to make a definite evaluation, keep the event
-            SamplingResult::NoDecision => Ok(()),
         }
     }
 
