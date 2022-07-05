@@ -71,25 +71,14 @@ fn get_event_sampling_rule<'a>(
     event: Option<&Event>,
     ip_addr: Option<IpAddr>,
 ) -> Result<Option<(&'a SamplingRule, Uuid)>, SamplingResult> {
-    if let Some(event) = event {
-        if let Some(event_id) = event.id.value() {
-            if let Some(ref sampling_config) = project_state.config.dynamic_sampling {
-                check_unsupported_rules(processing_enabled, sampling_config)?;
+    let event = or_ok_none!(event);
+    let event_id = or_ok_none!(event.id.value());
 
-                if let Some(rule) = sampling_config.get_matching_event_rule(event, ip_addr) {
-                    Ok(Some((rule, event_id.0)))
-                } else {
-                    Ok(None)
-                }
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
-    } else {
-        Ok(None)
-    }
+    let sampling_config = or_ok_none!(&project_state.config.dynamic_sampling);
+    check_unsupported_rules(processing_enabled, sampling_config)?;
+
+    let rule = or_ok_none!(sampling_config.get_matching_event_rule(event, ip_addr));
+    Ok(Some((rule, event_id.0)))
 }
 
 /// Checks whether an event should be kept or removed by dynamic sampling.
