@@ -32,16 +32,6 @@ pub enum RuleType {
     Error,
 }
 
-/// The result of a sampling operation returned by [`DynamicSamplingContext::should_keep`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SamplingResult {
-    /// Keep the event. Relay either applied a sampling rule or was unable to parse all rules (so
-    /// it bailed out)
-    Keep,
-    /// Drop the event, due to the rule with provided identifier.
-    Drop(RuleId),
-}
-
 /// A condition that checks the values using the equality operator.
 ///
 /// For string values it supports case-insensitive comparison.

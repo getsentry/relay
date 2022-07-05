@@ -5,7 +5,7 @@ use std::net::IpAddr;
 use relay_common::{ProjectKey, Uuid};
 use relay_general::protocol::Event;
 use relay_sampling::{
-    pseudo_random_from_uuid, DynamicSamplingContext, SamplingConfig, SamplingResult, SamplingRule,
+    pseudo_random_from_uuid, DynamicSamplingContext, RuleId, SamplingConfig, SamplingRule,
 };
 
 use crate::actors::project::ProjectState;
@@ -18,6 +18,16 @@ macro_rules! or_ok_none {
             None => return Ok(None),
         }
     };
+}
+
+/// The result of a sampling operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SamplingResult {
+    /// Keep the event. Relay either applied a sampling rule or was unable to parse all rules (so
+    /// it bailed out)
+    Keep,
+    /// Drop the event, due to the rule with provided identifier.
+    Drop(RuleId),
 }
 
 fn check_unsupported_rules(

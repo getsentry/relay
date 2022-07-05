@@ -37,7 +37,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, ReasonCode, Scoping};
 use relay_redis::RedisPool;
-use relay_sampling::{RuleId, SamplingResult};
+use relay_sampling::RuleId;
 use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -56,7 +56,7 @@ use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, MinimalProfile,
-    ProfileError, SendWithOutcome,
+    ProfileError, SamplingResult, SendWithOutcome,
 };
 
 #[cfg(feature = "processing")]
