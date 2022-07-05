@@ -33,7 +33,9 @@ def _create_transaction_item(trace_id=None, event_id=None, transaction=None):
     return item, trace_id, event_id
 
 
-def _create_event_item(environment=None, release=None, trace_id=None, event_id=None, transaction=None):
+def _create_event_item(
+    environment=None, release=None, trace_id=None, event_id=None, transaction=None
+):
     """
     Creates an event with the specified environment and release
     :return: a tuple (event_item, event_id)
@@ -53,7 +55,7 @@ def _create_event_item(environment=None, release=None, trace_id=None, event_id=N
         "extra": {"id": event_id},
     }
     if transaction is not None:
-        item['transaction'] = transaction
+        item["transaction"] = transaction
     if environment is not None:
         item["environment"] = environment
     if release is not None:
@@ -224,7 +226,9 @@ def _create_event_envelope(
     public_key, client_sample_rate=None, trace_id=None, event_id=None, transaction=None
 ):
     envelope = Envelope()
-    event, trace_id, event_id = _create_event_item(trace_id=trace_id, event_id=event_id, transaction=transaction)
+    event, trace_id, event_id = _create_event_item(
+        trace_id=trace_id, event_id=event_id, transaction=transaction
+    )
     envelope.add_event(event)
     _add_trace_info(
         envelope,
@@ -621,10 +625,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     ],
 )
 def test_relay_chain(
-    mini_sentry,
-    relay,
-    rule_type,
-    event_factory,
+    mini_sentry, relay, rule_type, event_factory,
 ):
     """
     Tests that nested relays do not end up double-sampling. This is guaranteed
@@ -658,8 +659,7 @@ def test_relay_chain(
 
 
 def test_event_rules_are_applied_after_trace_rules(
-    mini_sentry,
-    relay,
+    mini_sentry, relay,
 ):
     """
     Usecase: Some "baseline" trace sample rate is applied (100% because it's
@@ -672,26 +672,30 @@ def test_event_rules_are_applied_after_trace_rules(
     relay = relay(mini_sentry)
     config = mini_sentry.add_basic_project_config(project_id)
     public_key = config["publicKeys"][0]["publicKey"]
-    _add_sampling_config(config, sample_rate=1.0, rule_type='trace')
-    config['config']['dynamicSampling']['rules'].append({
-        "sampleRate": 0.0,
-        "type": "transaction",
-        "condition": {"op": "eq", "name": "event.transaction", "value": "healthcheck"},
-        "id": 99,
-    })
+    _add_sampling_config(config, sample_rate=1.0, rule_type="trace")
+    config["config"]["dynamicSampling"]["rules"].append(
+        {
+            "sampleRate": 0.0,
+            "type": "transaction",
+            "condition": {
+                "op": "eq",
+                "name": "event.transaction",
+                "value": "healthcheck",
+            },
+            "id": 99,
+        }
+    )
 
     envelope, trace_id, event_id = _create_transaction_envelope(
-        public_key,
-        transaction='test1',
+        public_key, transaction="test1",
     )
 
     relay.send_envelope(project_id, envelope)
     envelope = mini_sentry.captured_events.get(timeout=1)
-    assert envelope.get_transaction_event()['transaction'] == 'test1'
+    assert envelope.get_transaction_event()["transaction"] == "test1"
 
     envelope, trace_id, event_id = _create_transaction_envelope(
-        public_key,
-        transaction='healthcheck',
+        public_key, transaction="healthcheck",
     )
 
     with pytest.raises(queue.Empty):

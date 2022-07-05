@@ -63,7 +63,10 @@ pub struct EqCondition {
 }
 
 impl EqCondition {
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+    fn matches<T>(&self, value_provider: &T) -> bool
+    where
+        T: FieldValueProvider,
+    {
         let value = value_provider.get_value(self.name.as_str());
 
         match value {
@@ -118,7 +121,7 @@ macro_rules! impl_cmp_condition {
         }
 
         impl $struct_name {
-            fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+            fn matches<T>(&self, value_provider: &T) -> bool where T: FieldValueProvider{
                 let value = match value_provider.get_value(self.name.as_str()) {
                     Value::Number(x) => x,
                     _ => return false
@@ -155,7 +158,10 @@ pub struct GlobCondition {
 }
 
 impl GlobCondition {
-    fn matches<T: FieldValueProvider>(&self, value_provider: &T) -> bool {
+    fn matches<T>(&self, value_provider: &T) -> bool
+    where
+        T: FieldValueProvider,
+    {
         value_provider
             .get_value(self.name.as_str())
             .as_str()
@@ -198,7 +204,10 @@ impl OrCondition {
         self.inner.iter().all(RuleCondition::supported)
     }
 
-    fn matches<T: FieldValueProvider>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool {
+    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
         self.inner.iter().any(|cond| cond.matches(value, ip_addr))
     }
 }
@@ -216,7 +225,10 @@ impl AndCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches<T: FieldValueProvider>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool {
+    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
         self.inner.iter().all(|cond| cond.matches(value, ip_addr))
     }
 }
@@ -235,7 +247,10 @@ impl NotCondition {
         self.inner.supported()
     }
 
-    fn matches<T: FieldValueProvider>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool {
+    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
         !self.inner.matches(value, ip_addr)
     }
 }
@@ -279,7 +294,10 @@ impl RuleCondition {
             RuleCondition::Custom(_) => true,
         }
     }
-    pub fn matches<T: FieldValueProvider>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool {
+    pub fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    where
+        T: FieldValueProvider,
+    {
         match self {
             RuleCondition::Eq(condition) => condition.matches(value),
             RuleCondition::Lte(condition) => condition.matches(value),
