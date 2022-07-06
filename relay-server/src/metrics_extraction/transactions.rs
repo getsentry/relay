@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use {
     crate::metrics_extraction::conditional_tagging::run_conditional_tagging,
     crate::metrics_extraction::{utils, TaggingRule},
-    relay_common::UnixTimestamp,
+    relay_common::{SpanStatus, UnixTimestamp},
     relay_general::protocol::TraceContext,
     relay_general::protocol::{AsPair, Event, EventType, Timestamp},
     relay_general::protocol::{Context, ContextInner},
@@ -75,10 +75,11 @@ fn get_trace_context(event: &Event) -> Option<&TraceContext> {
     None
 }
 
+/// Extract transaction status, defaulting to Unknown.
+/// Needs to be consistent with `process_trace_context` in [`relay_general::store::normalize`].
 #[cfg(feature = "processing")]
-fn extract_transaction_status(trace_context: &TraceContext) -> Option<String> {
-    let span_status = trace_context.status.value()?;
-    Some(span_status.to_string())
+fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
+    trace_context.status.value().unwrap_or(SpanStatus::Unknown)
 }
 
 #[cfg(feature = "processing")]
