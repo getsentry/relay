@@ -76,7 +76,7 @@
     <span class="kw">for</span> <span class="ident">rule</span> <span class="kw">in</span> <span class="ident">config</span> {
         <span class="kw">if</span> <span class="op">!</span><span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">supported</span>()
             <span class="op">|</span><span class="op">|</span> <span class="ident">rule</span>.<span class="ident">target_metrics</span>.<span class="ident">is_empty</span>()
-            <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="prelude-val">None</span>)
+            <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">event</span>, <span class="prelude-val">None</span>)
         {
             <span class="kw">continue</span>;
         }

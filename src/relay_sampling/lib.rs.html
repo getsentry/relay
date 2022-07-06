@@ -2248,61 +2248,6 @@
 <span id="2241">2241</span>
 <span id="2242">2242</span>
 <span id="2243">2243</span>
-<span id="2244">2244</span>
-<span id="2245">2245</span>
-<span id="2246">2246</span>
-<span id="2247">2247</span>
-<span id="2248">2248</span>
-<span id="2249">2249</span>
-<span id="2250">2250</span>
-<span id="2251">2251</span>
-<span id="2252">2252</span>
-<span id="2253">2253</span>
-<span id="2254">2254</span>
-<span id="2255">2255</span>
-<span id="2256">2256</span>
-<span id="2257">2257</span>
-<span id="2258">2258</span>
-<span id="2259">2259</span>
-<span id="2260">2260</span>
-<span id="2261">2261</span>
-<span id="2262">2262</span>
-<span id="2263">2263</span>
-<span id="2264">2264</span>
-<span id="2265">2265</span>
-<span id="2266">2266</span>
-<span id="2267">2267</span>
-<span id="2268">2268</span>
-<span id="2269">2269</span>
-<span id="2270">2270</span>
-<span id="2271">2271</span>
-<span id="2272">2272</span>
-<span id="2273">2273</span>
-<span id="2274">2274</span>
-<span id="2275">2275</span>
-<span id="2276">2276</span>
-<span id="2277">2277</span>
-<span id="2278">2278</span>
-<span id="2279">2279</span>
-<span id="2280">2280</span>
-<span id="2281">2281</span>
-<span id="2282">2282</span>
-<span id="2283">2283</span>
-<span id="2284">2284</span>
-<span id="2285">2285</span>
-<span id="2286">2286</span>
-<span id="2287">2287</span>
-<span id="2288">2288</span>
-<span id="2289">2289</span>
-<span id="2290">2290</span>
-<span id="2291">2291</span>
-<span id="2292">2292</span>
-<span id="2293">2293</span>
-<span id="2294">2294</span>
-<span id="2295">2295</span>
-<span id="2296">2296</span>
-<span id="2297">2297</span>
-<span id="2298">2298</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.</span>
 <span class="attribute">#![<span class="ident">doc</span>(
     <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
@@ -2337,17 +2282,6 @@
     <span class="ident">Error</span>,
 }
 
-<span class="doccomment">/// The result of a sampling operation returned by [`DynamicSamplingContext::should_keep`].</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">SamplingResult</span> {
-    <span class="doccomment">/// Keep the event.</span>
-    <span class="ident">Keep</span>,
-    <span class="doccomment">/// Drop the event, due to the rule with provided identifier.</span>
-    <span class="ident">Drop</span>(<span class="ident">RuleId</span>),
-    <span class="doccomment">/// No decision can be made.</span>
-    <span class="ident">NoDecision</span>,
-}
-
 <span class="doccomment">/// A condition that checks the values using the equality operator.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// For string values it supports case-insensitive comparison.</span>
@@ -2369,14 +2303,10 @@
 }
 
 <span class="kw">impl</span> <span class="ident">EqCondition</span> {
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">matches</span>(<span class="ident">event</span>)
-    }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">matches</span>(<span class="ident">trace</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">FieldValueProvider</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="ident">bool</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">FieldValueProvider</span>,
+    {
         <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">value_provider</span>.<span class="ident">get_value</span>(<span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_str</span>());
 
         <span class="kw">match</span> <span class="ident">value</span> {
@@ -2431,14 +2361,7 @@
         }
 
         <span class="kw">impl</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">struct_name</span> {
-            <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="ident">bool</span> {
-                <span class="self">self</span>.<span class="ident">matches</span>(<span class="ident">event</span>)
-            }
-            <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>) -&gt; <span class="ident">bool</span> {
-                <span class="self">self</span>.<span class="ident">matches</span>(<span class="ident">trace</span>)
-            }
-
-            <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">FieldValueProvider</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="ident">bool</span> {
+            <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="ident">bool</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">FieldValueProvider</span>{
                 <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">value_provider</span>.<span class="ident">get_value</span>(<span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_str</span>()) {
                     <span class="ident">Value::Number</span>(<span class="ident">x</span>) =&gt; <span class="ident">x</span>,
                     <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="bool-val">false</span>
@@ -2475,14 +2398,10 @@
 }
 
 <span class="kw">impl</span> <span class="ident">GlobCondition</span> {
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">matches</span>(<span class="ident">event</span>)
-    }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">matches</span>(<span class="ident">trace</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">FieldValueProvider</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) -&gt; <span class="ident">bool</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">FieldValueProvider</span>,
+    {
         <span class="ident">value_provider</span>
             .<span class="ident">get_value</span>(<span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_str</span>())
             .<span class="ident">as_str</span>()
@@ -2503,11 +2422,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">CustomCondition</span> {
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="ident">Event::get_custom_operator</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">name</span>)(<span class="self">self</span>, <span class="ident">event</span>, <span class="ident">ip_addr</span>)
-    }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="ident">DynamicSamplingContext::get_custom_operator</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">name</span>)(<span class="self">self</span>, <span class="ident">trace</span>, <span class="ident">ip_addr</span>)
+    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value_provider</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">FieldValueProvider</span>,
+    {
+        <span class="ident">T::get_custom_operator</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">name</span>)(<span class="self">self</span>, <span class="ident">value_provider</span>, <span class="ident">ip_addr</span>)
     }
 }
 
@@ -2524,15 +2443,12 @@
     <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="ident">RuleCondition::supported</span>)
     }
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">any</span>(<span class="op">|</span><span class="ident">cond</span><span class="op">|</span> <span class="ident">cond</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>))
-    }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">any</span>(<span class="op">|</span><span class="ident">cond</span><span class="op">|</span> <span class="ident">cond</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>))
+
+    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">FieldValueProvider</span>,
+    {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">cond</span><span class="op">|</span> <span class="ident">cond</span>.<span class="ident">matches</span>(<span class="ident">value</span>, <span class="ident">ip_addr</span>))
     }
 }
 
@@ -2549,15 +2465,11 @@
     <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="ident">RuleCondition::supported</span>)
     }
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">all</span>(<span class="op">|</span><span class="ident">cond</span><span class="op">|</span> <span class="ident">cond</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>))
-    }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">inner</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">all</span>(<span class="op">|</span><span class="ident">cond</span><span class="op">|</span> <span class="ident">cond</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>))
+    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">FieldValueProvider</span>,
+    {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">cond</span><span class="op">|</span> <span class="ident">cond</span>.<span class="ident">matches</span>(<span class="ident">value</span>, <span class="ident">ip_addr</span>))
     }
 }
 
@@ -2574,11 +2486,12 @@
     <span class="kw">fn</span> <span class="ident">supported</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">supported</span>()
     }
-    <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="op">!</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>)
-    }
-    <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="op">!</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>)
+
+    <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">FieldValueProvider</span>,
+    {
+        <span class="op">!</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">matches</span>(<span class="ident">value</span>, <span class="ident">ip_addr</span>)
     }
 }
 
@@ -2621,34 +2534,22 @@
             <span class="ident">RuleCondition::Custom</span>(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
         }
     }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">matches</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">FieldValueProvider</span>,
+    {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RuleCondition::Eq</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>),
-            <span class="ident">RuleCondition::Lte</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>),
-            <span class="ident">RuleCondition::Gte</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>),
-            <span class="ident">RuleCondition::Gt</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>),
-            <span class="ident">RuleCondition::Lt</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>),
-            <span class="ident">RuleCondition::Glob</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>),
-            <span class="ident">RuleCondition::And</span>(<span class="ident">conditions</span>) =&gt; <span class="ident">conditions</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Or</span>(<span class="ident">conditions</span>) =&gt; <span class="ident">conditions</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Not</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Eq</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">value</span>),
+            <span class="ident">RuleCondition::Lte</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">value</span>),
+            <span class="ident">RuleCondition::Gte</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">value</span>),
+            <span class="ident">RuleCondition::Gt</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">value</span>),
+            <span class="ident">RuleCondition::Lt</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">value</span>),
+            <span class="ident">RuleCondition::Glob</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">value</span>),
+            <span class="ident">RuleCondition::And</span>(<span class="ident">conditions</span>) =&gt; <span class="ident">conditions</span>.<span class="ident">matches</span>(<span class="ident">value</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Or</span>(<span class="ident">conditions</span>) =&gt; <span class="ident">conditions</span>.<span class="ident">matches</span>(<span class="ident">value</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Not</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">value</span>, <span class="ident">ip_addr</span>),
             <span class="ident">RuleCondition::Unsupported</span> =&gt; <span class="bool-val">false</span>,
-            <span class="ident">RuleCondition::Custom</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>),
-        }
-    }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RuleCondition::Eq</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>),
-            <span class="ident">RuleCondition::Gte</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>),
-            <span class="ident">RuleCondition::Lte</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>),
-            <span class="ident">RuleCondition::Gt</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>),
-            <span class="ident">RuleCondition::Lt</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>),
-            <span class="ident">RuleCondition::Glob</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>),
-            <span class="ident">RuleCondition::And</span>(<span class="ident">conditions</span>) =&gt; <span class="ident">conditions</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Or</span>(<span class="ident">conditions</span>) =&gt; <span class="ident">conditions</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Not</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
-            <span class="ident">RuleCondition::Unsupported</span> =&gt; <span class="bool-val">false</span>,
-            <span class="ident">RuleCondition::Custom</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>),
+            <span class="ident">RuleCondition::Custom</span>(<span class="ident">condition</span>) =&gt; <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">value</span>, <span class="ident">ip_addr</span>),
         }
     }
 }
@@ -2683,7 +2584,7 @@
 <span class="doccomment">/// Trait implemented by providers of fields (Events and Trace Contexts).</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// The fields will be used by rules to check if they apply.</span>
-<span class="kw">trait</span> <span class="ident">FieldValueProvider</span> {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">FieldValueProvider</span> {
     <span class="doccomment">/// gets the value of a field</span>
     <span class="kw">fn</span> <span class="ident">get_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Value</span>;
     <span class="doccomment">/// what type of rule can be applied to this provider</span>
@@ -2977,6 +2878,50 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_unsupported_rules</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="op">!</span><span class="self">self</span>.<span class="ident">rules</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="ident">SamplingRule::supported</span>)
     }
+
+    <span class="doccomment">/// Get the first rule of type [`RuleType::Trace`] whose conditions match on the given sampling</span>
+    <span class="doccomment">/// context.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is a function separate from `get_matching_event_rule` because trace rules can</span>
+    <span class="doccomment">/// (theoretically) be applied even if there&#39;s no event. Also we expect that trace rules are</span>
+    <span class="doccomment">/// executed before event rules.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_matching_trace_rule</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
+        <span class="ident">sampling_context</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>,
+        <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
+    ) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SamplingRule</span><span class="op">&gt;</span> {
+        <span class="kw">for</span> <span class="ident">rule</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">rules</span> {
+            <span class="kw">if</span> <span class="ident">rule</span>.<span class="ident">ty</span> <span class="op">==</span> <span class="ident">RuleType::Trace</span> <span class="op">&amp;&amp;</span> <span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">sampling_context</span>, <span class="ident">ip_addr</span>) {
+                <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">rule</span>);
+            }
+        }
+
+        <span class="prelude-val">None</span>
+    }
+
+    <span class="doccomment">/// Get the first rule of type [`RuleType::Transaction`] or [`RuleType::Error`] whose conditions</span>
+    <span class="doccomment">/// match the given event.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The rule type to filter by is inferred from the event&#39;s type.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_matching_event_rule</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
+        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>,
+        <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
+        <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
+    ) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SamplingRule</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">ty</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">EventType::Transaction</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">ty</span>.<span class="number">0</span> {
+            <span class="ident">RuleType::Transaction</span>
+        } <span class="kw">else</span> {
+            <span class="ident">RuleType::Error</span>
+        };
+
+        <span class="kw">for</span> <span class="ident">rule</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">rules</span> {
+            <span class="kw">if</span> <span class="ident">rule</span>.<span class="ident">ty</span> <span class="op">==</span> <span class="ident">ty</span> <span class="op">&amp;&amp;</span> <span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">matches</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>) {
+                <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">rule</span>);
+            }
+        }
+
+        <span class="prelude-val">None</span>
+    }
 }
 
 <span class="doccomment">/// The User related information in the trace context</span>
@@ -3126,7 +3071,6 @@
     <span class="doccomment">/// the matching rule.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">adjusted_sample_rate</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rule_sample_rate</span>: <span class="ident">f64</span>) -&gt; <span class="ident">f64</span> {
         <span class="kw">let</span> <span class="ident">client_sample_rate</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">sample_rate</span>.<span class="ident">unwrap_or</span>(<span class="number">1.0</span>);
-
         <span class="kw">if</span> <span class="ident">client_sample_rate</span> <span class="op">&lt;</span><span class="op">=</span> <span class="number">0.0</span> {
             <span class="comment">// client_sample_rate is 0, which is bogus because the SDK should&#39;ve dropped the</span>
             <span class="comment">// envelope. In that case let&#39;s pretend the sample rate was not sent, because clearly</span>
@@ -3149,60 +3093,6 @@
             }
         }
     }
-
-    <span class="doccomment">/// Returns whether a trace should be retained based on sampling rules.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If [`SamplingResult::NoDecision`] is returned, then no rule matched this trace. In this</span>
-    <span class="doccomment">/// case, the caller may decide whether to keep the trace or not. The same is returned if the</span>
-    <span class="doccomment">/// configuration is invalid.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">should_keep</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>, <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">SamplingConfig</span>) -&gt; <span class="ident">SamplingResult</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">rule</span>) <span class="op">=</span> <span class="ident">get_matching_trace_rule</span>(<span class="ident">config</span>, <span class="self">self</span>, <span class="ident">ip_addr</span>, <span class="ident">RuleType::Trace</span>) {
-            <span class="kw">let</span> <span class="ident">adjusted_sample_rate</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">adjusted_sample_rate</span>(<span class="ident">rule</span>.<span class="ident">sample_rate</span>);
-            <span class="kw">let</span> <span class="ident">rate</span> <span class="op">=</span> <span class="ident">pseudo_random_from_uuid</span>(<span class="self">self</span>.<span class="ident">trace_id</span>);
-
-            <span class="kw">if</span> <span class="ident">rate</span> <span class="op">&lt;</span> <span class="ident">adjusted_sample_rate</span> {
-                <span class="ident">SamplingResult::Keep</span>
-            } <span class="kw">else</span> {
-                <span class="ident">SamplingResult::Drop</span>(<span class="ident">rule</span>.<span class="ident">id</span>)
-            }
-        } <span class="kw">else</span> {
-            <span class="ident">SamplingResult::NoDecision</span>
-        }
-    }
-}
-
-<span class="doccomment">/// Returns the type of rule that applies to a particular event.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rule_type_for_event</span>(<span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>) -&gt; <span class="ident">RuleType</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">EventType::Transaction</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">ty</span>.<span class="number">0</span> {
-        <span class="ident">RuleType::Transaction</span>
-    } <span class="kw">else</span> {
-        <span class="ident">RuleType::Error</span>
-    }
-}
-
-<span class="doccomment">/// Returns the first event rule that matches the event.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_matching_event_rule</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SamplingConfig</span>,
-    <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
-    <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
-    <span class="ident">ty</span>: <span class="ident">RuleType</span>,
-) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SamplingRule</span><span class="op">&gt;</span> {
-    <span class="ident">config</span>
-        .<span class="ident">rules</span>
-        .<span class="ident">iter</span>()
-        .<span class="ident">find</span>(<span class="op">|</span><span class="ident">rule</span><span class="op">|</span> <span class="ident">rule</span>.<span class="ident">ty</span> <span class="op">==</span> <span class="ident">ty</span> <span class="op">&amp;&amp;</span> <span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="ident">event</span>, <span class="ident">ip_addr</span>))
-}
-
-<span class="kw">fn</span> <span class="ident">get_matching_trace_rule</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SamplingConfig</span>,
-    <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>,
-    <span class="ident">ip_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">IpAddr</span><span class="op">&gt;</span>,
-    <span class="ident">ty</span>: <span class="ident">RuleType</span>,
-) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SamplingRule</span><span class="op">&gt;</span> {
-    <span class="ident">config</span>
-        .<span class="ident">rules</span>
-        .<span class="ident">iter</span>()
-        .<span class="ident">find</span>(<span class="op">|</span><span class="ident">rule</span><span class="op">|</span> <span class="ident">rule</span>.<span class="ident">ty</span> <span class="op">==</span> <span class="ident">ty</span> <span class="op">&amp;&amp;</span> <span class="ident">rule</span>.<span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="ident">trace</span>, <span class="ident">ip_addr</span>))
 }
 
 <span class="doccomment">/// Generates a pseudo random number by seeding the generator with the given id.</span>
@@ -3588,7 +3478,7 @@
 
         <span class="kw">for</span> (<span class="ident">rule_test_name</span>, <span class="ident">condition</span>) <span class="kw">in</span> <span class="ident">conditions</span>.<span class="ident">iter</span>() {
             <span class="kw">let</span> <span class="ident">failure_name</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, <span class="ident">rule_test_name</span>);
-            <span class="macro">assert!</span>(<span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>), <span class="string">&quot;{}&quot;</span>, <span class="ident">failure_name</span>);
+            <span class="macro">assert!</span>(<span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>), <span class="string">&quot;{}&quot;</span>, <span class="ident">failure_name</span>);
         }
     }
 
@@ -3666,7 +3556,7 @@
         <span class="kw">for</span> (<span class="ident">rule_test_name</span>, <span class="ident">condition</span>) <span class="kw">in</span> <span class="ident">conditions</span>.<span class="ident">iter</span>() {
             <span class="kw">let</span> <span class="ident">failure_name</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, <span class="ident">rule_test_name</span>);
             <span class="kw">let</span> <span class="ident">ip_addr</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">NetIpAddr::V4</span>(<span class="ident">Ipv4Addr::new</span>(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>)));
-            <span class="macro">assert!</span>(<span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="ident">evt</span>, <span class="ident">ip_addr</span>), <span class="string">&quot;{}&quot;</span>, <span class="ident">failure_name</span>);
+            <span class="macro">assert!</span>(<span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">evt</span>, <span class="ident">ip_addr</span>), <span class="string">&quot;{}&quot;</span>, <span class="ident">failure_name</span>);
         }
     }
 
@@ -3685,7 +3575,7 @@
             }),
             ..<span class="ident">Default::default</span>()
         };
-        <span class="macro">assert!</span>(<span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="ident">evt</span>, <span class="prelude-val">None</span>));
+        <span class="macro">assert!</span>(<span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">evt</span>, <span class="prelude-val">None</span>));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -3706,7 +3596,7 @@
             }),
             ..<span class="ident">Event::default</span>()
         };
-        <span class="macro">assert!</span>(<span class="ident">condition</span>.<span class="ident">matches_event</span>(<span class="kw-2">&amp;</span><span class="ident">evt</span>, <span class="prelude-val">None</span>));
+        <span class="macro">assert!</span>(<span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">evt</span>, <span class="prelude-val">None</span>));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -3764,7 +3654,7 @@
         <span class="kw">for</span> (<span class="ident">rule_test_name</span>, <span class="ident">expected</span>, <span class="ident">condition</span>) <span class="kw">in</span> <span class="ident">conditions</span>.<span class="ident">iter</span>() {
             <span class="kw">let</span> <span class="ident">failure_name</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, <span class="ident">rule_test_name</span>);
             <span class="macro">assert!</span>(
-                <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>) <span class="op">==</span> <span class="kw-2">*</span><span class="ident">expected</span>,
+                <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>) <span class="op">==</span> <span class="kw-2">*</span><span class="ident">expected</span>,
                 <span class="string">&quot;{}&quot;</span>,
                 <span class="ident">failure_name</span>
             );
@@ -3826,7 +3716,7 @@
         <span class="kw">for</span> (<span class="ident">rule_test_name</span>, <span class="ident">expected</span>, <span class="ident">condition</span>) <span class="kw">in</span> <span class="ident">conditions</span>.<span class="ident">iter</span>() {
             <span class="kw">let</span> <span class="ident">failure_name</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, <span class="ident">rule_test_name</span>);
             <span class="macro">assert!</span>(
-                <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>) <span class="op">==</span> <span class="kw-2">*</span><span class="ident">expected</span>,
+                <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>) <span class="op">==</span> <span class="kw-2">*</span><span class="ident">expected</span>,
                 <span class="string">&quot;{}&quot;</span>,
                 <span class="ident">failure_name</span>
             );
@@ -3865,7 +3755,7 @@
         <span class="kw">for</span> (<span class="ident">rule_test_name</span>, <span class="ident">expected</span>, <span class="ident">condition</span>) <span class="kw">in</span> <span class="ident">conditions</span>.<span class="ident">iter</span>() {
             <span class="kw">let</span> <span class="ident">failure_name</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, <span class="ident">rule_test_name</span>);
             <span class="macro">assert!</span>(
-                <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>) <span class="op">==</span> <span class="kw-2">*</span><span class="ident">expected</span>,
+                <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>) <span class="op">==</span> <span class="kw-2">*</span><span class="ident">expected</span>,
                 <span class="string">&quot;{}&quot;</span>,
                 <span class="ident">failure_name</span>
             );
@@ -3926,7 +3816,7 @@
 
         <span class="kw">for</span> (<span class="ident">rule_test_name</span>, <span class="ident">condition</span>) <span class="kw">in</span> <span class="ident">conditions</span>.<span class="ident">iter</span>() {
             <span class="kw">let</span> <span class="ident">failure_name</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;Failed on test: &#39;{}&#39;!!!&quot;</span>, <span class="ident">rule_test_name</span>);
-            <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>), <span class="string">&quot;{}&quot;</span>, <span class="ident">failure_name</span>);
+            <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>), <span class="string">&quot;{}&quot;</span>, <span class="ident">failure_name</span>);
         }
     }
 
@@ -4142,7 +4032,7 @@
         };
 
         <span class="macro">assert!</span>(
-            <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>),
+            <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>),
             <span class="string">&quot;did not match with missing release&quot;</span>
         );
 
@@ -4162,7 +4052,7 @@
         };
 
         <span class="macro">assert!</span>(
-            <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>),
+            <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>),
             <span class="string">&quot;did not match with missing user segment&quot;</span>
         );
 
@@ -4185,7 +4075,7 @@
         };
 
         <span class="macro">assert!</span>(
-            <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>),
+            <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>),
             <span class="string">&quot;did not match with missing environment&quot;</span>
         );
 
@@ -4208,7 +4098,7 @@
         };
 
         <span class="macro">assert!</span>(
-            <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>),
+            <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>),
             <span class="string">&quot;did not match with missing transaction&quot;</span>
         );
         <span class="kw">let</span> <span class="ident">condition</span> <span class="op">=</span> <span class="ident">and</span>(<span class="macro">vec!</span>[]);
@@ -4224,7 +4114,7 @@
         };
 
         <span class="macro">assert!</span>(
-            <span class="ident">condition</span>.<span class="ident">matches_trace</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>),
+            <span class="ident">condition</span>.<span class="ident">matches</span>(<span class="kw-2">&amp;</span><span class="ident">dsc</span>, <span class="prelude-val">None</span>),
             <span class="string">&quot;did not match with missing release, user segment, environment and transaction&quot;</span>
         );
     }
@@ -4305,7 +4195,7 @@
             <span class="ident">other</span>: <span class="ident">BTreeMap::new</span>(),
         };
 
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">get_matching_trace_rule</span>(<span class="kw-2">&amp;</span><span class="ident">rules</span>, <span class="kw-2">&amp;</span><span class="ident">trace_context</span>, <span class="prelude-val">None</span>, <span class="ident">RuleType::Trace</span>);
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">rules</span>.<span class="ident">get_matching_trace_rule</span>(<span class="kw-2">&amp;</span><span class="ident">trace_context</span>, <span class="prelude-val">None</span>);
         <span class="comment">// complete match with first rule</span>
         <span class="macro">assert_eq!</span>(
             <span class="ident">result</span>.<span class="ident">unwrap</span>().<span class="ident">id</span>,
@@ -4327,7 +4217,7 @@
             <span class="ident">other</span>: <span class="ident">BTreeMap::new</span>(),
         };
 
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">get_matching_trace_rule</span>(<span class="kw-2">&amp;</span><span class="ident">rules</span>, <span class="kw-2">&amp;</span><span class="ident">trace_context</span>, <span class="prelude-val">None</span>, <span class="ident">RuleType::Trace</span>);
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">rules</span>.<span class="ident">get_matching_trace_rule</span>(<span class="kw-2">&amp;</span><span class="ident">trace_context</span>, <span class="prelude-val">None</span>);
         <span class="comment">// should mach the second rule because of the release</span>
         <span class="macro">assert_eq!</span>(
             <span class="ident">result</span>.<span class="ident">unwrap</span>().<span class="ident">id</span>,
@@ -4349,7 +4239,7 @@
             <span class="ident">other</span>: <span class="ident">BTreeMap::new</span>(),
         };
 
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">get_matching_trace_rule</span>(<span class="kw-2">&amp;</span><span class="ident">rules</span>, <span class="kw-2">&amp;</span><span class="ident">trace_context</span>, <span class="prelude-val">None</span>, <span class="ident">RuleType::Trace</span>);
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">rules</span>.<span class="ident">get_matching_trace_rule</span>(<span class="kw-2">&amp;</span><span class="ident">trace_context</span>, <span class="prelude-val">None</span>);
         <span class="comment">// should match the third rule because of the unknown release</span>
         <span class="macro">assert_eq!</span>(
             <span class="ident">result</span>.<span class="ident">unwrap</span>().<span class="ident">id</span>,
@@ -4371,7 +4261,7 @@
             <span class="ident">other</span>: <span class="ident">BTreeMap::new</span>(),
         };
 
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">get_matching_trace_rule</span>(<span class="kw-2">&amp;</span><span class="ident">rules</span>, <span class="kw-2">&amp;</span><span class="ident">trace_context</span>, <span class="prelude-val">None</span>, <span class="ident">RuleType::Trace</span>);
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">rules</span>.<span class="ident">get_matching_trace_rule</span>(<span class="kw-2">&amp;</span><span class="ident">trace_context</span>, <span class="prelude-val">None</span>);
         <span class="comment">// should match the fourth rule because of the unknown environment</span>
         <span class="macro">assert_eq!</span>(
             <span class="ident">result</span>.<span class="ident">unwrap</span>().<span class="ident">id</span>,
@@ -4393,7 +4283,7 @@
             <span class="ident">other</span>: <span class="ident">BTreeMap::new</span>(),
         };
 
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">get_matching_trace_rule</span>(<span class="kw-2">&amp;</span><span class="ident">rules</span>, <span class="kw-2">&amp;</span><span class="ident">trace_context</span>, <span class="prelude-val">None</span>, <span class="ident">RuleType::Trace</span>);
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">rules</span>.<span class="ident">get_matching_trace_rule</span>(<span class="kw-2">&amp;</span><span class="ident">trace_context</span>, <span class="prelude-val">None</span>);
         <span class="comment">// should match the fourth rule because of the unknown user segment</span>
         <span class="macro">assert_eq!</span>(
             <span class="ident">result</span>.<span class="ident">unwrap</span>().<span class="ident">id</span>,

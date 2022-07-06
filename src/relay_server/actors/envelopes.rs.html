@@ -3399,41 +3399,6 @@
 <span id="3392">3392</span>
 <span id="3393">3393</span>
 <span id="3394">3394</span>
-<span id="3395">3395</span>
-<span id="3396">3396</span>
-<span id="3397">3397</span>
-<span id="3398">3398</span>
-<span id="3399">3399</span>
-<span id="3400">3400</span>
-<span id="3401">3401</span>
-<span id="3402">3402</span>
-<span id="3403">3403</span>
-<span id="3404">3404</span>
-<span id="3405">3405</span>
-<span id="3406">3406</span>
-<span id="3407">3407</span>
-<span id="3408">3408</span>
-<span id="3409">3409</span>
-<span id="3410">3410</span>
-<span id="3411">3411</span>
-<span id="3412">3412</span>
-<span id="3413">3413</span>
-<span id="3414">3414</span>
-<span id="3415">3415</span>
-<span id="3416">3416</span>
-<span id="3417">3417</span>
-<span id="3418">3418</span>
-<span id="3419">3419</span>
-<span id="3420">3420</span>
-<span id="3421">3421</span>
-<span id="3422">3422</span>
-<span id="3423">3423</span>
-<span id="3424">3424</span>
-<span id="3425">3425</span>
-<span id="3426">3426</span>
-<span id="3427">3427</span>
-<span id="3428">3428</span>
-<span id="3429">3429</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3473,7 +3438,7 @@
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">Metric</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimits</span>, <span class="ident">ReasonCode</span>, <span class="ident">Scoping</span>};
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
-<span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">RuleId</span>, <span class="ident">SamplingResult</span>};
+<span class="kw">use</span> <span class="ident">relay_sampling::RuleId</span>;
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">TrackOutcome</span>};
@@ -3492,7 +3457,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{
     <span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">EnvelopeSummary</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>, <span class="ident">MinimalProfile</span>,
-    <span class="ident">ProfileError</span>, <span class="ident">SendWithOutcome</span>,
+    <span class="ident">ProfileError</span>, <span class="ident">SamplingResult</span>, <span class="ident">SendWithOutcome</span>,
 };
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -3591,11 +3556,8 @@
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;envelope exceeded its configured lifetime&quot;</span>)]</span>
     <span class="ident">Timeout</span>,
 
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;trace dropped by sampling rule {}&quot;</span>, <span class="ident">_0</span>)]</span>
-    <span class="ident">TraceSampled</span>(<span class="ident">RuleId</span>),
-
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;event dropped by sampling rule {}&quot;</span>, <span class="ident">_0</span>)]</span>
-    <span class="ident">EventSampled</span>(<span class="ident">RuleId</span>),
+    <span class="ident">Sampled</span>(<span class="ident">RuleId</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">ProcessingError</span> {
@@ -3635,8 +3597,7 @@
             <span class="ident"><span class="self">Self</span>::Rejected</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident"><span class="self">Self</span>::EventFiltered</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-            <span class="ident"><span class="self">Self</span>::TraceSampled</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-            <span class="ident"><span class="self">Self</span>::EventSampled</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            <span class="ident"><span class="self">Self</span>::Sampled</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             <span class="ident"><span class="self">Self</span>::RateLimited</span> =&gt; <span class="prelude-val">None</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident"><span class="self">Self</span>::StoreFailed</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
@@ -3649,7 +3610,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">should_keep_metrics</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident"><span class="self">Self</span>::TraceSampled</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident"><span class="self">Self</span>::EventSampled</span>(<span class="kw">_</span>))
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="ident"><span class="self">Self</span>::Sampled</span>(<span class="kw">_</span>))
     }
 }
 
@@ -5264,44 +5225,16 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Run dynamic sampling rules on trace header to see if we keep the event or remove it.</span>
-    <span class="kw">fn</span> <span class="ident">sample_trace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">sampling_project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">sampling_project_state</span> {
-            <span class="comment">// nothing to sample</span>
-            <span class="prelude-val">None</span> =&gt; {
-                <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
-            }
-            <span class="prelude-val">Some</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>.<span class="ident">as_ref</span>(),
-        };
-
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">utils::sample_trace</span>(
-            <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">envelope</span>,
-            <span class="ident">sampling_project_state</span>,
-            <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>(),
-        );
-
-        <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">rule_id</span><span class="op">|</span> {
-            <span class="ident">state</span>
-                .<span class="ident">envelope_context</span>
-                .<span class="ident">send_outcomes</span>(<span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>));
-
-            <span class="ident">ProcessingError::TraceSampled</span>(<span class="ident">rule_id</span>)
-        })
-    }
-
-    <span class="doccomment">/// Run dynamic sampling rules on event body to see if we keep the event or remove it.</span>
-    <span class="kw">fn</span> <span class="ident">sample_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">event</span>.<span class="number">0</span> {
-            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()), <span class="comment">// can&#39;t process without an event</span>
-            <span class="prelude-val">Some</span>(<span class="ident">event</span>) =&gt; <span class="ident">event</span>,
-        };
+    <span class="doccomment">/// Run dynamic sampling rules to see if we keep the envelope or remove it.</span>
+    <span class="kw">fn</span> <span class="ident">sample_envelope</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">client_ip</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
 
         <span class="kw">match</span> <span class="ident">utils::should_keep_event</span>(
             <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">sampling_context</span>(),
-            <span class="ident">event</span>,
+            <span class="ident">state</span>.<span class="ident">event</span>.<span class="ident">value</span>(),
             <span class="ident">client_ip</span>,
             <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">project_state</span>,
+            <span class="ident">state</span>.<span class="ident">sampling_project_state</span>.<span class="ident">as_deref</span>(),
             <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>(),
         ) {
             <span class="ident">SamplingResult::Drop</span>(<span class="ident">rule_id</span>) =&gt; {
@@ -5309,11 +5242,9 @@
                     .<span class="ident">envelope_context</span>
                     .<span class="ident">send_outcomes</span>(<span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule_id</span>));
 
-                <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::EventSampled</span>(<span class="ident">rule_id</span>))
+                <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::Sampled</span>(<span class="ident">rule_id</span>))
             }
             <span class="ident">SamplingResult::Keep</span> =&gt; <span class="prelude-val">Ok</span>(()),
-            <span class="comment">// Not enough info to make a definite evaluation, keep the event</span>
-            <span class="ident">SamplingResult::NoDecision</span> =&gt; <span class="prelude-val">Ok</span>(()),
         }
     }
 
@@ -5350,8 +5281,7 @@
                 <span class="self">self</span>.<span class="ident">extract_transaction_metrics</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
             });
 
-            <span class="self">self</span>.<span class="ident">sample_trace</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
-            <span class="self">self</span>.<span class="ident">sample_event</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">sample_envelope</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
 
             <span class="macro">if_processing!</span>({
                 <span class="self">self</span>.<span class="ident">store_process_event</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
