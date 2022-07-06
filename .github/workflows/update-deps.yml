@@ -1,7 +1,7 @@
 name: Update Dependencies
 
 on:
-  # Run every day.
+  # Run every Monday at 3am.
   schedule:
     - cron: '0 3 * * 1'
 
