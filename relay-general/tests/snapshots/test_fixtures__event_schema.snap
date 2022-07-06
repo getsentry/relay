@@ -1,6 +1,5 @@
 ---
 source: relay-general/tests/test_fixtures.rs
-assertion_line: 106
 expression: event_json_schema()
 ---
 {

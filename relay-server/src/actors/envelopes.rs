@@ -37,7 +37,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, ReasonCode, Scoping};
 use relay_redis::RedisPool;
-use relay_sampling::{RuleId, SamplingResult};
+use relay_sampling::RuleId;
 use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -56,7 +56,7 @@ use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, MinimalProfile,
-    ProfileError, SendWithOutcome,
+    ProfileError, SamplingResult, SendWithOutcome,
 };
 
 #[cfg(feature = "processing")]
@@ -155,11 +155,8 @@ enum ProcessingError {
     #[fail(display = "envelope exceeded its configured lifetime")]
     Timeout,
 
-    #[fail(display = "trace dropped by sampling rule {}", _0)]
-    TraceSampled(RuleId),
-
     #[fail(display = "event dropped by sampling rule {}", _0)]
-    EventSampled(RuleId),
+    Sampled(RuleId),
 }
 
 impl ProcessingError {
@@ -199,8 +196,7 @@ impl ProcessingError {
             Self::Rejected(_) => None,
             #[cfg(feature = "processing")]
             Self::EventFiltered(_) => None,
-            Self::TraceSampled(_) => None,
-            Self::EventSampled(_) => None,
+            Self::Sampled(_) => None,
             Self::RateLimited => None,
             #[cfg(feature = "processing")]
             Self::StoreFailed(_) => None,
@@ -213,7 +209,7 @@ impl ProcessingError {
     }
 
     fn should_keep_metrics(&self) -> bool {
-        matches!(self, Self::TraceSampled(_) | Self::EventSampled(_))
+        matches!(self, Self::Sampled(_))
     }
 }
 
@@ -1828,44 +1824,16 @@ impl EnvelopeProcessor {
         Ok(())
     }
 
-    /// Run dynamic sampling rules on trace header to see if we keep the event or remove it.
-    fn sample_trace(&self, state: &ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let sampling_project_state = match &state.sampling_project_state {
-            // nothing to sample
-            None => {
-                return Ok(());
-            }
-            Some(s) => s.as_ref(),
-        };
-
-        let result = utils::sample_trace(
-            &state.envelope,
-            sampling_project_state,
-            self.config.processing_enabled(),
-        );
-
-        result.map_err(|rule_id| {
-            state
-                .envelope_context
-                .send_outcomes(Outcome::FilteredSampling(rule_id));
-
-            ProcessingError::TraceSampled(rule_id)
-        })
-    }
-
-    /// Run dynamic sampling rules on event body to see if we keep the event or remove it.
-    fn sample_event(&self, state: &ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let event = match &state.event.0 {
-            None => return Ok(()), // can't process without an event
-            Some(event) => event,
-        };
+    /// Run dynamic sampling rules to see if we keep the envelope or remove it.
+    fn sample_envelope(&self, state: &ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let client_ip = state.envelope.meta().client_addr();
 
         match utils::should_keep_event(
             state.envelope.sampling_context(),
-            event,
+            state.event.value(),
             client_ip,
             &state.project_state,
+            state.sampling_project_state.as_deref(),
             self.config.processing_enabled(),
         ) {
             SamplingResult::Drop(rule_id) => {
@@ -1873,11 +1841,9 @@ impl EnvelopeProcessor {
                     .envelope_context
                     .send_outcomes(Outcome::FilteredSampling(rule_id));
 
-                Err(ProcessingError::EventSampled(rule_id))
+                Err(ProcessingError::Sampled(rule_id))
             }
             SamplingResult::Keep => Ok(()),
-            // Not enough info to make a definite evaluation, keep the event
-            SamplingResult::NoDecision => Ok(()),
         }
     }
 
@@ -1914,8 +1880,7 @@ impl EnvelopeProcessor {
                 self.extract_transaction_metrics(state)?;
             });
 
-            self.sample_trace(state)?;
-            self.sample_event(state)?;
+            self.sample_envelope(state)?;
 
             if_processing!({
                 self.store_process_event(state)?;
