@@ -1,6 +1,5 @@
 ---
 source: relay-general/tests/test_fixtures.rs
-assertion_line: 106
 expression: event_json_schema()
 ---
 {
@@ -2741,7 +2740,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "client_sample_rate": {
-              "description": " The SDK-side sample rate as reported in the envelope's `trace.sample_rate` header.\n\n The server takes this field from envelope headers and writes it back into the event. SDKs\n should not ever send this value.",
+              "description": " The client-side sample rate as reported in the envelope's `trace.sample_rate` header.\n\n The server takes this field from envelope headers and writes it back into the event. Clients\n should not ever send this value.",
               "default": null,
               "type": [
                 "number",

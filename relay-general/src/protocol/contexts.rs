@@ -496,9 +496,9 @@ pub struct TraceContext {
     /// excluding its immediate child spans.
     pub exclusive_time: Annotated<f64>,
 
-    /// The SDK-side sample rate as reported in the envelope's `trace.sample_rate` header.
+    /// The client-side sample rate as reported in the envelope's `trace.sample_rate` header.
     ///
-    /// The server takes this field from envelope headers and writes it back into the event. SDKs
+    /// The server takes this field from envelope headers and writes it back into the event. Clients
     /// should not ever send this value.
     pub client_sample_rate: Annotated<f64>,
 

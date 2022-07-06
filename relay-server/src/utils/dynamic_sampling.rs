@@ -117,11 +117,9 @@ pub fn should_keep_event(
 
         let random_number = pseudo_random_from_uuid(uuid);
 
-        if random_number < adjusted_sample_rate {
-            continue;
+        if random_number >= adjusted_sample_rate {
+            return SamplingResult::Drop(rule.id);
         }
-
-        return SamplingResult::Drop(rule.id);
     }
 
     SamplingResult::Keep
