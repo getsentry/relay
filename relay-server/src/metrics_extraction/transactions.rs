@@ -75,11 +75,11 @@ fn get_trace_context(event: &Event) -> Option<&TraceContext> {
     None
 }
 
-/// Extract transaction status, defaulting to Unknown.
-/// Needs to be consistent with `process_trace_context` in [`relay_general::store::normalize`].
+/// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
+/// Must be consistent with `process_trace_context` in [`relay_general::store::normalize`].
 #[cfg(feature = "processing")]
 fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
-    trace_context.status.value().unwrap_or(SpanStatus::Unknown)
+    *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
 }
 
 #[cfg(feature = "processing")]
@@ -198,9 +198,8 @@ fn extract_universal_tags(
     tags.insert("platform".to_owned(), platform.to_owned());
 
     if let Some(trace_context) = get_trace_context(event) {
-        if let Some(status) = extract_transaction_status(trace_context) {
-            tags.insert("transaction.status".to_owned(), status);
-        }
+        let status = extract_transaction_status(trace_context);
+        tags.insert("transaction.status".to_owned(), status.to_string());
 
         if let Some(op) = extract_transaction_op(trace_context) {
             tags.insert("transaction.op".to_owned(), op);
@@ -1126,6 +1125,80 @@ mod tests {
                     tags
                 }
             )]
+        );
+    }
+
+    #[test]
+    fn test_unknown_transaction_status_no_trace_context() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100"
+        }
+        "#;
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/duration@millisecond"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 1, "{:?}", metrics);
+
+        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(
+            metrics[0].tags,
+            BTreeMap::from([("platform".to_string(), "other".to_string())])
+        );
+    }
+
+    #[test]
+    fn test_unknown_transaction_status() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}}
+        }
+        "#;
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/duration@millisecond"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 1, "{:?}", metrics);
+
+        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(
+            metrics[0].tags,
+            BTreeMap::from([
+                ("transaction.status".to_string(), "unknown".to_string()),
+                ("platform".to_string(), "other".to_string())
+            ])
         );
     }
 }
