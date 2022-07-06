@@ -3,7 +3,7 @@ name: Update Dependencies
 on:
   # Run every day.
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 3 * * 1'
   # And on on every PR merge so we get the updated dependencies ASAP, and to make sure the changelog doesn't conflict.
   push:
     branches:
@@ -16,7 +16,7 @@ jobs:
       path: relay-crash/sentry-native
       name: Native SDK
     secrets:
-      # TODO provide a custom API token to have the CI triggered
+      # If a custom token is used instead, a CI would be triggered on a created PR.
       api_token: ${{ github.token }}
 
   uap-core:
@@ -25,5 +25,5 @@ jobs:
       path: relay-general/uap-core
       name: UAP Core
     secrets:
-      # TODO provide a custom API token to have the CI triggered
+      # If a custom token is used instead, a CI would be triggered on a created PR.
       api_token: ${{ github.token }}
