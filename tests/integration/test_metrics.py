@@ -528,6 +528,7 @@ def test_transaction_metrics(
         "tags": {
             "transaction": "/organizations/:orgId/performance/:eventSlug/",
             "platform": "other",
+            "transaction.status": "unknown",
         },
     }
 
