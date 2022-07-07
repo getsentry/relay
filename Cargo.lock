@@ -3262,6 +3262,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-cabi"
+version = "0.8.13"
+dependencies = [
+ "chrono",
+ "failure",
+ "json-forensics",
+ "lazy_static",
+ "relay-auth",
+ "relay-common",
+ "relay-ffi",
+ "relay-general",
+ "relay-sampling",
+ "sentry-release-parser",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "relay-common"
 version = "22.6.0"
 dependencies = [
@@ -3305,6 +3323,22 @@ version = "22.6.0"
 dependencies = [
  "bindgen",
  "cmake",
+]
+
+[[package]]
+name = "relay-ffi"
+version = "22.6.0"
+dependencies = [
+ "failure",
+ "relay-ffi-macros",
+]
+
+[[package]]
+name = "relay-ffi-macros"
+version = "22.6.0"
+dependencies = [
+ "quote 1.0.18",
+ "syn 1.0.96",
 ]
 
 [[package]]
@@ -3943,6 +3977,7 @@ checksum = "96c337b2564b136475f056ca1e5c958a58acdc3a6c48a6a02064f749f87acb18"
 dependencies = [
  "lazy_static",
  "regex",
+ "serde",
 ]
 
 [[package]]
