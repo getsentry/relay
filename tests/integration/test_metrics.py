@@ -528,6 +528,7 @@ def test_transaction_metrics(
         "tags": {
             "transaction": "/organizations/:orgId/performance/:eventSlug/",
             "platform": "other",
+            "transaction.status": "unknown",
         },
     }
 
@@ -536,7 +537,6 @@ def test_transaction_metrics(
         "name": "d:transactions/measurements.foo@none",
         "type": "d",
         "value": [1.2, 2.2],
-        "transaction.status": "unknown",
     }
 
     assert metrics["d:transactions/measurements.bar@none"] == {
