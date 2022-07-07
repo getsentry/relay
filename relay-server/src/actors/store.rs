@@ -484,11 +484,13 @@ impl StoreForwarder {
         replay_id: EventId,
         project_id: ProjectId,
         start_time: Instant,
+        retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ReplayEventKafkaMessage {
             replay_id,
             project_id,
+            retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             payload: item.payload(),
         };
@@ -654,6 +656,7 @@ struct ReplayEventKafkaMessage {
     replay_id: EventId,
     /// The project id for the current event.
     project_id: ProjectId,
+    retention_days: u16,
 }
 
 /// Container payload for chunks of attachments.
@@ -710,6 +713,7 @@ struct ReplayRecordingKafkaMessage {
     project_id: ProjectId,
     /// The recording attachment.
     replay_recording: ChunkedReplayRecording,
+    retention_days: u16,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.
@@ -939,6 +943,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                         KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
                             replay_id: event_id.ok_or(StoreError::NoEventId)?,
                             project_id: scoping.project_id,
+                            retention_days: retention,
                             replay_recording,
                         });
 
@@ -952,6 +957,7 @@ impl Handler<StoreEnvelope> for StoreForwarder {
                     event_id.ok_or(StoreError::NoEventId)?,
                     scoping.project_id,
                     start_time,
+                    retention,
                     item,
                 )?,
                 _ => {}
