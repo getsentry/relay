@@ -76,7 +76,7 @@ fn get_trace_context(event: &Event) -> Option<&TraceContext> {
 }
 
 /// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
-/// Must be consistent with `process_trace_context` in [`relay_general::store::normalize`].
+/// Must be consistent with `process_trace_context` in [`relay_general::store`].
 #[cfg(feature = "processing")]
 fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
     *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
