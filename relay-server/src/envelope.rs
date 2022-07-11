@@ -429,7 +429,7 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     timestamp: Option<UnixTimestamp>,
 
-    /// Flag indicating if metrics have already been extracted from the item
+    /// Flag indicating if metrics have already been extracted from the item.
     ///
     /// In order to only extract metrics once from an item while through a
     /// chain of Relays, a Relay that extracts metrics from an item (typically
