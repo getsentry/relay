@@ -1,19 +1,17 @@
+use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
+use crate::metrics_extraction::utils;
+use crate::metrics_extraction::TaggingRule;
+use relay_common::{SpanStatus, UnixTimestamp};
+use relay_general::protocol::TraceContext;
+use relay_general::protocol::{AsPair, Timestamp};
+use relay_general::protocol::{Context, ContextInner};
+use relay_general::protocol::{Event, EventType};
+use relay_general::store;
+use relay_general::types::Annotated;
+use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-
-#[cfg(feature = "processing")]
-use {
-    crate::metrics_extraction::conditional_tagging::run_conditional_tagging,
-    crate::metrics_extraction::{utils, TaggingRule},
-    relay_common::{SpanStatus, UnixTimestamp},
-    relay_general::protocol::TraceContext,
-    relay_general::protocol::{AsPair, Event, EventType, Timestamp},
-    relay_general::protocol::{Context, ContextInner},
-    relay_general::store,
-    relay_general::types::Annotated,
-    relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue},
-    std::fmt,
-};
+use std::fmt;
 
 /// The metric on which the user satisfaction threshold is applied.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,10 +59,8 @@ pub struct TransactionMetricsConfig {
     custom_measurements: CustomMeasurementConfig,
 }
 
-#[cfg(feature = "processing")]
 const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
 
-#[cfg(feature = "processing")]
 fn get_trace_context(event: &Event) -> Option<&TraceContext> {
     let contexts = event.contexts.value()?;
     let trace = contexts.get("trace").map(Annotated::value);
@@ -77,18 +73,15 @@ fn get_trace_context(event: &Event) -> Option<&TraceContext> {
 
 /// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
 /// Must be consistent with `process_trace_context` in [`relay_general::store`].
-#[cfg(feature = "processing")]
 fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
     *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
 }
 
-#[cfg(feature = "processing")]
 fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
     let op = trace_context.op.value()?;
     Some(op.to_string())
 }
 
-#[cfg(feature = "processing")]
 fn extract_dist(transaction: &Event) -> Option<String> {
     let mut dist = transaction.dist.0.clone();
     store::normalize_dist(&mut dist);
@@ -97,7 +90,6 @@ fn extract_dist(transaction: &Event) -> Option<String> {
 
 /// Extract HTTP method
 /// See <https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67>.
-#[cfg(feature = "processing")]
 fn extract_http_method(transaction: &Event) -> Option<String> {
     let request = transaction.request.value()?;
     let method = request.method.value()?;
@@ -106,14 +98,12 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
 
 /// Satisfaction value used for Apdex and User Misery
 /// <https://docs.sentry.io/product/performance/metrics/#apdex>
-#[cfg(feature = "processing")]
 enum UserSatisfaction {
     Satisfied,
     Tolerated,
     Frustrated,
 }
 
-#[cfg(feature = "processing")]
 impl fmt::Display for UserSatisfaction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -124,7 +114,6 @@ impl fmt::Display for UserSatisfaction {
     }
 }
 
-#[cfg(feature = "processing")]
 impl UserSatisfaction {
     /// The frustration threshold is always four times the threshold
     /// (see <https://docs.sentry.io/product/performance/metrics/#apdex>)
@@ -143,7 +132,6 @@ impl UserSatisfaction {
 
 /// Extract the the satisfaction value depending on the actual measurement/duration value
 /// and the configured threshold.
-#[cfg(feature = "processing")]
 fn extract_user_satisfaction(
     config: &Option<SatisfactionConfig>,
     transaction: &Event,
@@ -170,7 +158,6 @@ fn extract_user_satisfaction(
 }
 
 /// These are the tags that are added to all extracted metrics.
-#[cfg(feature = "processing")]
 fn extract_universal_tags(
     event: &Event,
     custom_tags: &BTreeSet<String>,
@@ -233,7 +220,6 @@ fn extract_universal_tags(
 ///
 /// For known measurements, this returns `Some(MetricUnit)`, which can also include
 /// `Some(MetricUnit::None)`. For unknown measurement names, this returns `None`.
-#[cfg(feature = "processing")]
 fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
     match metric {
         // Web
@@ -262,7 +248,6 @@ fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
     }
 }
 
-#[cfg(feature = "processing")]
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
     breakdowns_config: Option<&store::BreakdownsConfig>,
@@ -302,7 +287,6 @@ pub fn extract_transaction_metrics(
     !added_slice.is_empty()
 }
 
-#[cfg(feature = "processing")]
 fn extract_transaction_metrics_inner(
     config: &TransactionMetricsConfig,
     breakdowns_config: Option<&store::BreakdownsConfig>,
@@ -436,7 +420,6 @@ fn extract_transaction_metrics_inner(
     }
 }
 
-#[cfg(feature = "processing")]
 fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
     let rate_range = |meh_ceiling: f64, poor_ceiling: f64| {
         debug_assert!(meh_ceiling < poor_ceiling);

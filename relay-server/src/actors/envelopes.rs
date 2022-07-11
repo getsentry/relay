@@ -52,19 +52,19 @@ use crate::envelope::{self, AttachmentType, ContentType, Envelope, EnvelopeError
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
+use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, MinimalProfile,
-    ProfileError, SamplingResult, SendWithOutcome,
+    self, ChunkedFormDataAggregator, EnvelopeSummary, ErrorBoundary, FormDataIter, FutureExt,
+    MinimalProfile, ProfileError, SamplingResult, SendWithOutcome,
 };
 
 #[cfg(feature = "processing")]
 use {
     crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
-    crate::metrics_extraction::transactions::extract_transaction_metrics,
     crate::service::ServerErrorKind,
-    crate::utils::{EnvelopeLimiter, ErrorBoundary},
+    crate::utils::EnvelopeLimiter,
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
