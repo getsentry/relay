@@ -7,7 +7,7 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criteri
 
 use relay_common::{ProjectKey, UnixTimestamp};
 use relay_metrics::{Aggregator, AggregatorConfig};
-use relay_metrics::{Bucket, FlushBuckets, Metric, MetricUnit, MetricValue};
+use relay_metrics::{Bucket, FlushBuckets, Metric, MetricValue};
 
 #[derive(Clone, Default)]
 struct TestReceiver;
@@ -70,8 +70,7 @@ impl fmt::Display for MetricInput {
 
 lazy_static::lazy_static! {
     static ref COUNTER_METRIC: Metric = Metric {
-        name: "foo".to_owned(),
-        unit: MetricUnit::None,
+        name: "custom/foo@none".to_owned(),
         value: MetricValue::Counter(42.),
         timestamp: UnixTimestamp::now(),
         tags: BTreeMap::new(),
