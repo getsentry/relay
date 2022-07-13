@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import json
 import signal
-from time import sleep
 
 import pytest
 import requests
