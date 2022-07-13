@@ -1,0 +1,28 @@
+[package]
+name = "relay-profiling"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Profiling processing for Relay"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "22.6.0"
+edition = "2018"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+failure = "0.1.8"
+android_trace_log = { version = "0.2.0", features = ["serde"] }
+base64 = "0.10.1"
+bytes = { version = "0.4.12", features = ["serde"] }
+chrono = { version = "0.4.11", features = ["serde"] }
+relay-common = { path = "../relay-common" }
+relay-config = { path = "../relay-config" }
+relay-general = { path = "../relay-general" }
+serde = { version = "1.0.114", features = ["derive"] }
+serde_json = "1.0.55"
+
+[dev-dependencies]
+serde_test = "1.0.125"
+
+[features]
+default = []

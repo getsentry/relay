@@ -3448,6 +3448,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-profiling"
+version = "22.6.0"
+dependencies = [
+ "android_trace_log",
+ "base64 0.10.1",
+ "bytes 0.4.12",
+ "chrono",
+ "failure",
+ "relay-common",
+ "relay-config",
+ "relay-general",
+ "serde",
+ "serde_json",
+ "serde_test",
+]
+
+[[package]]
 name = "relay-quotas"
 version = "22.6.0"
 dependencies = [
@@ -3494,7 +3511,6 @@ version = "22.6.0"
 dependencies = [
  "actix",
  "actix-web",
- "android_trace_log",
  "base64 0.10.1",
  "brotli2",
  "bytes 0.4.12",
@@ -3525,6 +3541,7 @@ dependencies = [
  "relay-general",
  "relay-log",
  "relay-metrics",
+ "relay-profiling",
  "relay-quotas",
  "relay-redis",
  "relay-sampling",
