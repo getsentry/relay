@@ -63,7 +63,7 @@ pub fn parse_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
     if profile.sampled_profile.is_empty() {
-        return Err(ProfileError::EmptyProfile);
+        return Ok(Vec::new());
     }
 
     profile.parse()?;
@@ -87,6 +87,6 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/profiles/android.json");
         let data = parse_android_profile(payload);
         assert!(data.is_ok());
-        assert!(parse_android_profile(&data.unwrap()[..]).is_ok());
+        assert!(parse_android_profile(&(data.unwrap())[..]).is_ok());
     }
 }

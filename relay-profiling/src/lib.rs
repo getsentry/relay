@@ -1,35 +1,17 @@
-use failure::Fail;
-
 use serde::Deserialize;
 
 mod android;
 mod cocoa;
+mod error;
 mod rust;
 mod typescript;
 mod utils;
 
 use crate::android::parse_android_profile;
 use crate::cocoa::parse_cocoa_profile;
+use crate::error::ProfileError;
 use crate::rust::parse_rust_profile;
 use crate::typescript::parse_typescript_profile;
-
-#[derive(Debug, Fail)]
-pub enum ProfileError {
-    #[fail(display = "invalid json in profile")]
-    InvalidJson(#[cause] serde_json::Error),
-    #[fail(display = "invalid base64 value")]
-    InvalidBase64Value,
-    #[fail(display = "invalid sampled profile")]
-    InvalidSampledProfile,
-    #[fail(display = "cannot serialize payload")]
-    CannotSerializePayload,
-    #[fail(display = "not enough samples")]
-    NotEnoughSamples,
-    #[fail(display = "platform not supported")]
-    PlatformNotSupported,
-    #[fail(display = "empty profile")]
-    EmptyProfile,
-}
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
