@@ -9,7 +9,7 @@ import requests
 from .test_envelope import generate_transaction_item
 
 TEST_CONFIG = {
-    "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0,}
+    "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0}
 }
 
 
@@ -24,7 +24,7 @@ def _session_payload(timestamp: datetime, started: datetime):
         "duration": 1947.49,
         "status": "exited",
         "errors": 0,
-        "attrs": {"release": "sentry-test@1.0.0", "environment": "production",},
+        "attrs": {"release": "sentry-test@1.0.0", "environment": "production"},
     }
 
 
@@ -301,7 +301,7 @@ def test_session_metrics_non_processing(
     )
 
 
-def test_metrics_extracted_only_once(
+def test_session_metrics_extracted_only_once(
     mini_sentry, relay, relay_with_processing, metrics_consumer
 ):
     """
