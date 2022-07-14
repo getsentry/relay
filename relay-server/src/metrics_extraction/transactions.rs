@@ -175,11 +175,13 @@ fn extract_user_satisfaction(
 #[cfg(feature = "processing")]
 fn keep_transaction_name(source: &TransactionSource) -> bool {
     match source {
-        // "custom" is like a box of chocolates, you never know what you're gonna get.
         // For now, we hope that custom transaction names set by users are low-cardinality.
         TransactionSource::Custom => true,
+
         // "url" are raw URLs, potentially containing identifiers.
         TransactionSource::Url => false,
+
+        // These four are names of software components, which we assume to be low-cardinality.
         TransactionSource::Route => true,
         TransactionSource::View => true,
         TransactionSource::Component => true,
@@ -191,7 +193,6 @@ fn keep_transaction_name(source: &TransactionSource) -> bool {
 
         // Any other value would be an SDK bug, assume high-cardinality and drop.
         TransactionSource::Other(source) => {
-            // EnvelopeProcessor sets project and SDK on the scope, so no need to add sentry tags here.
             relay_log::error!("Invalid transaction source: '{}'", source);
             false
         }
