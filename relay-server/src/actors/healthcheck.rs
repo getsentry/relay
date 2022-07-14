@@ -1,9 +1,9 @@
+use core::num::flt2dec::strategy;
 use std::sync::Arc;
 
-use actix::prelude::*;
-
-use futures::future;
-use futures::prelude::*;
+use actix::SystemService;
+use futures03::compat::Future01CompatExt;
+use tokio::sync::{mpsc, oneshot};
 
 use relay_config::{Config, RelayMode};
 use relay_metrics::{AcceptsMetrics, Aggregator};
@@ -12,6 +12,27 @@ use relay_system::{Controller, Shutdown};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::RelayGauges;
+
+#[derive(Debug)]
+struct Message<T> {
+    data: T,
+    responder: oneshot::Sender<bool>,
+}
+
+pub struct SendError;
+
+pub struct Addr<T> {
+    tx: mpsc::UnboundedSender<Message<T>>,
+}
+
+impl<T> Addr<T> {
+    pub async fn send(&self, data: T) -> Result<bool, SendError> {
+        let (responder, rx) = oneshot::channel();
+        let message = Message { data, responder };
+        self.tx.send(message).map_err(|_| SendError)?;
+        rx.await.map_err(|_| SendError)
+    }
+}
 
 pub struct Healthcheck {
     is_shutting_down: bool,
@@ -25,8 +46,52 @@ impl Healthcheck {
             config,
         }
     }
+
+    async fn handle(&mut self, message: IsHealthy) -> bool {
+        let upstream = UpstreamRelay::from_registry();
+
+        match message {
+            IsHealthy::Liveness => return true,
+            IsHealthy::Readiness => {
+                if self.is_shutting_down {
+                    return false;
+                }
+
+                if self.config.requires_auth() {
+                    if !upstream
+                        .send(IsAuthenticated)
+                        .compat()
+                        .await
+                        .unwrap_or(false)
+                    {
+                        return false;
+                    }
+                }
+
+                Aggregator::from_registry()
+                    .send(AcceptsMetrics)
+                    .compat()
+                    .await
+                    .unwrap_or(false)
+            }
+        }
+    }
+
+    pub fn start(self) -> Addr<IsHealthy> {
+        let (tx, mut rx) = mpsc::unbounded_channel::<Message<_>>();
+
+        tokio::spawn(async move {
+            while let Some(message) = rx.recv().await {
+                let response = self.handle(message.data).await;
+                message.responder.send(response).ok();
+            }
+        });
+
+        Addr { tx }
+    }
 }
 
+/*
 impl Actor for Healthcheck {
     type Context = Context<Self>;
 
@@ -53,7 +118,9 @@ impl Handler<Shutdown> for Healthcheck {
         Ok(())
     }
 }
+*/
 
+#[derive(Debug)]
 pub enum IsHealthy {
     /// Check if the Relay is alive at all.
     Liveness,
@@ -61,7 +128,7 @@ pub enum IsHealthy {
     /// it's both live/alive and not too busy).
     Readiness,
 }
-
+/*
 impl Message for IsHealthy {
     type Result = Result<bool, ()>;
 }
@@ -110,3 +177,4 @@ impl Handler<IsHealthy> for Healthcheck {
         }
     }
 }
+*/
