@@ -84,6 +84,7 @@ def generate_transaction_item():
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "type": "transaction",
         "transaction": "/organizations/:orgId/performance/:eventSlug/",
+        "transaction_info": {"source": "route"},
         "start_timestamp": 1597976392.6542819,
         "timestamp": 1597976400.6189718,
         "contexts": {

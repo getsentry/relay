@@ -29,7 +29,7 @@ use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
     IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionUpdate, Timestamp, TransactionSource, UserReport, Values,
+    SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::ClockDriftProcessor;
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -1518,11 +1518,7 @@ impl EnvelopeProcessor {
             event._metrics = Annotated::new(metrics);
 
             if event.ty.value() == Some(&EventType::Transaction) {
-                let source = event
-                    .transaction_info
-                    .value()
-                    .and_then(|info| info.source.value())
-                    .unwrap_or(&TransactionSource::Unknown);
+                let source = event.get_transaction_source();
 
                 metric!(
                     counter(RelayCounters::EventTransactionSource) += 1,
