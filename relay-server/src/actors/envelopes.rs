@@ -346,6 +346,8 @@ struct ProcessEnvelopeState {
     /// extracted.
     event: Annotated<Event>,
 
+    transaction_item: Option<Item>,
+
     /// Partial metrics of the Event during construction.
     ///
     /// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are
@@ -1058,6 +1060,7 @@ impl EnvelopeProcessor {
         Ok(ProcessEnvelopeState {
             envelope,
             event: Annotated::empty(),
+            transaction_item: None,
             metrics: Metrics::default(),
             sample_rates: None,
             rate_limits: RateLimits::new(),
@@ -1105,7 +1108,7 @@ impl EnvelopeProcessor {
 
     fn event_from_json_payload(
         &self,
-        item: Item,
+        item: &Item,
         event_type: Option<EventType>,
     ) -> Result<ExtractedEvent, ProcessingError> {
         let mut event = Annotated::<Event>::from_json_bytes(&item.payload())
@@ -1376,16 +1379,18 @@ impl EnvelopeProcessor {
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Event items can never include transactions, so retain the event type and let
                 // inference deal with this during store normalization.
-                self.event_from_json_payload(item, None)?
+                self.event_from_json_payload(&item, None)?
             })
         } else if let Some(mut item) = transaction_item {
             relay_log::trace!("processing json transaction");
             state.sample_rates = item.take_sample_rates();
-            metric!(timer(RelayTimers::EventProcessingDeserialize), {
+            let event_from_json = metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
-                self.event_from_json_payload(item, Some(EventType::Transaction))?
-            })
+                self.event_from_json_payload(&item, Some(EventType::Transaction))?
+            });
+            state.transaction_item = Some(item);
+            event_from_json
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
             state.sample_rates = item.take_sample_rates();
@@ -1685,7 +1690,6 @@ impl EnvelopeProcessor {
     }
 
     /// Extract metrics for transaction events with breakdowns and measurements.
-    #[cfg(feature = "processing")]
     fn extract_transaction_metrics(
         &self,
         state: &mut ProcessEnvelopeState,
@@ -1702,24 +1706,34 @@ impl EnvelopeProcessor {
             .metric_conditional_tagging
             .as_slice();
 
-        if let Some(event) = state.event.value() {
-            let extracted_anything;
+        if let Some(item) = state.transaction_item.as_ref() {
+            if item.metrics_extracted() {
+                // TODO: check first if relay matches the metric extraction protocol version, and if
+                // we should extract metrics for that project config
+                return Ok(());
+            }
 
-            metric!(
-                timer(RelayTimers::TransactionMetricsExtraction),
-                extracted_anything = &extracted_anything.to_string(),
-                {
-                    // Actual logic outsourced for unit tests
-                    extracted_anything = extract_transaction_metrics(
-                        config,
-                        breakdowns_config,
-                        conditional_tagging_config,
-                        event,
-                        &mut state.extracted_metrics,
-                    );
-                }
-            );
-            Ok(())
+            let (event, _) = self.event_from_json_payload(item, Some(EventType::Transaction))?;
+            if let Some(tx) = event.value() {
+                let extracted_anything;
+                metric!(
+                    timer(RelayTimers::TransactionMetricsExtraction),
+                    extracted_anything = &extracted_anything.to_string(),
+                    {
+                        // Actual logic outsourced for unit tests
+                        extracted_anything = extract_transaction_metrics(
+                            config,
+                            breakdowns_config,
+                            conditional_tagging_config,
+                            tx,
+                            &mut state.extracted_metrics,
+                        );
+                    }
+                );
+                Ok(())
+            } else {
+                Err(ProcessingError::NoEventPayload)
+            }
         } else {
             Err(ProcessingError::NoEventPayload)
         }
@@ -1819,6 +1833,9 @@ impl EnvelopeProcessor {
             event_item.set_sample_rates(sample_rates);
         }
 
+        if state.transaction_item.is_some() {
+            event_item.set_metrics_extracted(true);
+        }
         state.envelope.add_item(event_item);
 
         Ok(())
@@ -1876,9 +1893,7 @@ impl EnvelopeProcessor {
 
             self.finalize_event(state)?;
 
-            if_processing!({
-                self.extract_transaction_metrics(state)?;
-            });
+            self.extract_transaction_metrics(state)?;
 
             self.sample_envelope(state)?;
 

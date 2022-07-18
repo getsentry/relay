@@ -563,6 +563,73 @@ def test_transaction_metrics(
     }
 
 
+"""
+Test the following:
+- metrics extracted in customer relay:
+    1- header added -> tx & metrics forwarded, tx not extracted again, header is kept
+    2- header not added -> tx & metrics forwarded, tx extracted again, header is present at the final part
+- metrics not extracted in customer relay:
+    3- header added -> tx forwarded, tx not extracted in processing relay, header is kept
+    4- header not added -> tx forwarded, tx extracted in processing relay, header added
+
+header: `metrics_extracted` header in the item
+"""
+
+
+def test_transaction_metrics_only_extracted_by_external_relays(
+    transactions_consumer, metrics_consumer, mini_sentry, relay_with_processing, relay
+):
+    """
+    1
+    Transaction is sent to external relay. The external relay must extract metrics and add
+    appropriate item headers. This is forwarded in the envelope to the next relay, a processing
+    relay. The processing relay must see the item header and not extract any metrics, and forward
+    it to sentry. Sentry must see a transaction and appropriate metrics extracted.
+    """
+    mconsumer = metrics_consumer()
+    txconsumer = transactions_consumer()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "extractMetrics": ["d:transactions/duration@millisecond",]
+    }
+
+    tx = generate_transaction_item()
+    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
+    timestamp = datetime.now(tz=timezone.utc)
+    tx["timestamp"] = timestamp.isoformat()
+
+    # processing = relay_with_processing(options=TEST_CONFIG)
+    external = relay(mini_sentry, options=TEST_CONFIG)
+
+    external.send_transaction(project_id, tx, item_headers=None)
+
+    print("sent stuff")
+
+    envelope_ext = mini_sentry.captured_events.get(timeout=3)
+    print(f"envelope: {envelope_ext}")
+    import ipdb
+
+    ipdb.set_trace(context=11)
+
+    # assert metrics == {
+    #     "d:transactions/measurements.foo@none": {
+    #         **common,
+    #         "name": "d:transactions/measurements.foo@none",
+    #         "value": [1.0],
+    #     },
+    #     "d:transactions/measurements.bar@none": {
+    #         **common,
+    #         "name": "d:transactions/measurements.bar@none",
+    #         "value": [2.0],
+    #     },
+    # }
+
+    mconsumer.assert_empty()  # redundant from metrics_by_name, but it improves readability
+
+
 def test_graceful_shutdown(mini_sentry, relay):
     relay = relay(
         mini_sentry,
