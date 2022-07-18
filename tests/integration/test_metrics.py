@@ -586,14 +586,13 @@ def test_transaction_metrics_only_extracted_by_external_relays(
     relay. The processing relay must see the item header and not extract any metrics, and forward
     it to sentry. Sentry must see a transaction and appropriate metrics extracted.
     """
-    mconsumer = metrics_consumer()
-    txconsumer = transactions_consumer()
 
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {
-        "extractMetrics": ["d:transactions/duration@millisecond",]
+        "extractMetrics": ["d:transactions/duration@millisecond"],
+        "version": 1,  # ok to exclude, error if set wrongly
     }
 
     tx = generate_transaction_item()
@@ -601,33 +600,30 @@ def test_transaction_metrics_only_extracted_by_external_relays(
     timestamp = datetime.now(tz=timezone.utc)
     tx["timestamp"] = timestamp.isoformat()
 
-    # processing = relay_with_processing(options=TEST_CONFIG)
     external = relay(mini_sentry, options=TEST_CONFIG)
-
     external.send_transaction(project_id, tx, item_headers=None)
 
-    print("sent stuff")
+    envelope_ext_tx = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope_ext_tx.items) == 1
+    ext_tx_json = json.loads(envelope_ext_tx.items[0].get_bytes().decode())
+    assert ext_tx_json["type"] == "transaction"
 
-    envelope_ext = mini_sentry.captured_events.get(timeout=3)
-    print(f"envelope: {envelope_ext}")
-    import ipdb
+    envelope_ext_metrics = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope_ext_metrics.items) == 1
+    ext_metrics_json = json.loads(envelope_ext_metrics.items[0].get_bytes().decode())
+    assert len(ext_metrics_json) == 1
+    assert ext_metrics_json[0]["name"] == "d:transactions/duration@millisecond"
+    assert len(ext_metrics_json[0]["value"]) == 1
 
-    ipdb.set_trace(context=11)
+    # Sending the same envelope again must not extract metrics again
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+    processing = relay_with_processing(options=TEST_CONFIG)
+    processing.send_envelope(project_id, envelope_ext_tx)
 
-    # assert metrics == {
-    #     "d:transactions/measurements.foo@none": {
-    #         **common,
-    #         "name": "d:transactions/measurements.foo@none",
-    #         "value": [1.0],
-    #     },
-    #     "d:transactions/measurements.bar@none": {
-    #         **common,
-    #         "name": "d:transactions/measurements.bar@none",
-    #         "value": [2.0],
-    #     },
-    # }
-
-    mconsumer.assert_empty()  # redundant from metrics_by_name, but it improves readability
+    tx, _ = tx_consumer.get_event()
+    assert tx["type"] == "transaction"
+    metrics_consumer.assert_empty()  # processing relay must not extract metrics again
 
 
 def test_graceful_shutdown(mini_sentry, relay):
