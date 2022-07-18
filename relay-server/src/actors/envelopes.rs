@@ -1703,7 +1703,7 @@ impl EnvelopeProcessor {
             return Ok(());
         }
 
-        if let Some(item) = state.transaction_item.as_ref() {
+        if let Some(item) = state.transaction_item.as_mut() {
             if item.metrics_extracted() {
                 return Ok(());
             }
@@ -1732,6 +1732,7 @@ impl EnvelopeProcessor {
                         );
                     }
                 );
+                item.set_metrics_extracted(true);
                 Ok(())
             } else {
                 Err(ProcessingError::NoEventPayload)
@@ -1835,9 +1836,6 @@ impl EnvelopeProcessor {
             event_item.set_sample_rates(sample_rates);
         }
 
-        if state.transaction_item.is_some() {
-            event_item.set_metrics_extracted(true);
-        }
         state.envelope.add_item(event_item);
 
         Ok(())
