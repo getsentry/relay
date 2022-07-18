@@ -1694,7 +1694,7 @@ impl EnvelopeProcessor {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        let config = match state.project_state.config.transaction_metrics {
+        let config = match state.project_state.config().transaction_metrics {
             Some(ErrorBoundary::Ok(ref config)) => config,
             _ => return Ok(()),
         };
