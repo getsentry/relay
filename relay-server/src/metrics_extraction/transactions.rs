@@ -49,14 +49,27 @@ pub struct CustomMeasurementConfig {
     limit: usize,
 }
 
+/// Maximum supported version of metrics extraction from transactions.
+///
+/// The version is an integer scalar, incremented by one on each new version.
+const EXTRACT_MAX_VERSION: u16 = 1;
+
 /// Configuration for extracting metrics from transaction payloads.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TransactionMetricsConfig {
+    /// The required version to extract transaction metrics.
+    version: u16,
     extract_metrics: BTreeSet<String>,
     extract_custom_tags: BTreeSet<String>,
     satisfaction_thresholds: Option<SatisfactionConfig>,
     custom_measurements: CustomMeasurementConfig,
+}
+
+impl TransactionMetricsConfig {
+    pub fn is_enabled(&self) -> bool {
+        self.version > 0 && self.version <= EXTRACT_MAX_VERSION
+    }
 }
 
 const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;

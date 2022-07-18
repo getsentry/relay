@@ -1706,6 +1706,10 @@ impl EnvelopeProcessor {
             .metric_conditional_tagging
             .as_slice();
 
+        if !config.is_enabled() {
+            return Ok(());
+        }
+
         if let Some(item) = state.transaction_item.as_ref() {
             if item.metrics_extracted() {
                 // TODO: check first if relay matches the metric extraction protocol version, and if
