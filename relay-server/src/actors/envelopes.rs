@@ -1826,9 +1826,14 @@ impl EnvelopeProcessor {
                 .map_err(ProcessingError::SerializeFailed)?
         });
 
-        let event_type = state.event_type().unwrap_or_default();
-        let mut event_item = Item::new(ItemType::from_event_type(event_type));
-        event_item.set_payload(ContentType::Json, data);
+        let mut event_item = match state.event_type().unwrap_or_default() {
+            EventType::Transaction => state.transaction_item.take().unwrap(),
+            ty => {
+                let mut item = Item::new(ItemType::from_event_type(ty));
+                item.set_payload(ContentType::Json, data);
+                item
+            }
+        };
 
         // If there are sample rates, write them back to the envelope. In processing mode, sample
         // rates have been removed from the state and burnt into the event via `finalize_event`.
