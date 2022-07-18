@@ -1699,23 +1699,21 @@ impl EnvelopeProcessor {
             _ => return Ok(()),
         };
 
-        let breakdowns_config = state.project_state.config.breakdowns_v2.as_ref();
-        let conditional_tagging_config = state
-            .project_state
-            .config
-            .metric_conditional_tagging
-            .as_slice();
-
         if !config.is_enabled() {
             return Ok(());
         }
 
         if let Some(item) = state.transaction_item.as_ref() {
             if item.metrics_extracted() {
-                // TODO: check first if relay matches the metric extraction protocol version, and if
-                // we should extract metrics for that project config
                 return Ok(());
             }
+
+            let breakdowns_config = state.project_state.config.breakdowns_v2.as_ref();
+            let conditional_tagging_config = state
+                .project_state
+                .config
+                .metric_conditional_tagging
+                .as_slice();
 
             let (event, _) = self.event_from_json_payload(item, Some(EventType::Transaction))?;
             if let Some(tx) = event.value() {
