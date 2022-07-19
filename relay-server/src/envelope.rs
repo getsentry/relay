@@ -433,7 +433,7 @@ pub struct ItemHeaders {
     ///
     /// In order to only extract metrics once from an item while through a
     /// chain of Relays, a Relay that extracts metrics from an item (typically
-    /// the first Relay) MUST set this flat to true so that downstream Relays do
+    /// the first Relay) MUST set this flat to true so that upstream Relays do
     /// not extract the metric again causing double counting of the metric.
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
