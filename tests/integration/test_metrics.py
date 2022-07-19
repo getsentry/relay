@@ -675,6 +675,44 @@ def test_transaction_metrics_extraction_processing_relays(
     metrics_consumer.assert_empty()
 
 
+@pytest.mark.parametrize(
+    "unsupported_version",
+    [0, 1234567890],
+    ids=["version is too small", "version is too big"],
+)
+def test_transaction_metrics_not_extracted_on_unsupported_version(
+    metrics_consumer,
+    transactions_consumer,
+    mini_sentry,
+    relay_with_processing,
+    unsupported_version,
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "extractMetrics": ["d:transactions/duration@millisecond"],
+        "version": unsupported_version,
+    }
+
+    tx = generate_transaction_item()
+    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
+    timestamp = datetime.now(tz=timezone.utc)
+    tx["timestamp"] = timestamp.isoformat()
+
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    relay.send_transaction(project_id, tx)
+
+    tx, _ = tx_consumer.get_event()
+    assert tx["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    tx_consumer.assert_empty()
+
+    metrics_consumer.assert_empty()
+
+
 def test_graceful_shutdown(mini_sentry, relay):
     relay = relay(
         mini_sentry,
