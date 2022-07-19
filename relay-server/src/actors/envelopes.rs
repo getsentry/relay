@@ -1828,12 +1828,9 @@ impl EnvelopeProcessor {
 
         let mut event_item = match state.event_type().unwrap_or_default() {
             EventType::Transaction => state.transaction_item.take().unwrap(),
-            ty => {
-                let mut item = Item::new(ItemType::from_event_type(ty));
-                item.set_payload(ContentType::Json, data);
-                item
-            }
+            ty => Item::new(ItemType::from_event_type(ty)),
         };
+        event_item.set_payload(ContentType::Json, data);
 
         // If there are sample rates, write them back to the envelope. In processing mode, sample
         // rates have been removed from the state and burnt into the event via `finalize_event`.
