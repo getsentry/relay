@@ -606,8 +606,10 @@ def test_transaction_metrics_only_extracted_by_external_relays(
 
     envelope_ext_tx = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope_ext_tx.items) == 1
-    ext_tx_json = json.loads(envelope_ext_tx.items[0].get_bytes().decode())
-    assert ext_tx_json["type"] == "transaction"
+    tx_item = envelope_ext_tx.items[0]
+    assert tx_item.headers["metrics_extracted"] == True
+    tx_item_body = json.loads(tx_item.get_bytes().decode())
+    assert tx_item_body["type"] == "transaction"
 
     envelope_ext_metrics = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope_ext_metrics.items) == 1
