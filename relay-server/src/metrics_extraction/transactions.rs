@@ -3,7 +3,7 @@ use crate::metrics_extraction::utils;
 use crate::metrics_extraction::TaggingRule;
 use relay_common::{SpanStatus, UnixTimestamp};
 use relay_general::protocol::TraceContext;
-use relay_general::protocol::{AsPair, Timestamp};
+use relay_general::protocol::{AsPair, Timestamp, TransactionSource};
 use relay_general::protocol::{Context, ContextInner};
 use relay_general::protocol::{Event, EventType};
 use relay_general::store;
@@ -170,6 +170,35 @@ fn extract_user_satisfaction(
     None
 }
 
+/// Decide whether we want to keep the transaction name.
+/// High-cardinality sources are excluded to protect our metrics infrastructure.
+/// Note that this will produce a discrepancy between metrics and raw transaction data.
+fn keep_transaction_name(source: &TransactionSource) -> bool {
+    match source {
+        // For now, we hope that custom transaction names set by users are low-cardinality.
+        TransactionSource::Custom => true,
+
+        // "url" are raw URLs, potentially containing identifiers.
+        TransactionSource::Url => false,
+
+        // These four are names of software components, which we assume to be low-cardinality.
+        TransactionSource::Route => true,
+        TransactionSource::View => true,
+        TransactionSource::Component => true,
+        TransactionSource::Task => true,
+
+        // "unknown" is the value for old SDKs that do not send a transaction source yet.
+        // Assume high-cardinality and drop.
+        TransactionSource::Unknown => false,
+
+        // Any other value would be an SDK bug, assume high-cardinality and drop.
+        TransactionSource::Other(source) => {
+            relay_log::error!("Invalid transaction source: '{}'", source);
+            false
+        }
+    }
+}
+
 /// These are the tags that are added to all extracted metrics.
 fn extract_universal_tags(
     event: &Event,
@@ -186,7 +215,9 @@ fn extract_universal_tags(
         tags.insert("environment".to_owned(), environment.to_owned());
     }
     if let Some(transaction) = event.transaction.as_str() {
-        tags.insert("transaction".to_owned(), transaction.to_owned());
+        if keep_transaction_name(event.get_transaction_source()) {
+            tags.insert("transaction".to_owned(), transaction.to_owned());
+        }
     }
 
     // The platform tag should not increase dimensionality in most cases, because most
@@ -457,10 +488,12 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 #[cfg(test)]
 #[cfg(feature = "processing")]
 mod tests {
+
     use super::*;
 
     use crate::metrics_extraction::TaggingRule;
     use insta::assert_debug_snapshot;
+    use relay_general::protocol::TransactionInfo;
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
@@ -477,6 +510,7 @@ mod tests {
             "dist": "foo ",
             "environment": "fake_environment",
             "transaction": "mytransaction",
+            "transaction_info": {"source": "custom"},
             "user": {
                 "id": "user123"
             },
@@ -737,11 +771,10 @@ mod tests {
             panic!(); // Duration must be set
         }
 
-        assert_eq!(duration_metric.tags.len(), 5);
+        assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");
         assert_eq!(duration_metric.tags["transaction.status"], "ok");
         assert_eq!(duration_metric.tags["environment"], "fake_environment");
-        assert_eq!(duration_metric.tags["transaction"], "mytransaction");
         assert_eq!(duration_metric.tags["platform"], "other");
     }
 
@@ -789,12 +822,12 @@ mod tests {
         assert_eq!(metrics.len(), 2);
 
         let duration_metric = &metrics[0];
-        assert_eq!(duration_metric.tags.len(), 4);
+        assert_eq!(duration_metric.tags.len(), 3);
         assert_eq!(duration_metric.tags["satisfaction"], "tolerated");
         assert_eq!(duration_metric.tags["transaction.status"], "ok");
 
         let user_metric = &metrics[1];
-        assert_eq!(user_metric.tags.len(), 4);
+        assert_eq!(user_metric.tags.len(), 3);
         assert_eq!(user_metric.tags["satisfaction"], "tolerated");
     }
 
@@ -841,7 +874,7 @@ mod tests {
         assert_eq!(metrics.len(), 1);
 
         for metric in metrics {
-            assert_eq!(metric.tags.len(), 3);
+            assert_eq!(metric.tags.len(), 2);
             assert_eq!(metric.tags["satisfaction"], "satisfied");
         }
     }
@@ -883,7 +916,7 @@ mod tests {
         assert_eq!(metrics.len(), 1);
 
         for metric in metrics {
-            assert_eq!(metric.tags.len(), 2);
+            assert_eq!(metric.tags.len(), 1);
             assert!(!metric.tags.contains_key("satisfaction"));
         }
     }
@@ -933,7 +966,6 @@ mod tests {
                     timestamp: UnixTimestamp(1619420402),
                     tags: {
                         "platform": "other",
-                        "transaction": "foo",
                     },
                 },
                 Metric {
@@ -945,7 +977,6 @@ mod tests {
                     tags: {
                         "measurement_rating": "good",
                         "platform": "other",
-                        "transaction": "foo",
                     },
                 },
                 Metric {
@@ -956,7 +987,6 @@ mod tests {
                     timestamp: UnixTimestamp(1619420402),
                     tags: {
                         "platform": "other",
-                        "transaction": "foo",
                     },
                 },
             ]
@@ -1035,7 +1065,6 @@ mod tests {
                 {
                     let mut tags = BTreeMap::new();
                     tags.insert("satisfaction".to_owned(), "tolerated".to_owned());
-                    tags.insert("transaction".to_owned(), "foo".to_owned());
                     tags.insert("platform".to_owned(), "other".to_owned());
                     tags
                 }
@@ -1116,7 +1145,6 @@ mod tests {
                     let mut tags = BTreeMap::new();
                     tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
                     tags.insert("measurement_rating".to_owned(), "good".to_owned());
-                    tags.insert("transaction".to_owned(), "foo".to_owned());
                     tags.insert("platform".to_owned(), "other".to_owned());
                     tags
                 }
@@ -1196,5 +1224,65 @@ mod tests {
                 ("platform".to_string(), "other".to_string())
             ])
         );
+    }
+
+    #[test]
+    fn test_has_transaction_tag() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}}
+        }
+        "#;
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/duration@millisecond"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let event = Annotated::<Event>::from_json(json).unwrap();
+
+        for (source, expected_transaction_tag) in [
+            (TransactionSource::Custom, true),
+            (TransactionSource::Url, false),
+            (TransactionSource::Route, true),
+            (TransactionSource::View, true),
+            (TransactionSource::Component, true),
+            (TransactionSource::Task, true),
+            (TransactionSource::Unknown, false),
+            (
+                TransactionSource::Other("not-a-valid-source".to_owned()),
+                false,
+            ),
+        ] {
+            let mut event = event.clone();
+            event
+                .value_mut()
+                .as_mut()
+                .unwrap()
+                .transaction_info
+                .set_value(Some(TransactionInfo {
+                    source: Annotated::new(source.clone()),
+                    original: Annotated::empty(),
+                }));
+            let mut metrics = vec![];
+            extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+            assert_eq!(
+                metrics[0].tags.get("transaction").is_some(),
+                expected_transaction_tag,
+                "{:?}",
+                source
+            );
+        }
     }
 }

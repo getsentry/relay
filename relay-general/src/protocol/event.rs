@@ -538,8 +538,19 @@ pub struct Event {
     pub other: Object<Value>,
 }
 
+impl Event {
+    pub fn get_transaction_source(&self) -> &TransactionSource {
+        self.transaction_info
+            .value()
+            .and_then(|info| info.source.value())
+            .unwrap_or(&TransactionSource::Unknown)
+    }
+}
+
 #[cfg(test)]
 use crate::testutils::{assert_eq_dbg, assert_eq_str};
+
+use super::TransactionSource;
 
 #[test]
 fn test_event_roundtrip() {
