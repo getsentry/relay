@@ -616,6 +616,8 @@ def test_transaction_metrics_only_extracted_by_external_relays(
     assert ext_metrics_json[0]["name"] == "d:transactions/duration@millisecond"
     assert len(ext_metrics_json[0]["value"]) == 1
 
+    assert mini_sentry.captured_events.empty()
+
     # Sending the same envelope again must not extract metrics again
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
