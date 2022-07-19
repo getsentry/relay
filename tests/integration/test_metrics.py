@@ -484,7 +484,8 @@ def test_transaction_metrics(
                 "d:transactions/measurements.bar@none",
                 "d:transactions/breakdowns.span_ops.total.time@millisecond",
                 "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-            ]
+            ],
+            "version": 1,
         }
 
     transaction = generate_transaction_item()
