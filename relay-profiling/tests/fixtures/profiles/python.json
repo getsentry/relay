@@ -1,0 +1,66 @@
+{
+    "duration_ns": "919178417",
+    "profile_id": "41fed0925670468bb0457f61a74688ec",
+    "device_os_name": "macos",
+    "device_os_version": "",
+    "architecture": "arm64",
+    "transaction_id": "30976f2ddbe04ac9b6bffe6e35d4710c",
+    "profile": {
+        "samples": [
+            {
+                "thread_id": "4355",
+                "relative_timestamp_ns": "10500500",
+                "frames": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4
+                ]
+            },
+            {
+                "thread_id": "4355",
+                "relative_timestamp_ns": "10569417",
+                "frames": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4
+                ]
+            }
+        ],
+        "frames": [
+          {
+            "name": "function1",
+            "line": 1,
+            "file": "main.py"
+          },
+          {
+            "name": "function2",
+            "line": 2,
+            "file": "main.py"
+          },
+          {
+            "name": "function3",
+            "line": 3,
+            "file": "main.py"
+          },
+          {
+            "name": "function4",
+            "line": 4,
+            "file": "main.py"
+          },
+          {
+            "name": "function5",
+            "line": 5,
+            "file": "main.py"
+          }
+        ]
+    },
+    "transaction_name": "example_ios_movies_sources.MoviesViewController",
+    "version_name": "0.1",
+    "platform": "cocoa",
+    "trace_id": "4b25bc58f14243d8b208d1e22a054164",
+    "version_code": "181"
+}

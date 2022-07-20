@@ -98,6 +98,7 @@ use serde::Deserialize;
 mod android;
 mod cocoa;
 mod error;
+mod python;
 mod rust;
 mod typescript;
 mod utils;
@@ -105,12 +106,13 @@ mod utils;
 use crate::android::parse_android_profile;
 use crate::cocoa::parse_cocoa_profile;
 use crate::error::ProfileError;
+use crate::python::parse_python_profile;
 use crate::rust::parse_rust_profile;
 use crate::typescript::parse_typescript_profile;
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
-    pub platform: String,
+    platform: String,
 }
 
 fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError> {
@@ -122,6 +124,7 @@ pub fn parse_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     return match minimal_profile.platform.as_str() {
         "android" => parse_android_profile(payload),
         "cocoa" => parse_cocoa_profile(payload),
+        "python" => parse_python_profile(payload),
         "rust" => parse_rust_profile(payload),
         "typescript" => parse_typescript_profile(payload),
         _ => Err(ProfileError::PlatformNotSupported),
