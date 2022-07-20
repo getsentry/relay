@@ -29,7 +29,7 @@ struct Profile {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct SampleProfile {
+struct PythonProfile {
     device_os_name: String,
     device_os_version: String,
 
@@ -50,7 +50,7 @@ struct SampleProfile {
 }
 
 pub fn parse_python_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
-    let profile: SampleProfile =
+    let profile: PythonProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
     if profile.profile.samples.len() < 2 {
