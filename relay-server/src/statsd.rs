@@ -223,6 +223,12 @@ pub enum RelayTimers {
     /// Note that after an update loop has completed, there may be more projects pending updates.
     /// This is indicated by `project_state.pending`.
     ProjectStateRequestDuration,
+    /// Time in milliseconds required to decompress a project config from redis.
+    ///
+    /// Note that this also times the cases where project config is uncompressed,
+    /// in which case the timer should be very close to zero.
+    #[cfg(feature = "processing")]
+    ProjectStateDecompression,
     /// Total duration in milliseconds for handling inbound web requests until the HTTP response is
     /// returned to the client.
     ///
@@ -310,6 +316,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EnvelopeTotalTime => "event.total_time",
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
+            RelayTimers::ProjectStateDecompression => "project_state.decompression",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
