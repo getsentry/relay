@@ -226,8 +226,9 @@ impl Handler<UpdateProjectState> for ProjectCache {
         self.local_source
             .send(FetchOptionalProjectState { project_key })
             .map_err(|_| ())
-            .and_then(move |response| {
-                if let Some(state) = response {
+            .then(move |response| {
+                // Ignore errors from file system and fall through
+                if let Ok(Some(state)) = response {
                     return Box::new(future::ok(ProjectStateResponse::new(state)))
                         as ResponseFuture<_, _>;
                 }
@@ -268,8 +269,9 @@ impl Handler<UpdateProjectState> for ProjectCache {
                     Box::new(future::ok(None))
                 };
 
-                let fetch_redis = fetch_redis.and_then(move |response| {
-                    if let Some(state) = response {
+                let fetch_redis = fetch_redis.then(move |response| {
+                    // Ignore errors from Redis and fall through to upstream
+                    if let Ok(Some(state)) = response {
                         return Box::new(future::ok(ProjectStateResponse::new(state)))
                             as ResponseFuture<_, _>;
                     }
