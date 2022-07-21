@@ -11,6 +11,7 @@ import pytest
 from flask import jsonify
 
 from requests.exceptions import HTTPError
+import zstandard
 
 
 def test_local_project_config(mini_sentry, relay):
@@ -229,3 +230,30 @@ def test_processing_redis_query(
     else:
         event, v = events_consumer.get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
+def test_processing_redis_query_compressed(
+    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
+):
+    outcomes_consumer = outcomes_consumer()
+    events_consumer = events_consumer()
+
+    relay = relay_with_processing({"limits": {"query_timeout": 10}})
+    project_id = 42
+    cfg = mini_sentry.add_full_project_config(project_id)
+
+    key = mini_sentry.get_dsn_public_key(project_id)
+    redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
+    projectconfig_cache_prefix = relay.options["processing"][
+        "projectconfig_cache_prefix"
+    ]
+    redis_client.setex(
+        f"{projectconfig_cache_prefix}:{key}",
+        3600,
+        zstandard.compress(json.dumps(cfg).encode()),
+    )
+
+    relay.send_event(project_id)
+
+    event, v = events_consumer.get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
