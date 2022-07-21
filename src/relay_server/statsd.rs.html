@@ -521,6 +521,14 @@
 <span id="514">514</span>
 <span id="515">515</span>
 <span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -746,6 +754,12 @@
     <span class="doccomment">/// Note that after an update loop has completed, there may be more projects pending updates.</span>
     <span class="doccomment">/// This is indicated by `project_state.pending`.</span>
     <span class="ident">ProjectStateRequestDuration</span>,
+    <span class="doccomment">/// Time in milliseconds required to decompress a project config from redis.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that this also times the cases where project config is uncompressed,</span>
+    <span class="doccomment">/// in which case the timer should be very close to zero.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">ProjectStateDecompression</span>,
     <span class="doccomment">/// Total duration in milliseconds for handling inbound web requests until the HTTP response is</span>
     <span class="doccomment">/// returned to the client.</span>
     <span class="doccomment">///</span>
@@ -833,6 +847,8 @@
             <span class="ident">RelayTimers::EnvelopeTotalTime</span> =&gt; <span class="string">&quot;event.total_time&quot;</span>,
             <span class="ident">RelayTimers::ProjectStateEvictionDuration</span> =&gt; <span class="string">&quot;project_state.eviction.duration&quot;</span>,
             <span class="ident">RelayTimers::ProjectStateRequestDuration</span> =&gt; <span class="string">&quot;project_state.request.duration&quot;</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">RelayTimers::ProjectStateDecompression</span> =&gt; <span class="string">&quot;project_state.decompression&quot;</span>,
             <span class="ident">RelayTimers::RequestsDuration</span> =&gt; <span class="string">&quot;requests.duration&quot;</span>,
             <span class="ident">RelayTimers::MinidumpScrubbing</span> =&gt; <span class="string">&quot;scrubbing.minidumps.duration&quot;</span>,
             <span class="ident">RelayTimers::AttachmentScrubbing</span> =&gt; <span class="string">&quot;scrubbing.attachments.duration&quot;</span>,
