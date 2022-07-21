@@ -13,4 +13,5 @@ publish = false
 actix = "0.7.9"
 failure = "0.1.8"
 futures = "0.1.28"
+futures03 = { version = "0.3", package = "futures", features = ["compat"] }
 relay-log = { path = "../relay-log" }

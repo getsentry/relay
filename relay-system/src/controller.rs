@@ -1,4 +1,5 @@
 use std::fmt;
+use std::pin::Pin;
 use std::time::Duration;
 
 use actix::actors::signal;
@@ -6,6 +7,7 @@ use actix::fut;
 use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
+use futures03::{FutureExt, TryFutureExt};
 
 #[doc(inline)]
 pub use actix::actors::signal::{Signal, SignalType};
@@ -55,11 +57,36 @@ pub use actix::actors::signal::{Signal, SignalType};
 ///     Ok(())
 /// }).unwrap();
 /// ```
+
 pub struct Controller {
     /// Configured timeout for graceful shutdowns.
     timeout: Duration,
     /// Subscribed actors for the shutdown message.
     subscribers: Vec<Recipient<Shutdown>>,
+    /// Subscribed actors for the shutdown message.
+    new_subscribers: Vec<Box<dyn ShutdownReceiver>>,
+}
+
+/// TODO
+pub trait ShutdownReceiver {
+    // Not sure if this can help us: https://stackoverflow.com/a/53989780/8076979
+    // Removing `static also doesn't help
+    // `?Trait` is not permitted in supertraits
+    /// TODO
+    fn send<'a>(
+        &'a self,
+        message: Shutdown,
+    ) -> Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>;
+
+    fn foo(&self) -> Box<Self>
+    where
+        Self: Sized;
+    /*
+    fn clone(&self) -> Self
+    where
+        Self: Sized;
+    */
+    // fn clone(&self) -> Box<dyn ShutdownReceiver>; // Complains if foo exists
 }
 
 impl Controller {
@@ -135,6 +162,19 @@ impl Controller {
                 });
                 fut::ok(())
             })
+            // TODO: Best approach till now but still not working :/
+            .and_then(move |_, slf, _| {
+                let new_futures: Vec<_> = slf // Would moving this out help us?
+                    .new_subscribers
+                    .iter() // <- Issue
+                    .map(|recipient| recipient.send(Shutdown { timeout }))
+                    .collect();
+                let fut = futures03::future::join_all(new_futures)
+                    .map(|_| ())
+                    .unit_error()
+                    .compat();
+                fut::wrap_future::<_, Controller>(fut)
+            })
             .spawn(context);
     }
 }
@@ -144,6 +184,7 @@ impl Default for Controller {
         Controller {
             timeout: Duration::from_secs(0),
             subscribers: Vec::new(),
+            new_subscribers: Vec::new(),
         }
     }
 }
@@ -153,6 +194,7 @@ impl fmt::Debug for Controller {
         f.debug_struct("Controller")
             .field("timeout", &self.timeout)
             .field("subscribers", &self.subscribers.len())
+            .field("new_subscribers", &self.new_subscribers.len())
             .finish()
     }
 }
