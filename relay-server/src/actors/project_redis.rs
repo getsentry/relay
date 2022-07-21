@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -39,7 +40,18 @@ impl From<serde_json::Error> for RedisProjectError {
 }
 
 fn parse_redis_response(raw_response: &[u8]) -> Result<ProjectState, RedisProjectError> {
-    Ok(serde_json::from_slice(raw_response)?)
+    let decoded = zstd::decode_all(raw_response);
+
+    let raw_response: Cow<[u8]> = match decoded {
+        Ok(decoded) => decoded.into(),
+        // If decoding fails, assume uncompressed payload and try again
+        Err(e) => {
+            dbg!(e);
+            raw_response.into()
+        }
+    };
+
+    Ok(serde_json::from_slice(raw_response.as_ref())?)
 }
 
 impl RedisProjectSource {
@@ -118,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_parse_redis_response_compressed() {
-        let raw_response = b"(\xb5/\xfD \x04!\x00\x00{}"; // As dumped by python zstandard library
+        let raw_response = b"(\xb5/\xfd \x02\x11\x00\x00{}"; // As dumped by python zstandard library
         let result = parse_redis_response(raw_response);
         assert!(result.is_ok(), "{:?}", result);
     }
