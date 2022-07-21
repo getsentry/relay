@@ -316,6 +316,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EnvelopeTotalTime => "event.total_time",
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
+            #[cfg(feature = "processing")]
             RelayTimers::ProjectStateDecompression => "project_state.decompression",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
