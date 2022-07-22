@@ -1,6 +1,7 @@
-use serde::{de, Deserialize};
 use std::fmt::Display;
 use std::str::FromStr;
+
+use serde::{de, Deserialize};
 
 pub fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where

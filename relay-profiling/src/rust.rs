@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
+
+use relay_general::protocol::EventId;
+
 use crate::cocoa::NativeDebugImage;
 use crate::ProfileError;
-use relay_general::protocol::EventId;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 struct RustFrame {

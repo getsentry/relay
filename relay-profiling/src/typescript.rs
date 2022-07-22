@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+use relay_general::protocol::EventId;
+
 use crate::utils::deserialize_number_from_string;
 use crate::ProfileError;
-use relay_general::protocol::EventId;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TypescriptProfile {
