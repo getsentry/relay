@@ -1,0 +1,88 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Profiling protocol and processing for Sentry."><meta name="keywords" content="rust, rustlang, rust-lang, relay_profiling"><title>relay_profiling - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../dark.css" disabled><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../storage.js"></script><script src="../crates.js"></script><script defer src="../main.js"></script>
+    <noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../favicon.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../relay_profiling/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"><a href="#">Crate relay_profiling</a></h2><div class="sidebar-elems"><div class="block"><ul><li class="version">Version 22.6.0</li><li><a id="all-types" href="all.html">All Items</a></li></div></ul><section><div class="block"><ul><li><a href="#functions">Functions</a></li></ul></div></section><div id="sidebar-vars" data-name="relay_profiling" data-ty="mod" data-relpath=""></div><script defer src="sidebar-items.js"></script></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../relay_profiling/index.html"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="main-heading">
+    <h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">relay_profiling</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/relay_profiling/lib.rs.html#1-132">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Profiling protocol and processing for Sentry.</p>
+<p>Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
+ingestion as JSON objects with some metadata. They are sent alongside a transaction (usually in
+the same envelope) and are usually big objects (average size around 300KB and it’s not unusual
+to see several MB). Their size is linked to the amount of code executed during the transaction
+(so the duration of the transaction influences the size of the profile).</p>
+<p>It’s preferrable to have a profile with a transaction. If a transaction is dropped, the profile
+should be dropped as well.</p>
+<h2 id="envelope"><a href="#envelope">Envelope</a></h2>
+<p>To send a profile to Relay, the profile is enclosed in an item of type <code>profile</code>:</p>
+<div class="example-wrap"><pre class="language-json"><code>{&quot;type&quot;: &quot;profile&quot;, &quot;size&quot;: ...}
+{ ... }</code></pre></div><h2 id="protocol"><a href="#protocol">Protocol</a></h2>
+<p>Relay is expecting a JSON object with some mandatory metadata and a <code>sampled_profile</code> key
+containing the raw profile. Each platform has their own schema for the profile.</p>
+<p><code>android</code> has a specific binary representation of its profile and Relay is responsible to
+unpack it before it’s forwarded down the line.</p>
+<p>The mandatory metadata can vary a bit depending on the platform. For mobile platform, it looks
+like this:</p>
+<div class="example-wrap"><pre class="language-json"><code>{
+    &quot;debug_meta&quot;: { ... },
+    &quot;device_is_emulator&quot;: true,
+    &quot;device_locale&quot;: &quot;en_US&quot;,
+    &quot;device_manufacturer&quot;: &quot;Apple&quot;,
+    &quot;device_model&quot;: &quot;iPhone14,3&quot;,
+    &quot;device_os_build_number&quot;: &quot;21E258&quot;,
+    &quot;device_os_name&quot;: &quot;iOS&quot;,
+    &quot;device_os_version&quot;: &quot;15.2&quot;,
+    &quot;device_physical_memory_bytes&quot;: 34359738368,
+    &quot;duration_ns&quot;: &quot;6634284250&quot;,
+    &quot;platform&quot;: &quot;cocoa&quot;,
+    &quot;profile_id&quot;: &quot;ee6851adf6014de8af8ca517217ac481&quot;,
+    &quot;sampled_profile&quot;: { ... },
+    &quot;trace_id&quot;: &quot;4b45d297ef404fb89e8fdf418c8f38a2&quot;,
+    &quot;transaction_id&quot;: &quot;8c3e0bc0518540b3ad1aa70d08f1ca7a&quot;,
+    &quot;transaction_name&quot;: &quot;iOS_Swift.ViewController&quot;,
+    &quot;version_code&quot;: &quot;1&quot;,
+    &quot;version_name&quot;: &quot;7.14.0&quot;
+}</code></pre></div>
+<p>These are the custom attributes for mobile platforms:</p>
+<ul>
+<li><code>device_os_build_number</code></li>
+<li><code>android_api_level</code></li>
+<li><code>device_is_emulator</code></li>
+<li><code>device_locale</code></li>
+<li><code>device_model</code></li>
+<li><code>device_manufacturer</code></li>
+<li><code>device_physical_memory_bytes</code></li>
+</ul>
+<p>These are the custom attributes for the <code>android</code> platform:</p>
+<ul>
+<li><code>build_id</code></li>
+<li><code>device_cpu_frequencies</code></li>
+</ul>
+<p>These are the custom attributes for backend platforms:</p>
+<ul>
+<li><code>architecture</code></li>
+</ul>
+<h2 id="ingestion"><a href="#ingestion">Ingestion</a></h2>
+<p>Relay will forward those profiles encoded with <code>msgpack</code> after unpacking them if needed and push a message on Kafka looking
+like this for the <code>cocoa</code> platform:</p>
+<div class="example-wrap"><pre class="language-json"><code>{
+    &quot;debug_meta&quot;: { ... },
+    &quot;device_is_emulator&quot;: true,
+    &quot;device_locale&quot;: &quot;en_US&quot;,
+    &quot;device_manufacturer&quot;: &quot;Apple&quot;,
+    &quot;device_model&quot;: &quot;iPhone14,3&quot;,
+    &quot;device_os_build_number&quot;: &quot;21E258&quot;,
+    &quot;device_os_name&quot;: &quot;iOS&quot;,
+    &quot;device_os_version&quot;: &quot;15.2&quot;,
+    &quot;device_physical_memory_bytes&quot;: 34359738368,
+    &quot;duration_ns&quot;: 6634284250,
+    &quot;platform&quot;: &quot;cocoa&quot;,
+    &quot;profile_id&quot;: &quot;ee6851adf6014de8af8ca517217ac481&quot;,
+    &quot;sampled_profile&quot;: { ... },
+    &quot;trace_id&quot;: &quot;4b45d297ef404fb89e8fdf418c8f38a2&quot;,
+    &quot;transaction_id&quot;: &quot;8c3e0bc0518540b3ad1aa70d08f1ca7a&quot;,
+    &quot;transaction_name&quot;: &quot;iOS_Swift.ViewController&quot;,
+    &quot;version_code&quot;: &quot;1&quot;,
+    &quot;version_name&quot;: &quot;7.14.0&quot;
+}</code></pre></div></div></details><h2 id="functions" class="small-section-header"><a href="#functions">Functions</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.parse_profile.html" title="relay_profiling::parse_profile fn">parse_profile</a></div><div class="item-right docblock-short"></div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_profiling" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.1 (e092d0b6b 2022-07-16)" ></div>
+</body></html>

@@ -3389,12 +3389,6 @@
 <span id="3382">3382</span>
 <span id="3383">3383</span>
 <span id="3384">3384</span>
-<span id="3385">3385</span>
-<span id="3386">3386</span>
-<span id="3387">3387</span>
-<span id="3388">3388</span>
-<span id="3389">3389</span>
-<span id="3390">3390</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3452,8 +3446,8 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServerError</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{
-    <span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">EnvelopeSummary</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>, <span class="ident">MinimalProfile</span>,
-    <span class="ident">ProfileError</span>, <span class="ident">SamplingResult</span>, <span class="ident">SendWithOutcome</span>,
+    <span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">EnvelopeSummary</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>, <span class="ident">SamplingResult</span>,
+    <span class="ident">SendWithOutcome</span>,
 };
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -4379,22 +4373,27 @@
                         <span class="kw">return</span> <span class="bool-val">false</span>;
                     }
                     <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
-                        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">parse_profile</span>(<span class="ident">item</span>).<span class="ident">is_err</span>() {
-                            <span class="kw">let</span> <span class="ident">outcome_aggregator</span> <span class="op">=</span> <span class="ident">OutcomeAggregator::from_registry</span>();
+                        <span class="kw">match</span> <span class="ident">relay_profiling::parse_profile</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>()) {
+                            <span class="prelude-val">Ok</span>(<span class="ident">payload</span>) =&gt; {
+                                <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType::Json</span>, <span class="kw-2">&amp;</span><span class="ident">payload</span>[..]);
+                                <span class="kw">return</span> <span class="bool-val">true</span>;
+                            }
+                            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                                <span class="kw">let</span> <span class="ident">outcome_aggregator</span> <span class="op">=</span> <span class="ident">OutcomeAggregator::from_registry</span>();
 
-                            <span class="ident">outcome_aggregator</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
-                                <span class="ident">timestamp</span>: <span class="ident">context</span>.<span class="ident">received_at</span>,
-                                <span class="ident">scoping</span>: <span class="ident">context</span>.<span class="ident">scoping</span>,
-                                <span class="ident">outcome</span>: <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessProfile</span>),
-                                <span class="ident">event_id</span>: <span class="ident">context</span>.<span class="ident">event_id</span>,
-                                <span class="ident">remote_addr</span>: <span class="ident">context</span>.<span class="ident">remote_addr</span>,
-                                <span class="ident">category</span>: <span class="ident">DataCategory::Profile</span>,
-                                <span class="ident">quantity</span>: <span class="number">1</span>,
-                            });
+                                <span class="ident">outcome_aggregator</span>.<span class="ident">do_send</span>(<span class="ident">TrackOutcome</span> {
+                                    <span class="ident">timestamp</span>: <span class="ident">context</span>.<span class="ident">received_at</span>,
+                                    <span class="ident">scoping</span>: <span class="ident">context</span>.<span class="ident">scoping</span>,
+                                    <span class="ident">outcome</span>: <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessProfile</span>),
+                                    <span class="ident">event_id</span>: <span class="ident">context</span>.<span class="ident">event_id</span>,
+                                    <span class="ident">remote_addr</span>: <span class="ident">context</span>.<span class="ident">remote_addr</span>,
+                                    <span class="ident">category</span>: <span class="ident">DataCategory::Profile</span>,
+                                    <span class="ident">quantity</span>: <span class="number">1</span>,
+                                });
 
-                            <span class="kw">return</span> <span class="bool-val">false</span>;
+                                <span class="kw">return</span> <span class="bool-val">false</span>;
+                            }
                         }
-                        <span class="kw">return</span> <span class="bool-val">true</span>;
                     }
                     <span class="bool-val">true</span>
                 }
@@ -4487,17 +4486,6 @@
         }
 
         <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn</span> <span class="ident">parse_profile</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">item</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Item</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProfileError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">minimal_profile</span>: <span class="ident">MinimalProfile</span> <span class="op">=</span> <span class="ident">utils::minimal_profile_from_json</span>(<span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">payload</span>())<span class="question-mark">?</span>;
-        <span class="kw">match</span> <span class="ident">minimal_profile</span>.<span class="ident">platform</span>.<span class="ident">as_str</span>() {
-            <span class="string">&quot;android&quot;</span> =&gt; <span class="ident">utils::parse_android_profile</span>(<span class="ident">item</span>),
-            <span class="string">&quot;cocoa&quot;</span> =&gt; <span class="ident">utils::parse_cocoa_profile</span>(<span class="ident">item</span>),
-            <span class="string">&quot;typescript&quot;</span> =&gt; <span class="ident">utils::parse_typescript_profile</span>(<span class="ident">item</span>),
-            <span class="string">&quot;rust&quot;</span> =&gt; <span class="ident">utils::parse_rust_profile</span>(<span class="ident">item</span>),
-            <span class="kw">_</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">ProfileError::PlatformNotSupported</span>),
-        }
     }
 
     <span class="kw">fn</span> <span class="ident">event_from_json_payload</span>(
