@@ -5,6 +5,7 @@
 **Internal**:
 
 - Support compressed project configs in redis cache. ([#1345](https://github.com/getsentry/relay/pull/1345))
+- Refactor profile processing into its own crate. ([#1340](https://github.com/getsentry/relay/pull/1340))
 
 ## 22.7.0
 
@@ -29,7 +30,6 @@
 - Extract metrics also from trace-sampled transactions. ([#1317](https://github.com/getsentry/relay/pull/1317))
 - Extract metrics from a configurable amount of custom transaction measurements. ([#1324](https://github.com/getsentry/relay/pull/1324))
 - Metrics: Drop transaction tag for high-cardinality sources. ([#1339](https://github.com/getsentry/relay/pull/1339))
-- Refactor profile processing into its own crate. ([#1340](https://github.com/getsentry/relay/pull/1340))
 
 ## 22.6.0
 
