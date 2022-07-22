@@ -40,6 +40,7 @@ struct PythonProfile {
     environment: String,
 
     platform: String,
+    platform_version: String,
     profile_id: EventId,
     profile: Profile,
     trace_id: EventId,
