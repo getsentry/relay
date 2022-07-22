@@ -5,15 +5,19 @@ use std::sync::Arc;
 use actix::SystemService;
 use futures03::compat::Future01CompatExt;
 use futures03::FutureExt;
-use tokio::sync::{mpsc, oneshot};
+use once_cell::sync::Lazy;
+use tokio::sync::{mpsc, oneshot, watch};
 
 use relay_config::{Config, RelayMode};
 use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
-use relay_system::{Shutdown, ShutdownReceiver};
+use relay_system::{Controller, Shutdown};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::RelayGauges;
+
+static ADDRESS: Lazy<std::sync::Mutex<Option<Addr<HealthCheckMessage>>>> =
+    Lazy::new(|| std::sync::Mutex::new(None));
 
 // Wrapper for our data and oneshot chanel(needed to retransmit back the reply)
 #[derive(Debug)]
@@ -61,6 +65,7 @@ impl<T> Addr<T> {
 }
 
 // Unchanged
+
 pub struct Healthcheck {
     is_shutting_down: bool,
     config: Arc<Config>,
@@ -129,9 +134,11 @@ impl Healthcheck {
     }
 
     // Start the healthCheck actor, returns an Addr so that it can be reached
-    pub fn start(self) -> Addr<HealthCheckMessage> {
+    pub fn start(mut self) -> Addr<HealthCheckMessage> {
         // Make the channel to use for communication
         let (tx, mut rx) = mpsc::unbounded_channel::<Message<_>>();
+        let addr = Addr { tx: tx.clone() };
+        *ADDRESS.lock().unwrap() = Some(addr.clone());
 
         tokio::spawn(async move {
             // While incoming messages are still being received
@@ -141,7 +148,39 @@ impl Healthcheck {
             }
         });
 
-        Addr { tx }
+        // When receiving a shutdown message forward it to our mpsc channel
+        tokio::spawn(async move {
+            // Get the receiving end of the watch channel from the Controller
+            let mut wrx = Controller::subscribe_v2().await;
+
+            loop {
+                if wrx.changed().await.is_ok() {
+                    if wrx.borrow().is_none() {
+                        continue;
+                    }
+                }
+                let (responder, _) = oneshot::channel();
+                tx.send(Message {
+                    data: HealthCheckMessage::Shutdown,
+                    responder,
+                });
+                break;
+            }
+        });
+        addr
+    }
+
+    // Maybe give back our own Addr and say that it can be converted into the actix Addr?
+    // Because Healthcheck is not an actor so doesn't work?
+    // So escentially need to make a converter? or leave it an Actor
+    pub fn from_registry() -> Addr<HealthCheckMessage> {
+        // TODO: Here need to return the address from the HealthCheck
+        // HTF do we do this, surely we now need to make a registry
+        let guard = ADDRESS.lock().unwrap();
+        match *guard {
+            Some(ref addr) => addr.clone(),
+            None => panic!(),
+        }
     }
 }
 
@@ -192,7 +231,7 @@ impl Handler<Shutdown> for Healthcheck {
 }
 */
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum IsHealthy {
     /// Check if the Relay is alive at all.
     Liveness,
@@ -201,7 +240,7 @@ pub enum IsHealthy {
     Readiness,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum HealthCheckMessage {
     Health(IsHealthy),
     Shutdown,
@@ -212,6 +251,12 @@ pub enum HealthCheckMessage {
 impl From<Shutdown> for HealthCheckMessage {
     fn from(_: Shutdown) -> Self {
         HealthCheckMessage::Shutdown
+    }
+}
+
+impl From<IsHealthy> for HealthCheckMessage {
+    fn from(is_healthy: IsHealthy) -> Self {
+        Self::Health(is_healthy)
     }
 }
 

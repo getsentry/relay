@@ -140,11 +140,13 @@ impl ServiceState {
         let project_cache = ProjectCache::new(config.clone(), redis_pool).start();
         registry.set(project_cache.clone());
 
+        let v = Controller::from_registry();
         let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap()); // FIXME: Might need to change that later
                                                                          // Spawn the Health check in the runtime?
-        runtime.spawn(async {
+        let config_copy = config.clone();
+        runtime.spawn(async move {
             // FIXME: Need to make a new registry
-            let v = Healthcheck::new(config.clone()).start();
+            let addr = Healthcheck::new(config_copy).start(); // <-
         });
 
         // registry.set(Healthcheck::new(config.clone()).start());

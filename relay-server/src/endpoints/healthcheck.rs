@@ -2,6 +2,8 @@
 use ::actix::prelude::*;
 use actix_web::{Error, HttpResponse};
 use futures::prelude::*;
+use futures03::compat::Future01CompatExt;
+use futures03::TryFutureExt;
 use serde::Serialize;
 
 use crate::service::ServiceApp;
@@ -32,11 +34,16 @@ impl HealthcheckResponse {
 }
 
 fn healthcheck_impl(message: IsHealthy) -> ResponseFuture<HttpResponse, Error> {
+    // let addr = Healthcheck::from_registry();
+    let fut = async move {
+        let addr = Healthcheck::from_registry();
+        addr.send(message.into()).await
+    };
+    let bp = Box::pin(fut);
+
     Box::new(
-        Healthcheck::from_registry()
-            .send(message)
+        bp.compat()
             .map_err(|_| ())
-            .flatten()
             .and_then(move |is_healthy| {
                 if !is_healthy {
                     Err(())

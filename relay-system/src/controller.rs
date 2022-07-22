@@ -7,7 +7,9 @@ use actix::fut;
 use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
-use futures03::{FutureExt, TryFutureExt};
+use futures03::compat::Future01CompatExt;
+use tokio::sync::{mpsc, watch};
+// use futures03::{FutureExt, TryFutureExt};
 
 #[doc(inline)]
 pub use actix::actors::signal::{Signal, SignalType};
@@ -58,16 +60,27 @@ pub use actix::actors::signal::{Signal, SignalType};
 /// }).unwrap();
 /// ```
 
+type ShutdownReceiver = watch::Receiver<Option<Shutdown>>; // Find a good name for this
+type ShutdownSender = watch::Sender<Option<Shutdown>>; // Check of that is really needed
+                                                       // Only used once but gives a nice symetry
+
 pub struct Controller {
     /// Configured timeout for graceful shutdowns.
     timeout: Duration,
     /// Subscribed actors for the shutdown message.
     subscribers: Vec<Recipient<Shutdown>>,
+
     /// Subscribed actors for the shutdown message.
-    new_subscribers: Vec<Box<dyn ShutdownReceiver>>,
+    // new_subscribers: Vec<Box<dyn ShutdownReceiver>>,
+
+    // Hand this out to actors that subscribe to us
+    shutdown_receiver: ShutdownReceiver,
+    // Use this to send the shutdown message to all the actors that are subscribed to us
+    shutdown_sender: ShutdownSender,
 }
 
 /// TODO
+/*
 pub trait ShutdownReceiver {
     // Not sure if this can help us: https://stackoverflow.com/a/53989780/8076979
     // Removing `static also doesn't help
@@ -78,6 +91,7 @@ pub trait ShutdownReceiver {
         message: Shutdown,
     ) -> Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>;
 
+    /// TODO
     fn foo(&self) -> Box<Self>
     where
         Self: Sized;
@@ -88,6 +102,7 @@ pub trait ShutdownReceiver {
     */
     // fn clone(&self) -> Box<dyn ShutdownReceiver>; // Complains if foo exists
 }
+*/
 
 impl Controller {
     /// Starts an actix system and runs the `factory` to start actors.
@@ -129,6 +144,15 @@ impl Controller {
         Controller::from_registry().do_send(Subscribe(addr.recipient()))
     }
 
+    /// TODO
+    pub async fn subscribe_v2() -> ShutdownReceiver {
+        Controller::from_registry()
+            .send(SubscribeV2())
+            .compat()
+            .await
+            .unwrap() // FIXME: Remove this later
+    }
+
     /// Performs a graceful shutdown with the given timeout.
     ///
     /// This sends a `Shutdown` message to all subscribed actors and waits for them to finish. As
@@ -137,6 +161,10 @@ impl Controller {
         // Send a shutdown signal to all registered subscribers (including self). They will report
         // when the shutdown has completed. Note that we ignore all errors to make sure that we
         // don't cancel the shutdown of other actors if one actor fails.
+
+        // Send the message
+        self.shutdown_sender.send(Some(Shutdown { timeout }));
+
         let futures: Vec<_> = self
             .subscribers
             .iter()
@@ -163,6 +191,7 @@ impl Controller {
                 fut::ok(())
             })
             // TODO: Best approach till now but still not working :/
+            /*
             .and_then(move |_, slf, _| {
                 let new_futures: Vec<_> = slf // Would moving this out help us?
                     .new_subscribers
@@ -174,17 +203,21 @@ impl Controller {
                     .unit_error()
                     .compat();
                 fut::wrap_future::<_, Controller>(fut)
-            })
+            })*/
             .spawn(context);
     }
 }
 
 impl Default for Controller {
     fn default() -> Self {
+        // TODO: Still iffy not sure why we need to pass in a init (also would be nice if we could avoid it)
+        let (shutdown_sender, mut shutdown_receiver) = watch::channel(None);
+
         Controller {
             timeout: Duration::from_secs(0),
             subscribers: Vec::new(),
-            new_subscribers: Vec::new(),
+            shutdown_receiver,
+            shutdown_sender,
         }
     }
 }
@@ -193,8 +226,7 @@ impl fmt::Debug for Controller {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Controller")
             .field("timeout", &self.timeout)
-            .field("subscribers", &self.subscribers.len())
-            .field("new_subscribers", &self.new_subscribers.len())
+            .field("subscribers", &self.subscribers.len()) //  Ask if we need to update these here
             .finish()
     }
 }
@@ -272,6 +304,21 @@ impl Handler<Subscribe> for Controller {
 
     fn handle(&mut self, message: Subscribe, _context: &mut Self::Context) -> Self::Result {
         self.subscribers.push(message.0)
+    }
+}
+
+#[derive(Debug)]
+pub struct SubscribeV2();
+
+impl Message for SubscribeV2 {
+    type Result = ShutdownReceiver;
+}
+
+impl Handler<SubscribeV2> for Controller {
+    type Result = MessageResult<SubscribeV2>;
+
+    fn handle(&mut self, msg: SubscribeV2, ctx: &mut Self::Context) -> Self::Result {
+        MessageResult(self.shutdown_receiver.clone())
     }
 }
 
