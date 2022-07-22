@@ -1,10 +1,11 @@
 {
-    "duration_ns": "919178417",
-    "profile_id": "41fed0925670468bb0457f61a74688ec",
-    "device_os_name": "macos",
-    "device_os_version": "",
-    "architecture": "arm64",
-    "transaction_id": "30976f2ddbe04ac9b6bffe6e35d4710c",
+    "device_os_name": "Darwin",
+    "device_os_version": "21.5.0",
+    "duration_ns": 81350084,
+    "environment": "production",
+    "platform": "python",
+    "platform_version": "3.8.13",
+    "profile_id": "f080f2567e024a6183c4d844c40346db",
     "profile": {
         "samples": [
             {
@@ -44,8 +45,8 @@
                     1,
                     0
                 ],
-                "relative_timestamp_ns": 17530833,
-                "thread_id": 4336452992
+                "relative_timestamp_ns": 15057625,
+                "thread_id": 4306896256
             },
             {
                 "frames": [
@@ -84,8 +85,8 @@
                     1,
                     0
                 ],
-                "relative_timestamp_ns": 34981916,
-                "thread_id": 4336452992
+                "relative_timestamp_ns": 30055542,
+                "thread_id": 4306896256
             },
             {
                 "frames": [
@@ -124,8 +125,88 @@
                     1,
                     0
                 ],
-                "relative_timestamp_ns": 51031791,
-                "thread_id": 4336452992
+                "relative_timestamp_ns": 45542125,
+                "thread_id": 4306896256
+            },
+            {
+                "frames": [
+                    32,
+                    31,
+                    30,
+                    29,
+                    28,
+                    27,
+                    25,
+                    26,
+                    25,
+                    24,
+                    23,
+                    22,
+                    21,
+                    20,
+                    19,
+                    18,
+                    17,
+                    16,
+                    15,
+                    14,
+                    13,
+                    12,
+                    11,
+                    10,
+                    9,
+                    8,
+                    7,
+                    6,
+                    5,
+                    4,
+                    3,
+                    2,
+                    1,
+                    0
+                ],
+                "relative_timestamp_ns": 60834125,
+                "thread_id": 4306896256
+            },
+            {
+                "frames": [
+                    32,
+                    31,
+                    30,
+                    29,
+                    28,
+                    27,
+                    25,
+                    26,
+                    25,
+                    24,
+                    23,
+                    22,
+                    21,
+                    20,
+                    19,
+                    18,
+                    17,
+                    16,
+                    15,
+                    14,
+                    13,
+                    12,
+                    11,
+                    10,
+                    9,
+                    8,
+                    7,
+                    6,
+                    5,
+                    4,
+                    3,
+                    2,
+                    1,
+                    0
+                ],
+                "relative_timestamp_ns": 76640667,
+                "thread_id": 4306896256
             }
         ],
         "frames": [
@@ -172,7 +253,7 @@
             {
                 "name": "__call__",
                 "file": "/Users/dszoke/Development/sentry-python/sentry_sdk/integrations/wsgi.py",
-                "line": 117
+                "line": 119
             },
             {
                 "name": "sentry_patched_wsgi_app",
@@ -296,9 +377,9 @@
             }
         ]
     },
-    "transaction_name": "example_ios_movies_sources.MoviesViewController",
-    "version_name": "0.1",
-    "platform": "cocoa",
-    "trace_id": "4b25bc58f14243d8b208d1e22a054164",
-    "version_code": "181"
+    "trace_id": "c58bc763fdb84d30abd3b787471ca157",
+    "transaction_id": "5c21168694fb42b887a2c194daa18022",
+    "transaction_name": "hello_world",
+    "version_code": "TODO",
+    "version_name": "9c84589bd1d47efed868babffe7802c33ee3422a"
 }
