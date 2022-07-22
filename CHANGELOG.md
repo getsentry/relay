@@ -5,6 +5,7 @@
 **Internal**:
 
 - Support compressed project configs in redis cache. ([#1345](https://github.com/getsentry/relay/pull/1345))
+- Refactor profile processing into its own crate. ([#1340](https://github.com/getsentry/relay/pull/1340))
 
 ## 22.7.0
 

@@ -28,7 +28,6 @@ processing = [
 [dependencies]
 actix = "0.7.9"
 actix-web = { version = "0.7.19", default-features = false }
-android_trace_log = { version = "0.2.0", features = ["serde"] }
 base64 = "0.10.1"
 brotli2 = "0.3.2"
 bytes = { version = "0.4.12", features = ["serde"] }
@@ -57,6 +56,7 @@ relay-filter = { path = "../relay-filter" }
 relay-general = { path = "../relay-general" }
 relay-log = { path = "../relay-log" }
 relay-metrics = { path = "../relay-metrics" }
+relay-profiling = { path = "../relay-profiling" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
 relay-sampling = { path = "../relay-sampling" }

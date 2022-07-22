@@ -55,8 +55,8 @@ use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetric
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, MinimalProfile,
-    ProfileError, SamplingResult, SendWithOutcome,
+    self, ChunkedFormDataAggregator, EnvelopeSummary, FormDataIter, FutureExt, SamplingResult,
+    SendWithOutcome,
 };
 
 #[cfg(feature = "processing")]
@@ -982,22 +982,27 @@ impl EnvelopeProcessor {
                         return false;
                     }
                     if self.config.processing_enabled() {
-                        if self.parse_profile(item).is_err() {
-                            let outcome_aggregator = OutcomeAggregator::from_registry();
+                        match relay_profiling::parse_profile(&item.payload()) {
+                            Ok(payload) => {
+                                item.set_payload(ContentType::Json, &payload[..]);
+                                return true;
+                            }
+                            Err(_) => {
+                                let outcome_aggregator = OutcomeAggregator::from_registry();
 
-                            outcome_aggregator.do_send(TrackOutcome {
-                                timestamp: context.received_at,
-                                scoping: context.scoping,
-                                outcome: Outcome::Invalid(DiscardReason::ProcessProfile),
-                                event_id: context.event_id,
-                                remote_addr: context.remote_addr,
-                                category: DataCategory::Profile,
-                                quantity: 1,
-                            });
+                                outcome_aggregator.do_send(TrackOutcome {
+                                    timestamp: context.received_at,
+                                    scoping: context.scoping,
+                                    outcome: Outcome::Invalid(DiscardReason::ProcessProfile),
+                                    event_id: context.event_id,
+                                    remote_addr: context.remote_addr,
+                                    category: DataCategory::Profile,
+                                    quantity: 1,
+                                });
 
-                            return false;
+                                return false;
+                            }
                         }
-                        return true;
                     }
                     true
                 }
@@ -1090,17 +1095,6 @@ impl EnvelopeProcessor {
         }
 
         Ok(())
-    }
-
-    fn parse_profile(&self, item: &mut Item) -> Result<(), ProfileError> {
-        let minimal_profile: MinimalProfile = utils::minimal_profile_from_json(&item.payload())?;
-        match minimal_profile.platform.as_str() {
-            "android" => utils::parse_android_profile(item),
-            "cocoa" => utils::parse_cocoa_profile(item),
-            "typescript" => utils::parse_typescript_profile(item),
-            "rust" => utils::parse_rust_profile(item),
-            _ => Err(ProfileError::PlatformNotSupported),
-        }
     }
 
     fn event_from_json_payload(
