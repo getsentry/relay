@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Support compressed project configs in redis cache. ([#1345](https://github.com/getsentry/relay/pull/1345))
+
 ## 22.7.0
 
 **Features**:

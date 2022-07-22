@@ -10,7 +10,7 @@ use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayTimers};
 
 pub struct RedisProjectSource {
     config: Arc<Config>,
@@ -38,6 +38,20 @@ impl From<serde_json::Error> for RedisProjectError {
     }
 }
 
+fn parse_redis_response(raw_response: &[u8]) -> Result<ProjectState, RedisProjectError> {
+    let decoded = metric!(timer(RelayTimers::ProjectStateDecompression), {
+        zstd::decode_all(raw_response)
+    });
+
+    let raw_response = match &decoded {
+        Ok(decoded) => decoded.as_slice(),
+        // If decoding fails, assume uncompressed payload and try again
+        Err(_) => raw_response,
+    };
+
+    Ok(serde_json::from_slice(raw_response)?)
+}
+
 impl RedisProjectSource {
     pub fn new(config: Arc<Config>, redis: RedisPool) -> Self {
         RedisProjectSource { config, redis }
@@ -49,25 +63,25 @@ impl RedisProjectSource {
         let prefix = self.config.projectconfig_cache_prefix();
         command.arg(format!("{}:{}", prefix, key));
 
-        let raw_response_opt: Option<String> = command
+        let raw_response_opt: Option<Vec<u8>> = command
             .query(&mut self.redis.client()?.connection())
             .map_err(RedisError::Redis)?;
 
-        let raw_response = match raw_response_opt {
+        let response = match raw_response_opt {
             Some(response) => {
                 metric!(counter(RelayCounters::ProjectStateRedis) += 1, hit = "true");
-                response
+                Some(parse_redis_response(response.as_slice())?)
             }
             None => {
                 metric!(
                     counter(RelayCounters::ProjectStateRedis) += 1,
                     hit = "false"
                 );
-                return Ok(None);
+                None
             }
         };
 
-        Ok(serde_json::from_str(&raw_response)?)
+        Ok(response)
     }
 }
 
@@ -98,5 +112,24 @@ impl Handler<FetchOptionalProjectState> for RedisProjectSource {
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_redis_response() {
+        let raw_response = b"{}";
+        let result = parse_redis_response(raw_response);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_redis_response_compressed() {
+        let raw_response = b"(\xb5/\xfd \x02\x11\x00\x00{}"; // As dumped by python zstandard library
+        let result = parse_redis_response(raw_response);
+        assert!(result.is_ok(), "{:?}", result);
     }
 }
