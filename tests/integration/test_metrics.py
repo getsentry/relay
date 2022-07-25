@@ -483,7 +483,8 @@ def test_transaction_metrics(
                 "d:transactions/measurements.bar@none",
                 "d:transactions/breakdowns.span_ops.total.time@millisecond",
                 "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
-            ]
+            ],
+            "version": 1,
         }
 
     transaction = generate_transaction_item()
@@ -560,6 +561,156 @@ def test_transaction_metrics(
         "type": "d",
         "value": [9.910106, 9.910106],
     }
+
+
+@pytest.mark.parametrize(
+    "send_extracted_header,expect_extracted_header,expect_metrics_extraction",
+    [(False, True, True), (True, True, False)],
+    ids=["must extract metrics", "mustn't extract metrics"],
+)
+def test_transaction_metrics_extraction_external_relays(
+    mini_sentry,
+    relay,
+    send_extracted_header,
+    expect_extracted_header,
+    expect_metrics_extraction,
+):
+    if send_extracted_header:
+        item_headers = {"metrics_extracted": True}
+    else:
+        item_headers = None
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "extractMetrics": ["d:transactions/duration@millisecond"],
+        "version": 1,
+    }
+
+    tx = generate_transaction_item()
+    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
+    timestamp = datetime.now(tz=timezone.utc)
+    tx["timestamp"] = timestamp.isoformat()
+
+    external = relay(mini_sentry, options=TEST_CONFIG)
+    external.send_transaction(project_id, tx, item_headers)
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+    tx_item = envelope.items[0]
+
+    if expect_extracted_header:
+        assert tx_item.headers["metrics_extracted"] == True
+    else:
+        assert "metrics_extracted" not in tx_item.headers
+
+    tx_item_body = json.loads(tx_item.get_bytes().decode())
+    assert (
+        tx_item_body["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    )
+
+    if expect_metrics_extraction:
+        metrics_envelope = mini_sentry.captured_events.get(timeout=3)
+        assert len(metrics_envelope.items) == 1
+        m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
+        assert len(m_item_body) == 1
+        assert m_item_body[0]["name"] == "d:transactions/duration@millisecond"
+        assert (
+            m_item_body[0]["tags"]["transaction"]
+            == "/organizations/:orgId/performance/:eventSlug/"
+        )
+
+    assert mini_sentry.captured_events.empty()
+
+
+@pytest.mark.parametrize(
+    "send_extracted_header,expect_metrics_extraction",
+    [(False, True), (True, False)],
+    ids=["must extract metrics", "mustn't extract metrics"],
+)
+def test_transaction_metrics_extraction_processing_relays(
+    transactions_consumer,
+    metrics_consumer,
+    mini_sentry,
+    relay_with_processing,
+    send_extracted_header,
+    expect_metrics_extraction,
+):
+    if send_extracted_header:
+        item_headers = {"metrics_extracted": True}
+    else:
+        item_headers = None
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "extractMetrics": ["d:transactions/duration@millisecond"],
+        "version": 1,
+    }
+
+    tx = generate_transaction_item()
+    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
+    timestamp = datetime.now(tz=timezone.utc)
+    tx["timestamp"] = timestamp.isoformat()
+
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+    processing = relay_with_processing(options=TEST_CONFIG)
+    processing.send_transaction(project_id, tx, item_headers)
+
+    tx, _ = tx_consumer.get_event()
+    assert tx["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    tx_consumer.assert_empty()
+
+    if expect_metrics_extraction:
+        metric = metrics_consumer.get_metric(timeout=3)
+        assert metric["name"] == "d:transactions/duration@millisecond"
+        assert (
+            metric["tags"]["transaction"]
+            == "/organizations/:orgId/performance/:eventSlug/"
+        )
+
+    metrics_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "unsupported_version",
+    [0, 1234567890],
+    ids=["version is too small", "version is too big"],
+)
+def test_transaction_metrics_not_extracted_on_unsupported_version(
+    metrics_consumer,
+    transactions_consumer,
+    mini_sentry,
+    relay_with_processing,
+    unsupported_version,
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "extractMetrics": ["d:transactions/duration@millisecond"],
+        "version": unsupported_version,
+    }
+
+    tx = generate_transaction_item()
+    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
+    timestamp = datetime.now(tz=timezone.utc)
+    tx["timestamp"] = timestamp.isoformat()
+
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    relay.send_transaction(project_id, tx)
+
+    tx, _ = tx_consumer.get_event()
+    assert tx["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    tx_consumer.assert_empty()
+
+    metrics_consumer.assert_empty()
 
 
 def test_graceful_shutdown(mini_sentry, relay):

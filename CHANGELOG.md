@@ -13,6 +13,7 @@
 
 - Adjust sample rate by envelope header's sample_rate. ([#1327](https://github.com/getsentry/relay/pull/1327))
 - Support `transaction_info` on event payloads. ([#1330](https://github.com/getsentry/relay/pull/1330))
+- Extract transaction metrics in external relays. ([#1344](https://github.com/getsentry/relay/pull/1344))
 
 **Bug Fixes**:
 
