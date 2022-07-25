@@ -1109,7 +1109,7 @@ impl EnvelopeProcessor {
 
     fn event_from_json_payload(
         &self,
-        item: &Item,
+        item: Item,
         event_type: Option<EventType>,
     ) -> Result<ExtractedEvent, ProcessingError> {
         let mut event = Annotated::<Event>::from_json_bytes(&item.payload())
@@ -1380,18 +1380,17 @@ impl EnvelopeProcessor {
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Event items can never include transactions, so retain the event type and let
                 // inference deal with this during store normalization.
-                self.event_from_json_payload(&item, None)?
+                self.event_from_json_payload(item, None)?
             })
         } else if let Some(mut item) = transaction_item {
             relay_log::trace!("processing json transaction");
             state.sample_rates = item.take_sample_rates();
-            let event_from_json = metric!(timer(RelayTimers::EventProcessingDeserialize), {
+            state.transaction_metrics_extracted = item.metrics_extracted();
+            metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
-                self.event_from_json_payload(&item, Some(EventType::Transaction))?
-            });
-            state.transaction_metrics_extracted = item.metrics_extracted();
-            event_from_json
+                self.event_from_json_payload(item, Some(EventType::Transaction))?
+            })
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
             state.sample_rates = item.take_sample_rates();
@@ -1712,7 +1711,7 @@ impl EnvelopeProcessor {
             .metric_conditional_tagging
             .as_slice();
 
-        if let Some(tx) = state.event.value() {
+        if let Some(event) = state.event.value() {
             let extracted_anything;
             metric!(
                 timer(RelayTimers::TransactionMetricsExtraction),
@@ -1723,7 +1722,7 @@ impl EnvelopeProcessor {
                         config,
                         breakdowns_config,
                         conditional_tagging_config,
-                        tx,
+                        event,
                         &mut state.extracted_metrics,
                     );
                 }
