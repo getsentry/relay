@@ -3389,6 +3389,20 @@
 <span id="3382">3382</span>
 <span id="3383">3383</span>
 <span id="3384">3384</span>
+<span id="3385">3385</span>
+<span id="3386">3386</span>
+<span id="3387">3387</span>
+<span id="3388">3388</span>
+<span id="3389">3389</span>
+<span id="3390">3390</span>
+<span id="3391">3391</span>
+<span id="3392">3392</span>
+<span id="3393">3393</span>
+<span id="3394">3394</span>
+<span id="3395">3395</span>
+<span id="3396">3396</span>
+<span id="3397">3397</span>
+<span id="3398">3398</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3443,19 +3457,19 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors</span>::{<span class="ident">PartialDsn</span>, <span class="ident">RequestMeta</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::sessions</span>::{<span class="ident">extract_session_metrics</span>, <span class="ident">SessionMetricsConfig</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::transactions::extract_transaction_metrics</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServerError</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{
-    <span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">EnvelopeSummary</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>, <span class="ident">SamplingResult</span>,
-    <span class="ident">SendWithOutcome</span>,
+    <span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">EnvelopeSummary</span>, <span class="ident">ErrorBoundary</span>, <span class="ident">FormDataIter</span>, <span class="ident">FutureExt</span>,
+    <span class="ident">SamplingResult</span>, <span class="ident">SendWithOutcome</span>,
 };
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">use</span> {
     <span class="ident"><span class="kw">crate</span>::actors::store</span>::{<span class="ident">StoreEnvelope</span>, <span class="ident">StoreError</span>, <span class="ident">StoreForwarder</span>},
-    <span class="ident"><span class="kw">crate</span>::metrics_extraction::transactions::extract_transaction_metrics</span>,
     <span class="ident"><span class="kw">crate</span>::service::ServerErrorKind</span>,
-    <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">EnvelopeLimiter</span>, <span class="ident">ErrorBoundary</span>},
+    <span class="ident"><span class="kw">crate</span>::utils::EnvelopeLimiter</span>,
     <span class="ident">failure::ResultExt</span>,
     <span class="ident">relay_general::store</span>::{<span class="ident">GeoIpLookup</span>, <span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>},
     <span class="ident">relay_quotas</span>::{<span class="ident">RateLimitingError</span>, <span class="ident">RedisRateLimiter</span>},
@@ -3736,6 +3750,9 @@
     <span class="doccomment">/// `creates_event`, the event is required and the pipeline errors if no payload can be</span>
     <span class="doccomment">/// extracted.</span>
     <span class="ident">event</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Track whether transaction metrics were already extracted.</span>
+    <span class="ident">transaction_metrics_extracted</span>: <span class="ident">bool</span>,
 
     <span class="doccomment">/// Partial metrics of the Event during construction.</span>
     <span class="doccomment">///</span>
@@ -4454,6 +4471,7 @@
         <span class="prelude-val">Ok</span>(<span class="ident">ProcessEnvelopeState</span> {
             <span class="ident">envelope</span>,
             <span class="ident">event</span>: <span class="ident">Annotated::empty</span>(),
+            <span class="ident">transaction_metrics_extracted</span>: <span class="bool-val">false</span>,
             <span class="ident">metrics</span>: <span class="ident">Metrics::default</span>(),
             <span class="ident">sample_rates</span>: <span class="prelude-val">None</span>,
             <span class="ident">rate_limits</span>: <span class="ident">RateLimits::new</span>(),
@@ -4766,6 +4784,7 @@
         } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">item</span>) <span class="op">=</span> <span class="ident">transaction_item</span> {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;processing json transaction&quot;</span>);
             <span class="ident">state</span>.<span class="ident">sample_rates</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">take_sample_rates</span>();
+            <span class="ident">state</span>.<span class="ident">transaction_metrics_extracted</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">metrics_extracted</span>();
             <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EventProcessingDeserialize</span>), {
                 <span class="comment">// Transaction items can only contain transaction events. Force the event type to</span>
                 <span class="comment">// hint to normalization that we&#39;re dealing with a transaction now.</span>
@@ -5066,15 +5085,23 @@
     }
 
     <span class="doccomment">/// Extract metrics for transaction events with breakdowns and measurements.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">extract_transaction_metrics</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">transaction_metrics</span> {
+        <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">transaction_metrics_extracted</span> {
+            <span class="comment">// Nothing to do here.</span>
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+        }
+
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>().<span class="ident">transaction_metrics</span> {
             <span class="prelude-val">Some</span>(<span class="ident">ErrorBoundary::Ok</span>(<span class="kw-2">ref</span> <span class="ident">config</span>)) =&gt; <span class="ident">config</span>,
             <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
         };
+
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">config</span>.<span class="ident">is_enabled</span>() {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+        }
 
         <span class="kw">let</span> <span class="ident">breakdowns_config</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">breakdowns_v2</span>.<span class="ident">as_ref</span>();
         <span class="kw">let</span> <span class="ident">conditional_tagging_config</span> <span class="op">=</span> <span class="ident">state</span>
@@ -5085,7 +5112,6 @@
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">event</span>.<span class="ident">value</span>() {
             <span class="kw">let</span> <span class="ident">extracted_anything</span>;
-
             <span class="macro">metric!</span>(
                 <span class="ident">timer</span>(<span class="ident">RelayTimers::TransactionMetricsExtraction</span>),
                 <span class="ident">extracted_anything</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">extracted_anything</span>.<span class="ident">to_string</span>(),
@@ -5100,6 +5126,7 @@
                     );
                 }
             );
+            <span class="ident">state</span>.<span class="ident">transaction_metrics_extracted</span> <span class="op">=</span> <span class="bool-val">true</span>;
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else</span> {
             <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::NoEventPayload</span>)
@@ -5194,6 +5221,9 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event_item</span> <span class="op">=</span> <span class="ident">Item::new</span>(<span class="ident">ItemType::from_event_type</span>(<span class="ident">event_type</span>));
         <span class="ident">event_item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType::Json</span>, <span class="ident">data</span>);
 
+        <span class="comment">// If transaction metrics were extracted, set the corresponding item header</span>
+        <span class="ident">event_item</span>.<span class="ident">set_metrics_extracted</span>(<span class="ident">state</span>.<span class="ident">transaction_metrics_extracted</span>);
+
         <span class="comment">// If there are sample rates, write them back to the envelope. In processing mode, sample</span>
         <span class="comment">// rates have been removed from the state and burnt into the event via `finalize_event`.</span>
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sample_rates</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">sample_rates</span>.<span class="ident">take</span>() {
@@ -5257,9 +5287,7 @@
 
             <span class="self">self</span>.<span class="ident">finalize_event</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
 
-            <span class="macro">if_processing!</span>({
-                <span class="self">self</span>.<span class="ident">extract_transaction_metrics</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
-            });
+            <span class="self">self</span>.<span class="ident">extract_transaction_metrics</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
 
             <span class="self">self</span>.<span class="ident">sample_envelope</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
 
