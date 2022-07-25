@@ -1007,6 +1007,9 @@
 <span id="1000">1000</span>
 <span id="1001">1001</span>
 <span id="1002">1002</span>
+<span id="1003">1003</span>
+<span id="1004">1004</span>
+<span id="1005">1005</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The actor uses kafka topics to forward data to Sentry</span>
 
@@ -1842,6 +1845,9 @@
                 <span class="ident">serde_json::to_vec</span>(<span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">StoreError::InvalidJson</span>)
             }
             <span class="ident">KafkaMessage::Metric</span>(<span class="ident">message</span>) =&gt; {
+                <span class="ident">serde_json::to_vec</span>(<span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">StoreError::InvalidJson</span>)
+            }
+            <span class="ident">KafkaMessage::ReplayEvent</span>(<span class="ident">message</span>) =&gt; {
                 <span class="ident">serde_json::to_vec</span>(<span class="ident">message</span>).<span class="ident">map_err</span>(<span class="ident">StoreError::InvalidJson</span>)
             }
             <span class="kw">_</span> =&gt; <span class="ident">rmp_serde::to_vec_named</span>(<span class="kw-2">&amp;</span><span class="self">self</span>).<span class="ident">map_err</span>(<span class="ident">StoreError::InvalidMsgPack</span>),
