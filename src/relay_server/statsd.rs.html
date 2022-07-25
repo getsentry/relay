@@ -529,6 +529,20 @@
 <span id="522">522</span>
 <span id="523">523</span>
 <span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -634,6 +648,12 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// There is no limit to the number of cached projects.</span>
     <span class="ident">ProjectStateCacheSize</span>,
+    <span class="doccomment">/// The size of the compressed project config in the redis cache, in bytes.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">ProjectStateSizeBytesCompressed</span>,
+    <span class="doccomment">/// The size of the uncompressed project config in the redis cache, in bytes.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">ProjectStateSizeBytesDecompressed</span>,
     <span class="doccomment">/// The number of upstream requests queued up for sending.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Relay employs connection keep-alive whenever possible. Connections are kept open for _15_</span>
@@ -687,6 +707,14 @@
             <span class="ident">RelayHistograms::ProjectStateRequestBatchSize</span> =&gt; <span class="string">&quot;project_state.request.batch_size&quot;</span>,
             <span class="ident">RelayHistograms::ProjectStateReceived</span> =&gt; <span class="string">&quot;project_state.received&quot;</span>,
             <span class="ident">RelayHistograms::ProjectStateCacheSize</span> =&gt; <span class="string">&quot;project_cache.size&quot;</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">RelayHistograms::ProjectStateSizeBytesCompressed</span> =&gt; {
+                <span class="string">&quot;project_state.size_bytes.compressed&quot;</span>
+            }
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">RelayHistograms::ProjectStateSizeBytesDecompressed</span> =&gt; {
+                <span class="string">&quot;project_state.size_bytes.decompressed&quot;</span>
+            }
             <span class="ident">RelayHistograms::UpstreamMessageQueueSize</span> =&gt; <span class="string">&quot;http_queue.size&quot;</span>,
             <span class="ident">RelayHistograms::UpstreamRetries</span> =&gt; <span class="string">&quot;upstream.retries&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
