@@ -103,6 +103,12 @@ pub enum RelayHistograms {
     ///
     /// There is no limit to the number of cached projects.
     ProjectStateCacheSize,
+    /// The size of the compressed project config in the redis cache, in bytes.
+    #[cfg(feature = "processing")]
+    ProjectStateSizeBytesCompressed,
+    /// The size of the uncompressed project config in the redis cache, in bytes.
+    #[cfg(feature = "processing")]
+    ProjectStateSizeBytesUncompressed,
     /// The number of upstream requests queued up for sending.
     ///
     /// Relay employs connection keep-alive whenever possible. Connections are kept open for _15_
@@ -156,6 +162,14 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
             RelayHistograms::ProjectStateReceived => "project_state.received",
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
+            #[cfg(feature = "processing")]
+            RelayHistograms::ProjectStateSizeBytesCompressed => {
+                "project_state.size_bytes.compressed"
+            }
+            #[cfg(feature = "processing")]
+            RelayHistograms::ProjectStateSizeBytesUncompressed => {
+                "project_state.size_bytes.uncompressed"
+            }
             RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
             RelayHistograms::UpstreamRetries => "upstream.retries",
             #[cfg(feature = "processing")]
