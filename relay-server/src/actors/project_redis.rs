@@ -50,7 +50,7 @@ fn parse_redis_response(raw_response: &[u8]) -> Result<ProjectState, RedisProjec
                     raw_response.len() as f64
             );
             metric!(
-                histogram(RelayHistograms::ProjectStateSizeBytesUncompressed) =
+                histogram(RelayHistograms::ProjectStateSizeBytesDecompressed) =
                     decoded.len() as f64
             );
             decoded.as_slice()

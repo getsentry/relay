@@ -108,7 +108,7 @@ pub enum RelayHistograms {
     ProjectStateSizeBytesCompressed,
     /// The size of the uncompressed project config in the redis cache, in bytes.
     #[cfg(feature = "processing")]
-    ProjectStateSizeBytesUncompressed,
+    ProjectStateSizeBytesDecompressed,
     /// The number of upstream requests queued up for sending.
     ///
     /// Relay employs connection keep-alive whenever possible. Connections are kept open for _15_
@@ -167,8 +167,8 @@ impl HistogramMetric for RelayHistograms {
                 "project_state.size_bytes.compressed"
             }
             #[cfg(feature = "processing")]
-            RelayHistograms::ProjectStateSizeBytesUncompressed => {
-                "project_state.size_bytes.uncompressed"
+            RelayHistograms::ProjectStateSizeBytesDecompressed => {
+                "project_state.size_bytes.decompressed"
             }
             RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
             RelayHistograms::UpstreamRetries => "upstream.retries",
