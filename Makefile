@@ -148,7 +148,7 @@ clean-target-dir:
 	@# --copies is necessary because OS X make checks the mtime of the symlink
 	@# target (/usr/local/bin/python), which is always much older than the
 	@# Makefile, and then proceeds to unconditionally rebuild the venv.
-	$$RELAY_PYTHON_VERSION -m venv --copies .venv
+	$$RELAY_PYTHON_VERSION -m venv .venv
 	.venv/bin/pip install -U pip wheel
 
 	@# Work around https://github.com/confluentinc/confluent-kafka-python/issues/1190

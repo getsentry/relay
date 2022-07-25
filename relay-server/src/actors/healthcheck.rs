@@ -1,12 +1,9 @@
-use std::borrow::Borrow;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use actix::SystemService;
 use futures03::compat::Future01CompatExt;
-use futures03::FutureExt;
 use once_cell::sync::Lazy;
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot};
 
 use relay_config::{Config, RelayMode};
 use relay_metrics::{AcceptsMetrics, Aggregator};
@@ -93,7 +90,7 @@ impl Healthcheck {
         }
 
         match message {
-            IsHealthy::Liveness => return true, // Liveness always returns true
+            IsHealthy::Liveness => true, // Liveness always returns true
             IsHealthy::Readiness => {
                 // If we are shutting down we are no longer Ready
                 if self.is_shutting_down {
@@ -101,15 +98,14 @@ impl Healthcheck {
                 }
 
                 // If we need authentication check that we have authentication
-                if self.config.requires_auth() {
-                    if !upstream
+                if self.config.requires_auth()
+                    && !upstream
                         .send(IsAuthenticated)
                         .compat() // Convert from the old futures to the new futures
                         .await
                         .unwrap_or(false)
-                    {
-                        return false;
-                    }
+                {
+                    return false;
                 }
 
                 Aggregator::from_registry() // Still legacy?
@@ -154,13 +150,11 @@ impl Healthcheck {
             let mut wrx = Controller::subscribe_v2().await;
 
             loop {
-                if wrx.changed().await.is_ok() {
-                    if wrx.borrow().is_none() {
-                        continue;
-                    }
+                if wrx.changed().await.is_ok() && wrx.borrow().is_none() {
+                    continue;
                 }
                 let (responder, _) = oneshot::channel();
-                tx.send(Message {
+                let _ = tx.send(Message {
                     data: HealthCheckMessage::Shutdown,
                     responder,
                 });

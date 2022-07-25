@@ -7,8 +7,6 @@ use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
 
-use tokio::runtime::{self, Runtime};
-
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::Aggregator;
@@ -110,7 +108,7 @@ impl From<Context<ServerErrorKind>> for ServerError {
 #[derive(Clone)]
 pub struct ServiceState {
     config: Arc<Config>,
-    runtime: Arc<tokio::runtime::Runtime>,
+    _runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl ServiceState {
@@ -140,13 +138,11 @@ impl ServiceState {
         let project_cache = ProjectCache::new(config.clone(), redis_pool).start();
         registry.set(project_cache.clone());
 
-        let v = Controller::from_registry();
-        let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap()); // FIXME: Might need to change that later
-                                                                         // Spawn the Health check in the runtime?
+        let _ = Controller::from_registry();
+        let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
         let config_copy = config.clone();
         runtime.spawn(async move {
-            // FIXME: Need to make a new registry
-            let addr = Healthcheck::new(config_copy).start(); // <-
+            let _addr = Healthcheck::new(config_copy).start(); //TODO: Make registry eventually
         });
 
         // registry.set(Healthcheck::new(config.clone()).start());
@@ -164,7 +160,10 @@ impl ServiceState {
             }
         }
 
-        Ok(ServiceState { config, runtime })
+        Ok(ServiceState {
+            config,
+            _runtime: runtime,
+        })
     }
 
     /// Returns an atomically counted reference to the config.

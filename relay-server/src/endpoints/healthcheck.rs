@@ -2,7 +2,6 @@
 use ::actix::prelude::*;
 use actix_web::{Error, HttpResponse};
 use futures::prelude::*;
-use futures03::compat::Future01CompatExt;
 use futures03::TryFutureExt;
 use serde::Serialize;
 

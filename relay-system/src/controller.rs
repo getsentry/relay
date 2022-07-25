@@ -1,5 +1,4 @@
 use std::fmt;
-use std::pin::Pin;
 use std::time::Duration;
 
 use actix::actors::signal;
@@ -8,7 +7,7 @@ use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
 use futures03::compat::Future01CompatExt;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 // use futures03::{FutureExt, TryFutureExt};
 
 #[doc(inline)]
@@ -64,6 +63,7 @@ type ShutdownReceiver = watch::Receiver<Option<Shutdown>>; // Find a good name f
 type ShutdownSender = watch::Sender<Option<Shutdown>>; // Check of that is really needed
                                                        // Only used once but gives a nice symetry
 
+/// TODO
 pub struct Controller {
     /// Configured timeout for graceful shutdowns.
     timeout: Duration,
@@ -163,7 +163,7 @@ impl Controller {
         // don't cancel the shutdown of other actors if one actor fails.
 
         // Send the message
-        self.shutdown_sender.send(Some(Shutdown { timeout }));
+        let _ = self.shutdown_sender.send(Some(Shutdown { timeout })); // TODO Ask if it is better to have a warning or an elegant line
 
         let futures: Vec<_> = self
             .subscribers
@@ -210,8 +210,7 @@ impl Controller {
 
 impl Default for Controller {
     fn default() -> Self {
-        // TODO: Still iffy not sure why we need to pass in a init (also would be nice if we could avoid it)
-        let (shutdown_sender, mut shutdown_receiver) = watch::channel(None);
+        let (shutdown_sender, shutdown_receiver) = watch::channel(None);
 
         Controller {
             timeout: Duration::from_secs(0),
@@ -308,6 +307,8 @@ impl Handler<Subscribe> for Controller {
 }
 
 #[derive(Debug)]
+
+/// TODO
 pub struct SubscribeV2();
 
 impl Message for SubscribeV2 {
@@ -317,7 +318,8 @@ impl Message for SubscribeV2 {
 impl Handler<SubscribeV2> for Controller {
     type Result = MessageResult<SubscribeV2>;
 
-    fn handle(&mut self, msg: SubscribeV2, ctx: &mut Self::Context) -> Self::Result {
+    // TODO look into why and if msg and ctx are needed
+    fn handle(&mut self, _msg: SubscribeV2, _ctx: &mut Self::Context) -> Self::Result {
         MessageResult(self.shutdown_receiver.clone())
     }
 }
