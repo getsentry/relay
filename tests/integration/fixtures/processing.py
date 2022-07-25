@@ -374,6 +374,8 @@ class ReplayEventsConsumer(ConsumerBase):
         assert message is not None
         assert message.error() is None
 
-        event = msgpack.unpackb(message.value(), raw=False, use_list=False)
-        assert event["type"] == "replay_event"
-        return json.loads(event["payload"].decode("utf8")), event
+        event = json.loads(message.value())
+        payload = json.loads(bytes(event["payload"]))
+
+        assert payload["type"] == "replay_event"
+        return payload, event
