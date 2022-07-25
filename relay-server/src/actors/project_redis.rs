@@ -10,7 +10,7 @@ use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::FetchOptionalProjectState;
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
 pub struct RedisProjectSource {
     config: Arc<Config>,
@@ -39,17 +39,27 @@ impl From<serde_json::Error> for RedisProjectError {
 }
 
 fn parse_redis_response(raw_response: &[u8]) -> Result<ProjectState, RedisProjectError> {
-    let decoded = metric!(timer(RelayTimers::ProjectStateDecompression), {
+    let decompression_result = metric!(timer(RelayTimers::ProjectStateDecompression), {
         zstd::decode_all(raw_response)
     });
 
-    let raw_response = match &decoded {
-        Ok(decoded) => decoded.as_slice(),
+    let decoded_response = match &decompression_result {
+        Ok(decoded) => {
+            metric!(
+                histogram(RelayHistograms::ProjectStateSizeBytesCompressed) =
+                    raw_response.len() as f64
+            );
+            metric!(
+                histogram(RelayHistograms::ProjectStateSizeBytesDecompressed) =
+                    decoded.len() as f64
+            );
+            decoded.as_slice()
+        }
         // If decoding fails, assume uncompressed payload and try again
         Err(_) => raw_response,
     };
 
-    Ok(serde_json::from_slice(raw_response)?)
+    Ok(serde_json::from_slice(decoded_response)?)
 }
 
 impl RedisProjectSource {
