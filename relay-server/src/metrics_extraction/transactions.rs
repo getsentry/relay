@@ -54,12 +54,9 @@ pub struct CustomMeasurementConfig {
 /// The version is an integer scalar, incremented by one on each new version.
 const EXTRACT_MAX_VERSION: u16 = 1;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AcceptTransactionNames {
-    /// Accept any transaction name
-    Disabled,
-
     /// For some SDKs, accept all transaction names, while for others, apply strict rules.
     ClientBased,
 
@@ -233,7 +230,6 @@ fn get_transaction_name(
     };
 
     let use_original_name = match accept_transaction_names {
-        AcceptTransactionNames::Disabled => true,
         AcceptTransactionNames::ClientBased => {
             let sdk_name = event
                 .client_sdk
@@ -242,7 +238,8 @@ fn get_transaction_name(
                 .map(|s| s.as_str())
                 .unwrap_or_default();
 
-            sdk_name != "FIXME" || is_low_cardinality(event.get_transaction_source())
+            (sdk_name != "sentry.javascript.react" && sdk_name != "sentry.javascript.browser")
+                || is_low_cardinality(event.get_transaction_source())
         }
         AcceptTransactionNames::Strict => is_low_cardinality(event.get_transaction_source()),
     };
@@ -299,7 +296,7 @@ fn extract_universal_tags(
     }
 
     let custom_tags = &config.extract_custom_tags;
-    if custom_tags.is_empty() {
+    if !custom_tags.is_empty() {
         // XXX(slow): event tags are a flat array
         if let Some(event_tags) = event.tags.value() {
             for tag_entry in &**event_tags {
@@ -551,7 +548,7 @@ mod tests {
 
     use crate::metrics_extraction::TaggingRule;
     use insta::assert_debug_snapshot;
-    use relay_general::protocol::TransactionInfo;
+    use relay_general::protocol::{ClientSdkInfo, TransactionInfo};
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
@@ -1309,41 +1306,72 @@ mod tests {
 
         let event = Annotated::<Event>::from_json(json).unwrap();
 
-        for (source, expected_transaction_tag) in [
-            (TransactionSource::Custom, None),
-            (
-                TransactionSource::Url,
-                Some("<< unparametrized >>".to_owned()),
-            ),
-            (TransactionSource::Route, Some("foo".to_owned())),
-            // (TransactionSource::View, true),
-            // (TransactionSource::Component, true),
-            // (TransactionSource::Task, true),
-            // (TransactionSource::Unknown, false),
-            // (
-            //     TransactionSource::Other("not-a-valid-source".to_owned()),
-            //     false,
-            // ),
+        for source in [
+            TransactionSource::Custom,
+            TransactionSource::Url,
+            TransactionSource::Route,
+            TransactionSource::View,
+            TransactionSource::Component,
+            TransactionSource::Task,
+            TransactionSource::Unknown,
+            TransactionSource::Other("XXX".to_owned()),
         ] {
-            let mut event = event.clone();
-            event
-                .value_mut()
-                .as_mut()
-                .unwrap()
-                .transaction_info
-                .set_value(Some(TransactionInfo {
-                    source: Annotated::new(source.clone()),
-                    original: Annotated::empty(),
-                }));
-            let mut metrics = vec![];
-            extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+            for client_name in ["some_client", "sentry.javascript.react"] {
+                for strategy in [
+                    AcceptTransactionNames::Strict,
+                    AcceptTransactionNames::ClientBased,
+                ] {
+                    let mut event = event.clone();
+                    {
+                        let event = event.value_mut().as_mut().unwrap();
+                        event.transaction_info.set_value(Some(TransactionInfo {
+                            source: Annotated::new(source.clone()),
+                            original: Annotated::empty(),
+                        }));
 
-            assert_eq!(
-                metrics[0].tags.get("transaction"),
-                expected_transaction_tag.as_ref(),
-                "{:?}",
-                source
-            );
+                        event.client_sdk.set_value(Some(ClientSdkInfo {
+                            name: Annotated::new(client_name.to_owned()),
+                            ..Default::default()
+                        }));
+                    }
+
+                    let mut config = config.clone();
+                    config.accept_transaction_names = strategy;
+
+                    let mut metrics = vec![];
+                    extract_transaction_metrics(
+                        &config,
+                        None,
+                        &[],
+                        event.value().unwrap(),
+                        &mut metrics,
+                    );
+
+                    let expected_transaction_name =
+                        if matches!(strategy, AcceptTransactionNames::Strict)
+                            || client_name == "sentry.javascript.react"
+                        {
+                            match source {
+                                TransactionSource::Url => Some("<< unparametrized >>".to_owned()),
+                                TransactionSource::Unknown => None,
+                                TransactionSource::Other(_) => None,
+                                _ => Some("foo".to_owned()),
+                            }
+                        } else {
+                            // Any other case, accept anything
+                            Some("foo".to_owned())
+                        };
+
+                    assert_eq!(
+                        metrics[0].tags.get("transaction"),
+                        expected_transaction_name.as_ref(),
+                        "{:?} {:?} {:?}",
+                        strategy,
+                        client_name,
+                        source,
+                    );
+                }
+            }
         }
     }
 }
