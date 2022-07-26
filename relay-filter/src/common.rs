@@ -251,4 +251,11 @@ mod tests {
         assert!(globs.is_match("1.18.4.2153-2aa83397b"));
         assert!(!globs.is_match("1.18.5.2153-2aa83397b"));
     }
+
+    #[test]
+    fn test_match_range_neg() {
+        let globs = globs!("1.18.[!0-4].*");
+        assert!(!globs.is_match("1.18.4.2153-2aa83397b"));
+        assert!(globs.is_match("1.18.5.2153-2aa83397b"));
+    }
 }
