@@ -145,12 +145,17 @@ impl Controller {
     }
 
     /// TODO
+    // So need to fix the registry
+    // Funny enough Controller can be accessed (as seen by being able to call this function) but
+    // System can not because system is an Actix thing 🤪
     pub async fn subscribe_v2() -> ShutdownReceiver {
-        Controller::from_registry()
+        Controller::from_registry() // <- Pretty sure this is the call that breaks it all
             .send(SubscribeV2())
             .compat()
             .await
             .unwrap() // FIXME: Remove this later
+
+        // panic!()
     }
 
     /// Performs a graceful shutdown with the given timeout.

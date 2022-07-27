@@ -3,6 +3,7 @@ use std::sync::Arc;
 use actix::SystemService;
 use futures03::compat::Future01CompatExt;
 use once_cell::sync::Lazy;
+use tokio::runtime::{Handle, Runtime};
 use tokio::sync::{mpsc, oneshot};
 
 use relay_config::{Config, RelayMode};
@@ -26,7 +27,7 @@ struct Message<T> {
 // Custom error that acts as an abstraction
 pub struct SendError;
 
-// tx = transceiver, mpcs = multi-producer, single consumer
+// tx = transmitter, mpcs = multi-producer, single consumer
 #[derive(Clone, Debug)]
 pub struct Addr<T> {
     tx: mpsc::UnboundedSender<Message<T>>,
@@ -144,10 +145,13 @@ impl Healthcheck {
             }
         });
 
+        // let mut wrx = Controller::subscribe_v2(); <- this works but could it be because we don't await it?
+
         // When receiving a shutdown message forward it to our mpsc channel
         tokio::spawn(async move {
             // Get the receiving end of the watch channel from the Controller
-            let mut wrx = Controller::subscribe_v2().await;
+            // let _guard = handle.enter();
+            let mut wrx = Controller::subscribe_v2().await; // <-  Is this were the error comes from
 
             loop {
                 if wrx.changed().await.is_ok() && wrx.borrow().is_none() {
