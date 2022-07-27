@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Parse sample rates as JSON. ([#1353](https://github.com/getsentry/relay/pull/1353))
+
 **Internal**:
 
 - Support compressed project configs in redis cache. ([#1345](https://github.com/getsentry/relay/pull/1345))
