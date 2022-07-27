@@ -258,4 +258,13 @@ mod tests {
         assert!(!globs.is_match("1.18.4.2153-2aa83397b"));
         assert!(globs.is_match("1.18.5.2153-2aa83397b"));
     }
+
+    #[test]
+    fn test_match_neg_unsupported() {
+        // this is not necessarily desirable behavior, but it is our current one: negation (!)
+        // outside of [] doesn't work
+        let globs = globs!("!1.18.4.*");
+        assert!(!globs.is_match("1.18.4.2153-2aa83397b"));
+        assert!(!globs.is_match("1.18.5.2153-2aa83397b"));
+    }
 }
