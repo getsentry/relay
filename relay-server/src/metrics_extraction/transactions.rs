@@ -54,6 +54,24 @@ pub struct CustomMeasurementConfig {
 /// The version is an integer scalar, incremented by one on each new version.
 const EXTRACT_MAX_VERSION: u16 = 1;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum AcceptTransactionNames {
+    /// For some SDKs, accept all transaction names, while for others, apply strict rules.
+    ClientBased,
+
+    /// Only accept transaction names with a low-cardinality source.
+    /// Any value other than "clientBased" will be interpreted as "strict".
+    #[serde(other)]
+    Strict,
+}
+
+impl Default for AcceptTransactionNames {
+    fn default() -> Self {
+        Self::Strict
+    }
+}
+
 /// Configuration for extracting metrics from transaction payloads.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -64,6 +82,7 @@ pub struct TransactionMetricsConfig {
     extract_custom_tags: BTreeSet<String>,
     satisfaction_thresholds: Option<SatisfactionConfig>,
     custom_measurements: CustomMeasurementConfig,
+    accept_transaction_names: AcceptTransactionNames,
 }
 
 impl TransactionMetricsConfig {
@@ -170,10 +189,7 @@ fn extract_user_satisfaction(
     None
 }
 
-/// Decide whether we want to keep the transaction name.
-/// High-cardinality sources are excluded to protect our metrics infrastructure.
-/// Note that this will produce a discrepancy between metrics and raw transaction data.
-fn keep_transaction_name(source: &TransactionSource) -> bool {
+fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinality: bool) -> bool {
     match source {
         // For now, we hope that custom transaction names set by users are low-cardinality.
         TransactionSource::Custom => true,
@@ -188,8 +204,8 @@ fn keep_transaction_name(source: &TransactionSource) -> bool {
         TransactionSource::Task => true,
 
         // "unknown" is the value for old SDKs that do not send a transaction source yet.
-        // Assume high-cardinality and drop.
-        TransactionSource::Unknown => false,
+        // Caller decides how to treat this.
+        TransactionSource::Unknown => treat_unknown_as_low_cardinality,
 
         // Any other value would be an SDK bug, assume high-cardinality and drop.
         TransactionSource::Other(source) => {
@@ -199,10 +215,65 @@ fn keep_transaction_name(source: &TransactionSource) -> bool {
     }
 }
 
+fn is_browser_sdk(event: &Event) -> bool {
+    let sdk_name = event
+        .client_sdk
+        .value()
+        .and_then(|sdk| sdk.name.value())
+        .map(|s| s.as_str())
+        .unwrap_or_default();
+
+    [
+        "sentry.javascript.angular",
+        "sentry.javascript.browser",
+        "sentry.javascript.ember",
+        "sentry.javascript.gatsby",
+        "sentry.javascript.react",
+        "sentry.javascript.remix",
+        "sentry.javascript.vue",
+    ]
+    .contains(&sdk_name)
+}
+
+/// Decide whether we want to keep the transaction name.
+/// High-cardinality sources are excluded to protect our metrics infrastructure.
+/// Note that this will produce a discrepancy between metrics and raw transaction data.
+fn get_transaction_name(
+    event: &Event,
+    accept_transaction_names: &AcceptTransactionNames,
+) -> Option<String> {
+    let original_transaction_name = match event.transaction.value() {
+        Some(name) => name,
+        None => {
+            return None;
+        }
+    };
+
+    // In client-based mode, handling of "unknown" sources depends on the SDK name.
+    // In strict mode, treat "unknown" as high cardinality.
+    let treat_unknown_as_low_cardinality = matches!(
+        accept_transaction_names,
+        AcceptTransactionNames::ClientBased
+    ) && !is_browser_sdk(event);
+
+    let source = event.get_transaction_source();
+    let use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);
+
+    if use_original_name {
+        Some(original_transaction_name.clone())
+    } else {
+        // Pick a sentinel based on the transaction source:
+        match source {
+            TransactionSource::Unknown | TransactionSource::Other(_) => None,
+            _ => Some("<< unparametrized >>".to_owned()),
+        }
+    }
+}
+
 /// These are the tags that are added to all extracted metrics.
 fn extract_universal_tags(
     event: &Event,
-    custom_tags: &BTreeSet<String>,
+    config: &TransactionMetricsConfig,
 ) -> BTreeMap<String, String> {
     let mut tags = BTreeMap::new();
     if let Some(release) = event.release.as_str() {
@@ -214,10 +285,8 @@ fn extract_universal_tags(
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
     }
-    if let Some(transaction) = event.transaction.as_str() {
-        if keep_transaction_name(event.get_transaction_source()) {
-            tags.insert("transaction".to_owned(), transaction.to_owned());
-        }
+    if let Some(transaction_name) = get_transaction_name(event, &config.accept_transaction_names) {
+        tags.insert("transaction".to_owned(), transaction_name);
     }
 
     // The platform tag should not increase dimensionality in most cases, because most
@@ -241,6 +310,7 @@ fn extract_universal_tags(
         tags.insert("http.method".to_owned(), http_method);
     }
 
+    let custom_tags = &config.extract_custom_tags;
     if !custom_tags.is_empty() {
         // XXX(slow): event tags are a flat array
         if let Some(event_tags) = event.tags.value() {
@@ -353,7 +423,7 @@ fn extract_transaction_metrics_inner(
         None => return,
     };
 
-    let tags = extract_universal_tags(event, &config.extract_custom_tags);
+    let tags = extract_universal_tags(event, config);
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
@@ -493,7 +563,7 @@ mod tests {
 
     use crate::metrics_extraction::TaggingRule;
     use insta::assert_debug_snapshot;
-    use relay_general::protocol::TransactionInfo;
+    use relay_general::protocol::{ClientSdkInfo, TransactionInfo};
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
@@ -1226,8 +1296,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_has_transaction_tag() {
+    /// Helper function to check if the transaction name is set correctly
+    fn extract_transaction_name(
+        sdk_name: &str,
+        source: &TransactionSource,
+        strategy: AcceptTransactionNames,
+    ) -> Option<String> {
         let json = r#"
         {
             "type": "transaction",
@@ -1238,7 +1312,7 @@ mod tests {
         }
         "#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
+        let mut config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
             "extractMetrics": [
@@ -1249,40 +1323,148 @@ mod tests {
         )
         .unwrap();
 
-        let event = Annotated::<Event>::from_json(json).unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        {
+            let event = event.value_mut().as_mut().unwrap();
+            event.transaction_info.set_value(Some(TransactionInfo {
+                source: Annotated::new(source.clone()),
+                original: Annotated::empty(),
+            }));
 
-        for (source, expected_transaction_tag) in [
-            (TransactionSource::Custom, true),
-            (TransactionSource::Url, false),
-            (TransactionSource::Route, true),
-            (TransactionSource::View, true),
-            (TransactionSource::Component, true),
-            (TransactionSource::Task, true),
-            (TransactionSource::Unknown, false),
+            event.client_sdk.set_value(Some(ClientSdkInfo {
+                name: Annotated::new(sdk_name.to_owned()),
+                ..Default::default()
+            }));
+        }
+
+        config.accept_transaction_names = strategy;
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 1);
+        metrics[0].tags.get("transaction").cloned()
+    }
+
+    #[test]
+    fn test_js_unknown_strict() {
+        let name = extract_transaction_name(
+            "sentry.javascript.browser",
+            &TransactionSource::Unknown,
+            AcceptTransactionNames::Strict,
+        );
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_js_unknown_client_based() {
+        let name = extract_transaction_name(
+            "sentry.javascript.browser",
+            &TransactionSource::Unknown,
+            AcceptTransactionNames::ClientBased,
+        );
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_js_url_strict() {
+        let name = extract_transaction_name(
+            "sentry.javascript.browser",
+            &TransactionSource::Url,
+            AcceptTransactionNames::Strict,
+        );
+        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_js_url_client_based() {
+        let name = extract_transaction_name(
+            "sentry.javascript.browser",
+            &TransactionSource::Url,
+            AcceptTransactionNames::Strict,
+        );
+        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_other_client_unknown_strict() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Unknown,
+            AcceptTransactionNames::Strict,
+        );
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_other_client_unknown_client_based() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Unknown,
+            AcceptTransactionNames::ClientBased,
+        );
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_other_client_url_strict() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Url,
+            AcceptTransactionNames::Strict,
+        );
+        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_other_client_url_client_based() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Url,
+            AcceptTransactionNames::Strict,
+        );
+        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_any_client_route_strict() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Route,
+            AcceptTransactionNames::Strict,
+        );
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_any_client_route_client_based() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Route,
+            AcceptTransactionNames::ClientBased,
+        );
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_parse_transaction_name_strategy() {
+        for (config, expected_strategy) in [
+            (r#"{}"#, AcceptTransactionNames::Strict),
             (
-                TransactionSource::Other("not-a-valid-source".to_owned()),
-                false,
+                r#"{"acceptTransactionNames": "unknown-strategy"}"#,
+                AcceptTransactionNames::Strict,
+            ),
+            (
+                r#"{"acceptTransactionNames": "strict"}"#,
+                AcceptTransactionNames::Strict,
+            ),
+            (
+                r#"{"acceptTransactionNames": "clientBased"}"#,
+                AcceptTransactionNames::ClientBased,
             ),
         ] {
-            let mut event = event.clone();
-            event
-                .value_mut()
-                .as_mut()
-                .unwrap()
-                .transaction_info
-                .set_value(Some(TransactionInfo {
-                    source: Annotated::new(source.clone()),
-                    original: Annotated::empty(),
-                }));
-            let mut metrics = vec![];
-            extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
-
-            assert_eq!(
-                metrics[0].tags.get("transaction").is_some(),
-                expected_transaction_tag,
-                "{:?}",
-                source
-            );
+            let config: TransactionMetricsConfig = serde_json::from_str(config).unwrap();
+            assert_eq!(config.accept_transaction_names, expected_strategy);
         }
     }
 }
