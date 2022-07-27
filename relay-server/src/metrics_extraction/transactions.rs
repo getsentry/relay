@@ -61,7 +61,7 @@ pub enum AcceptTransactionNames {
     ClientBased,
 
     /// Only accept transaction names with a low-cardinality source.
-    /// Any value other than "client_based" and "disabled" will be interpreted as "strict".
+    /// Any value other than "clientBased" will be interpreted as "strict".
     #[serde(other)]
     Strict,
 }
@@ -189,7 +189,7 @@ fn extract_user_satisfaction(
     None
 }
 
-fn is_low_cardinality(source: &TransactionSource) -> bool {
+fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinality: bool) -> bool {
     match source {
         // For now, we hope that custom transaction names set by users are low-cardinality.
         TransactionSource::Custom => true,
@@ -204,8 +204,8 @@ fn is_low_cardinality(source: &TransactionSource) -> bool {
         TransactionSource::Task => true,
 
         // "unknown" is the value for old SDKs that do not send a transaction source yet.
-        // Assume high-cardinality and drop.
-        TransactionSource::Unknown => false,
+        // Caller decides how to treat this.
+        TransactionSource::Unknown => treat_unknown_as_low_cardinality,
 
         // Any other value would be an SDK bug, assume high-cardinality and drop.
         TransactionSource::Other(source) => {
@@ -229,26 +229,30 @@ fn get_transaction_name(
         }
     };
 
-    let use_original_name = match accept_transaction_names {
-        AcceptTransactionNames::ClientBased => {
-            let sdk_name = event
-                .client_sdk
-                .value()
-                .and_then(|sdk| sdk.name.value())
-                .map(|s| s.as_str())
-                .unwrap_or_default();
+    // In client-based mode, handling of "unknown" sources depends on the SDK name.
+    // In strict mode, treat "unknown" as high cardinality.
+    let treat_unknown_as_low_cardinality = matches!(
+        accept_transaction_names,
+        AcceptTransactionNames::ClientBased
+    ) && {
+        let sdk_name = event
+            .client_sdk
+            .value()
+            .and_then(|sdk| sdk.name.value())
+            .map(|s| s.as_str())
+            .unwrap_or_default();
 
-            (sdk_name != "sentry.javascript.react" && sdk_name != "sentry.javascript.browser")
-                || is_low_cardinality(event.get_transaction_source())
-        }
-        AcceptTransactionNames::Strict => is_low_cardinality(event.get_transaction_source()),
+        !["sentry.javascript.browser", "sentry.javascript.react"].contains(&sdk_name)
     };
+
+    let source = event.get_transaction_source();
+    let use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);
 
     if use_original_name {
         Some(original_transaction_name.clone())
     } else {
         // Pick a sentinel based on the transaction source:
-        match event.get_transaction_source() {
+        match source {
             TransactionSource::Unknown | TransactionSource::Other(_) => None,
             _ => Some("<< unparametrized >>".to_owned()),
         }
@@ -270,7 +274,7 @@ fn extract_universal_tags(
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
     }
-    if let Some(transaction_name) = get_transaction_name(&event, &config.accept_transaction_names) {
+    if let Some(transaction_name) = get_transaction_name(event, &config.accept_transaction_names) {
         tags.insert("transaction".to_owned(), transaction_name);
     }
 
@@ -408,7 +412,7 @@ fn extract_transaction_metrics_inner(
         None => return,
     };
 
-    let tags = extract_universal_tags(event, &config);
+    let tags = extract_universal_tags(event, config);
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
@@ -1347,20 +1351,23 @@ mod tests {
                         &mut metrics,
                     );
 
-                    let expected_transaction_name =
-                        if matches!(strategy, AcceptTransactionNames::Strict)
-                            || client_name == "sentry.javascript.react"
-                        {
-                            match source {
-                                TransactionSource::Url => Some("<< unparametrized >>".to_owned()),
-                                TransactionSource::Unknown => None,
-                                TransactionSource::Other(_) => None,
-                                _ => Some("foo".to_owned()),
+                    let expected_transaction_name = match source {
+                        TransactionSource::Url => Some("<< unparametrized >>".to_owned()),
+                        TransactionSource::Unknown => {
+                            if matches!(strategy, AcceptTransactionNames::Strict)
+                                || client_name == "sentry.javascript.react"
+                            {
+                                // "unknown" is mapped to None in strict mode
+                                None
+                            } else {
+                                // in client based mode, "unknown" transactions are accepted
+                                // for non-javascript clients
+                                Some("foo".to_owned())
                             }
-                        } else {
-                            // Any other case, accept anything
-                            Some("foo".to_owned())
-                        };
+                        }
+                        TransactionSource::Other(_) => None,
+                        _ => Some("foo".to_owned()),
+                    };
 
                     assert_eq!(
                         metrics[0].tags.get("transaction"),
