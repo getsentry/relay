@@ -6,9 +6,9 @@ use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
-use once_cell::sync::Lazy;
 
 use relay_aws_extension::AwsExtension;
+use relay_common::clone;
 use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
@@ -118,6 +118,15 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .on_thread_start(clone!(system, || System::set_current(system.clone())))
+            .build()
+            .unwrap();
+
+        // Enter the tokio runtime so we can start spawning tasks from the outside.
+        let _guard = runtime.enter();
+
         let upstream_relay = UpstreamRelay::new(config.clone());
         registry.set(Arbiter::start(|_| upstream_relay));
 
@@ -139,60 +148,7 @@ impl ServiceState {
         let project_cache = ProjectCache::new(config.clone(), redis_pool).start();
         registry.set(project_cache.clone());
 
-        // let _ = Controller::from_registry(); // <- THIS WORKS
-
-        let config_copy = config.clone();
-        // RefCell<Option<System>> = RefCell::new(None);
-        static STATICSYSTEM: Lazy<std::sync::RwLock<Option<actix::System>>> =
-            Lazy::new(|| std::sync::RwLock::new(None));
-
-        *STATICSYSTEM.write().unwrap() = Some(system.clone());
-
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .on_thread_start(|| {
-                    let guard = STATICSYSTEM.read().unwrap();
-                    let system = guard.as_ref().cloned().unwrap();
-                    actix::System::set_current(system);
-                })
-                .build()
-                .unwrap(),
-        );
-        // let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
-
-        // let handle = Handle::current(); // Error: thread 'main' panicked at 'there is no reactor running, must be called from the context of a Tokio 1.x runtime', /Users/tobiaswilfert/.cargo/registry/src/github.com-1ecc6299db9ec823/tokio-1.19.2/src/runtime/context.rs:21:19
-
-        // let _guard = runtime.enter(); // <- Does not solve it sadly:  https://docs.rs/tokio/1.20.0/tokio/runtime/struct.Runtime.html#method.enter
-        // > Only seems to allow for tokio::spawn instead of runtime.spawn, but doesn't fix the System issue
-
-        // > Adding this doesn't solve the problem
-        // let handle = runtime.handle();
-        // let _guard = handle.enter();
-
-        // > handle.spawn doesn't solve the issue
-        runtime.spawn(async move {
-            // let _guard = runtime.enter(); <- this feels illegal and also complains
-
-            // > Adding this doesn't solve the problem
-            // let handle = Handle::current();
-            // let _guard = handle.enter();
-
-            // System::current(); // <- Even this doesn't work
-            // Error: thread 'tokio-runtime-worker' panicked at 'System is not running', /Users/tobiaswilfert/.cargo/registry/src/github.com-1ecc6299db9ec823/actix-0.7.9/src/system.rs:93:21
-
-            // So why is the 'System is not running' inside this block?
-
-            // let _ = Controller::from_registry(); // <- THIS DOES NOT WORK, Even after removing line 145 so it is not like duplicating the line is what causes the error
-            // Error: thread 'tokio-runtime-worker' panicked at 'System is not running', /Users/tobiaswilfert/.cargo/registry/src/github.com-1ecc6299db9ec823/actix-0.7.9/src/system.rs:118:21
-            // panic!("Made it here");
-
-            // TODO: Make registry eventually
-            let _addr = Healthcheck::new(config_copy).start(); // <- This causes the problem
-                                                               // thread 'tokio-runtime-worker' panicked at 'System is not running', /Users/tobiaswilfert/.cargo/registry/src/github.com-1ecc6299db9ec823/actix-0.7.9/src/system.rs:118:21
-        });
-
-        // registry.set(Healthcheck::new(config.clone()).start());
+        Healthcheck::new(config.clone()).start(); // TODO(tobias): Registry is implicit
 
         registry.set(RelayCache::new(config.clone()).start());
         registry
@@ -209,7 +165,7 @@ impl ServiceState {
 
         Ok(ServiceState {
             config,
-            _runtime: runtime,
+            _runtime: Arc::new(runtime),
         })
     }
 
