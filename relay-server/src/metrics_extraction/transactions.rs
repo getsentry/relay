@@ -215,6 +215,26 @@ fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinali
     }
 }
 
+fn is_browser_sdk(event: &Event) -> bool {
+    let sdk_name = event
+        .client_sdk
+        .value()
+        .and_then(|sdk| sdk.name.value())
+        .map(|s| s.as_str())
+        .unwrap_or_default();
+
+    [
+        "sentry.javascript.angular",
+        "sentry.javascript.browser",
+        "sentry.javascript.ember",
+        "sentry.javascript.gatsby",
+        "sentry.javascript.react",
+        "sentry.javascript.remix",
+        "sentry.javascript.vue",
+    ]
+    .contains(&sdk_name)
+}
+
 /// Decide whether we want to keep the transaction name.
 /// High-cardinality sources are excluded to protect our metrics infrastructure.
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
@@ -234,16 +254,7 @@ fn get_transaction_name(
     let treat_unknown_as_low_cardinality = matches!(
         accept_transaction_names,
         AcceptTransactionNames::ClientBased
-    ) && {
-        let sdk_name = event
-            .client_sdk
-            .value()
-            .and_then(|sdk| sdk.name.value())
-            .map(|s| s.as_str())
-            .unwrap_or_default();
-
-        !["sentry.javascript.browser", "sentry.javascript.react"].contains(&sdk_name)
-    };
+    ) && !is_browser_sdk(event);
 
     let source = event.get_transaction_source();
     let use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);
@@ -1285,8 +1296,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_has_transaction_tag() {
+    /// Helper function to check if the transaction name is set correctly
+    fn extract_transaction_name(
+        sdk_name: &str,
+        source: &TransactionSource,
+        strategy: AcceptTransactionNames,
+    ) -> Option<String> {
         let json = r#"
         {
             "type": "transaction",
@@ -1297,7 +1312,7 @@ mod tests {
         }
         "#;
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
+        let mut config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
             "extractMetrics": [
@@ -1308,78 +1323,127 @@ mod tests {
         )
         .unwrap();
 
-        let event = Annotated::<Event>::from_json(json).unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        {
+            let event = event.value_mut().as_mut().unwrap();
+            event.transaction_info.set_value(Some(TransactionInfo {
+                source: Annotated::new(source.clone()),
+                original: Annotated::empty(),
+            }));
 
-        for source in [
-            TransactionSource::Custom,
-            TransactionSource::Url,
-            TransactionSource::Route,
-            TransactionSource::View,
-            TransactionSource::Component,
-            TransactionSource::Task,
-            TransactionSource::Unknown,
-            TransactionSource::Other("XXX".to_owned()),
-        ] {
-            for client_name in ["some_client", "sentry.javascript.react"] {
-                for strategy in [
-                    AcceptTransactionNames::Strict,
-                    AcceptTransactionNames::ClientBased,
-                ] {
-                    let mut event = event.clone();
-                    {
-                        let event = event.value_mut().as_mut().unwrap();
-                        event.transaction_info.set_value(Some(TransactionInfo {
-                            source: Annotated::new(source.clone()),
-                            original: Annotated::empty(),
-                        }));
-
-                        event.client_sdk.set_value(Some(ClientSdkInfo {
-                            name: Annotated::new(client_name.to_owned()),
-                            ..Default::default()
-                        }));
-                    }
-
-                    let mut config = config.clone();
-                    config.accept_transaction_names = strategy;
-
-                    let mut metrics = vec![];
-                    extract_transaction_metrics(
-                        &config,
-                        None,
-                        &[],
-                        event.value().unwrap(),
-                        &mut metrics,
-                    );
-
-                    let expected_transaction_name = match source {
-                        TransactionSource::Url => Some("<< unparametrized >>".to_owned()),
-                        TransactionSource::Unknown => {
-                            if matches!(strategy, AcceptTransactionNames::Strict)
-                                || client_name == "sentry.javascript.react"
-                            {
-                                // "unknown" is mapped to None in strict mode
-                                None
-                            } else {
-                                // in client based mode, "unknown" transactions are accepted
-                                // for non-javascript clients
-                                Some("foo".to_owned())
-                            }
-                        }
-                        TransactionSource::Other(_) => None,
-                        _ => Some("foo".to_owned()),
-                    };
-
-                    assert_eq!(
-                        metrics[0].tags.get("transaction"),
-                        expected_transaction_name.as_ref(),
-                        "{:?} {:?} {:?}",
-                        strategy,
-                        client_name,
-                        source,
-                    );
-                }
-            }
+            event.client_sdk.set_value(Some(ClientSdkInfo {
+                name: Annotated::new(sdk_name.to_owned()),
+                ..Default::default()
+            }));
         }
+
+        config.accept_transaction_names = strategy;
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 1);
+        metrics[0].tags.get("transaction").cloned()
+    }
+
+    #[test]
+    fn test_js_unknown_strict() {
+        let name = extract_transaction_name(
+            "sentry.javascript.browser",
+            &TransactionSource::Unknown,
+            AcceptTransactionNames::Strict,
+        );
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_js_unknown_client_based() {
+        let name = extract_transaction_name(
+            "sentry.javascript.browser",
+            &TransactionSource::Unknown,
+            AcceptTransactionNames::ClientBased,
+        );
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_js_url_strict() {
+        let name = extract_transaction_name(
+            "sentry.javascript.browser",
+            &TransactionSource::Url,
+            AcceptTransactionNames::Strict,
+        );
+        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_js_url_client_based() {
+        let name = extract_transaction_name(
+            "sentry.javascript.browser",
+            &TransactionSource::Url,
+            AcceptTransactionNames::Strict,
+        );
+        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_other_client_unknown_strict() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Unknown,
+            AcceptTransactionNames::Strict,
+        );
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_other_client_unknown_client_based() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Unknown,
+            AcceptTransactionNames::ClientBased,
+        );
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_other_client_url_strict() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Url,
+            AcceptTransactionNames::Strict,
+        );
+        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_other_client_url_client_based() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Url,
+            AcceptTransactionNames::Strict,
+        );
+        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+    }
+
+    #[test]
+    fn test_any_client_route_strict() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Route,
+            AcceptTransactionNames::Strict,
+        );
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_any_client_route_client_based() {
+        let name = extract_transaction_name(
+            "some_client",
+            &TransactionSource::Route,
+            AcceptTransactionNames::ClientBased,
+        );
+        assert_eq!(name, Some("foo".to_owned()));
     }
 
     #[test]
