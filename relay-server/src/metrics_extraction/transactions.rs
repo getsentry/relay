@@ -54,7 +54,7 @@ pub struct CustomMeasurementConfig {
 /// The version is an integer scalar, incremented by one on each new version.
 const EXTRACT_MAX_VERSION: u16 = 1;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum AcceptTransactionNames {
     /// For some SDKs, accept all transaction names, while for others, apply strict rules.
@@ -1379,6 +1379,28 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_parse_transaction_name_strategy() {
+        for (config, expected_strategy) in [
+            (r#"{}"#, AcceptTransactionNames::Strict),
+            (
+                r#"{"acceptTransactionNames": "unknown-strategy"}"#,
+                AcceptTransactionNames::Strict,
+            ),
+            (
+                r#"{"acceptTransactionNames": "strict"}"#,
+                AcceptTransactionNames::Strict,
+            ),
+            (
+                r#"{"acceptTransactionNames": "clientBased"}"#,
+                AcceptTransactionNames::ClientBased,
+            ),
+        ] {
+            let config: TransactionMetricsConfig = serde_json::from_str(config).unwrap();
+            assert_eq!(config.accept_transaction_names, expected_strategy);
         }
     }
 }
