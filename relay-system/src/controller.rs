@@ -70,39 +70,11 @@ pub struct Controller {
     /// Subscribed actors for the shutdown message.
     subscribers: Vec<Recipient<Shutdown>>,
 
-    /// Subscribed actors for the shutdown message.
-    // new_subscribers: Vec<Box<dyn ShutdownReceiver>>,
-
     // Hand this out to actors that subscribe to us
     shutdown_receiver: ShutdownReceiver,
     // Use this to send the shutdown message to all the actors that are subscribed to us
     shutdown_sender: ShutdownSender,
 }
-
-/// TODO
-/*
-pub trait ShutdownReceiver {
-    // Not sure if this can help us: https://stackoverflow.com/a/53989780/8076979
-    // Removing `static also doesn't help
-    // `?Trait` is not permitted in supertraits
-    /// TODO
-    fn send<'a>(
-        &'a self,
-        message: Shutdown,
-    ) -> Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>>;
-
-    /// TODO
-    fn foo(&self) -> Box<Self>
-    where
-        Self: Sized;
-    /*
-    fn clone(&self) -> Self
-    where
-        Self: Sized;
-    */
-    // fn clone(&self) -> Box<dyn ShutdownReceiver>; // Complains if foo exists
-}
-*/
 
 impl Controller {
     /// Starts an actix system and runs the `factory` to start actors.
@@ -145,17 +117,12 @@ impl Controller {
     }
 
     /// TODO
-    // So need to fix the registry
-    // Funny enough Controller can be accessed (as seen by being able to call this function) but
-    // System can not because system is an Actix thing 🤪
     pub async fn subscribe_v2() -> ShutdownReceiver {
-        Controller::from_registry() // <- Pretty sure this is the call that breaks it all
+        Controller::from_registry()
             .send(SubscribeV2())
             .compat()
             .await
             .unwrap() // FIXME: Remove this later
-
-        // panic!()
     }
 
     /// Performs a graceful shutdown with the given timeout.
@@ -168,7 +135,7 @@ impl Controller {
         // don't cancel the shutdown of other actors if one actor fails.
 
         // Send the message
-        let _ = self.shutdown_sender.send(Some(Shutdown { timeout })); // TODO Ask if it is better to have a warning or an elegant line
+        let _ = self.shutdown_sender.send(Some(Shutdown { timeout }));
 
         let futures: Vec<_> = self
             .subscribers
@@ -195,20 +162,6 @@ impl Controller {
                 });
                 fut::ok(())
             })
-            // TODO: Best approach till now but still not working :/
-            /*
-            .and_then(move |_, slf, _| {
-                let new_futures: Vec<_> = slf // Would moving this out help us?
-                    .new_subscribers
-                    .iter() // <- Issue
-                    .map(|recipient| recipient.send(Shutdown { timeout }))
-                    .collect();
-                let fut = futures03::future::join_all(new_futures)
-                    .map(|_| ())
-                    .unit_error()
-                    .compat();
-                fut::wrap_future::<_, Controller>(fut)
-            })*/
             .spawn(context);
     }
 }
@@ -231,7 +184,7 @@ impl fmt::Debug for Controller {
         f.debug_struct("Controller")
             .field("timeout", &self.timeout)
             .field("subscribers", &self.subscribers.len()) //  Ask if we need to update these here
-            .finish()
+            .finish() // TODO(tobias): Add the new fields
     }
 }
 
@@ -311,9 +264,8 @@ impl Handler<Subscribe> for Controller {
     }
 }
 
-#[derive(Debug)]
-
 /// TODO
+#[derive(Debug)]
 pub struct SubscribeV2();
 
 impl Message for SubscribeV2 {
