@@ -3,7 +3,6 @@ use std::sync::Arc;
 use actix::SystemService;
 use futures03::compat::Future01CompatExt;
 use once_cell::sync::Lazy;
-use tokio::runtime::{Handle, Runtime};
 use tokio::sync::{mpsc, oneshot};
 
 use relay_config::{Config, RelayMode};
