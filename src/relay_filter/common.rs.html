@@ -259,6 +259,22 @@
 <span id="252">252</span>
 <span id="253">253</span>
 <span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">convert::TryFrom</span>, <span class="ident">fmt</span>};
 
 <span class="kw">use</span> <span class="ident">globset::GlobBuilder</span>;
@@ -510,6 +526,22 @@
     <span class="kw">fn</span> <span class="ident">test_match_range</span>() {
         <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;1.18.[0-4].*&quot;</span>);
         <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.4.2153-2aa83397b&quot;</span>));
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.5.2153-2aa83397b&quot;</span>));
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_match_range_neg</span>() {
+        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;1.18.[!0-4].*&quot;</span>);
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.4.2153-2aa83397b&quot;</span>));
+        <span class="macro">assert!</span>(<span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.5.2153-2aa83397b&quot;</span>));
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_match_neg_unsupported</span>() {
+        <span class="comment">// this is not necessarily desirable behavior, but it is our current one: negation (!)</span>
+        <span class="comment">// outside of [] doesn&#39;t work</span>
+        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="macro">globs!</span>(<span class="string">&quot;!1.18.4.*&quot;</span>);
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.4.2153-2aa83397b&quot;</span>));
         <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">globs</span>.<span class="ident">is_match</span>(<span class="string">&quot;1.18.5.2153-2aa83397b&quot;</span>));
     }
 }
