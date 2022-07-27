@@ -31,7 +31,7 @@ use relay_general::protocol::{
     IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
 };
-use relay_general::store::ClockDriftProcessor;
+use relay_general::store::{light_normalize_event, ClockDriftProcessor};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
@@ -1853,6 +1853,22 @@ impl EnvelopeProcessor {
         }
     }
 
+    fn light_normalize_event(&self, state: &mut ProcessEnvelopeState) {
+        /**
+         * fields that are modified:
+         * - release
+         * - logentry
+         * - exceptions
+         * - user.ip_address
+         * - request.url.host
+         * - request.headers (for the user agent)
+         */
+        let client_ip = state.envelope.meta().client_addr().map(IpAddr::from);
+        let user_agent = state.envelope.meta().user_agent();
+
+        light_normalize_event(&mut state.event, client_ip.as_ref(), user_agent);
+    }
+
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         macro_rules! if_processing {
             ($if_true:block) => {
@@ -1882,7 +1898,9 @@ impl EnvelopeProcessor {
 
             self.finalize_event(state)?;
 
-            self.extract_transaction_metrics(state)?;
+            self.light_normalize_event(state);
+
+            self.extract_transaction_metrics(state)?; // tx metrics
 
             self.sample_envelope(state)?;
 
