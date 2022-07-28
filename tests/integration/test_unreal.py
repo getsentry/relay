@@ -16,10 +16,23 @@ def _load_dump_file(base_file_name: str):
 
 
 @pytest.mark.parametrize("dump_file_name", ["unreal_crash", "unreal_crash_apple"])
-def test_unreal_crash(mini_sentry, relay, dump_file_name):
+@pytest.mark.parametrize("extract_metrics", [True, False])
+def test_unreal_crash(mini_sentry, relay, dump_file_name, extract_metrics):
     project_id = 42
     relay = relay(mini_sentry)
-    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    if extract_metrics:
+        # regression: we dropped unreal events in customer relays while metrics extraction was on
+        config["transactionMetrics"] = {
+            "extractMetrics": [
+                "d:transactions/measurements.foo@none",
+                "d:transactions/measurements.bar@none",
+                "d:transactions/breakdowns.span_ops.total.time@millisecond",
+                "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
+            ],
+            "version": 1,
+        }
+
     unreal_content = _load_dump_file(dump_file_name)
 
     response = relay.send_unreal_request(project_id, unreal_content)

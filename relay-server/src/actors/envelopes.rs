@@ -1722,10 +1722,8 @@ impl EnvelopeProcessor {
                 }
             );
             state.transaction_metrics_extracted = true;
-            Ok(())
-        } else {
-            Err(ProcessingError::NoEventPayload)
         }
+        Ok(())
     }
 
     /// Apply data privacy rules to the event payload.
