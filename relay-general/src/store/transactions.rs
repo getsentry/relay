@@ -1,6 +1,6 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    ClientSdkInfo, Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
+    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
 };
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult};
 /// Rejects transactions based on required fields.
@@ -57,14 +57,21 @@ pub fn validate_timestamps(
 /// "/user/123134/login".
 /// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine cardinality,
 /// but for old SDKs, we fall back to this list.
-pub fn is_high_cardinality_sdk(client_sdk: &Annotated<ClientSdkInfo>) -> bool {
+pub fn is_high_cardinality_sdk(event: &Event) -> bool {
+    let client_sdk = match event.client_sdk.value() {
+        Some(info) => info,
+        None => {
+            return false;
+        }
+    };
+
     let sdk_name = client_sdk
+        .name
         .value()
-        .and_then(|sdk| sdk.name.value())
         .map(|s| s.as_str())
         .unwrap_or_default();
 
-    [
+    if [
         "sentry.javascript.angular",
         "sentry.javascript.browser",
         "sentry.javascript.ember",
@@ -72,8 +79,34 @@ pub fn is_high_cardinality_sdk(client_sdk: &Annotated<ClientSdkInfo>) -> bool {
         "sentry.javascript.react",
         "sentry.javascript.remix",
         "sentry.javascript.vue",
+        "sentry.php.laravel",
+        "sentry.python",
+        "sentry.ruby",
+        "sentry.javascript.nextjs",
+        "sentry.php.laravel",
+        "sentry.php.symphony",
     ]
     .contains(&sdk_name)
+    {
+        return true;
+    }
+
+    // TODO: Test with actual payloads
+    let is_http_status_404 = event.get_tag_value("http.status_code") == Some("404");
+    if sdk_name == "sentry.python" && is_http_status_404 && client_sdk.has_integration("django") {
+        return true;
+    }
+
+    // TODO: Test with actual payloads
+    let is_http_method_options = event.get_tag_value("http.method") == Some("OPTIONS");
+    if sdk_name == "sentry.javascript.node"
+        && is_http_method_options
+        && client_sdk.has_integration("Express")
+    {
+        return true;
+    }
+
+    false
 }
 
 /// Set a default transaction source if it is missing, but only if the transaction name was
@@ -88,7 +121,7 @@ fn set_default_transaction_source(event: &mut Event) {
         .value()
         .and_then(|info| info.source.value());
 
-    if source.is_none() && !is_high_cardinality_sdk(&event.client_sdk) {
+    if source.is_none() && !is_high_cardinality_sdk(event) {
         let transaction_info = event.transaction_info.get_or_insert_with(Default::default);
         transaction_info
             .source

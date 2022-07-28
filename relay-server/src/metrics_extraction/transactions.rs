@@ -1,6 +1,7 @@
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::utils;
 use crate::metrics_extraction::TaggingRule;
+use crate::statsd::RelayCounters;
 use relay_common::{SpanStatus, UnixTimestamp};
 use relay_general::protocol::TraceContext;
 use relay_general::protocol::{AsPair, Timestamp, TransactionSource};
@@ -234,20 +235,46 @@ fn get_transaction_name(
     let treat_unknown_as_low_cardinality = matches!(
         accept_transaction_names,
         AcceptTransactionNames::ClientBased
-    ) && !store::is_high_cardinality_sdk(&event.client_sdk);
+    ) && !store::is_high_cardinality_sdk(event);
 
     let source = event.get_transaction_source();
     let use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);
 
-    if use_original_name {
+    let name_used;
+    let name = if use_original_name {
+        name_used = "original";
         Some(original_transaction_name.clone())
     } else {
         // Pick a sentinel based on the transaction source:
         match source {
-            TransactionSource::Unknown | TransactionSource::Other(_) => None,
-            _ => Some("<< unparametrized >>".to_owned()),
+            TransactionSource::Unknown | TransactionSource::Other(_) => {
+                name_used = "none";
+                None
+            }
+            _ => {
+                name_used = "placeholder";
+                Some("<< unparametrized >>".to_owned())
+            }
         }
-    }
+    };
+
+    relay_statsd::metric!(
+        counter(RelayCounters::MetricsTransactionNameExtracted) += 1,
+        strategy = match &accept_transaction_names {
+            AcceptTransactionNames::ClientBased => "client-based",
+            AcceptTransactionNames::Strict => "strict",
+        },
+        source = &source.to_string(),
+        sdk_name = event
+            .client_sdk
+            .value()
+            .and_then(|c| c.name.value())
+            .map(|s| s.as_str())
+            .unwrap_or_default(),
+        name_used = name_used,
+    );
+
+    name
 }
 
 /// These are the tags that are added to all extracted metrics.
