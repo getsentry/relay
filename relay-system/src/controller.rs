@@ -184,7 +184,7 @@ impl fmt::Debug for Controller {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Controller")
             .field("timeout", &self.timeout)
-            .field("subscribers", &self.subscribers.len()) //  Ask if we need to update these here
+            .field("subscribers", &self.subscribers.len())
             .finish() // TODO(tobias): Add the new fields
     }
 }
@@ -265,7 +265,7 @@ impl Handler<Subscribe> for Controller {
     }
 }
 
-/// TODO
+/// Internal message to handle subscribing to the [`Shutdown`] message.
 #[derive(Debug)]
 pub struct SubscribeV2();
 
@@ -276,8 +276,7 @@ impl Message for SubscribeV2 {
 impl Handler<SubscribeV2> for Controller {
     type Result = MessageResult<SubscribeV2>;
 
-    // TODO look into why and if msg and ctx are needed
-    fn handle(&mut self, _msg: SubscribeV2, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _: SubscribeV2, _: &mut Self::Context) -> Self::Result {
         MessageResult(self.shutdown_receiver.clone())
     }
 }
