@@ -145,6 +145,19 @@
 <span id="138">138</span>
 <span id="139">139</span>
 <span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::IpAddr</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
 
@@ -209,6 +222,19 @@
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>)]</span>
     <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">ClientSdkInfo</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_integration</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">integration</span>: <span class="ident">T</span>) -&gt; <span class="ident">bool</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">integrations</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">integrations</span>.<span class="ident">value</span>() {
+            <span class="kw">for</span> <span class="ident">x</span> <span class="kw">in</span> <span class="ident">integrations</span> {
+                <span class="kw">if</span> <span class="ident">x</span>.<span class="ident">as_str</span>().<span class="ident">unwrap_or_default</span>() <span class="op">==</span> <span class="ident">integration</span>.<span class="ident">as_ref</span>() {
+                    <span class="kw">return</span> <span class="bool-val">true</span>;
+                }
+            }
+        };
+        <span class="bool-val">false</span>
+    }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>

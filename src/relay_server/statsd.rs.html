@@ -541,6 +541,9 @@
 <span id="534">534</span>
 <span id="535">535</span>
 <span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -1045,6 +1048,8 @@
     <span class="ident">EvictingStaleProjectCaches</span>,
     <span class="doccomment">/// Number of times that parsing a metrics bucket item from an envelope failed.</span>
     <span class="ident">MetricBucketsParsingFailed</span>,
+    <span class="doccomment">/// Count extraction of transaction names. Tag with the decision to drop / replace / use original.</span>
+    <span class="ident">MetricsTransactionNameExtracted</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">CounterMetric</span> <span class="kw">for</span> <span class="ident">RelayCounters</span> {
@@ -1074,6 +1079,7 @@
             <span class="ident">RelayCounters::ResponsesStatusCodes</span> =&gt; <span class="string">&quot;responses.status_codes&quot;</span>,
             <span class="ident">RelayCounters::EvictingStaleProjectCaches</span> =&gt; <span class="string">&quot;project_cache.eviction&quot;</span>,
             <span class="ident">RelayCounters::MetricBucketsParsingFailed</span> =&gt; <span class="string">&quot;metrics.buckets.parsing_failed&quot;</span>,
+            <span class="ident">RelayCounters::MetricsTransactionNameExtracted</span> =&gt; <span class="string">&quot;metrics.transaction_name&quot;</span>,
         }
     }
 }
