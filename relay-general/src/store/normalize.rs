@@ -548,7 +548,7 @@ pub fn light_normalize_event(
     client_ip: Option<&IpAddr>,
     user_agent: Option<&str>,
 ) -> ProcessingResult {
-    event.apply(|event, meta| {
+    event.apply(|event, _meta| {
         // Process security reports first to ensure all props.
         normalize_security_report(event, client_ip, user_agent);
 
