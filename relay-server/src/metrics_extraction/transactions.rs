@@ -570,7 +570,6 @@ mod tests {
 
     use crate::metrics_extraction::TaggingRule;
     use insta::assert_debug_snapshot;
-    use relay_general::protocol::{ClientSdkInfo, TransactionInfo};
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
@@ -1304,21 +1303,7 @@ mod tests {
     }
 
     /// Helper function to check if the transaction name is set correctly
-    fn extract_transaction_name(
-        sdk_name: &str,
-        source: &TransactionSource,
-        strategy: AcceptTransactionNames,
-    ) -> Option<String> {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}}
-        }
-        "#;
-
+    fn extract_transaction_name(json: &str, strategy: AcceptTransactionNames) -> Option<String> {
         let mut config: TransactionMetricsConfig = serde_json::from_str(
             r#"
         {
@@ -1330,20 +1315,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-        {
-            let event = event.value_mut().as_mut().unwrap();
-            event.transaction_info.set_value(Some(TransactionInfo {
-                source: Annotated::new(source.clone()),
-                original: Annotated::empty(),
-            }));
-
-            event.client_sdk.set_value(Some(ClientSdkInfo {
-                name: Annotated::new(sdk_name.to_owned()),
-                ..Default::default()
-            }));
-        }
-
+        let event = Annotated::<Event>::from_json(json).unwrap();
         config.accept_transaction_names = strategy;
 
         let mut metrics = vec![];
@@ -1355,101 +1327,285 @@ mod tests {
 
     #[test]
     fn test_js_unknown_strict() {
-        let name = extract_transaction_name(
-            "sentry.javascript.browser",
-            &TransactionSource::Unknown,
-            AcceptTransactionNames::Strict,
-        );
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
         assert!(name.is_none());
     }
 
     #[test]
     fn test_js_unknown_client_based() {
-        let name = extract_transaction_name(
-            "sentry.javascript.browser",
-            &TransactionSource::Unknown,
-            AcceptTransactionNames::ClientBased,
-        );
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
         assert!(name.is_none());
     }
 
     #[test]
     fn test_js_url_strict() {
-        let name = extract_transaction_name(
-            "sentry.javascript.browser",
-            &TransactionSource::Url,
-            AcceptTransactionNames::Strict,
-        );
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"},
+            "transaction_info": {"source": "url"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
         assert_eq!(name, Some("<< unparametrized >>".to_owned()));
     }
 
     #[test]
     fn test_js_url_client_based() {
-        let name = extract_transaction_name(
-            "sentry.javascript.browser",
-            &TransactionSource::Url,
-            AcceptTransactionNames::Strict,
-        );
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"},
+            "transaction_info": {"source": "url"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
         assert_eq!(name, Some("<< unparametrized >>".to_owned()));
     }
 
     #[test]
+    fn test_python_404_strict() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.python", "integrations":["django"]},
+            "tags": {"http.status": "404"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_python_404_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.python", "integrations":["django"]},
+            "tags": {"http.status_code": "404"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_python_200_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.python", "integrations":["django"]},
+            "tags": {"http.status_code": "200"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn test_express_options_strict() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
+            "tags": {"http.method": "OPTIONS"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_express_options_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
+            "tags": {"http.method": "OPTIONS"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_express_get_client_based() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
+            "tags": {"http.method": "GET"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        assert_eq!(name, Some("foo".to_owned()));
+    }
+
+    #[test]
     fn test_other_client_unknown_strict() {
-        let name = extract_transaction_name(
-            "some_client",
-            &TransactionSource::Unknown,
-            AcceptTransactionNames::Strict,
-        );
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
         assert!(name.is_none());
     }
 
     #[test]
     fn test_other_client_unknown_client_based() {
-        let name = extract_transaction_name(
-            "some_client",
-            &TransactionSource::Unknown,
-            AcceptTransactionNames::ClientBased,
-        );
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
         assert_eq!(name, Some("foo".to_owned()));
     }
 
     #[test]
     fn test_other_client_url_strict() {
-        let name = extract_transaction_name(
-            "some_client",
-            &TransactionSource::Url,
-            AcceptTransactionNames::Strict,
-        );
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"},
+            "transaction_info": {"source": "url"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
         assert_eq!(name, Some("<< unparametrized >>".to_owned()));
     }
 
     #[test]
     fn test_other_client_url_client_based() {
-        let name = extract_transaction_name(
-            "some_client",
-            &TransactionSource::Url,
-            AcceptTransactionNames::Strict,
-        );
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"},
+            "transaction_info": {"source": "url"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
         assert_eq!(name, Some("<< unparametrized >>".to_owned()));
     }
 
     #[test]
     fn test_any_client_route_strict() {
-        let name = extract_transaction_name(
-            "some_client",
-            &TransactionSource::Route,
-            AcceptTransactionNames::Strict,
-        );
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"},
+            "transaction_info": {"source": "route"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
         assert_eq!(name, Some("foo".to_owned()));
     }
 
     #[test]
     fn test_any_client_route_client_based() {
-        let name = extract_transaction_name(
-            "some_client",
-            &TransactionSource::Route,
-            AcceptTransactionNames::ClientBased,
-        );
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "some_client"},
+            "transaction_info": {"source": "route"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
         assert_eq!(name, Some("foo".to_owned()));
     }
 
