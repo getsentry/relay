@@ -740,6 +740,12 @@
 <span id="733">733</span>
 <span id="734">734</span>
 <span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -895,6 +901,12 @@
     <span class="kw">pub</span> <span class="ident">session_metrics</span>: <span class="ident">SessionMetricsConfig</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">transaction_metrics</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ErrorBoundary</span><span class="op">&lt;</span><span class="ident">TransactionMetricsConfig</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Vec::is_empty&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">metric_conditional_tagging</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TaggingRule</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">span_attributes</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">SpanAttribute</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">breakdowns_v2</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BreakdownsConfig</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">features</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">Feature</span><span class="op">&gt;</span>,
 }
