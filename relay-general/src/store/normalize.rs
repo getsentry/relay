@@ -393,39 +393,39 @@ impl<'a> NormalizeProcessor<'a> {
     //     }
     // }
 
-    fn normalize_exceptions(&self, event: &mut Event) -> ProcessingResult {
-        let os_hint = mechanism::OsHint::from_event(event);
+    // fn normalize_exceptions(&self, event: &mut Event) -> ProcessingResult {
+    //     let os_hint = mechanism::OsHint::from_event(event);
 
-        if let Some(exception_values) = event.exceptions.value_mut() {
-            if let Some(exceptions) = exception_values.values.value_mut() {
-                if exceptions.len() == 1 && event.stacktrace.value().is_some() {
-                    if let Some(exception) = exceptions.get_mut(0) {
-                        if let Some(exception) = exception.value_mut() {
-                            mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
-                            event.stacktrace = Annotated::empty();
-                        }
-                    }
-                }
+    //     if let Some(exception_values) = event.exceptions.value_mut() {
+    //         if let Some(exceptions) = exception_values.values.value_mut() {
+    //             if exceptions.len() == 1 && event.stacktrace.value().is_some() {
+    //                 if let Some(exception) = exceptions.get_mut(0) {
+    //                     if let Some(exception) = exception.value_mut() {
+    //                         mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
+    //                         event.stacktrace = Annotated::empty();
+    //                     }
+    //                 }
+    //             }
 
-                // Exception mechanism needs SDK information to resolve proper names in
-                // exception meta (such as signal names). "SDK Information" really means
-                // the operating system version the event was generated on. Some
-                // normalization still works without sdk_info, such as mach_exception
-                // names (they can only occur on macOS).
-                //
-                // We also want to validate some other aspects of it.
-                for exception in exceptions {
-                    if let Some(exception) = exception.value_mut() {
-                        if let Some(mechanism) = exception.mechanism.value_mut() {
-                            mechanism::normalize_mechanism(mechanism, os_hint)?;
-                        }
-                    }
-                }
-            }
-        }
+    //             // Exception mechanism needs SDK information to resolve proper names in
+    //             // exception meta (such as signal names). "SDK Information" really means
+    //             // the operating system version the event was generated on. Some
+    //             // normalization still works without sdk_info, such as mach_exception
+    //             // names (they can only occur on macOS).
+    //             //
+    //             // We also want to validate some other aspects of it.
+    //             for exception in exceptions {
+    //                 if let Some(exception) = exception.value_mut() {
+    //                     if let Some(mechanism) = exception.mechanism.value_mut() {
+    //                         mechanism::normalize_mechanism(mechanism, os_hint)?;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     fn normalize_user_agent(&self, _event: &mut Event) {
         if self.config.normalize_user_agent.unwrap_or(false) {
@@ -436,6 +436,40 @@ impl<'a> NormalizeProcessor<'a> {
             panic!("relay not built with uaparser feature");
         }
     }
+}
+
+fn normalize_exceptions(event: &mut Event) -> ProcessingResult {
+    let os_hint = mechanism::OsHint::from_event(event);
+
+    if let Some(exception_values) = event.exceptions.value_mut() {
+        if let Some(exceptions) = exception_values.values.value_mut() {
+            if exceptions.len() == 1 && event.stacktrace.value().is_some() {
+                if let Some(exception) = exceptions.get_mut(0) {
+                    if let Some(exception) = exception.value_mut() {
+                        mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
+                        event.stacktrace = Annotated::empty();
+                    }
+                }
+            }
+
+            // Exception mechanism needs SDK information to resolve proper names in
+            // exception meta (such as signal names). "SDK Information" really means
+            // the operating system version the event was generated on. Some
+            // normalization still works without sdk_info, such as mach_exception
+            // names (they can only occur on macOS).
+            //
+            // We also want to validate some other aspects of it.
+            for exception in exceptions {
+                if let Some(exception) = exception.value_mut() {
+                    if let Some(mechanism) = exception.mechanism.value_mut() {
+                        mechanism::normalize_mechanism(mechanism, os_hint)?;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Removes internal tags and adds tags for well-known attributes.
@@ -705,6 +739,7 @@ pub fn light_normalize_event(
             max_secs_in_future,
         )?;
         normalize_event_tags(event)?;
+        normalize_exceptions(event)?;
 
         Ok(())
     })
@@ -757,7 +792,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_exceptions(event)?;
         self.normalize_user_agent(event);
         self.normalize_measurements(event);
         self.normalize_breakdowns(event);
