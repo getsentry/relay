@@ -183,7 +183,7 @@ mod tests {
     use chrono::Utc;
 
     use crate::processor::process_value;
-    use crate::protocol::{Contexts, SpanId, TraceContext, TraceId};
+    use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
     use crate::testutils::{assert_annotated_snapshot, assert_eq_dbg};
     use crate::types::Object;
 
@@ -831,6 +831,88 @@ mod tests {
           ]
         }
         "###);
+    }
+
+    #[test]
+    fn test_default_transaction_source_unknown() {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
+        {
+          "type": "transaction",
+          "transaction": "/",
+          "timestamp": 946684810.0,
+          "start_timestamp": 946684800.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "http.server",
+              "type": "trace"
+            },
+            "sdk": {
+                "name": "sentry.dart.flutter"
+            }
+          },
+          "spans": []
+        }
+        "###,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        let source = event
+            .value()
+            .unwrap()
+            .transaction_info
+            .value()
+            .and_then(|info| info.source.value())
+            .unwrap();
+
+        assert_eq!(source, &TransactionSource::Unknown);
+    }
+
+    #[test]
+    fn test_default_transaction_source_none() {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
+        {
+          "type": "transaction",
+          "transaction": "/",
+          "timestamp": 946684810.0,
+          "start_timestamp": 946684800.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "http.server",
+              "type": "trace"
+            },
+            "sdk": {
+                "name": "sentry.javascript.browser"
+            }
+          },
+          "spans": []
+        }
+        "###,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        let transaction_info = &event.value().unwrap().transaction_info;
+
+        assert!(transaction_info.value().is_none());
     }
 
     #[test]
