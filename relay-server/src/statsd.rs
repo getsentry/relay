@@ -103,6 +103,12 @@ pub enum RelayHistograms {
     ///
     /// There is no limit to the number of cached projects.
     ProjectStateCacheSize,
+    /// The size of the compressed project config in the redis cache, in bytes.
+    #[cfg(feature = "processing")]
+    ProjectStateSizeBytesCompressed,
+    /// The size of the uncompressed project config in the redis cache, in bytes.
+    #[cfg(feature = "processing")]
+    ProjectStateSizeBytesDecompressed,
     /// The number of upstream requests queued up for sending.
     ///
     /// Relay employs connection keep-alive whenever possible. Connections are kept open for _15_
@@ -156,6 +162,14 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
             RelayHistograms::ProjectStateReceived => "project_state.received",
             RelayHistograms::ProjectStateCacheSize => "project_cache.size",
+            #[cfg(feature = "processing")]
+            RelayHistograms::ProjectStateSizeBytesCompressed => {
+                "project_state.size_bytes.compressed"
+            }
+            #[cfg(feature = "processing")]
+            RelayHistograms::ProjectStateSizeBytesDecompressed => {
+                "project_state.size_bytes.decompressed"
+            }
             RelayHistograms::UpstreamMessageQueueSize => "http_queue.size",
             RelayHistograms::UpstreamRetries => "upstream.retries",
             #[cfg(feature = "processing")]
@@ -223,6 +237,12 @@ pub enum RelayTimers {
     /// Note that after an update loop has completed, there may be more projects pending updates.
     /// This is indicated by `project_state.pending`.
     ProjectStateRequestDuration,
+    /// Time in milliseconds required to decompress a project config from redis.
+    ///
+    /// Note that this also times the cases where project config is uncompressed,
+    /// in which case the timer should be very close to zero.
+    #[cfg(feature = "processing")]
+    ProjectStateDecompression,
     /// Total duration in milliseconds for handling inbound web requests until the HTTP response is
     /// returned to the client.
     ///
@@ -289,7 +309,6 @@ pub enum RelayTimers {
     OutcomeAggregatorFlushTime,
 
     /// Time in milliseconds spent on converting a transaction event into a metric.
-    #[cfg(feature = "processing")]
     TransactionMetricsExtraction,
 }
 
@@ -310,13 +329,14 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EnvelopeTotalTime => "event.total_time",
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
+            #[cfg(feature = "processing")]
+            RelayTimers::ProjectStateDecompression => "project_state.decompression",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
             RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
-            #[cfg(feature = "processing")]
             RelayTimers::TransactionMetricsExtraction => "metrics.extraction.transactions",
         }
     }

@@ -4,9 +4,20 @@
 
 **Features**:
 
-- Extract metrics also from trace-sampled transactions. ([#1317](https://github.com/getsentry/relay/pull/1317))
+- Parse sample rates as JSON. ([#1353](https://github.com/getsentry/relay/pull/1353))
+
+**Internal**:
+
+- Support compressed project configs in redis cache. ([#1345](https://github.com/getsentry/relay/pull/1345))
+- Refactor profile processing into its own crate. ([#1340](https://github.com/getsentry/relay/pull/1340))
+- Treat "unknown" transaction source as low cardinality, except for JS. ([#1352](https://github.com/getsentry/relay/pull/1352))
+## 22.7.0
+
+**Features**:
+
 - Adjust sample rate by envelope header's sample_rate. ([#1327](https://github.com/getsentry/relay/pull/1327))
 - Support `transaction_info` on event payloads. ([#1330](https://github.com/getsentry/relay/pull/1330))
+- Extract transaction metrics in external relays. ([#1344](https://github.com/getsentry/relay/pull/1344))
 
 **Bug Fixes**:
 
@@ -21,7 +32,9 @@
 - Indicate with thread is the main thread in thread metadata for profiles. ([#1320](https://github.com/getsentry/relay/pull/1320))
 - Increase profile maximum size by an order of magnitude. ([#1321](https://github.com/getsentry/relay/pull/1321))
 - Add data category constant for processed transactions, encompassing all transactions that have been received and sent through dynamic sampling as well as metrics extraction. ([#1306](https://github.com/getsentry/relay/pull/1306))
+- Extract metrics also from trace-sampled transactions. ([#1317](https://github.com/getsentry/relay/pull/1317))
 - Extract metrics from a configurable amount of custom transaction measurements. ([#1324](https://github.com/getsentry/relay/pull/1324))
+- Metrics: Drop transaction tag for high-cardinality sources. ([#1339](https://github.com/getsentry/relay/pull/1339))
 
 ## 22.6.0
 

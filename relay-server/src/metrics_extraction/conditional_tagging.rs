@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "processing")]
 use {relay_general::protocol::Event, relay_metrics::Metric};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,7 +15,6 @@ pub struct TaggingRule {
     pub tag_value: String,
 }
 
-#[cfg(feature = "processing")]
 pub fn run_conditional_tagging(event: &Event, config: &[TaggingRule], metrics: &mut [Metric]) {
     for rule in config {
         if !rule.condition.supported()

@@ -835,6 +835,9 @@ impl KafkaMessage {
             KafkaMessage::Metric(message) => {
                 serde_json::to_vec(message).map_err(StoreError::InvalidJson)
             }
+            KafkaMessage::ReplayEvent(message) => {
+                serde_json::to_vec(message).map_err(StoreError::InvalidJson)
+            }
             _ => rmp_serde::to_vec_named(&self).map_err(StoreError::InvalidMsgPack),
         }
     }

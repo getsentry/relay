@@ -1,0 +1,385 @@
+{
+    "device_os_name": "Darwin",
+    "device_os_version": "21.5.0",
+    "duration_ns": 81350084,
+    "environment": "production",
+    "platform": "python",
+    "platform_version": "3.8.13",
+    "profile_id": "f080f2567e024a6183c4d844c40346db",
+    "profile": {
+        "samples": [
+            {
+                "frames": [
+                    32,
+                    31,
+                    30,
+                    29,
+                    28,
+                    27,
+                    25,
+                    26,
+                    25,
+                    24,
+                    23,
+                    22,
+                    21,
+                    20,
+                    19,
+                    18,
+                    17,
+                    16,
+                    15,
+                    14,
+                    13,
+                    12,
+                    11,
+                    10,
+                    9,
+                    8,
+                    7,
+                    6,
+                    5,
+                    4,
+                    3,
+                    2,
+                    1,
+                    0
+                ],
+                "relative_timestamp_ns": 15057625,
+                "thread_id": 4306896256
+            },
+            {
+                "frames": [
+                    32,
+                    31,
+                    30,
+                    29,
+                    28,
+                    27,
+                    25,
+                    26,
+                    25,
+                    24,
+                    23,
+                    22,
+                    21,
+                    20,
+                    19,
+                    18,
+                    17,
+                    16,
+                    15,
+                    14,
+                    13,
+                    12,
+                    11,
+                    10,
+                    9,
+                    8,
+                    7,
+                    6,
+                    5,
+                    4,
+                    3,
+                    2,
+                    1,
+                    0
+                ],
+                "relative_timestamp_ns": 30055542,
+                "thread_id": 4306896256
+            },
+            {
+                "frames": [
+                    32,
+                    31,
+                    30,
+                    29,
+                    28,
+                    27,
+                    25,
+                    26,
+                    25,
+                    24,
+                    23,
+                    22,
+                    21,
+                    20,
+                    19,
+                    18,
+                    17,
+                    16,
+                    15,
+                    14,
+                    13,
+                    12,
+                    11,
+                    10,
+                    9,
+                    8,
+                    7,
+                    6,
+                    5,
+                    4,
+                    3,
+                    2,
+                    1,
+                    0
+                ],
+                "relative_timestamp_ns": 45542125,
+                "thread_id": 4306896256
+            },
+            {
+                "frames": [
+                    32,
+                    31,
+                    30,
+                    29,
+                    28,
+                    27,
+                    25,
+                    26,
+                    25,
+                    24,
+                    23,
+                    22,
+                    21,
+                    20,
+                    19,
+                    18,
+                    17,
+                    16,
+                    15,
+                    14,
+                    13,
+                    12,
+                    11,
+                    10,
+                    9,
+                    8,
+                    7,
+                    6,
+                    5,
+                    4,
+                    3,
+                    2,
+                    1,
+                    0
+                ],
+                "relative_timestamp_ns": 60834125,
+                "thread_id": 4306896256
+            },
+            {
+                "frames": [
+                    32,
+                    31,
+                    30,
+                    29,
+                    28,
+                    27,
+                    25,
+                    26,
+                    25,
+                    24,
+                    23,
+                    22,
+                    21,
+                    20,
+                    19,
+                    18,
+                    17,
+                    16,
+                    15,
+                    14,
+                    13,
+                    12,
+                    11,
+                    10,
+                    9,
+                    8,
+                    7,
+                    6,
+                    5,
+                    4,
+                    3,
+                    2,
+                    1,
+                    0
+                ],
+                "relative_timestamp_ns": 76640667,
+                "thread_id": 4306896256
+            }
+        ],
+        "frames": [
+            {
+                "name": "getpreferredencoding",
+                "file": "/Users/dszoke/.pyenv/versions/3.8.13/lib/python3.8/_bootlocale.py",
+                "line": 33
+            },
+            {
+                "name": "foo",
+                "file": "/Users/dszoke/Development/sentry-python/app.py",
+                "line": 24
+            },
+            {
+                "name": "hello_world",
+                "file": "/Users/dszoke/Development/sentry-python/app.py",
+                "line": 39
+            },
+            {
+                "name": "dispatch_request",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/flask/app.py",
+                "line": 1487
+            },
+            {
+                "name": "full_dispatch_request",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/flask/app.py",
+                "line": 1511
+            },
+            {
+                "name": "wsgi_app",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/flask/app.py",
+                "line": 2047
+            },
+            {
+                "name": "__call__",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/flask/app.py",
+                "line": 2090
+            },
+            {
+                "name": "<lambda>",
+                "file": "/Users/dszoke/Development/sentry-python/sentry_sdk/integrations/flask.py",
+                "line": 88
+            },
+            {
+                "name": "__call__",
+                "file": "/Users/dszoke/Development/sentry-python/sentry_sdk/integrations/wsgi.py",
+                "line": 119
+            },
+            {
+                "name": "sentry_patched_wsgi_app",
+                "file": "/Users/dszoke/Development/sentry-python/sentry_sdk/integrations/flask.py",
+                "line": 83
+            },
+            {
+                "name": "__call__",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/flask/cli.py",
+                "line": 337
+            },
+            {
+                "name": "execute",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/werkzeug/serving.py",
+                "line": 312
+            },
+            {
+                "name": "run_wsgi",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/werkzeug/serving.py",
+                "line": 252
+            },
+            {
+                "name": "handle_one_request",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/werkzeug/serving.py",
+                "line": 373
+            },
+            {
+                "name": "handle",
+                "file": "/Users/dszoke/.pyenv/versions/3.8.13/lib/python3.8/http/server.py",
+                "line": 423
+            },
+            {
+                "name": "handle",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/werkzeug/serving.py",
+                "line": 344
+            },
+            {
+                "name": "__init__",
+                "file": "/Users/dszoke/.pyenv/versions/3.8.13/lib/python3.8/socketserver.py",
+                "line": 741
+            },
+            {
+                "name": "finish_request",
+                "file": "/Users/dszoke/.pyenv/versions/3.8.13/lib/python3.8/socketserver.py",
+                "line": 358
+            },
+            {
+                "name": "process_request",
+                "file": "/Users/dszoke/.pyenv/versions/3.8.13/lib/python3.8/socketserver.py",
+                "line": 341
+            },
+            {
+                "name": "_handle_request_noblock",
+                "file": "/Users/dszoke/.pyenv/versions/3.8.13/lib/python3.8/socketserver.py",
+                "line": 303
+            },
+            {
+                "name": "serve_forever",
+                "file": "/Users/dszoke/.pyenv/versions/3.8.13/lib/python3.8/socketserver.py",
+                "line": 215
+            },
+            {
+                "name": "serve_forever",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/werkzeug/serving.py",
+                "line": 721
+            },
+            {
+                "name": "inner",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/werkzeug/serving.py",
+                "line": 952
+            },
+            {
+                "name": "run_simple",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/werkzeug/serving.py",
+                "line": 818
+            },
+            {
+                "name": "run_command",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/flask/cli.py",
+                "line": 762
+            },
+            {
+                "name": "invoke",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/click/core.py",
+                "line": 709
+            },
+            {
+                "name": "new_func",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/click/decorators.py",
+                "line": 69
+            },
+            {
+                "name": "invoke",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/click/core.py",
+                "line": 1393
+            },
+            {
+                "name": "invoke",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/click/core.py",
+                "line": 1623
+            },
+            {
+                "name": "main",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/click/core.py",
+                "line": 987
+            },
+            {
+                "name": "main",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/flask/cli.py",
+                "line": 560
+            },
+            {
+                "name": "main",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/lib/python3.8/site-packages/flask/cli.py",
+                "line": 987
+            },
+            {
+                "name": "<module>",
+                "file": "/Users/dszoke/Development/sentry-python/.venv/bin/flask",
+                "line": 3
+            }
+        ]
+    },
+    "trace_id": "c58bc763fdb84d30abd3b787471ca157",
+    "transaction_id": "5c21168694fb42b887a2c194daa18022",
+    "transaction_name": "hello_world",
+    "version_code": "TODO",
+    "version_name": "9c84589bd1d47efed868babffe7802c33ee3422a"
+}

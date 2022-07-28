@@ -91,6 +91,8 @@ fn bench_store_processor(c: &mut Criterion) {
         sent_at: None,
         received_at: None,
         breakdowns: None,
+        span_attributes: Default::default(),
+        client_sample_rate: None,
     };
 
     let mut processor = StoreProcessor::new(config, None);

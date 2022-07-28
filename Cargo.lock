@@ -455,6 +455,9 @@ name = "cc"
 version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fff2a6927b3bb87f9595d67196a70493f627687a71d87a0d692242c33f58c11"
+dependencies = [
+ "jobserver",
+]
 
 [[package]]
 name = "cexpr"
@@ -1838,6 +1841,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112c678d4050afce233f4f2852bb2eb519230b3cf12f33585275537d7e41578d"
 
 [[package]]
+name = "jobserver"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af25a77299a7f711a01975c35a6a424eb6862092cc2d6c72c4ed6cbc56dfc1fa"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3214,7 +3226,7 @@ checksum = "49b3de9ec5dc0a3417da371aab17d729997c15010e7fd24ff707773a33bddb64"
 
 [[package]]
 name = "relay"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "clap",
  "console 0.10.3",
@@ -3232,7 +3244,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -3248,7 +3260,7 @@ dependencies = [
 
 [[package]]
 name = "relay-aws-extension"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "actix",
  "failure",
@@ -3281,7 +3293,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "backoff",
  "chrono",
@@ -3301,7 +3313,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "failure",
  "human-size",
@@ -3319,7 +3331,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3327,7 +3339,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "failure",
  "relay-ffi-macros",
@@ -3335,7 +3347,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "quote 1.0.18",
  "syn 1.0.96",
@@ -3343,7 +3355,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "globset",
  "insta",
@@ -3359,7 +3371,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3400,7 +3412,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "proc-macro2 1.0.39",
  "quote 1.0.18",
@@ -3410,7 +3422,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "chrono",
  "console 0.10.3",
@@ -3427,7 +3439,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "actix",
  "crc32fast",
@@ -3448,8 +3460,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-quotas"
+name = "relay-profiling"
 version = "22.6.0"
+dependencies = [
+ "android_trace_log",
+ "base64 0.10.1",
+ "bytes 0.4.12",
+ "failure",
+ "relay-general",
+ "serde",
+ "serde_json",
+ "serde_test",
+]
+
+[[package]]
+name = "relay-quotas"
+version = "22.7.0"
 dependencies = [
  "failure",
  "insta",
@@ -3464,7 +3490,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "failure",
  "r2d2",
@@ -3474,7 +3500,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "insta",
  "rand 0.6.5",
@@ -3490,11 +3516,10 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "actix",
  "actix-web",
- "android_trace_log",
  "base64 0.10.1",
  "brotli2",
  "bytes 0.4.12",
@@ -3525,6 +3550,7 @@ dependencies = [
  "relay-general",
  "relay-log",
  "relay-metrics",
+ "relay-profiling",
  "relay-quotas",
  "relay-redis",
  "relay-sampling",
@@ -3544,11 +3570,12 @@ dependencies = [
  "tokio-timer",
  "url 2.2.2",
  "uuid 0.8.2",
+ "zstd",
 ]
 
 [[package]]
 name = "relay-statsd"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "cadence",
  "lazy_static",
@@ -3559,7 +3586,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "actix",
  "failure",
@@ -3571,7 +3598,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "22.6.0"
+version = "22.7.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -5500,4 +5527,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56c1936c4cc7a1c9ab21a1ebb602eb942ba868cbd44a99cb7cdc5892335e1c85"
 dependencies = [
  "linked-hash-map",
+]
+
+[[package]]
+name = "zstd"
+version = "0.11.2+zstd.1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20cc960326ece64f010d2d2107537f26dc589a6573a316bd5b1dba685fa5fde4"
+dependencies = [
+ "zstd-safe",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "5.0.2+zstd.1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d2a5585e04f9eea4b2a3d1eca508c4dee9592a89ef6f450c11719da0726f4db"
+dependencies = [
+ "libc",
+ "zstd-sys",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "2.0.1+zstd.1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fd07cbbc53846d9145dbffdf6dd09a7a0aa52be46741825f5c97bdd4f73f12b"
+dependencies = [
+ "cc",
+ "libc",
 ]
