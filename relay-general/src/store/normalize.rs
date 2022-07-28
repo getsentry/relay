@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::Arc;
 
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -147,55 +147,55 @@ impl<'a> NormalizeProcessor<'a> {
     //     normalize_dist(event.dist.value_mut());
     // }
 
-    /// Validates the timestamp range and sets a default value.
-    fn normalize_timestamps(
-        &self,
-        event: &mut Event,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        let received_at = self.config.received_at.unwrap_or_else(Utc::now);
+    // /// Validates the timestamp range and sets a default value.
+    // fn normalize_timestamps(
+    //     &self,
+    //     event: &mut Event,
+    //     meta: &mut Meta,
+    //     state: &ProcessingState<'_>,
+    // ) -> ProcessingResult {
+    //     let received_at = self.config.received_at.unwrap_or_else(Utc::now);
 
-        let mut sent_at = None;
-        let mut error_kind = ErrorKind::ClockDrift;
+    //     let mut sent_at = None;
+    //     let mut error_kind = ErrorKind::ClockDrift;
 
-        event.timestamp.apply(|timestamp, _meta| {
-            if let Some(secs) = self.config.max_secs_in_future {
-                if *timestamp > received_at + Duration::seconds(secs) {
-                    error_kind = ErrorKind::FutureTimestamp;
-                    sent_at = Some(*timestamp);
-                    return Ok(());
-                }
-            }
+    //     event.timestamp.apply(|timestamp, _meta| {
+    //         if let Some(secs) = self.config.max_secs_in_future {
+    //             if *timestamp > received_at + Duration::seconds(secs) {
+    //                 error_kind = ErrorKind::FutureTimestamp;
+    //                 sent_at = Some(*timestamp);
+    //                 return Ok(());
+    //             }
+    //         }
 
-            if let Some(secs) = self.config.max_secs_in_past {
-                if *timestamp < received_at - Duration::seconds(secs) {
-                    error_kind = ErrorKind::PastTimestamp;
-                    sent_at = Some(*timestamp);
-                    return Ok(());
-                }
-            }
+    //         if let Some(secs) = self.config.max_secs_in_past {
+    //             if *timestamp < received_at - Duration::seconds(secs) {
+    //                 error_kind = ErrorKind::PastTimestamp;
+    //                 sent_at = Some(*timestamp);
+    //                 return Ok(());
+    //             }
+    //         }
 
-            Ok(())
-        })?;
+    //         Ok(())
+    //     })?;
 
-        ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
-            .error_kind(error_kind)
-            .process_event(event, meta, state)?;
+    //     ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
+    //         .error_kind(error_kind)
+    //         .process_event(event, meta, state)?;
 
-        // Apply this after clock drift correction, otherwise we will malform it.
-        event.received = Annotated::new(received_at.into());
+    //     // Apply this after clock drift correction, otherwise we will malform it.
+    //     event.received = Annotated::new(received_at.into());
 
-        if event.timestamp.value().is_none() {
-            event.timestamp.set_value(Some(received_at.into()));
-        }
+    //     if event.timestamp.value().is_none() {
+    //         event.timestamp.set_value(Some(received_at.into()));
+    //     }
 
-        event
-            .time_spent
-            .apply(|time_spent, _| validate_bounded_integer_field(*time_spent))?;
+    //     event
+    //         .time_spent
+    //         .apply(|time_spent, _| validate_bounded_integer_field(*time_spent))?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     /// Removes internal tags and adds tags for well-known attributes.
     fn normalize_event_tags(&self, event: &mut Event) -> ProcessingResult {
@@ -438,6 +438,57 @@ impl<'a> NormalizeProcessor<'a> {
     }
 }
 
+/// Validates the timestamp range and sets a default value.
+fn normalize_timestamps(
+    event: &mut Event,
+    meta: &mut Meta,
+    received_at: Option<DateTime<Utc>>,
+    max_secs_in_past: Option<i64>,
+    max_secs_in_future: Option<i64>,
+) -> ProcessingResult {
+    let received_at = received_at.unwrap_or_else(Utc::now);
+
+    let mut sent_at = None;
+    let mut error_kind = ErrorKind::ClockDrift;
+
+    event.timestamp.apply(|timestamp, _meta| {
+        if let Some(secs) = max_secs_in_future {
+            if *timestamp > received_at + Duration::seconds(secs) {
+                error_kind = ErrorKind::FutureTimestamp;
+                sent_at = Some(*timestamp);
+                return Ok(());
+            }
+        }
+
+        if let Some(secs) = max_secs_in_past {
+            if *timestamp < received_at - Duration::seconds(secs) {
+                error_kind = ErrorKind::PastTimestamp;
+                sent_at = Some(*timestamp);
+                return Ok(());
+            }
+        }
+
+        Ok(())
+    })?;
+
+    ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
+        .error_kind(error_kind)
+        .process_event(event, meta, ProcessingState::root())?;
+
+    // Apply this after clock drift correction, otherwise we will malform it.
+    event.received = Annotated::new(received_at.into());
+
+    if event.timestamp.value().is_none() {
+        event.timestamp.set_value(Some(received_at.into()));
+    }
+
+    event
+        .time_spent
+        .apply(|time_spent, _| validate_bounded_integer_field(*time_spent))?;
+
+    Ok(())
+}
+
 /// Ensures that the `release` and `dist` fields match up.
 fn normalize_release_dist(event: &mut Event) {
     normalize_dist(event.dist.value_mut());
@@ -552,8 +603,11 @@ pub fn light_normalize_event(
     event: &mut Annotated<Event>,
     client_ip: Option<&IpAddr>,
     user_agent: Option<&str>,
+    received_at: Option<DateTime<Utc>>,
+    max_secs_in_past: Option<i64>,
+    max_secs_in_future: Option<i64>,
 ) -> ProcessingResult {
-    event.apply(|event, _meta| {
+    event.apply(|event, meta| {
         // Process security reports first to ensure all props.
         normalize_security_report(event, client_ip, user_agent);
 
@@ -580,6 +634,13 @@ pub fn light_normalize_event(
 
         // Default required attributes, even if they have errors
         normalize_release_dist(event);
+        normalize_timestamps(
+            event,
+            meta,
+            received_at,
+            max_secs_in_past,
+            max_secs_in_future,
+        )?;
 
         Ok(())
     })
@@ -632,7 +693,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_timestamps(event, meta, state)?;
         self.normalize_event_tags(event)?;
         self.normalize_exceptions(event)?;
         self.normalize_user_agent(event);

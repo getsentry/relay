@@ -1872,7 +1872,18 @@ impl EnvelopeProcessor {
         let client_ip = state.envelope.meta().client_addr().map(IpAddr::from);
         let user_agent = state.envelope.meta().user_agent();
 
-        light_normalize_event(&mut state.event, client_ip.as_ref(), user_agent);
+        let received_at = Some(state.envelope_context.received_at);
+        let max_secs_in_past = Some(self.config.max_secs_in_past());
+        let max_secs_in_future = Some(self.config.max_secs_in_future());
+
+        light_normalize_event(
+            &mut state.event,
+            client_ip.as_ref(),
+            user_agent,
+            received_at,
+            max_secs_in_past,
+            max_secs_in_future,
+        );
     }
 
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
