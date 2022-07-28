@@ -421,18 +421,22 @@ def test_session_metrics_processing(
 
 
 @pytest.mark.parametrize(
-    "extract_metrics,discard_data",
+    "extract_metrics,discard_data,with_external_relay",
     [
-        (True, "transaction"),
-        pytest.param(True, "trace", marks=pytest.mark.skip(reason="currently broken")),
-        (True, False),
-        (False, "transaction"),
-        (False, False),
-        ("corrupted", "transaction"),
+        (True, "transaction", True),
+        (True, "transaction", False),
+        (True, "trace", False),
+        (True, False, True),
+        (True, False, False),
+        (False, "transaction", False),
+        (False, False, False),
+        ("corrupted", "transaction", False),
     ],
     ids=[
+        "extract from transaction-sampled, external relay",
         "extract from transaction-sampled",
         "extract from trace-sampled",
+        "extract from unsampled, external relay",
         "extract from unsampled",
         "don't extract from transaction-sampled",
         "don't extract from unsampled",
@@ -441,16 +445,22 @@ def test_session_metrics_processing(
 )
 def test_transaction_metrics(
     mini_sentry,
+    relay,
     relay_with_processing,
     metrics_consumer,
     extract_metrics,
     discard_data,
     transactions_consumer,
+    with_external_relay,
 ):
     metrics_consumer = metrics_consumer()
     transactions_consumer = transactions_consumer()
 
-    relay = relay_with_processing(options=TEST_CONFIG)
+    if with_external_relay:
+        relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+    else:
+        relay = relay_with_processing(options=TEST_CONFIG)
+
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
@@ -506,10 +516,17 @@ def test_transaction_metrics(
         transactions_consumer.assert_empty()
     else:
         event, _ = transactions_consumer.get_event()
+        if with_external_relay:
+            # there is some rounding error while serializing/deserializing
+            # timestamps... haven't investigated too closely
+            span_time = 9.910107
+        else:
+            span_time = 9.910106
+
         assert event["breakdowns"] == {
             "span_ops": {
-                "ops.react.mount": {"value": 9.910106, "unit": "millisecond"},
-                "total.time": {"value": 9.910106, "unit": "millisecond"},
+                "ops.react.mount": {"value": span_time, "unit": "millisecond"},
+                "total.time": {"value": span_time, "unit": "millisecond"},
             }
         }
 
