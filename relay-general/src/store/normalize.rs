@@ -556,16 +556,16 @@ pub fn light_normalize_event(
         normalize_ip_addresses(event, client_ip);
 
         // Validate the basic attributes we extract metrics from
-        event.environment.apply(|environment, meta| {
-            if protocol::validate_environment(environment).is_ok() {
+        event.release.apply(|release, meta| {
+            if protocol::validate_release(release).is_ok() {
                 Ok(())
             } else {
                 meta.add_error(ErrorKind::InvalidData);
                 Err(ProcessingAction::DeleteValueSoft)
             }
         })?;
-        event.release.apply(|release, meta| {
-            if protocol::validate_release(release).is_ok() {
+        event.environment.apply(|environment, meta| {
+            if protocol::validate_environment(environment).is_ok() {
                 Ok(())
             } else {
                 meta.add_error(ErrorKind::InvalidData);
