@@ -1876,6 +1876,8 @@ impl EnvelopeProcessor {
         let max_secs_in_past = Some(self.config.max_secs_in_past());
         let max_secs_in_future = Some(self.config.max_secs_in_future());
 
+        let breakdowns_config = state.project_state.config.breakdowns_v2.clone();
+
         light_normalize_event(
             &mut state.event,
             client_ip.as_ref(),
@@ -1883,6 +1885,7 @@ impl EnvelopeProcessor {
             received_at,
             max_secs_in_past,
             max_secs_in_future,
+            breakdowns_config,
         );
     }
 

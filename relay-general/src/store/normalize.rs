@@ -9,6 +9,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use smallvec::SmallVec;
 
+use super::BreakdownsConfig;
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
@@ -120,13 +121,13 @@ impl<'a> NormalizeProcessor<'a> {
     //     }
     // }
 
-    /// Emit any breakdowns
-    fn normalize_breakdowns(&self, event: &mut Event) {
-        match &self.config.breakdowns {
-            None => {}
-            Some(breakdowns_config) => breakdowns::normalize_breakdowns(event, breakdowns_config),
-        }
-    }
+    // /// Emit any breakdowns
+    // fn normalize_breakdowns(&self, event: &mut Event) {
+    //     match &self.config.breakdowns {
+    //         None => {}
+    //         Some(breakdowns_config) => breakdowns::normalize_breakdowns(event, breakdowns_config),
+    //     }
+    // }
 
     fn normalize_spans(&self, event: &mut Event) {
         if event.ty.value() == Some(&EventType::Transaction) {
@@ -437,6 +438,15 @@ impl<'a> NormalizeProcessor<'a> {
     //     }
     // }
 }
+
+/// Emit any breakdowns
+fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<BreakdownsConfig>) {
+    match breakdowns_config {
+        None => {}
+        Some(ref config) => breakdowns::normalize_breakdowns(event, config),
+    }
+}
+
 /// Ensure measurements interface is only present for transaction events
 fn normalize_measurements(event: &mut Event) {
     if event.ty.value() != Some(&EventType::Transaction) {
@@ -720,6 +730,7 @@ pub fn light_normalize_event(
     received_at: Option<DateTime<Utc>>,
     max_secs_in_past: Option<i64>,
     max_secs_in_future: Option<i64>,
+    breakdowns_config: Option<BreakdownsConfig>,
 ) -> ProcessingResult {
     event.apply(|event, meta| {
         // Process security reports first to ensure all props.
@@ -759,6 +770,7 @@ pub fn light_normalize_event(
         normalize_exceptions(event)?;
         normalize_user_agent(event, Some(true));
         normalize_measurements(event);
+        normalize_breakdowns(event, breakdowns_config);
 
         Ok(())
     })
@@ -811,7 +823,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_breakdowns(event);
         self.normalize_spans(event);
         self.normalize_trace_context(event);
 
