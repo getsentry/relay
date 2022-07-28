@@ -153,6 +153,12 @@ pub struct LimitedProjectConfig {
     pub session_metrics: SessionMetricsConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub metric_conditional_tagging: Vec<TaggingRule>,
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub span_attributes: BTreeSet<SpanAttribute>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub breakdowns_v2: Option<BreakdownsConfig>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub features: BTreeSet<Feature>,
 }
