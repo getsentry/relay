@@ -112,13 +112,13 @@ impl<'a> NormalizeProcessor<'a> {
         })
     }
 
-    /// Ensure measurements interface is only present for transaction events
-    fn normalize_measurements(&self, event: &mut Event) {
-        if event.ty.value() != Some(&EventType::Transaction) {
-            // Only transaction events may have a measurements interface
-            event.measurements = Annotated::empty();
-        }
-    }
+    // /// Ensure measurements interface is only present for transaction events
+    // fn normalize_measurements(&self, event: &mut Event) {
+    //     if event.ty.value() != Some(&EventType::Transaction) {
+    //         // Only transaction events may have a measurements interface
+    //         event.measurements = Annotated::empty();
+    //     }
+    // }
 
     /// Emit any breakdowns
     fn normalize_breakdowns(&self, event: &mut Event) {
@@ -437,6 +437,13 @@ impl<'a> NormalizeProcessor<'a> {
     //     }
     // }
 }
+/// Ensure measurements interface is only present for transaction events
+fn normalize_measurements(event: &mut Event) {
+    if event.ty.value() != Some(&EventType::Transaction) {
+        // Only transaction events may have a measurements interface
+        event.measurements = Annotated::empty();
+    }
+}
 
 fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) {
     if normalize_user_agent.unwrap_or(false) {
@@ -751,6 +758,7 @@ pub fn light_normalize_event(
         normalize_event_tags(event)?;
         normalize_exceptions(event)?;
         normalize_user_agent(event, Some(true));
+        normalize_measurements(event);
 
         Ok(())
     })
@@ -803,7 +811,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_measurements(event);
         self.normalize_breakdowns(event);
         self.normalize_spans(event);
         self.normalize_trace_context(event);
