@@ -10,7 +10,7 @@
 
 - Support compressed project configs in redis cache. ([#1345](https://github.com/getsentry/relay/pull/1345))
 - Refactor profile processing into its own crate. ([#1340](https://github.com/getsentry/relay/pull/1340))
-- Treat "unknown" transaction source as low cardinality, except for JS. ([#1352](https://github.com/getsentry/relay/pull/1352))
+- Treat "unknown" transaction source as low cardinality for safe SDKs. ([#1352](https://github.com/getsentry/relay/pull/1352), [#1356](https://github.com/getsentry/relay/pull/1356))
 - Conditionally write a default transaction source to the transaction payload. ([#1354](https://github.com/getsentry/relay/pull/1354))
 
 ## 22.7.0
