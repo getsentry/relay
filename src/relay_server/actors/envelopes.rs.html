@@ -3401,8 +3401,6 @@
 <span id="3394">3394</span>
 <span id="3395">3395</span>
 <span id="3396">3396</span>
-<span id="3397">3397</span>
-<span id="3398">3398</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -5127,10 +5125,8 @@
                 }
             );
             <span class="ident">state</span>.<span class="ident">transaction_metrics_extracted</span> <span class="op">=</span> <span class="bool-val">true</span>;
-            <span class="prelude-val">Ok</span>(())
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::NoEventPayload</span>)
         }
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="doccomment">/// Apply data privacy rules to the event payload.</span>
