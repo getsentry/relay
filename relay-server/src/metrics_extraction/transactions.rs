@@ -215,26 +215,6 @@ fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinali
     }
 }
 
-fn is_browser_sdk(event: &Event) -> bool {
-    let sdk_name = event
-        .client_sdk
-        .value()
-        .and_then(|sdk| sdk.name.value())
-        .map(|s| s.as_str())
-        .unwrap_or_default();
-
-    [
-        "sentry.javascript.angular",
-        "sentry.javascript.browser",
-        "sentry.javascript.ember",
-        "sentry.javascript.gatsby",
-        "sentry.javascript.react",
-        "sentry.javascript.remix",
-        "sentry.javascript.vue",
-    ]
-    .contains(&sdk_name)
-}
-
 /// Decide whether we want to keep the transaction name.
 /// High-cardinality sources are excluded to protect our metrics infrastructure.
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
@@ -254,7 +234,7 @@ fn get_transaction_name(
     let treat_unknown_as_low_cardinality = matches!(
         accept_transaction_names,
         AcceptTransactionNames::ClientBased
-    ) && !is_browser_sdk(event);
+    ) && !store::is_high_cardinality_sdk(&event.client_sdk);
 
     let source = event.get_transaction_source();
     let use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);

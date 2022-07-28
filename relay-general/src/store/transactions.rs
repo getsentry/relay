@@ -1,5 +1,7 @@
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Context, ContextInner, Event, EventType, Span, Timestamp};
+use crate::protocol::{
+    ClientSdkInfo, Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
+};
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult};
 /// Rejects transactions based on required fields.
 pub struct TransactionsProcessor;
@@ -48,6 +50,49 @@ pub fn validate_timestamps(
                 "start_timestamp hard-required for transaction events",
             ))
         }
+    }
+}
+
+/// List of SDKs which we assume to produce high cardinality transaction names, such as
+/// "/user/123134/login".
+/// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine cardinality,
+/// but for old SDKs, we fall back to this list.
+pub fn is_high_cardinality_sdk(client_sdk: &Annotated<ClientSdkInfo>) -> bool {
+    let sdk_name = client_sdk
+        .value()
+        .and_then(|sdk| sdk.name.value())
+        .map(|s| s.as_str())
+        .unwrap_or_default();
+
+    [
+        "sentry.javascript.angular",
+        "sentry.javascript.browser",
+        "sentry.javascript.ember",
+        "sentry.javascript.gatsby",
+        "sentry.javascript.react",
+        "sentry.javascript.remix",
+        "sentry.javascript.vue",
+    ]
+    .contains(&sdk_name)
+}
+
+/// Set a default transaction source if it is missing, but only if the transaction name was
+/// extracted as a metrics tag.
+/// This behavior makes it possible to identify transactions for which the transaction name was
+/// not extracted as a tag on the corresponding metrics, because
+///     source == null <=> transaction name == null
+/// See [`relay_server::metrics_extraction::transactions::get_transaction_name`].
+fn set_default_transaction_source(event: &mut Event) {
+    let source = event
+        .transaction_info
+        .value()
+        .and_then(|info| info.source.value());
+
+    if source.is_none() && !is_high_cardinality_sdk(&event.client_sdk) {
+        let transaction_info = event.transaction_info.get_or_insert_with(Default::default);
+        transaction_info
+            .source
+            .set_value(Some(TransactionSource::Unknown));
     }
 }
 
@@ -121,6 +166,8 @@ impl Processor for TransactionsProcessor {
                 ));
             }
         }
+
+        set_default_transaction_source(event);
 
         event.process_child_values(self, state)?;
 
@@ -848,10 +895,10 @@ mod tests {
               "span_id": "fa90fdead5f74053",
               "op": "http.server",
               "type": "trace"
-            },
-            "sdk": {
-                "name": "sentry.dart.flutter"
             }
+          },
+          "sdk": {
+            "name": "sentry.dart.flutter"
           },
           "spans": []
         }
@@ -892,16 +939,18 @@ mod tests {
               "span_id": "fa90fdead5f74053",
               "op": "http.server",
               "type": "trace"
-            },
-            "sdk": {
-                "name": "sentry.javascript.browser"
             }
+          },
+          "sdk": {
+            "name": "sentry.javascript.browser"
           },
           "spans": []
         }
         "###,
         )
         .unwrap();
+
+        dbg!(event.value().map(|e| &e.client_sdk));
 
         process_value(
             &mut event,
