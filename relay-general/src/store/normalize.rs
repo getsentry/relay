@@ -197,68 +197,68 @@ impl<'a> NormalizeProcessor<'a> {
     //     Ok(())
     // }
 
-    /// Removes internal tags and adds tags for well-known attributes.
-    fn normalize_event_tags(&self, event: &mut Event) -> ProcessingResult {
-        let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
-        let environment = &mut event.environment;
-        if environment.is_empty() {
-            *environment = Annotated::empty();
-        }
+    // /// Removes internal tags and adds tags for well-known attributes.
+    // fn normalize_event_tags(&self, event: &mut Event) -> ProcessingResult {
+    //     let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+    //     let environment = &mut event.environment;
+    //     if environment.is_empty() {
+    //         *environment = Annotated::empty();
+    //     }
 
-        // Fix case where legacy apps pass environment as a tag instead of a top level key
-        if let Some(tag) = tags.remove("environment").and_then(Annotated::into_value) {
-            environment.get_or_insert_with(|| tag);
-        }
+    //     // Fix case where legacy apps pass environment as a tag instead of a top level key
+    //     if let Some(tag) = tags.remove("environment").and_then(Annotated::into_value) {
+    //         environment.get_or_insert_with(|| tag);
+    //     }
 
-        // Remove internal tags, that are generated with a `sentry:` prefix when saving the event.
-        // They are not allowed to be set by the client due to ambiguity. Also, deduplicate tags.
-        let mut tag_cache = DedupCache::new();
-        tags.retain(|entry| {
-            match entry.value() {
-                Some(tag) => match tag.key() {
-                    Some("release") | Some("dist") | Some("user") | Some("filename")
-                    | Some("function") => false,
-                    name => tag_cache.probe(name),
-                },
-                // ToValue will decide if we should skip serializing Annotated::empty()
-                None => true,
-            }
-        });
+    //     // Remove internal tags, that are generated with a `sentry:` prefix when saving the event.
+    //     // They are not allowed to be set by the client due to ambiguity. Also, deduplicate tags.
+    //     let mut tag_cache = DedupCache::new();
+    //     tags.retain(|entry| {
+    //         match entry.value() {
+    //             Some(tag) => match tag.key() {
+    //                 Some("release") | Some("dist") | Some("user") | Some("filename")
+    //                 | Some("function") => false,
+    //                 name => tag_cache.probe(name),
+    //             },
+    //             // ToValue will decide if we should skip serializing Annotated::empty()
+    //             None => true,
+    //         }
+    //     });
 
-        for tag in tags.iter_mut() {
-            tag.apply(|tag, _| {
-                if let Some(key) = tag.key() {
-                    if key.is_empty() {
-                        tag.0 = Annotated::from_error(Error::nonempty(), None);
-                    } else if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
-                        tag.0 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
-                    }
-                }
+    //     for tag in tags.iter_mut() {
+    //         tag.apply(|tag, _| {
+    //             if let Some(key) = tag.key() {
+    //                 if key.is_empty() {
+    //                     tag.0 = Annotated::from_error(Error::nonempty(), None);
+    //                 } else if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
+    //                     tag.0 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
+    //                 }
+    //             }
 
-                if let Some(value) = tag.value() {
-                    if value.is_empty() {
-                        tag.1 = Annotated::from_error(Error::nonempty(), None);
-                    } else if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
-                        tag.1 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
-                    }
-                }
+    //             if let Some(value) = tag.value() {
+    //                 if value.is_empty() {
+    //                     tag.1 = Annotated::from_error(Error::nonempty(), None);
+    //                 } else if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
+    //                     tag.1 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
+    //                 }
+    //             }
 
-                Ok(())
-            })?;
-        }
+    //             Ok(())
+    //         })?;
+    //     }
 
-        let server_name = std::mem::take(&mut event.server_name);
-        if server_name.value().is_some() {
-            tags.insert("server_name".to_string(), server_name);
-        }
+    //     let server_name = std::mem::take(&mut event.server_name);
+    //     if server_name.value().is_some() {
+    //         tags.insert("server_name".to_string(), server_name);
+    //     }
 
-        let site = std::mem::take(&mut event.site);
-        if site.value().is_some() {
-            tags.insert("site".to_string(), site);
-        }
+    //     let site = std::mem::take(&mut event.site);
+    //     if site.value().is_some() {
+    //         tags.insert("site".to_string(), site);
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     /// Infers the `EventType` from the event's interfaces.
     fn infer_event_type(&self, event: &Event) -> EventType {
@@ -436,6 +436,69 @@ impl<'a> NormalizeProcessor<'a> {
             panic!("relay not built with uaparser feature");
         }
     }
+}
+
+/// Removes internal tags and adds tags for well-known attributes.
+fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
+    let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+    let environment = &mut event.environment;
+    if environment.is_empty() {
+        *environment = Annotated::empty();
+    }
+
+    // Fix case where legacy apps pass environment as a tag instead of a top level key
+    if let Some(tag) = tags.remove("environment").and_then(Annotated::into_value) {
+        environment.get_or_insert_with(|| tag);
+    }
+
+    // Remove internal tags, that are generated with a `sentry:` prefix when saving the event.
+    // They are not allowed to be set by the client due to ambiguity. Also, deduplicate tags.
+    let mut tag_cache = DedupCache::new();
+    tags.retain(|entry| {
+        match entry.value() {
+            Some(tag) => match tag.key() {
+                Some("release") | Some("dist") | Some("user") | Some("filename")
+                | Some("function") => false,
+                name => tag_cache.probe(name),
+            },
+            // ToValue will decide if we should skip serializing Annotated::empty()
+            None => true,
+        }
+    });
+
+    for tag in tags.iter_mut() {
+        tag.apply(|tag, _| {
+            if let Some(key) = tag.key() {
+                if key.is_empty() {
+                    tag.0 = Annotated::from_error(Error::nonempty(), None);
+                } else if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
+                    tag.0 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
+                }
+            }
+
+            if let Some(value) = tag.value() {
+                if value.is_empty() {
+                    tag.1 = Annotated::from_error(Error::nonempty(), None);
+                } else if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
+                    tag.1 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
+                }
+            }
+
+            Ok(())
+        })?;
+    }
+
+    let server_name = std::mem::take(&mut event.server_name);
+    if server_name.value().is_some() {
+        tags.insert("server_name".to_string(), server_name);
+    }
+
+    let site = std::mem::take(&mut event.site);
+    if site.value().is_some() {
+        tags.insert("site".to_string(), site);
+    }
+
+    Ok(())
 }
 
 /// Validates the timestamp range and sets a default value.
@@ -641,6 +704,7 @@ pub fn light_normalize_event(
             max_secs_in_past,
             max_secs_in_future,
         )?;
+        normalize_event_tags(event)?;
 
         Ok(())
     })
@@ -693,7 +757,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_event_tags(event)?;
         self.normalize_exceptions(event)?;
         self.normalize_user_agent(event);
         self.normalize_measurements(event);
