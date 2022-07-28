@@ -142,10 +142,10 @@ impl<'a> NormalizeProcessor<'a> {
         }
     }
 
-    /// Ensures that the `release` and `dist` fields match up.
-    fn normalize_release_dist(&self, event: &mut Event) {
-        normalize_dist(event.dist.value_mut());
-    }
+    // /// Ensures that the `release` and `dist` fields match up.
+    // fn normalize_release_dist(&self, event: &mut Event) {
+    //     normalize_dist(event.dist.value_mut());
+    // }
 
     /// Validates the timestamp range and sets a default value.
     fn normalize_timestamps(
@@ -438,6 +438,11 @@ impl<'a> NormalizeProcessor<'a> {
     }
 }
 
+/// Ensures that the `release` and `dist` fields match up.
+fn normalize_release_dist(event: &mut Event) {
+    normalize_dist(event.dist.value_mut());
+}
+
 fn is_security_report(event: &Event) -> bool {
     event.csp.value().is_some()
         || event.expectct.value().is_some()
@@ -573,6 +578,9 @@ pub fn light_normalize_event(
             }
         })?;
 
+        // Default required attributes, even if they have errors
+        normalize_release_dist(event);
+
         Ok(())
     })
 }
@@ -624,7 +632,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_release_dist(event);
         self.normalize_timestamps(event, meta, state)?;
         self.normalize_event_tags(event)?;
         self.normalize_exceptions(event)?;
