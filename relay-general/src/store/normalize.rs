@@ -427,14 +427,24 @@ impl<'a> NormalizeProcessor<'a> {
     //     Ok(())
     // }
 
-    fn normalize_user_agent(&self, _event: &mut Event) {
-        if self.config.normalize_user_agent.unwrap_or(false) {
-            #[cfg(feature = "uaparser")]
-            user_agent::normalize_user_agent(_event);
+    // fn normalize_user_agent(&self, _event: &mut Event) {
+    //     if self.config.normalize_user_agent.unwrap_or(false) {
+    //         #[cfg(feature = "uaparser")]
+    //         user_agent::normalize_user_agent(_event);
 
-            #[cfg(not(feature = "uaparser"))]
-            panic!("relay not built with uaparser feature");
-        }
+    //         #[cfg(not(feature = "uaparser"))]
+    //         panic!("relay not built with uaparser feature");
+    //     }
+    // }
+}
+
+fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) {
+    if normalize_user_agent.unwrap_or(false) {
+        #[cfg(feature = "uaparser")]
+        user_agent::normalize_user_agent(_event);
+
+        #[cfg(not(feature = "uaparser"))]
+        panic!("relay not built with uaparser feature");
     }
 }
 
@@ -740,6 +750,7 @@ pub fn light_normalize_event(
         )?;
         normalize_event_tags(event)?;
         normalize_exceptions(event)?;
+        normalize_user_agent(event, Some(true));
 
         Ok(())
     })
@@ -792,7 +803,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_user_agent(event);
         self.normalize_measurements(event);
         self.normalize_breakdowns(event);
         self.normalize_spans(event);
