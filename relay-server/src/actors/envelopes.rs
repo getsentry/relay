@@ -1855,13 +1855,19 @@ impl EnvelopeProcessor {
 
     fn light_normalize_event(&self, state: &mut ProcessEnvelopeState) {
         /**
-         * fields that are modified:
-         * - release
-         * - logentry
+         * `event` fields that are modified:
+         * - release, lighted
+         * - logentry, ???
          * - exceptions
          * - user.ip_address
          * - request.url.host
          * - request.headers (for the user agent)
+         *
+         * extracted tags, that must be normalized:
+         * - release
+         * - dist
+         * - environment
+         * - transaction
          */
         let client_ip = state.envelope.meta().client_addr().map(IpAddr::from);
         let user_agent = state.envelope.meta().user_agent();
