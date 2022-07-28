@@ -8,7 +8,6 @@ use futures::future;
 use futures::prelude::*;
 use futures03::compat::Future01CompatExt;
 use tokio::sync::watch;
-// use futures03::{FutureExt, TryFutureExt};
 
 #[doc(inline)]
 pub use actix::actors::signal::{Signal, SignalType};
@@ -59,21 +58,16 @@ pub use actix::actors::signal::{Signal, SignalType};
 /// }).unwrap();
 /// ```
 
-type ShutdownReceiver = watch::Receiver<Option<Shutdown>>; // Find a good name for this
-type ShutdownSender = watch::Sender<Option<Shutdown>>; // Check of that is really needed
-                                                       // Only used once but gives a nice symetry
-
 /// TODO
 pub struct Controller {
     /// Configured timeout for graceful shutdowns.
     timeout: Duration,
     /// Subscribed actors for the shutdown message.
     subscribers: Vec<Recipient<Shutdown>>,
-
-    // Hand this out to actors that subscribe to us
-    shutdown_receiver: ShutdownReceiver,
-    // Use this to send the shutdown message to all the actors that are subscribed to us
-    shutdown_sender: ShutdownSender,
+    /// Handed out to actors who wish to subscribe to the [`Shutdown`] message.
+    shutdown_receiver: watch::Receiver<Option<Shutdown>>,
+    /// The sender for the [`Shutdown`] message.
+    shutdown_sender: watch::Sender<Option<Shutdown>>,
 }
 
 impl Controller {
@@ -116,8 +110,15 @@ impl Controller {
         Controller::from_registry().do_send(Subscribe(addr.recipient()))
     }
 
-    /// TODO
-    pub async fn subscribe_v2() -> ShutdownReceiver {
+    /// Subscribes to the [`Shutdown`] message to handle graceful shutdown.
+    ///
+    /// Returns a receiver for the [`Shutdown`] message, to be used to gracefully
+    /// shutdown.  This sends a message to the [`Controller`] actor so will
+    /// block until this actor is running.
+    ///
+    /// TODO: The receiver of this message can not yet signal they have completed
+    /// shutdown.
+    pub async fn subscribe_v2() -> watch::Receiver<Option<Shutdown>> {
         Controller::from_registry()
             .send(SubscribeV2())
             .compat()
@@ -269,7 +270,7 @@ impl Handler<Subscribe> for Controller {
 pub struct SubscribeV2();
 
 impl Message for SubscribeV2 {
-    type Result = ShutdownReceiver;
+    type Result = watch::Receiver<Option<Shutdown>>;
 }
 
 impl Handler<SubscribeV2> for Controller {

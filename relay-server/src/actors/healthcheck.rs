@@ -59,9 +59,13 @@ pub struct Healthcheck {
 }
 
 impl Healthcheck {
-    /// Returns the singleton instance of the Healthcheck service.
+    /// Returns the [`Addr`] of the [`Healthcheck`] actor.
     ///
     /// Prior to using this, the service must be started using [`Healthcheck::start`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the service was not started using [`Healthcheck::start`] prior to this being used.
     pub fn from_registry() -> Addr<HealthcheckMessage> {
         ADDRESS.read().as_ref().unwrap().clone()
     }
@@ -127,6 +131,8 @@ impl Healthcheck {
     }
 
     /// Start this service, returning an [`Addr`] for communication.
+    ///
+    /// Blocks until the [`Controller`] is running
     pub fn start(mut self) -> Addr<HealthcheckMessage> {
         let (tx, mut rx) = mpsc::unbounded_channel::<Message<_>>();
 
@@ -157,6 +163,7 @@ impl Healthcheck {
     }
 }
 
+/// All the message types which can be sent to the [`Healthcheck`] actor.
 #[derive(Clone, Debug)]
 pub enum IsHealthy {
     /// Check if the Relay is alive at all.
