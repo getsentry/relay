@@ -555,6 +555,15 @@ pub fn light_normalize_event(
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(event, client_ip);
 
+        event.environment.apply(|environment, meta| {
+            if protocol::validate_environment(environment).is_ok() {
+                Ok(())
+            } else {
+                meta.add_error(ErrorKind::InvalidData);
+                Err(ProcessingAction::DeleteValueSoft)
+            }
+        })?;
+
         Ok(())
     })
 }
@@ -587,15 +596,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             if is_valid_platform(platform) {
                 Ok(())
             } else {
-                Err(ProcessingAction::DeleteValueSoft)
-            }
-        })?;
-
-        event.environment.apply(|environment, meta| {
-            if protocol::validate_environment(environment).is_ok() {
-                Ok(())
-            } else {
-                meta.add_error(ErrorKind::InvalidData);
                 Err(ProcessingAction::DeleteValueSoft)
             }
         })?;
