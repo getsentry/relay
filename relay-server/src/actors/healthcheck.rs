@@ -120,7 +120,7 @@ impl Healthcheck {
 
     fn handle_shutdown(&mut self) -> bool {
         self.is_shutting_down = true;
-        true // TODO: This should go away once messages are more generic
+        true // TODO(tobias): This should go away once messages are more generic
     }
 
     async fn handle(&mut self, message: HealthcheckMessage) -> bool {
@@ -131,8 +131,6 @@ impl Healthcheck {
     }
 
     /// Start this service, returning an [`Addr`] for communication.
-    ///
-    /// Blocks until the [`Controller`] is running
     pub fn start(mut self) -> Addr<HealthcheckMessage> {
         let (tx, mut rx) = mpsc::unbounded_channel::<Message<_>>();
 
@@ -163,7 +161,6 @@ impl Healthcheck {
     }
 }
 
-/// All the message types which can be sent to the [`Healthcheck`] actor.
 #[derive(Clone, Debug)]
 pub enum IsHealthy {
     /// Check if the Relay is alive at all.
@@ -173,6 +170,7 @@ pub enum IsHealthy {
     Readiness,
 }
 
+/// All the message types which can be sent to the [`Healthcheck`] actor.
 #[derive(Clone, Debug)]
 pub enum HealthcheckMessage {
     Health(IsHealthy),

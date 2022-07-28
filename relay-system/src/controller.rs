@@ -57,8 +57,6 @@ pub use actix::actors::signal::{Signal, SignalType};
 ///     Ok(())
 /// }).unwrap();
 /// ```
-
-/// TODO
 pub struct Controller {
     /// Configured timeout for graceful shutdowns.
     timeout: Duration,
@@ -116,7 +114,7 @@ impl Controller {
     /// shutdown.  This sends a message to the [`Controller`] actor so will
     /// block until this actor is running.
     ///
-    /// TODO: The receiver of this message can not yet signal they have completed
+    /// TODO(tobias): The receiver of this message can not yet signal they have completed
     /// shutdown.
     pub async fn subscribe_v2() -> watch::Receiver<Option<Shutdown>> {
         Controller::from_registry()
@@ -136,7 +134,7 @@ impl Controller {
         // don't cancel the shutdown of other actors if one actor fails.
 
         // Send the message
-        let _ = self.shutdown_sender.send(Some(Shutdown { timeout }));
+        self.shutdown_sender.send(Some(Shutdown { timeout })).ok();
 
         let futures: Vec<_> = self
             .subscribers
