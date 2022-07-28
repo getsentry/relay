@@ -81,7 +81,7 @@ pub fn is_high_cardinality_sdk(client_sdk: &Annotated<ClientSdkInfo>) -> bool {
 /// This behavior makes it possible to identify transactions for which the transaction name was
 /// not extracted as a tag on the corresponding metrics, because
 ///     source == null <=> transaction name == null
-/// See [`relay_server::metrics_extraction::transactions::get_transaction_name`].
+/// See `relay_server::metrics_extraction::transactions::get_transaction_name`.
 fn set_default_transaction_source(event: &mut Event) {
     let source = event
         .transaction_info
