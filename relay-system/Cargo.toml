@@ -15,4 +15,4 @@ failure = "0.1.8"
 futures = "0.1.28"
 futures03 = { version = "0.3", package = "futures", features = ["compat"] }
 relay-log = { path = "../relay-log" }
-tokio = { version = "1.0", features = ["rt-multi-thread"] } # in sync with reqwest
+tokio = { version = "1.0", features = ["rt-multi-thread"] }

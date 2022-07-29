@@ -132,8 +132,6 @@ impl Controller {
         // Send a shutdown signal to all registered subscribers (including self). They will report
         // when the shutdown has completed. Note that we ignore all errors to make sure that we
         // don't cancel the shutdown of other actors if one actor fails.
-
-        // Send the message
         self.shutdown_sender.send(Some(Shutdown { timeout })).ok();
 
         let futures: Vec<_> = self
@@ -183,7 +181,7 @@ impl fmt::Debug for Controller {
         f.debug_struct("Controller")
             .field("timeout", &self.timeout)
             .field("subscribers", &self.subscribers.len())
-            .finish() // TODO(tobias): Add the new fields
+            .finish()
     }
 }
 

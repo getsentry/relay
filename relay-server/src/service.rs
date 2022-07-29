@@ -119,6 +119,7 @@ impl ServiceState {
         let registry = system.registry();
 
         let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
             .enable_all()
             .on_thread_start(clone!(system, || System::set_current(system.clone())))
             .build()
