@@ -12,6 +12,7 @@
 - Refactor profile processing into its own crate. ([#1340](https://github.com/getsentry/relay/pull/1340))
 - Treat "unknown" transaction source as low cardinality, except for JS. ([#1352](https://github.com/getsentry/relay/pull/1352))
 ## 22.7.0
+- Change to the internals of the healthcheck endpoint. ([#1349](https://github.com/getsentry/relay/pull/1349))
 
 **Features**:
 
