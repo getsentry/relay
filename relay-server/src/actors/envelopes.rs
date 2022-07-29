@@ -1879,6 +1879,7 @@ impl EnvelopeProcessor {
             max_secs_in_future,
             breakdowns_config,
         );
+        Ok(())
     }
 
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
@@ -1910,7 +1911,7 @@ impl EnvelopeProcessor {
 
             self.finalize_event(state)?;
 
-            self.light_normalize_event(state);
+            self.light_normalize_event(state)?;
 
             self.extract_transaction_metrics(state)?;
 
