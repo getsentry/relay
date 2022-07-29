@@ -253,7 +253,7 @@ fn get_transaction_name(
             }
             _ => {
                 name_used = "placeholder";
-                Some("<< unparametrized >>".to_owned())
+                Some("<< unparameterized >>".to_owned())
             }
         }
     };
@@ -1374,7 +1374,7 @@ mod tests {
         "#;
 
         let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
-        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
     }
 
     #[test]
@@ -1392,7 +1392,7 @@ mod tests {
         "#;
 
         let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
-        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
     }
 
     #[test]
@@ -1552,7 +1552,7 @@ mod tests {
         "#;
 
         let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
-        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
     }
 
     #[test]
@@ -1570,7 +1570,7 @@ mod tests {
         "#;
 
         let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
-        assert_eq!(name, Some("<< unparametrized >>".to_owned()));
+        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
     }
 
     #[test]
