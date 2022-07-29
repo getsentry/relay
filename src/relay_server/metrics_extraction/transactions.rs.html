@@ -1893,7 +1893,7 @@
             }
             <span class="kw">_</span> =&gt; {
                 <span class="ident">name_used</span> <span class="op">=</span> <span class="string">&quot;placeholder&quot;</span>;
-                <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparametrized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>())
+                <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>())
             }
         }
     };
@@ -3014,7 +3014,7 @@
         &quot;#</span>;
 
         <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::Strict</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparametrized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -3032,7 +3032,7 @@
         &quot;#</span>;
 
         <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparametrized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -3192,7 +3192,7 @@
         &quot;#</span>;
 
         <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::Strict</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparametrized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -3210,7 +3210,7 @@
         &quot;#</span>;
 
         <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">extract_transaction_name</span>(<span class="ident">json</span>, <span class="ident">AcceptTransactionNames::ClientBased</span>);
-        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparametrized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
+        <span class="macro">assert_eq!</span>(<span class="ident">name</span>, <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.<span class="ident">to_owned</span>()));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
