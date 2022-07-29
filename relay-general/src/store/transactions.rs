@@ -81,7 +81,7 @@ pub fn is_high_cardinality_sdk(event: &Event) -> bool {
         "sentry.javascript.vue",
         "sentry.javascript.nextjs",
         "sentry.php.laravel",
-        "sentry.php.symphony",
+        "sentry.php.symfony",
     ]
     .contains(&sdk_name)
     {
