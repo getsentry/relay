@@ -618,7 +618,7 @@ mod tests {
 
     use crate::metrics_extraction::TaggingRule;
     use insta::assert_debug_snapshot;
-    use relay_general::protocol::{ClientSdkInfo, TransactionInfo, User};
+    use relay_general::protocol::User;
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
