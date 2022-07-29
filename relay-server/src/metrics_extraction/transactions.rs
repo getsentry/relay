@@ -569,7 +569,7 @@ fn extract_transaction_metrics_inner(
 ///
 /// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order.
 /// If its order is changed, this function needs to be changed.
-fn get_eventuser_tag<'a>(user: &'a User) -> Option<String> {
+fn get_eventuser_tag(user: &User) -> Option<String> {
     if let Some(id) = user.id.as_str() {
         return Some(format!("id:{id}"));
     }
@@ -1693,7 +1693,7 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(get_eventuser_tag(&user).unwrap().to_string(), "id:ident");
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "id:ident");
 
         let user = User {
             username: Annotated::new("username".to_owned()),
@@ -1702,10 +1702,7 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(
-            get_eventuser_tag(&user).unwrap().to_string(),
-            "username:username"
-        );
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "username:username");
 
         let user = User {
             email: Annotated::new("email".to_owned()),
@@ -1713,17 +1710,14 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(get_eventuser_tag(&user).unwrap().to_string(), "email:email");
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "email:email");
 
         let user = User {
             ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
             ..User::default()
         };
 
-        assert_eq!(
-            get_eventuser_tag(&user).unwrap().to_string(),
-            "ip:127.0.0.1"
-        );
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "ip:127.0.0.1");
 
         let user = User::default();
 
