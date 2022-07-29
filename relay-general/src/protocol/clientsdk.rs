@@ -64,6 +64,19 @@ pub struct ClientSdkInfo {
     pub other: Object<Value>,
 }
 
+impl ClientSdkInfo {
+    pub fn has_integration<T: AsRef<str>>(&self, integration: T) -> bool {
+        if let Some(integrations) = self.integrations.value() {
+            for x in integrations {
+                if x.as_str().unwrap_or_default() == integration.as_ref() {
+                    return true;
+                }
+            }
+        };
+        false
+    }
+}
+
 #[cfg(test)]
 use crate::testutils::{assert_eq_dbg, assert_eq_str};
 
