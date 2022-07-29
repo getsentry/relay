@@ -1459,7 +1459,7 @@ mod tests {
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
             "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
-            "tags": {"http.method": "OPTIONS"}
+            "request": {"method": "OPTIONS"}
         }
         "#;
 
@@ -1477,7 +1477,7 @@ mod tests {
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
             "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
-            "tags": {"http.method": "OPTIONS"}
+            "request": {"method": "OPTIONS"}
         }
         "#;
 
@@ -1495,7 +1495,7 @@ mod tests {
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
             "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
-            "tags": {"http.method": "GET"}
+            "request": {"method": "GET"}
         }
         "#;
 

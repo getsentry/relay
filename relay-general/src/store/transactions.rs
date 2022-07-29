@@ -93,9 +93,13 @@ pub fn is_high_cardinality_sdk(event: &Event) -> bool {
         return true;
     }
 
-    let is_http_method_options = event.get_tag_value("http.method") == Some("OPTIONS");
+    let http_method = event
+        .request
+        .value()
+        .and_then(|r| r.method.as_str())
+        .unwrap_or_default();
     if sdk_name == "sentry.javascript.node"
-        && is_http_method_options
+        && http_method.eq_ignore_ascii_case("options")
         && client_sdk.has_integration("Express")
     {
         return true;
