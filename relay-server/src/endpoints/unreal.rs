@@ -1,5 +1,5 @@
 use actix_web::{actix::ResponseFuture, HttpRequest, HttpResponse};
-use futures::Future;
+use futures01::Future;
 
 use relay_general::protocol::EventId;
 

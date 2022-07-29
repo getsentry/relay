@@ -3,7 +3,7 @@
 use actix::prelude::*;
 use actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use bytes::{Bytes, BytesMut};
-use futures::Future;
+use futures01::Future;
 use serde::Serialize;
 
 use relay_general::protocol::EventId;

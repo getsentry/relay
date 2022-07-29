@@ -11,8 +11,8 @@
 use std::io;
 
 use failure::Fail;
-use futures::prelude::*;
-use futures03::{FutureExt, TryFutureExt, TryStreamExt};
+use futures::{FutureExt, TryFutureExt, TryStreamExt};
+use futures01::prelude::*;
 use serde::de::DeserializeOwned;
 
 use relay_config::HttpEncoding;

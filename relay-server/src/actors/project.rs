@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
-use futures::{future::Shared, sync::oneshot, Future};
+use futures01::{future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;

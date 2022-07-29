@@ -1,5 +1,5 @@
 use actix::{Message, Recipient};
-use futures::{Async, Future, Poll};
+use futures01::{Async, Future, Poll};
 
 /// Message send on the notification channel when the tracked future finishes or is disposed.
 pub struct TrackedFutureFinished;
@@ -83,7 +83,7 @@ mod test {
 
     use actix::{Actor, Context, Handler};
     use failure::_core::time::Duration;
-    use futures::sync::oneshot::{channel, Sender};
+    use futures01::sync::oneshot::{channel, Sender};
     use tokio_timer::Timeout;
 
     struct TestActor {
@@ -127,8 +127,8 @@ mod test {
     fn test_tracked_future_termination() {
         relay_test::setup();
         let mut futures = [
-            Some(futures::future::ok::<bool, ()>(true)),
-            Some(futures::future::err::<bool, ()>(())),
+            Some(futures01::future::ok::<bool, ()>(true)),
+            Some(futures01::future::err::<bool, ()>(())),
         ];
         for future in &mut futures {
             relay_test::block_fn(|| {

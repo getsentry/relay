@@ -2,7 +2,7 @@ use actix_web::actix::*;
 use actix_web::http::StatusCode;
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
-use futures::prelude::*;
+use futures01::prelude::*;
 use serde::de::DeserializeOwned;
 
 use relay_auth::{RelayId, UnpackError};

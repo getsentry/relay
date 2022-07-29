@@ -9,7 +9,7 @@ use actix_web::http::{header, StatusCode};
 use actix_web::middleware::cors::{Cors, CorsBuilder};
 use actix_web::{error::PayloadError, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
-use futures::prelude::*;
+use futures01::prelude::*;
 use serde::Deserialize;
 
 use relay_common::{clone, tryf};

@@ -32,7 +32,7 @@ use std::{
 };
 
 use actix::{System, SystemRunner};
-use futures::{future, IntoFuture};
+use futures01::{future, IntoFuture};
 
 pub use actix_web::test::*;
 use tokio_timer::Delay;

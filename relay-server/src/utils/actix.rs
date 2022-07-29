@@ -1,7 +1,7 @@
 use ::actix::dev::{MessageResponse, ResponseChannel};
 use ::actix::fut::IntoActorFuture;
 use ::actix::prelude::*;
-use futures::prelude::*;
+use futures01::prelude::*;
 
 pub enum Response<T, E> {
     Reply(Result<T, E>),

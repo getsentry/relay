@@ -17,7 +17,7 @@ use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::{Fail, ResultExt};
-use futures::future::Future;
+use futures01::future::Future;
 #[cfg(feature = "processing")]
 use rdkafka::producer::BaseRecord;
 #[cfg(feature = "processing")]

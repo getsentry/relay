@@ -22,7 +22,7 @@ clap = { version = "2.33.0", default-features = false, features = ["wrap_help"] 
 console = "0.10.0"
 dialoguer = "0.5.0"
 failure = "0.1.8"
-futures = "0.1.28"
+futures01 = { version = "0.1.28", package = "futures" }
 hostname = "0.3.1"
 lazy_static = "1.4.0"
 relay-common = { path = "../relay-common" }

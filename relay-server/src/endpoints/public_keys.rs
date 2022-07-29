@@ -1,5 +1,5 @@
 use actix_web::{actix::*, Error, Json};
-use futures::prelude::*;
+use futures01::prelude::*;
 
 use crate::actors::relays::{GetRelays, GetRelaysResult, RelayCache};
 use crate::extractors::SignedJson;

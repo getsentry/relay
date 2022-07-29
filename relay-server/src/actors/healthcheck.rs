@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use actix::SystemService;
-use futures03::compat::Future01CompatExt;
+use futures::compat::Future01CompatExt;
 use parking_lot::RwLock;
 use tokio::sync::{mpsc, oneshot};
 

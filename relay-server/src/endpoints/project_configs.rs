@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::{Error, FromRequest, Json};
-use futures::{future, Future};
+use futures01::{future, Future};
 use serde::{Deserialize, Serialize};
 
 use relay_common::ProjectKey;

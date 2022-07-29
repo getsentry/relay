@@ -1904,7 +1904,7 @@ impl Handler<MergeBuckets> for Aggregator {
 
 #[cfg(test)]
 mod tests {
-    use futures::future::Future;
+    use futures01::future::Future;
     use std::sync::{Arc, RwLock};
 
     use super::*;

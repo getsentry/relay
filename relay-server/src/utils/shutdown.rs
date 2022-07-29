@@ -1,5 +1,5 @@
 use actix::prelude::*;
-use futures::prelude::*;
+use futures01::prelude::*;
 
 pub struct DropGuardedFuture<F: Sized> {
     name: &'static str,
