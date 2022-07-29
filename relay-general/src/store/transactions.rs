@@ -51,6 +51,49 @@ pub fn validate_timestamps(
     }
 }
 
+pub fn validate_transaction(event: &mut Event) -> ProcessingResult {
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return Ok(());
+    }
+
+    validate_timestamps(event)?;
+
+    let err_trace_context_required = Err(ProcessingAction::InvalidTransaction(
+        "trace context hard-required for transaction events",
+    ));
+
+    let contexts = match event.contexts.value_mut() {
+        Some(contexts) => contexts,
+        None => return err_trace_context_required,
+    };
+
+    let trace_context = match contexts.get_mut("trace").map(Annotated::value_mut) {
+        Some(Some(trace_context)) => trace_context,
+        _ => return err_trace_context_required,
+    };
+
+    match trace_context {
+        ContextInner(Context::Trace(trace_context)) => {
+            if trace_context.trace_id.value().is_none() {
+                return Err(ProcessingAction::InvalidTransaction(
+                    "trace context is missing trace_id",
+                ));
+            }
+            if trace_context.span_id.value().is_none() {
+                return Err(ProcessingAction::InvalidTransaction(
+                    "trace context is missing span_id",
+                ));
+            }
+
+            trace_context.op.get_or_insert_with(|| "default".to_owned());
+            Ok(())
+        }
+        _ => Err(ProcessingAction::InvalidTransaction(
+            "context at event.contexts.trace must be of type trace.",
+        )),
+    }
+}
+
 impl Processor for TransactionsProcessor {
     fn process_event(
         &mut self,
@@ -73,44 +116,7 @@ impl Processor for TransactionsProcessor {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
-        validate_timestamps(event)?;
-
-        let err_trace_context_required = Err(ProcessingAction::InvalidTransaction(
-            "trace context hard-required for transaction events",
-        ));
-
-        let contexts = match event.contexts.value_mut() {
-            Some(contexts) => contexts,
-            None => return err_trace_context_required,
-        };
-
-        let trace_context = match contexts.get_mut("trace").map(Annotated::value_mut) {
-            Some(Some(trace_context)) => trace_context,
-            _ => return err_trace_context_required,
-        };
-
-        match trace_context {
-            ContextInner(Context::Trace(trace_context)) => {
-                if trace_context.trace_id.value().is_none() {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "trace context is missing trace_id",
-                    ));
-                }
-
-                if trace_context.span_id.value().is_none() {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "trace context is missing span_id",
-                    ));
-                }
-
-                trace_context.op.get_or_insert_with(|| "default".to_owned());
-            }
-            _ => {
-                return Err(ProcessingAction::InvalidTransaction(
-                    "context at event.contexts.trace must be of type trace.",
-                ));
-            }
-        }
+        validate_transaction(event)?;
 
         let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
 
