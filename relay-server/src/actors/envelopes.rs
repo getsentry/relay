@@ -31,7 +31,7 @@ use relay_general::protocol::{
     IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
 };
-use relay_general::store::{light_normalize_event, ClockDriftProcessor};
+use relay_general::store::{light_normalize_event, validate_transaction, ClockDriftProcessor};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
@@ -1877,6 +1877,10 @@ impl EnvelopeProcessor {
         let max_secs_in_future = Some(self.config.max_secs_in_future());
 
         let breakdowns_config = state.project_state.config.breakdowns_v2.clone();
+
+        if let Some(event) = state.event.value_mut() {
+            validate_transaction(event);
+        }
 
         light_normalize_event(
             &mut state.event,
