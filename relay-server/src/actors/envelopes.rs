@@ -1853,22 +1853,10 @@ impl EnvelopeProcessor {
         }
     }
 
-    fn light_normalize_event(&self, state: &mut ProcessEnvelopeState) {
-        /**
-         * `event` fields that are modified:
-         * - release, lighted
-         * - logentry, ???
-         * - exceptions
-         * - user.ip_address
-         * - request.url.host
-         * - request.headers (for the user agent)
-         *
-         * extracted tags, that must be normalized:
-         * - release
-         * - dist
-         * - environment
-         * - transaction
-         */
+    fn light_normalize_event(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
         let client_ip = state.envelope.meta().client_addr().map(IpAddr::from);
         let user_agent = state.envelope.meta().user_agent();
 
@@ -1924,7 +1912,7 @@ impl EnvelopeProcessor {
 
             self.light_normalize_event(state);
 
-            self.extract_transaction_metrics(state)?; // tx metrics
+            self.extract_transaction_metrics(state)?;
 
             self.sample_envelope(state)?;
 
