@@ -127,7 +127,7 @@ init-submodules:
 setup-git: .git/hooks/pre-commit init-submodules
 .PHONY: setup-git
 
-setup-venv: .venv/bin/python
+setup-venv: .venv/bin/python .venv/python-requirements
 .PHONY: setup-venv
 
 devserver:
@@ -151,12 +151,16 @@ clean-target-dir:
 	$$RELAY_PYTHON_VERSION -m venv --copies .venv
 	.venv/bin/pip install -U pip wheel
 
+.venv/python-requirements: requirements-dev.txt
 	@# Work around https://github.com/confluentinc/confluent-kafka-python/issues/1190
 	@if [ "$$(uname -sm)" = "Darwin arm64" ]; then \
 		echo "Using 'librdkafka' from homebrew to build confluent-kafka"; \
 		export C_INCLUDE_PATH="$$(brew --prefix librdkafka)/include"; \
 	fi; \
 	.venv/bin/pip install -U -r requirements-dev.txt
+	# Bump the mtime of an empty file.
+	# Make will re-run 'pip install' if the mtime on requirements-dev.txt is higher again.
+	touch .venv/python-requirements
 
 .git/hooks/pre-commit:
 	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook pre-commit
