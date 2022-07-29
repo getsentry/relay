@@ -545,6 +545,14 @@ impl Event {
             .and_then(|info| info.source.value())
             .unwrap_or(&TransactionSource::Unknown)
     }
+
+    pub fn get_tag_value(&self, tag_key: &str) -> Option<&str> {
+        if let Some(tags) = self.tags.value() {
+            tags.get(tag_key)
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]
