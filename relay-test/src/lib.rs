@@ -125,7 +125,7 @@ where
 /// Returns a future which completes after the requested delay.
 /// ```
 /// use std::time::Duration;
-/// use futures::future::Future;
+/// use futures01::future::Future;
 ///
 /// relay_test::setup();
 /// relay_test::block_fn(|| {
