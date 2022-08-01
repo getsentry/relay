@@ -552,7 +552,7 @@ fn extract_transaction_metrics_inner(
 ///   MD5 is used to efficiently look up the current event user for an event, and if there is a
 ///   collision it seems that this code will fetch an event user with potentially different values
 ///   for everything that is in `defaults`:
-///   https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L1058-L1060
+///   <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L1058-L1060>
 ///
 /// The performance product runs a discover query such as `count_unique(user)`, which maps to two
 /// things:
@@ -562,10 +562,10 @@ fn extract_transaction_metrics_inner(
 ///
 /// A promoted tag is a tag that snuba pulls out into its own column. In this case it pulls out the
 /// `sentry:user` tag from the event payload:
-/// https://github.com/getsentry/snuba/blob/430763e67e30957c89126e62127e34051eb52fd6/snuba/datasets/transactions_processor.py#L151
+/// <https://github.com/getsentry/snuba/blob/430763e67e30957c89126e62127e34051eb52fd6/snuba/datasets/transactions_processor.py#L151>
 ///
 /// Sentry's processing pipeline defers to `sentry.models.EventUser` to produce the `sentry:user` tag
-/// here: https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794
+/// here: <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794>
 ///
 /// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:
 /// https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
