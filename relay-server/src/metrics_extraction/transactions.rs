@@ -1682,7 +1682,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_eventuser() {
+    fn test_get_eventuser_tag() {
         // Note: If this order changes,
         // https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
         // has to be changed. Though it is probably not a good idea!
