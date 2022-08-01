@@ -568,7 +568,7 @@ fn extract_transaction_metrics_inner(
 /// here: <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794>
 ///
 /// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:
-/// https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
+/// <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18>
 /// If its order is changed, this function needs to be changed.
 fn get_eventuser_tag(user: &User) -> Option<String> {
     if let Some(id) = user.id.as_str() {
