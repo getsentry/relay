@@ -541,7 +541,7 @@ fn extract_transaction_metrics_inner(
     }
 }
 
-/// Compute the transaction event's "user" as close as possible to how users are determined in
+/// Compute the transaction event's "user" tag as close as possible to how users are determined in
 /// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
 /// column in Discover for Transactions, barring:
 ///
