@@ -12,6 +12,7 @@
 - Refactor profile processing into its own crate. ([#1340](https://github.com/getsentry/relay/pull/1340))
 - Treat "unknown" transaction source as low cardinality for safe SDKs. ([#1352](https://github.com/getsentry/relay/pull/1352), [#1356](https://github.com/getsentry/relay/pull/1356))
 - Conditionally write a default transaction source to the transaction payload. ([#1354](https://github.com/getsentry/relay/pull/1354))
+- Change to the internals of the healthcheck endpoint. ([#1349](https://github.com/getsentry/relay/pull/1349))
 
 **Bug Fixes**:
 

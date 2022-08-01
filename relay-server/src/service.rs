@@ -8,6 +8,7 @@ use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
 
 use relay_aws_extension::AwsExtension;
+use relay_common::clone;
 use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
@@ -108,6 +109,7 @@ impl From<Context<ServerErrorKind>> for ServerError {
 #[derive(Clone)]
 pub struct ServiceState {
     config: Arc<Config>,
+    _runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl ServiceState {
@@ -115,6 +117,16 @@ impl ServiceState {
     pub fn start(config: Arc<Config>) -> Result<Self, ServerError> {
         let system = System::current();
         let registry = system.registry();
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .on_thread_start(clone!(system, || System::set_current(system.clone())))
+            .build()
+            .unwrap();
+
+        // Enter the tokio runtime so we can start spawning tasks from the outside.
+        let _guard = runtime.enter();
 
         let upstream_relay = UpstreamRelay::new(config.clone());
         registry.set(Arbiter::start(|_| upstream_relay));
@@ -136,7 +148,9 @@ impl ServiceState {
 
         let project_cache = ProjectCache::new(config.clone(), redis_pool).start();
         registry.set(project_cache.clone());
-        registry.set(Healthcheck::new(config.clone()).start());
+
+        Healthcheck::new(config.clone()).start(); // TODO(tobias): Registry is implicit
+
         registry.set(RelayCache::new(config.clone()).start());
         registry
             .set(Aggregator::new(config.aggregator_config(), project_cache.recipient()).start());
@@ -150,7 +164,10 @@ impl ServiceState {
             }
         }
 
-        Ok(ServiceState { config })
+        Ok(ServiceState {
+            config,
+            _runtime: Arc::new(runtime),
+        })
     }
 
     /// Returns an atomically counted reference to the config.
