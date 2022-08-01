@@ -1867,7 +1867,7 @@ impl EnvelopeProcessor {
         let breakdowns_config = state.project_state.config.breakdowns_v2.clone();
 
         if let Some(event) = state.event.value_mut() {
-            validate_transaction(event);
+            validate_transaction(event).map_err(|e| ProcessingError::ProcessingFailed(e))?;
         }
 
         light_normalize_event(
@@ -1878,7 +1878,8 @@ impl EnvelopeProcessor {
             max_secs_in_past,
             max_secs_in_future,
             breakdowns_config,
-        );
+        )
+        .map_err(|e| ProcessingError::ProcessingFailed(e))?;
         Ok(())
     }
 
