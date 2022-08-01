@@ -1,7 +1,7 @@
 use actix_web::multipart::{Multipart, MultipartItem};
 use actix_web::{actix::ResponseFuture, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
-use futures01::{future, Future, Stream};
+use futures01::{future, stream, Future, Stream};
 
 use relay_general::protocol::EventId;
 
@@ -59,25 +59,22 @@ fn get_embedded_minidump(
         None => return Box::new(future::ok(None)),
     };
 
-    let f = Multipart::new(
-        Ok(boundary.to_string()),
-        futures01::stream::once(Ok(payload)),
-    )
-    .map_err(MultipartError::InvalidMultipart)
-    .filter_map(|item| {
-        if let MultipartItem::Field(field) = item {
-            if let Some(content_disposition) = field.content_disposition() {
-                if content_disposition.get_name() == Some(MINIDUMP_FIELD_NAME) {
-                    return Some(field);
+    let f = Multipart::new(Ok(boundary.to_string()), stream::once(Ok(payload)))
+        .map_err(MultipartError::InvalidMultipart)
+        .filter_map(|item| {
+            if let MultipartItem::Field(field) = item {
+                if let Some(content_disposition) = field.content_disposition() {
+                    if content_disposition.get_name() == Some(MINIDUMP_FIELD_NAME) {
+                        return Some(field);
+                    }
                 }
             }
-        }
-        None
-    })
-    .and_then(move |field| consume_field(field, max_size))
-    .into_future()
-    .map_err(|(err, _)| BadStoreRequest::InvalidMultipart(err))
-    .map(|(data, _)| data.map(Bytes::from));
+            None
+        })
+        .and_then(move |field| consume_field(field, max_size))
+        .into_future()
+        .map_err(|(err, _)| BadStoreRequest::InvalidMultipart(err))
+        .map(|(data, _)| data.map(Bytes::from));
 
     Box::new(f)
 }
