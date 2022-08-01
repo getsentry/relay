@@ -79,16 +79,10 @@
 <span id="72">72</span>
 <span id="73">73</span>
 <span id="74">74</span>
-<span id="75">75</span>
-<span id="76">76</span>
-<span id="77">77</span>
-<span id="78">78</span>
-<span id="79">79</span>
 </pre><pre class="rust"><code><span class="doccomment">//! A simple healthcheck endpoint for the relay.</span>
 <span class="kw">use</span> <span class="ident">::actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">Error</span>, <span class="ident">HttpResponse</span>};
 <span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">futures03</span>::{<span class="ident">FutureExt</span>, <span class="ident">TryFutureExt</span>};
 <span class="kw">use</span> <span class="ident">serde::Serialize</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServiceApp</span>;
@@ -119,15 +113,11 @@
 }
 
 <span class="kw">fn</span> <span class="ident">healthcheck_impl</span>(<span class="ident">message</span>: <span class="ident">IsHealthy</span>) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="kw">async</span> {
-        <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">Healthcheck::from_registry</span>();
-        <span class="ident">addr</span>.<span class="ident">send</span>(<span class="ident">message</span>.<span class="ident">into</span>()).<span class="kw">await</span>
-    };
-
     <span class="ident">Box::new</span>(
-        <span class="ident">fut</span>.<span class="ident">boxed_local</span>()
-            .<span class="ident">compat</span>()
+        <span class="ident">Healthcheck::from_registry</span>()
+            .<span class="ident">send</span>(<span class="ident">message</span>)
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+            .<span class="ident">flatten</span>()
             .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">is_healthy</span><span class="op">|</span> {
                 <span class="kw">if</span> <span class="op">!</span><span class="ident">is_healthy</span> {
                     <span class="prelude-val">Err</span>(())
