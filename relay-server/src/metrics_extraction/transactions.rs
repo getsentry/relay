@@ -96,8 +96,8 @@ const METRIC_NAMESPACE: MetricNamespace = MetricNamespace::Transactions;
 
 fn get_trace_context(event: &Event) -> Option<&TraceContext> {
     let contexts = event.contexts.value()?;
-    let trace = contexts.get("trace").map(Annotated::value);
-    if let Some(Some(ContextInner(Context::Trace(trace_context)))) = trace {
+    let trace = contexts.get("trace").and_then(Annotated::value);
+    if let Some(ContextInner(Context::Trace(trace_context))) = trace {
         return Some(trace_context.as_ref());
     }
 
