@@ -553,6 +553,13 @@ impl Event {
             None
         }
     }
+
+    pub fn has_module(&self, module_name: &str) -> bool {
+        self.modules
+            .value()
+            .map(|m| m.contains_key(module_name))
+            .unwrap_or(false)
+    }
 }
 
 #[cfg(test)]
