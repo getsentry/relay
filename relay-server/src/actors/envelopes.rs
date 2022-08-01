@@ -1859,11 +1859,9 @@ impl EnvelopeProcessor {
     ) -> Result<(), ProcessingError> {
         let client_ip = state.envelope.meta().client_addr().map(IpAddr::from);
         let user_agent = state.envelope.meta().user_agent();
-
         let received_at = Some(state.envelope_context.received_at);
         let max_secs_in_past = Some(self.config.max_secs_in_past());
         let max_secs_in_future = Some(self.config.max_secs_in_future());
-
         let breakdowns_config = state.project_state.config.breakdowns_v2.clone();
 
         if let Some(event) = state.event.value_mut() {
