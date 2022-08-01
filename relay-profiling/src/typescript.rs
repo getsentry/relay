@@ -39,7 +39,10 @@ pub fn parse_typescript_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError>
         return Err(ProfileError::NotEnoughSamples);
     }
 
-    Ok(payload.to_vec())
+    match serde_json::to_vec(&profile) {
+        Ok(payload) => Ok(payload),
+        Err(_) => Err(ProfileError::CannotSerializePayload),
+    }
 }
 
 #[cfg(test)]
