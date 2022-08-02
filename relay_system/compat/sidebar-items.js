@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["send","Sends a message to an actor using `actix` 0.7 from a `tokio` 1.0 context."]]});

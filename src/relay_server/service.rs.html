@@ -292,6 +292,23 @@
 <span id="285">285</span>
 <span id="286">286</span>
 <span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
@@ -302,6 +319,7 @@
 <span class="kw">use</span> <span class="ident">listenfd::ListenFd</span>;
 
 <span class="kw">use</span> <span class="ident">relay_aws_extension::AwsExtension</span>;
+<span class="kw">use</span> <span class="ident">relay_common::clone</span>;
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics::Aggregator</span>;
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
@@ -402,6 +420,7 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ServiceState</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
+    <span class="ident">_runtime</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">tokio::runtime::Runtime</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ServiceState</span> {
@@ -409,6 +428,16 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">system</span> <span class="op">=</span> <span class="ident">System::current</span>();
         <span class="kw">let</span> <span class="ident">registry</span> <span class="op">=</span> <span class="ident">system</span>.<span class="ident">registry</span>();
+
+        <span class="kw">let</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">tokio::runtime::Builder::new_multi_thread</span>()
+            .<span class="ident">worker_threads</span>(<span class="number">1</span>)
+            .<span class="ident">enable_all</span>()
+            .<span class="ident">on_thread_start</span>(<span class="macro">clone!</span>(<span class="ident">system</span>, <span class="op">|</span><span class="op">|</span> <span class="ident">System::set_current</span>(<span class="ident">system</span>.<span class="ident">clone</span>())))
+            .<span class="ident">build</span>()
+            .<span class="ident">unwrap</span>();
+
+        <span class="comment">// Enter the tokio runtime so we can start spawning tasks from the outside.</span>
+        <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">runtime</span>.<span class="ident">enter</span>();
 
         <span class="kw">let</span> <span class="ident">upstream_relay</span> <span class="op">=</span> <span class="ident">UpstreamRelay::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>());
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">upstream_relay</span>));
@@ -430,7 +459,9 @@
 
         <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">ProjectCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>).<span class="ident">start</span>();
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">project_cache</span>.<span class="ident">clone</span>());
-        <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Healthcheck::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>());
+
+        <span class="ident">Healthcheck::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>(); <span class="comment">// TODO(tobias): Registry is implicit</span>
+
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">RelayCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>());
         <span class="ident">registry</span>
             .<span class="ident">set</span>(<span class="ident">Aggregator::new</span>(<span class="ident">config</span>.<span class="ident">aggregator_config</span>(), <span class="ident">project_cache</span>.<span class="ident">recipient</span>()).<span class="ident">start</span>());
@@ -444,7 +475,10 @@
             }
         }
 
-        <span class="prelude-val">Ok</span>(<span class="ident">ServiceState</span> { <span class="ident">config</span> })
+        <span class="prelude-val">Ok</span>(<span class="ident">ServiceState</span> {
+            <span class="ident">config</span>,
+            <span class="ident">_runtime</span>: <span class="ident">Arc::new</span>(<span class="ident">runtime</span>),
+        })
     }
 
     <span class="doccomment">/// Returns an atomically counted reference to the config.</span>
