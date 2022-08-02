@@ -1,14 +1,13 @@
 use std::sync::Arc;
 
 use actix::SystemService;
-use futures03::compat::Future01CompatExt;
 use parking_lot::RwLock;
 use tokio::sync::{mpsc, oneshot};
 
 use relay_config::{Config, RelayMode};
 use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
-use relay_system::{Controller, Shutdown};
+use relay_system::{compat, Controller, Shutdown};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::RelayGauges;
@@ -84,7 +83,7 @@ impl Healthcheck {
         let upstream = UpstreamRelay::from_registry();
 
         if self.config.relay_mode() == RelayMode::Managed {
-            let fut = upstream.send(IsNetworkOutage).compat();
+            let fut = compat::send(upstream.clone(), IsNetworkOutage);
             tokio::spawn(async move {
                 if let Ok(is_outage) = fut.await {
                     metric!(gauge(RelayGauges::NetworkOutage) = if is_outage { 1 } else { 0 });
@@ -93,25 +92,21 @@ impl Healthcheck {
         }
 
         match message {
-            IsHealthy::Liveness => true, // Liveness always returns true
+            IsHealthy::Liveness => true,
             IsHealthy::Readiness => {
                 if self.is_shutting_down {
                     return false;
                 }
 
                 if self.config.requires_auth()
-                    && !upstream
-                        .send(IsAuthenticated)
-                        .compat()
+                    && !compat::send(upstream, IsAuthenticated)
                         .await
                         .unwrap_or(false)
                 {
                     return false;
                 }
 
-                Aggregator::from_registry()
-                    .send(AcceptsMetrics)
-                    .compat()
+                compat::send(Aggregator::from_registry(), AcceptsMetrics)
                     .await
                     .unwrap_or(false)
             }

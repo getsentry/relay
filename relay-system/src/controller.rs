@@ -12,6 +12,8 @@ use tokio::sync::watch;
 #[doc(inline)]
 pub use actix::actors::signal::{Signal, SignalType};
 
+use crate::compat;
+
 /// Actor to start and gracefully stop an actix system.
 ///
 /// This actor contains a static `run` method which will run an actix system and block the current
@@ -80,6 +82,9 @@ impl Controller {
         F: FnOnce() -> Result<R, E>,
     {
         let sys = System::new("relay");
+
+        // TODO
+        compat::init();
 
         // Run the factory and exit early if an error happens. The return value of the factory is
         // discarded for convenience, to allow shorthand notations.
