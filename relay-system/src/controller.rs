@@ -83,7 +83,6 @@ impl Controller {
     {
         let sys = System::new("relay");
 
-        // TODO
         compat::init();
 
         // Run the factory and exit early if an error happens. The return value of the factory is
