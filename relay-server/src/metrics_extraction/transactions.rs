@@ -1653,8 +1653,7 @@ mod tests {
                     "value": 4
                 },
                 "stall_total_time": {
-                    "value": 4,
-                    "unit": "millisecond"
+                    "value": 4
                 }
             }
         }"#;

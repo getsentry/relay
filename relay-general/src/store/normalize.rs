@@ -111,9 +111,11 @@ pub fn compute_measurements(transaction_duration_ms: f64, measurements: &mut Mea
             .get("stall_total_time")
             .and_then(Annotated::value)
         {
-            if stall_total_time.unit.value()
-                == Some(&MetricUnit::Duration(DurationUnit::MilliSecond))
-            {
+            if matches!(
+                stall_total_time.unit.value(),
+                // Accept milliseconds or None, but not other units
+                Some(&MetricUnit::Duration(DurationUnit::MilliSecond) | &MetricUnit::None) | None
+            ) {
                 if let Some(stall_total_time) = stall_total_time.value.0 {
                     let stall_percentage = Measurement {
                         value: (stall_total_time / transaction_duration_ms).into(),
