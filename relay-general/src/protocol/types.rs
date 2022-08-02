@@ -614,6 +614,14 @@ impl FromValue for IpAddr {
     }
 }
 
+impl FromStr for IpAddr {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        IpAddr::parse(value).map_err(|_| ())
+    }
+}
+
 /// An error used when parsing `Level`.
 #[derive(Debug, Fail)]
 #[fail(display = "invalid level")]
