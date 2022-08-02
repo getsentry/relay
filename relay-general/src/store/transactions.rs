@@ -1,3 +1,5 @@
+use relay_common::SpanStatus;
+
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
@@ -103,6 +105,35 @@ pub fn is_high_cardinality_sdk(event: &Event) -> bool {
         && client_sdk.has_integration("Express")
     {
         return true;
+    }
+
+    if sdk_name == "sentry.ruby" && event.has_module("rack") {
+        let trace = event
+            .contexts
+            .value()
+            .and_then(|c| c.get("trace"))
+            .and_then(Annotated::value);
+        if let Some(ContextInner(Context::Trace(trace_context))) = trace {
+            let status = trace_context.status.value().unwrap_or(&SpanStatus::Unknown);
+            if [
+                // See https://github.com/getsentry/sentry-ruby/blob/ad4828f6d8d60e98217b2edb1ab003fb627d6bdb/sentry-ruby/lib/sentry/span.rb#L7-L19
+                SpanStatus::InvalidArgument,
+                SpanStatus::Unauthenticated,
+                SpanStatus::PermissionDenied,
+                SpanStatus::NotFound,
+                SpanStatus::AlreadyExists,
+                SpanStatus::ResourceExhausted,
+                SpanStatus::Cancelled,
+                SpanStatus::InternalError,
+                SpanStatus::Unimplemented,
+                SpanStatus::Unavailable,
+                SpanStatus::DeadlineExceeded,
+            ]
+            .contains(status)
+            {
+                return true;
+            }
+        }
     }
 
     false
@@ -1122,5 +1153,54 @@ mod tests {
           ]
         }
         "###);
+    }
+
+    #[test]
+    fn test_is_high_cardinality_sdk_ruby_ok() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+
+        }
+        "#;
+        let event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(!is_high_cardinality_sdk(&event.0.unwrap()));
+    }
+
+    #[test]
+    fn test_is_high_cardinality_sdk_ruby_error() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "op": "rails.request",
+                    "status": "internal_error"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+
+        }
+        "#;
+        let event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(!event.meta().has_errors());
+
+        assert!(is_high_cardinality_sdk(&event.0.unwrap()));
     }
 }

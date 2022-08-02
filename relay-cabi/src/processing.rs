@@ -58,7 +58,7 @@ pub unsafe extern "C" fn relay_geoip_lookup_new(path: *const c_char) -> *mut Rel
 pub unsafe extern "C" fn relay_geoip_lookup_free(lookup: *mut RelayGeoIpLookup) {
     if !lookup.is_null() {
         let lookup = lookup as *mut GeoIpLookup;
-        Box::from_raw(lookup);
+        let _dropped = Box::from_raw(lookup);
     }
 }
 
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn relay_store_normalizer_new(
 pub unsafe extern "C" fn relay_store_normalizer_free(normalizer: *mut RelayStoreNormalizer) {
     if !normalizer.is_null() {
         let normalizer = normalizer as *mut StoreProcessor;
-        Box::from_raw(normalizer);
+        let _dropped = Box::from_raw(normalizer);
     }
 }
 
