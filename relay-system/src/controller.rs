@@ -6,9 +6,13 @@ use actix::fut;
 use actix::prelude::*;
 use futures::future;
 use futures::prelude::*;
+use futures03::compat::Future01CompatExt;
+use tokio::sync::watch;
 
 #[doc(inline)]
 pub use actix::actors::signal::{Signal, SignalType};
+
+use crate::compat;
 
 /// Actor to start and gracefully stop an actix system.
 ///
@@ -60,6 +64,10 @@ pub struct Controller {
     timeout: Duration,
     /// Subscribed actors for the shutdown message.
     subscribers: Vec<Recipient<Shutdown>>,
+    /// Handed out to actors who wish to subscribe to the [`Shutdown`] message.
+    shutdown_receiver: watch::Receiver<Option<Shutdown>>,
+    /// The sender for the [`Shutdown`] message.
+    shutdown_sender: watch::Sender<Option<Shutdown>>,
 }
 
 impl Controller {
@@ -74,6 +82,8 @@ impl Controller {
         F: FnOnce() -> Result<R, E>,
     {
         let sys = System::new("relay");
+
+        compat::init();
 
         // Run the factory and exit early if an error happens. The return value of the factory is
         // discarded for convenience, to allow shorthand notations.
@@ -102,6 +112,22 @@ impl Controller {
         Controller::from_registry().do_send(Subscribe(addr.recipient()))
     }
 
+    /// Subscribes to the [`Shutdown`] message to handle graceful shutdown.
+    ///
+    /// Returns a receiver for the [`Shutdown`] message, to be used to gracefully
+    /// shutdown.  This sends a message to the [`Controller`] actor so will
+    /// block until this actor is running.
+    ///
+    /// TODO(tobias): The receiver of this message can not yet signal they have completed
+    /// shutdown.
+    pub async fn subscribe_v2() -> watch::Receiver<Option<Shutdown>> {
+        Controller::from_registry()
+            .send(SubscribeV2())
+            .compat()
+            .await
+            .unwrap() // FIXME: Remove this later
+    }
+
     /// Performs a graceful shutdown with the given timeout.
     ///
     /// This sends a `Shutdown` message to all subscribed actors and waits for them to finish. As
@@ -110,6 +136,8 @@ impl Controller {
         // Send a shutdown signal to all registered subscribers (including self). They will report
         // when the shutdown has completed. Note that we ignore all errors to make sure that we
         // don't cancel the shutdown of other actors if one actor fails.
+        self.shutdown_sender.send(Some(Shutdown { timeout })).ok();
+
         let futures: Vec<_> = self
             .subscribers
             .iter()
@@ -141,9 +169,13 @@ impl Controller {
 
 impl Default for Controller {
     fn default() -> Self {
+        let (shutdown_sender, shutdown_receiver) = watch::channel(None);
+
         Controller {
             timeout: Duration::from_secs(0),
             subscribers: Vec::new(),
+            shutdown_receiver,
+            shutdown_sender,
         }
     }
 }
@@ -230,6 +262,22 @@ impl Handler<Subscribe> for Controller {
 
     fn handle(&mut self, message: Subscribe, _context: &mut Self::Context) -> Self::Result {
         self.subscribers.push(message.0)
+    }
+}
+
+/// Internal message to handle subscribing to the [`Shutdown`] message.
+#[derive(Debug)]
+pub struct SubscribeV2();
+
+impl Message for SubscribeV2 {
+    type Result = watch::Receiver<Option<Shutdown>>;
+}
+
+impl Handler<SubscribeV2> for Controller {
+    type Result = MessageResult<SubscribeV2>;
+
+    fn handle(&mut self, _: SubscribeV2, _: &mut Self::Context) -> Self::Result {
+        MessageResult(self.shutdown_receiver.clone())
     }
 }
 
