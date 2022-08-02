@@ -12,6 +12,7 @@
 - Refactor profile processing into its own crate. ([#1340](https://github.com/getsentry/relay/pull/1340))
 - Treat "unknown" transaction source as low cardinality for safe SDKs. ([#1352](https://github.com/getsentry/relay/pull/1352), [#1356](https://github.com/getsentry/relay/pull/1356))
 - Conditionally write a default transaction source to the transaction payload. ([#1354](https://github.com/getsentry/relay/pull/1354))
+- Generate mobile measurements frames_frozen_rate, frames_slow_rate, stall_percentage. ([#1373](https://github.com/getsentry/relay/pull/1373))
 
 **Bug Fixes**:
 
