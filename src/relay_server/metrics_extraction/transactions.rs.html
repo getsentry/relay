@@ -1638,15 +1638,109 @@
 <span id="1631">1631</span>
 <span id="1632">1632</span>
 <span id="1633">1633</span>
+<span id="1634">1634</span>
+<span id="1635">1635</span>
+<span id="1636">1636</span>
+<span id="1637">1637</span>
+<span id="1638">1638</span>
+<span id="1639">1639</span>
+<span id="1640">1640</span>
+<span id="1641">1641</span>
+<span id="1642">1642</span>
+<span id="1643">1643</span>
+<span id="1644">1644</span>
+<span id="1645">1645</span>
+<span id="1646">1646</span>
+<span id="1647">1647</span>
+<span id="1648">1648</span>
+<span id="1649">1649</span>
+<span id="1650">1650</span>
+<span id="1651">1651</span>
+<span id="1652">1652</span>
+<span id="1653">1653</span>
+<span id="1654">1654</span>
+<span id="1655">1655</span>
+<span id="1656">1656</span>
+<span id="1657">1657</span>
+<span id="1658">1658</span>
+<span id="1659">1659</span>
+<span id="1660">1660</span>
+<span id="1661">1661</span>
+<span id="1662">1662</span>
+<span id="1663">1663</span>
+<span id="1664">1664</span>
+<span id="1665">1665</span>
+<span id="1666">1666</span>
+<span id="1667">1667</span>
+<span id="1668">1668</span>
+<span id="1669">1669</span>
+<span id="1670">1670</span>
+<span id="1671">1671</span>
+<span id="1672">1672</span>
+<span id="1673">1673</span>
+<span id="1674">1674</span>
+<span id="1675">1675</span>
+<span id="1676">1676</span>
+<span id="1677">1677</span>
+<span id="1678">1678</span>
+<span id="1679">1679</span>
+<span id="1680">1680</span>
+<span id="1681">1681</span>
+<span id="1682">1682</span>
+<span id="1683">1683</span>
+<span id="1684">1684</span>
+<span id="1685">1685</span>
+<span id="1686">1686</span>
+<span id="1687">1687</span>
+<span id="1688">1688</span>
+<span id="1689">1689</span>
+<span id="1690">1690</span>
+<span id="1691">1691</span>
+<span id="1692">1692</span>
+<span id="1693">1693</span>
+<span id="1694">1694</span>
+<span id="1695">1695</span>
+<span id="1696">1696</span>
+<span id="1697">1697</span>
+<span id="1698">1698</span>
+<span id="1699">1699</span>
+<span id="1700">1700</span>
+<span id="1701">1701</span>
+<span id="1702">1702</span>
+<span id="1703">1703</span>
+<span id="1704">1704</span>
+<span id="1705">1705</span>
+<span id="1706">1706</span>
+<span id="1707">1707</span>
+<span id="1708">1708</span>
+<span id="1709">1709</span>
+<span id="1710">1710</span>
+<span id="1711">1711</span>
+<span id="1712">1712</span>
+<span id="1713">1713</span>
+<span id="1714">1714</span>
+<span id="1715">1715</span>
+<span id="1716">1716</span>
+<span id="1717">1717</span>
+<span id="1718">1718</span>
+<span id="1719">1719</span>
+<span id="1720">1720</span>
+<span id="1721">1721</span>
+<span id="1722">1722</span>
+<span id="1723">1723</span>
+<span id="1724">1724</span>
+<span id="1725">1725</span>
+<span id="1726">1726</span>
+<span id="1727">1727</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::utils</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">SpanStatus</span>, <span class="ident">UnixTimestamp</span>};
-<span class="kw">use</span> <span class="ident">relay_general::protocol::TraceContext</span>;
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">AsPair</span>, <span class="ident">Timestamp</span>, <span class="ident">TransactionSource</span>};
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Context</span>, <span class="ident">ContextInner</span>};
-<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Event</span>, <span class="ident">EventType</span>};
+<span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
+    <span class="ident">AsPair</span>, <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Timestamp</span>, <span class="ident">TraceContext</span>, <span class="ident">TransactionSource</span>,
+    <span class="ident">User</span>,
+};
 <span class="kw">use</span> <span class="ident">relay_general::store</span>;
 <span class="kw">use</span> <span class="ident">relay_general::types::Annotated</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">DurationUnit</span>, <span class="ident">Metric</span>, <span class="ident">MetricNamespace</span>, <span class="ident">MetricUnit</span>, <span class="ident">MetricValue</span>};
@@ -2163,12 +2257,12 @@
 
     <span class="comment">// User</span>
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user</span>) <span class="op">=</span> <span class="ident">event</span>.<span class="ident">user</span>.<span class="ident">value</span>() {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user_id</span>) <span class="op">=</span> <span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">as_str</span>() {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="ident">get_eventuser_tag</span>(<span class="ident">user</span>) {
             <span class="ident">push_metric</span>(<span class="ident">Metric::new_mri</span>(
                 <span class="ident">METRIC_NAMESPACE</span>,
                 <span class="string">&quot;user&quot;</span>,
                 <span class="ident">MetricUnit::None</span>,
-                <span class="ident">MetricValue::set_from_str</span>(<span class="ident">user_id</span>),
+                <span class="ident">MetricValue::set_from_str</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>),
                 <span class="ident">unix_timestamp</span>,
                 <span class="comment">// A single user might end up in multiple satisfaction buckets when they have</span>
                 <span class="comment">// some satisfying transactions and some frustrating transactions.</span>
@@ -2179,6 +2273,55 @@
             ));
         }
     }
+}
+
+<span class="doccomment">/// Compute the transaction event&#39;s &quot;user&quot; tag as close as possible to how users are determined in</span>
+<span class="doccomment">/// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`</span>
+<span class="doccomment">/// column in Discover for Transactions, barring:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * imprecision caused by HLL sketching in Snuba, which we don&#39;t have in events</span>
+<span class="doccomment">/// * hash collisions in [`MetricValue::set_from_display`], which we don&#39;t have in events</span>
+<span class="doccomment">/// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don&#39;t have in metrics</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///   MD5 is used to efficiently look up the current event user for an event, and if there is a</span>
+<span class="doccomment">///   collision it seems that this code will fetch an event user with potentially different values</span>
+<span class="doccomment">///   for everything that is in `defaults`:</span>
+<span class="doccomment">///   &lt;https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L1058-L1060&gt;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The performance product runs a discover query such as `count_unique(user)`, which maps to two</span>
+<span class="doccomment">/// things:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * `user` metric for the metrics dataset</span>
+<span class="doccomment">/// * the &quot;promoted tag&quot; column `user` in the transactions clickhouse table</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// A promoted tag is a tag that snuba pulls out into its own column. In this case it pulls out the</span>
+<span class="doccomment">/// `sentry:user` tag from the event payload:</span>
+<span class="doccomment">/// &lt;https://github.com/getsentry/snuba/blob/430763e67e30957c89126e62127e34051eb52fd6/snuba/datasets/transactions_processor.py#L151&gt;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Sentry&#39;s processing pipeline defers to `sentry.models.EventUser` to produce the `sentry:user` tag</span>
+<span class="doccomment">/// here: &lt;https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794&gt;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:</span>
+<span class="doccomment">/// &lt;https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18&gt;</span>
+<span class="doccomment">/// If its order is changed, this function needs to be changed.</span>
+<span class="kw">fn</span> <span class="ident">get_eventuser_tag</span>(<span class="ident">user</span>: <span class="kw-2">&amp;</span><span class="ident">User</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">id</span>) <span class="op">=</span> <span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">as_str</span>() {
+        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;id:{id}&quot;</span>));
+    }
+
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">username</span>) <span class="op">=</span> <span class="ident">user</span>.<span class="ident">username</span>.<span class="ident">as_str</span>() {
+        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;username:{username}&quot;</span>));
+    }
+
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">email</span>) <span class="op">=</span> <span class="ident">user</span>.<span class="ident">email</span>.<span class="ident">as_str</span>() {
+        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;email:{email}&quot;</span>));
+    }
+
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ip_address</span>) <span class="op">=</span> <span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">as_str</span>() {
+        <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;ip:{ip_address}&quot;</span>));
+    }
+
+    <span class="prelude-val">None</span>
 }
 
 <span class="kw">fn</span> <span class="ident">get_measurement_rating</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">value</span>: <span class="ident">f64</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
@@ -2210,6 +2353,7 @@
 
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
     <span class="kw">use</span> <span class="ident">insta::assert_debug_snapshot</span>;
+    <span class="kw">use</span> <span class="ident">relay_general::protocol::User</span>;
     <span class="kw">use</span> <span class="ident">relay_general::store::BreakdownsConfig</span>;
     <span class="kw">use</span> <span class="ident">relay_general::types::Annotated</span>;
     <span class="kw">use</span> <span class="ident">relay_metrics::DurationUnit</span>;
@@ -3269,6 +3413,50 @@
             <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">TransactionMetricsConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(<span class="ident">config</span>).<span class="ident">unwrap</span>();
             <span class="macro">assert_eq!</span>(<span class="ident">config</span>.<span class="ident">accept_transaction_names</span>, <span class="ident">expected_strategy</span>);
         }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_get_eventuser_tag</span>() {
+        <span class="comment">// Note: If this order changes,</span>
+        <span class="comment">// https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18</span>
+        <span class="comment">// has to be changed. Though it is probably not a good idea!</span>
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">User</span> {
+            <span class="ident">id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;ident&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>()),
+            <span class="ident">username</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;username&quot;</span>.<span class="ident">to_owned</span>()),
+            <span class="ident">email</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;email&quot;</span>.<span class="ident">to_owned</span>()),
+            <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+            ..<span class="ident">User::default</span>()
+        };
+
+        <span class="macro">assert_eq!</span>(<span class="ident">get_eventuser_tag</span>(<span class="kw-2">&amp;</span><span class="ident">user</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;id:ident&quot;</span>);
+
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">User</span> {
+            <span class="ident">username</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;username&quot;</span>.<span class="ident">to_owned</span>()),
+            <span class="ident">email</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;email&quot;</span>.<span class="ident">to_owned</span>()),
+            <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+            ..<span class="ident">User::default</span>()
+        };
+
+        <span class="macro">assert_eq!</span>(<span class="ident">get_eventuser_tag</span>(<span class="kw-2">&amp;</span><span class="ident">user</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;username:username&quot;</span>);
+
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">User</span> {
+            <span class="ident">email</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;email&quot;</span>.<span class="ident">to_owned</span>()),
+            <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+            ..<span class="ident">User::default</span>()
+        };
+
+        <span class="macro">assert_eq!</span>(<span class="ident">get_eventuser_tag</span>(<span class="kw-2">&amp;</span><span class="ident">user</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;email:email&quot;</span>);
+
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">User</span> {
+            <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+            ..<span class="ident">User::default</span>()
+        };
+
+        <span class="macro">assert_eq!</span>(<span class="ident">get_eventuser_tag</span>(<span class="kw-2">&amp;</span><span class="ident">user</span>).<span class="ident">unwrap</span>(), <span class="string">&quot;ip:127.0.0.1&quot;</span>);
+
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">User::default</span>();
+
+        <span class="macro">assert!</span>(<span class="ident">get_eventuser_tag</span>(<span class="kw-2">&amp;</span><span class="ident">user</span>).<span class="ident">is_none</span>());
     }
 }
 </code></pre></div>
