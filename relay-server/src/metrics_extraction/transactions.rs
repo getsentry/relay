@@ -366,7 +366,7 @@ fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
         "stall_count" => Some(MetricUnit::None),
         "stall_total_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "stall_longest_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "stall_percentage" => Some(MetricUnit::Fraction(FractionUnit::Percent)),
+        "stall_percentage" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
 
         // Default
         _ => None,
@@ -1665,7 +1665,7 @@ mod tests {
             "extractMetrics": [
                 "d:transactions/measurements.frames_frozen_rate@ratio",
                 "d:transactions/measurements.frames_slow_rate@ratio",
-                "d:transactions/measurements.stall_percentage@percent"
+                "d:transactions/measurements.stall_percentage@ratio"
             ]
         }
         "#,
@@ -1692,7 +1692,7 @@ mod tests {
         );
 
         assert_eq!(
-            metrics[2].name, "d:transactions/measurements.stall_percentage@percent",
+            metrics[2].name, "d:transactions/measurements.stall_percentage@ratio",
             "{:?}",
             metrics[2]
         );

@@ -89,24 +89,18 @@ pub fn compute_measurements(transaction_duration_ms: f64, measurements: &mut Mea
     if let Some(frames_total) = measurements.get_value("frames_total") {
         if frames_total > 0.0 {
             if let Some(frames_frozen) = measurements.get_value("frames_frozen") {
-                measurements.insert(
-                    "frames_frozen_rate".to_owned(),
-                    Measurement {
-                        value: Annotated::new(frames_frozen / frames_total),
-                        unit: Annotated::new(MetricUnit::Fraction(FractionUnit::Ratio)),
-                    }
-                    .into(),
-                );
+                let frames_frozen_rate = Measurement {
+                    value: (frames_frozen / frames_total).into(),
+                    unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                };
+                measurements.insert("frames_frozen_rate".to_owned(), frames_frozen_rate.into());
             }
             if let Some(frames_slow) = measurements.get_value("frames_slow") {
-                measurements.insert(
-                    "frames_slow_rate".to_owned(),
-                    Measurement {
-                        value: Annotated::new(frames_slow / frames_total),
-                        unit: Annotated::new(MetricUnit::Fraction(FractionUnit::Ratio)),
-                    }
-                    .into(),
-                );
+                let frames_slow_rate = Measurement {
+                    value: (frames_slow / frames_total).into(),
+                    unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
+                };
+                measurements.insert("frames_slow_rate".to_owned(), frames_slow_rate.into());
             }
         }
     }
@@ -121,16 +115,11 @@ pub fn compute_measurements(transaction_duration_ms: f64, measurements: &mut Mea
                 == Some(&MetricUnit::Duration(DurationUnit::MilliSecond))
             {
                 if let Some(stall_total_time) = stall_total_time.value.0 {
-                    measurements.insert(
-                        "stall_percentage".to_owned(),
-                        Measurement {
-                            value: Annotated::new(
-                                100.0 * (stall_total_time / transaction_duration_ms),
-                            ),
-                            unit: Annotated::new(MetricUnit::Fraction(FractionUnit::Percent)),
-                        }
-                        .into(),
-                    );
+                    let stall_percentage = Measurement {
+                        value: (stall_total_time / transaction_duration_ms).into(),
+                        unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                    };
+                    measurements.insert("stall_percentage".to_owned(), stall_percentage.into());
                 }
             }
         }
@@ -1761,8 +1750,8 @@ fn test_computed_measurements() {
       "value": 4,
     },
     "stall_percentage": {
-      "value": 80,
-      "unit": "percent",
+      "value": 0.8,
+      "unit": "ratio",
     },
     "stall_total_time": {
       "value": 4000,
