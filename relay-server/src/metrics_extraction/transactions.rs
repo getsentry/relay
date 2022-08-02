@@ -2,6 +2,7 @@ use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::utils;
 use crate::metrics_extraction::TaggingRule;
 use crate::statsd::RelayCounters;
+use relay_common::FractionUnit;
 use relay_common::{SpanStatus, UnixTimestamp};
 use relay_general::protocol::TraceContext;
 use relay_general::protocol::{AsPair, Timestamp, TransactionSource};
@@ -357,12 +358,15 @@ fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
         "app_start_warm" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "frames_total" => Some(MetricUnit::None),
         "frames_slow" => Some(MetricUnit::None),
+        "frames_slow_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
         "frames_frozen" => Some(MetricUnit::None),
+        "frames_frozen_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
 
         // React-Native
         "stall_count" => Some(MetricUnit::None),
         "stall_total_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "stall_longest_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "stall_percentage" => Some(MetricUnit::Fraction(FractionUnit::Percent)),
 
         // Default
         _ => None,
@@ -424,6 +428,7 @@ fn extract_transaction_metrics_inner(
             return; // invalid transaction
         }
     };
+    let duration_millis = relay_common::chrono_to_positive_millis(end_timestamp - start_timestamp);
 
     let unix_timestamp = match UnixTimestamp::from_datetime(end_timestamp.into_inner()) {
         Some(ts) => ts,
@@ -434,6 +439,8 @@ fn extract_transaction_metrics_inner(
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
+        let mut measurements = measurements.clone();
+        store::compute_measurements(duration_millis, &mut measurements);
         for (name, annotated) in measurements.iter() {
             let measurement = match annotated.value() {
                 Some(m) => m,
@@ -510,8 +517,6 @@ fn extract_transaction_metrics_inner(
     };
 
     // Duration
-    let duration_millis = relay_common::chrono_to_positive_millis(end_timestamp - start_timestamp);
-
     push_metric(Metric::new_mri(
         METRIC_NAMESPACE,
         "duration",
@@ -1629,5 +1634,67 @@ mod tests {
             let config: TransactionMetricsConfig = serde_json::from_str(config).unwrap();
             assert_eq!(config.accept_transaction_names, expected_strategy);
         }
+    }
+
+    #[test]
+    fn test_computed_metrics() {
+        let json = r#"{
+            "type": "transaction",
+            "timestamp": 1619420520,
+            "start_timestamp": 1619420400,
+            "measurements": {
+                "frames_frozen": {
+                    "value": 2
+                },
+                "frames_slow": {
+                    "value": 1
+                },
+                "frames_total": {
+                    "value": 4
+                },
+                "stall_total_time": {
+                    "value": 4,
+                    "unit": "millisecond"
+                }
+            }
+        }"#;
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"
+        {
+            "extractMetrics": [
+                "d:transactions/measurements.frames_frozen_rate@ratio",
+                "d:transactions/measurements.frames_slow_rate@ratio",
+                "d:transactions/measurements.stall_percentage@percent"
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
+
+        assert_eq!(metrics.len(), 3, "{:?}", metrics);
+
+        assert_eq!(
+            metrics[0].name, "d:transactions/measurements.frames_frozen_rate@ratio",
+            "{:?}",
+            metrics[0]
+        );
+
+        assert_eq!(
+            metrics[1].name, "d:transactions/measurements.frames_slow_rate@ratio",
+            "{:?}",
+            metrics[1]
+        );
+
+        assert_eq!(
+            metrics[2].name, "d:transactions/measurements.stall_percentage@percent",
+            "{:?}",
+            metrics[2]
+        );
     }
 }

@@ -72,6 +72,14 @@ impl Measurements {
     pub fn into_inner(self) -> Object<Measurement> {
         self.0
     }
+
+    /// Return the value of the measurement with the given name, if it exists.
+    pub fn get_value(&self, key: &str) -> Option<f64> {
+        self.get(key)
+            .and_then(Annotated::value)
+            .and_then(|x| x.value.value())
+            .copied()
+    }
 }
 
 impl FromValue for Measurements {

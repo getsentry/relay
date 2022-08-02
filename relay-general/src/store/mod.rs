@@ -25,7 +25,7 @@ pub use self::geo::{GeoIpError, GeoIpLookup};
 pub use normalize::breakdowns::{
     get_breakdown_measurements, BreakdownConfig, BreakdownsConfig, SpanOperationsConfig,
 };
-pub use normalize::{is_valid_platform, normalize_dist};
+pub use normalize::{compute_measurements, is_valid_platform, normalize_dist};
 pub use transactions::{
     get_measurement, get_transaction_op, is_high_cardinality_sdk, validate_timestamps,
 };
