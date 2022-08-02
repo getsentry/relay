@@ -13,7 +13,9 @@ use relay_general::pii::{
 };
 use relay_general::processor::{process_value, split_chunks, ProcessingState};
 use relay_general::protocol::{Event, VALID_PLATFORMS};
-use relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor};
+use relay_general::store::{
+    light_normalize_event, validate_annotated_transaction, GeoIpLookup, StoreConfig, StoreProcessor,
+};
 use relay_general::types::{Annotated, Remark};
 use relay_sampling::{RuleCondition, SamplingConfig};
 
@@ -105,6 +107,8 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
 ) -> RelayStr {
     let processor = normalizer as *mut StoreProcessor;
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
+    validate_annotated_transaction(&mut event)?;
+    light_normalize_event(&mut event, None, None, None, None, None, None)?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;
     RelayStr::from_string(event.to_json()?)
 }

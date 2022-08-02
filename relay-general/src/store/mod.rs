@@ -27,7 +27,8 @@ pub use normalize::breakdowns::{
 };
 pub use normalize::{is_valid_platform, light_normalize_event, normalize_dist};
 pub use transactions::{
-    get_measurement, get_transaction_op, validate_timestamps, validate_transaction,
+    get_measurement, get_transaction_op, validate_annotated_transaction, validate_timestamps,
+    validate_transaction,
 };
 
 /// The config for store.
