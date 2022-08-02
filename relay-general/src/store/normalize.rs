@@ -479,19 +479,19 @@ pub fn light_normalize_event(
         })?;
 
         // Default required attributes, even if they have errors
-        normalize_release_dist(event);
+        normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
         normalize_timestamps(
             event,
             meta,
             received_at,
             max_secs_in_past,
             max_secs_in_future,
-        )?;
-        normalize_event_tags(event)?;
-        normalize_exceptions(event)?;
-        normalize_user_agent(event, Some(true));
-        normalize_measurements(event);
-        normalize_breakdowns(event, breakdowns_config);
+        )?; // Timestamps are core in the metrics extraction
+        normalize_event_tags(event)?; // Tags are added to every metric
+        normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
+        normalize_user_agent(event, Some(true)); // Legacy browsers filter
+        normalize_measurements(event); // Measurements are part of the metric extraction
+        normalize_breakdowns(event, breakdowns_config); // Breakdowns are part of the metric extraction too
 
         Ok(())
     })
