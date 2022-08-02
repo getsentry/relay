@@ -13,4 +13,8 @@ publish = false
 actix = "0.7.9"
 failure = "0.1.8"
 futures = "0.1.28"
+futures03 = { version = "0.3", package = "futures", features = ["compat"] }
+lazy_static = "1.4.0"
 relay-log = { path = "../relay-log" }
+tokio = { version = "1.0", features = ["rt-multi-thread"] }
+tokio01 = { version = "0.1", package = "tokio" }

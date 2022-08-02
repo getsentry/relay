@@ -3,10 +3,10 @@ use crate::metrics_extraction::utils;
 use crate::metrics_extraction::TaggingRule;
 use crate::statsd::RelayCounters;
 use relay_common::{SpanStatus, UnixTimestamp};
-use relay_general::protocol::TraceContext;
-use relay_general::protocol::{AsPair, Timestamp, TransactionSource};
-use relay_general::protocol::{Context, ContextInner};
-use relay_general::protocol::{Event, EventType};
+use relay_general::protocol::{
+    AsPair, Context, ContextInner, Event, EventType, Timestamp, TraceContext, TransactionSource,
+    User,
+};
 use relay_general::store;
 use relay_general::types::Annotated;
 use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
@@ -523,12 +523,12 @@ fn extract_transaction_metrics_inner(
 
     // User
     if let Some(user) = event.user.value() {
-        if let Some(user_id) = user.id.as_str() {
+        if let Some(value) = get_eventuser_tag(user) {
             push_metric(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
-                MetricValue::set_from_str(user_id),
+                MetricValue::set_from_str(&value),
                 unix_timestamp,
                 // A single user might end up in multiple satisfaction buckets when they have
                 // some satisfying transactions and some frustrating transactions.
@@ -539,6 +539,55 @@ fn extract_transaction_metrics_inner(
             ));
         }
     }
+}
+
+/// Compute the transaction event's "user" tag as close as possible to how users are determined in
+/// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
+/// column in Discover for Transactions, barring:
+///
+/// * imprecision caused by HLL sketching in Snuba, which we don't have in events
+/// * hash collisions in [`MetricValue::set_from_display`], which we don't have in events
+/// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don't have in metrics
+///
+///   MD5 is used to efficiently look up the current event user for an event, and if there is a
+///   collision it seems that this code will fetch an event user with potentially different values
+///   for everything that is in `defaults`:
+///   <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L1058-L1060>
+///
+/// The performance product runs a discover query such as `count_unique(user)`, which maps to two
+/// things:
+///
+/// * `user` metric for the metrics dataset
+/// * the "promoted tag" column `user` in the transactions clickhouse table
+///
+/// A promoted tag is a tag that snuba pulls out into its own column. In this case it pulls out the
+/// `sentry:user` tag from the event payload:
+/// <https://github.com/getsentry/snuba/blob/430763e67e30957c89126e62127e34051eb52fd6/snuba/datasets/transactions_processor.py#L151>
+///
+/// Sentry's processing pipeline defers to `sentry.models.EventUser` to produce the `sentry:user` tag
+/// here: <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794>
+///
+/// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:
+/// <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18>
+/// If its order is changed, this function needs to be changed.
+fn get_eventuser_tag(user: &User) -> Option<String> {
+    if let Some(id) = user.id.as_str() {
+        return Some(format!("id:{id}"));
+    }
+
+    if let Some(username) = user.username.as_str() {
+        return Some(format!("username:{username}"));
+    }
+
+    if let Some(email) = user.email.as_str() {
+        return Some(format!("email:{email}"));
+    }
+
+    if let Some(ip_address) = user.ip_address.as_str() {
+        return Some(format!("ip:{ip_address}"));
+    }
+
+    None
 }
 
 fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
@@ -570,6 +619,7 @@ mod tests {
 
     use crate::metrics_extraction::TaggingRule;
     use insta::assert_debug_snapshot;
+    use relay_general::protocol::User;
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
@@ -1629,5 +1679,49 @@ mod tests {
             let config: TransactionMetricsConfig = serde_json::from_str(config).unwrap();
             assert_eq!(config.accept_transaction_names, expected_strategy);
         }
+    }
+
+    #[test]
+    fn test_get_eventuser_tag() {
+        // Note: If this order changes,
+        // https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18
+        // has to be changed. Though it is probably not a good idea!
+        let user = User {
+            id: Annotated::new("ident".to_owned().into()),
+            username: Annotated::new("username".to_owned()),
+            email: Annotated::new("email".to_owned()),
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "id:ident");
+
+        let user = User {
+            username: Annotated::new("username".to_owned()),
+            email: Annotated::new("email".to_owned()),
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "username:username");
+
+        let user = User {
+            email: Annotated::new("email".to_owned()),
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "email:email");
+
+        let user = User {
+            ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
+            ..User::default()
+        };
+
+        assert_eq!(get_eventuser_tag(&user).unwrap(), "ip:127.0.0.1");
+
+        let user = User::default();
+
+        assert!(get_eventuser_tag(&user).is_none());
     }
 }
