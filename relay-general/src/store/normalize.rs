@@ -882,6 +882,7 @@ fn test_user_ip_from_remote_addr() {
 
     let config = StoreConfig::default();
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let ip_addr = get_value!(event.user.ip_address!);
@@ -908,6 +909,7 @@ fn test_user_ip_from_invalid_remote_addr() {
 
     let config = StoreConfig::default();
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(Annotated::empty(), event.value().unwrap().user);
@@ -920,12 +922,14 @@ fn test_user_ip_from_client_ip_without_auto() {
         ..Default::default()
     });
 
+    let ip_address = IpAddr::parse("2.125.160.216").unwrap();
     let config = StoreConfig {
-        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        client_ip: Some(ip_address.clone()),
         ..StoreConfig::default()
     };
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    light_normalize_event(&mut event, Some(&ip_address), None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let ip_addr = get_value!(event.user.ip_address!);
@@ -942,13 +946,15 @@ fn test_user_ip_from_client_ip_with_auto() {
         ..Default::default()
     });
 
+    let ip_address = IpAddr::parse("2.125.160.216").unwrap();
     let config = StoreConfig {
-        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        client_ip: Some(ip_address.clone()),
         ..StoreConfig::default()
     };
 
     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
+    light_normalize_event(&mut event, Some(&ip_address), None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = get_value!(event.user!);
@@ -962,13 +968,15 @@ fn test_user_ip_from_client_ip_with_auto() {
 fn test_user_ip_from_client_ip_without_appropriate_platform() {
     let mut event = Annotated::new(Event::default());
 
+    let ip_address = IpAddr::parse("2.125.160.216").unwrap();
     let config = StoreConfig {
-        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        client_ip: Some(ip_address.clone()),
         ..StoreConfig::default()
     };
 
     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
+    light_normalize_event(&mut event, Some(&ip_address), None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = get_value!(event.user!);
@@ -981,6 +989,7 @@ fn test_event_level_defaulted() {
     let processor = &mut NormalizeProcessor::default();
     let mut event = Annotated::new(Event::default());
 
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.level), Some(&Level::Error));
 }
@@ -993,6 +1002,7 @@ fn test_transaction_level_untouched() {
         ..Event::default()
     });
 
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.level), Some(&Level::Info));
 }
@@ -1008,6 +1018,7 @@ fn test_environment_tag_is_moved() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
@@ -1028,6 +1039,7 @@ fn test_empty_environment_is_removed_and_overwritten_with_tag() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
@@ -1044,6 +1056,7 @@ fn test_empty_environment_is_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.environment), None);
 }
@@ -1056,6 +1069,7 @@ fn test_none_environment_errors() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let environment = get_path!(event.environment!);
@@ -1082,6 +1096,7 @@ fn test_invalid_release_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let release = get_path!(event.release!);
@@ -1114,6 +1129,7 @@ fn test_top_level_keys_moved_into_tags() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(get_value!(event.site), None);
@@ -1167,6 +1183,7 @@ fn test_internal_tags_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq!(get_value!(event.tags!).len(), 1);
@@ -1193,6 +1210,7 @@ fn test_empty_tags_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1243,6 +1261,7 @@ fn test_tags_deduplicated() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     // should keep the first occurrence of every tag
@@ -1305,6 +1324,7 @@ fn test_unknown_debug_image() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1393,6 +1413,7 @@ fn test_too_long_tags() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1437,6 +1458,7 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1464,6 +1486,8 @@ fn test_parses_sdk_info_from_header() {
         }),
         None,
     );
+
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1486,6 +1510,7 @@ fn test_discards_received() {
 
     let mut processor = NormalizeProcessor::default();
 
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(get_value!(event.received!), get_value!(event.timestamp!));
@@ -1516,6 +1541,7 @@ fn test_grouping_config() {
         None,
     );
 
+    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1553,15 +1579,29 @@ fn test_future_timestamp() {
         ..Default::default()
     });
 
+    let received_at = Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0));
+    let max_secs_in_past = Some(30 * 24 * 3600);
+    let max_secs_in_future = Some(60);
+
     let mut processor = NormalizeProcessor::new(
         Arc::new(StoreConfig {
-            received_at: Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0)),
-            max_secs_in_past: Some(30 * 24 * 3600),
-            max_secs_in_future: Some(60),
+            received_at: received_at,
+            max_secs_in_past: max_secs_in_past,
+            max_secs_in_future: max_secs_in_future,
             ..Default::default()
         }),
         None,
     );
+    light_normalize_event(
+        &mut event,
+        None,
+        None,
+        received_at,
+        max_secs_in_past,
+        max_secs_in_future,
+        None,
+    )
+    .unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1606,15 +1646,29 @@ fn test_past_timestamp() {
         ..Default::default()
     });
 
+    let received_at = Some(Utc.ymd(2000, 3, 3).and_hms(0, 0, 0));
+    let max_secs_in_past = Some(30 * 24 * 3600);
+    let max_secs_in_future = Some(60);
+
     let mut processor = NormalizeProcessor::new(
         Arc::new(StoreConfig {
-            received_at: Some(Utc.ymd(2000, 3, 3).and_hms(0, 0, 0)),
-            max_secs_in_past: Some(30 * 24 * 3600),
-            max_secs_in_future: Some(60),
+            received_at,
+            max_secs_in_past,
+            max_secs_in_future,
             ..Default::default()
         }),
         None,
     );
+    light_normalize_event(
+        &mut event,
+        None,
+        None,
+        received_at,
+        max_secs_in_past,
+        max_secs_in_future,
+        None,
+    )
+    .unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
