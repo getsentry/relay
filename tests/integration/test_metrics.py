@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import json
 import signal
-import time
 
 import pytest
 import requests
@@ -758,9 +757,6 @@ def test_graceful_shutdown(mini_sentry, relay):
     metrics_payload = f"transactions/bar:17|c"
     future_timestamp = timestamp + 60
     relay.send_metrics(project_id, metrics_payload, future_timestamp)
-
-    time.sleep(0.1)  # Give Relay time to process metric
-
     relay.shutdown(sig=signal.SIGTERM)
 
     # Try to send another metric (will be rejected)
