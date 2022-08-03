@@ -2,7 +2,7 @@
 
 use actix_web::actix::ResponseFuture;
 use actix_web::{pred, HttpMessage, HttpRequest, HttpResponse, Query, Request};
-use futures::Future;
+use futures01::Future;
 use serde::Deserialize;
 
 use relay_general::protocol::EventId;

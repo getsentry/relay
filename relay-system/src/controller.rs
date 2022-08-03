@@ -4,9 +4,9 @@ use std::time::Duration;
 use actix::actors::signal;
 use actix::fut;
 use actix::prelude::*;
-use futures::future;
-use futures::prelude::*;
-use futures03::compat::Future01CompatExt;
+use futures::compat::Future01CompatExt;
+use futures01::future;
+use futures01::prelude::*;
 use tokio::sync::watch;
 
 #[doc(inline)]

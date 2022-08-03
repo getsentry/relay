@@ -1,6 +1,6 @@
 use actix::prelude::dev::ToEnvelope;
 use actix::prelude::*;
-use futures::prelude::*;
+use futures01::prelude::*;
 
 use crate::actors::envelopes::EnvelopeContext;
 use crate::actors::outcome::{DiscardReason, Outcome};

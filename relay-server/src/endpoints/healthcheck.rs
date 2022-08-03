@@ -1,8 +1,8 @@
 //! A simple healthcheck endpoint for the relay.
 use ::actix::prelude::*;
 use actix_web::{Error, HttpResponse};
-use futures::prelude::*;
-use futures03::{FutureExt, TryFutureExt};
+use futures::{FutureExt, TryFutureExt};
+use futures01::prelude::*;
 use serde::Serialize;
 
 use crate::service::ServiceApp;

@@ -5,8 +5,8 @@
 //! getting parked. When that happens `task::current()` is executed which panics.
 
 use actix::prelude::*;
-use futures::prelude::*;
-use futures03::channel::oneshot;
+use futures::channel::oneshot;
+use futures01::prelude::*;
 
 lazy_static::lazy_static! {
     /// Needed so that the System is running by the time RUNTIME is first initialized.
@@ -50,7 +50,7 @@ where
     A::Context: dev::ToEnvelope<A, M>,
 {
     let (tx, rx) = oneshot::channel();
-    let f = futures::future::lazy(move || addr.send(msg))
+    let f = futures01::future::lazy(move || addr.send(msg))
         .then(|res| tx.send(res))
         .map_err(|_| ());
     EXECUTOR.spawn(f);

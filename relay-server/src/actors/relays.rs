@@ -9,7 +9,7 @@ use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, ResponseError};
 use failure::Fail;
-use futures::{future, future::Shared, sync::oneshot, Future};
+use futures01::{future, future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 
 use relay_auth::{PublicKey, RelayId};

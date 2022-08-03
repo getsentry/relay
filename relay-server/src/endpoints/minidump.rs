@@ -1,7 +1,7 @@
 use actix_web::multipart::{Multipart, MultipartItem};
 use actix_web::{actix::ResponseFuture, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
-use futures::{future, Future, Stream};
+use futures01::{future, stream, Future, Stream};
 
 use relay_general::protocol::EventId;
 
@@ -59,7 +59,7 @@ fn get_embedded_minidump(
         None => return Box::new(future::ok(None)),
     };
 
-    let f = Multipart::new(Ok(boundary.to_string()), futures::stream::once(Ok(payload)))
+    let f = Multipart::new(Ok(boundary.to_string()), stream::once(Ok(payload)))
         .map_err(MultipartError::InvalidMultipart)
         .filter_map(|item| {
             if let MultipartItem::Field(field) = item {

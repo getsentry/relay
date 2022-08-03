@@ -5,7 +5,7 @@ use std::time::Instant;
 use actix::prelude::*;
 use actix_web::ResponseError;
 use failure::Fail;
-use futures::{future, Future};
+use futures01::{future, Future};
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};

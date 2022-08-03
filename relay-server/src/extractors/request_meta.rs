@@ -7,7 +7,7 @@ use actix::ResponseFuture;
 use actix_web::http::header;
 use actix_web::{FromRequest, HttpMessage, HttpRequest, HttpResponse, ResponseError};
 use failure::Fail;
-use futures::{future, Future};
+use futures01::{future, Future};
 use serde::{Deserialize, Serialize};
 use url::Url;
 

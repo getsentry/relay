@@ -1,6 +1,6 @@
 use ::actix::prelude::*;
 use actix_web::server::StopServer;
-use futures::prelude::*;
+use futures01::prelude::*;
 
 use relay_config::Config;
 use relay_statsd::metric;
