@@ -1862,16 +1862,18 @@ impl EnvelopeProcessor {
         let max_secs_in_future = Some(self.config.max_secs_in_future());
         let breakdowns_config = state.project_state.config.breakdowns_v2.clone();
 
-        light_normalize(
-            &mut state.event,
-            client_ip.as_ref(),
-            user_agent,
-            received_at,
-            max_secs_in_past,
-            max_secs_in_future,
-            breakdowns_config,
-        )
-        .map_err(|e| ProcessingError::ProcessingFailed(e))?;
+        metric!(timer(RelayTimers::EventProcessingLightNormalization), {
+            light_normalize(
+                &mut state.event,
+                client_ip.as_ref(),
+                user_agent,
+                received_at,
+                max_secs_in_past,
+                max_secs_in_future,
+                breakdowns_config,
+            )
+            .map_err(|e| ProcessingError::ProcessingFailed(e))?;
+        });
 
         Ok(())
     }
