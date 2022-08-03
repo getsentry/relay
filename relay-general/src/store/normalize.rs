@@ -32,7 +32,6 @@ mod request;
 mod spans;
 mod stacktrace;
 
-#[cfg(feature = "uaparser")]
 mod user_agent;
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
@@ -239,11 +238,7 @@ fn normalize_measurements(event: &mut Event) {
 
 fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) {
     if normalize_user_agent.unwrap_or(false) {
-        #[cfg(feature = "uaparser")]
         user_agent::normalize_user_agent(_event);
-
-        #[cfg(not(feature = "uaparser"))]
-        panic!("relay not built with uaparser feature");
     }
 }
 
