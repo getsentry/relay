@@ -13,6 +13,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+pub mod compat;
 mod controller;
 
 pub use self::controller::*;

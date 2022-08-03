@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use actix::{fut, prelude::*};
 use failure::Fail;
-use futures::{prelude::*, sync::oneshot};
+use futures01::{prelude::*, sync::oneshot};
 use reqwest::{Client, ClientBuilder, StatusCode, Url};
 use serde::Deserialize;
 use tokio::runtime::{Builder as RuntimeBuilder, Runtime};

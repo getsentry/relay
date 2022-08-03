@@ -14,7 +14,7 @@ use actix_web::http::{HeaderMap, Method};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use failure::Fail;
-use futures::{future, prelude::*, sync::oneshot};
+use futures01::{future, prelude::*, sync::oneshot};
 
 use lazy_static::lazy_static;
 

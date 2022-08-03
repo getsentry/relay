@@ -2,7 +2,7 @@
 
 use actix_web::actix::*;
 use actix_web::{http::Method, HttpResponse, Path};
-use futures::future::Future;
+use futures01::future::Future;
 
 use crate::actors::envelopes::{EnvelopeManager, GetCapturedEnvelope};
 use crate::envelope;

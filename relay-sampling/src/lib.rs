@@ -734,33 +734,17 @@ mod sample_rate_as_string {
     where
         D: Deserializer<'de>,
     {
-        // be super-strict with what kind of integers are accepted
         let value = match Option::<Cow<'_, str>>::deserialize(deserializer)? {
             Some(value) => value,
             None => return Ok(None),
         };
 
-        if !value.as_bytes().first().map_or(false, u8::is_ascii_digit) {
-            return Err(serde::de::Error::custom(
-                "first character needs to be ascii digit",
-            ));
-        }
+        let parsed_value =
+            serde_json::from_str(&value).map_err(|e| serde::de::Error::custom(e.to_string()))?;
 
-        if !value.as_bytes().last().map_or(false, u8::is_ascii_digit) {
-            return Err(serde::de::Error::custom(
-                "last character needs to be ascii digit",
-            ));
+        if parsed_value < 0.0 {
+            return Err(serde::de::Error::custom("sample rate cannot be negative"));
         }
-
-        for b in value.as_bytes() {
-            if !b.is_ascii_digit() && *b != b'.' {
-                return Err(serde::de::Error::custom("invalid characters"));
-            }
-        }
-
-        let parsed_value = value
-            .parse::<f64>()
-            .map_err(|e| serde::de::Error::custom(e.to_string()))?;
 
         Ok(Some(parsed_value))
     }
@@ -770,7 +754,9 @@ mod sample_rate_as_string {
         S: Serializer,
     {
         match value {
-            Some(float) => float.to_string().serialize(serializer),
+            Some(float) => serde_json::to_string(float)
+                .map_err(|e| serde::ser::Error::custom(e.to_string()))?
+                .serialize(serializer),
             None => value.serialize(serializer),
         }
     }
@@ -2179,7 +2165,18 @@ mod tests {
             "sample_rate": "1e-5"
         }
         "#;
-        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "sample_rate": "0.00001",
+          "user_id": "hello",
+        }
+        "###);
     }
 
     #[test]

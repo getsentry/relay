@@ -545,6 +545,21 @@ impl Event {
             .and_then(|info| info.source.value())
             .unwrap_or(&TransactionSource::Unknown)
     }
+
+    pub fn get_tag_value(&self, tag_key: &str) -> Option<&str> {
+        if let Some(tags) = self.tags.value() {
+            tags.get(tag_key)
+        } else {
+            None
+        }
+    }
+
+    pub fn has_module(&self, module_name: &str) -> bool {
+        self.modules
+            .value()
+            .map(|m| m.contains_key(module_name))
+            .unwrap_or(false)
+    }
 }
 
 #[cfg(test)]

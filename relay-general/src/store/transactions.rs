@@ -1,5 +1,9 @@
+use relay_common::SpanStatus;
+
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Context, ContextInner, Event, EventType, Span, Timestamp};
+use crate::protocol::{
+    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
+};
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult};
 /// Rejects transactions based on required fields.
 pub struct TransactionsProcessor;
@@ -98,6 +102,110 @@ pub fn validate_transaction(event: &mut Event) -> ProcessingResult {
     }
 }
 
+/// List of SDKs which we assume to produce high cardinality transaction names, such as
+/// "/user/123134/login".
+/// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine cardinality,
+/// but for old SDKs, we fall back to this list.
+pub fn is_high_cardinality_sdk(event: &Event) -> bool {
+    let client_sdk = match event.client_sdk.value() {
+        Some(info) => info,
+        None => {
+            return false;
+        }
+    };
+
+    let sdk_name = client_sdk
+        .name
+        .value()
+        .map(|s| s.as_str())
+        .unwrap_or_default();
+
+    if [
+        "sentry.javascript.angular",
+        "sentry.javascript.browser",
+        "sentry.javascript.ember",
+        "sentry.javascript.gatsby",
+        "sentry.javascript.react",
+        "sentry.javascript.remix",
+        "sentry.javascript.vue",
+        "sentry.javascript.nextjs",
+        "sentry.php.laravel",
+        "sentry.php.symfony",
+    ]
+    .contains(&sdk_name)
+    {
+        return true;
+    }
+
+    let is_http_status_404 = event.get_tag_value("http.status_code") == Some("404");
+    if sdk_name == "sentry.python" && is_http_status_404 && client_sdk.has_integration("django") {
+        return true;
+    }
+
+    let http_method = event
+        .request
+        .value()
+        .and_then(|r| r.method.as_str())
+        .unwrap_or_default();
+    if sdk_name == "sentry.javascript.node"
+        && http_method.eq_ignore_ascii_case("options")
+        && client_sdk.has_integration("Express")
+    {
+        return true;
+    }
+
+    if sdk_name == "sentry.ruby" && event.has_module("rack") {
+        let trace = event
+            .contexts
+            .value()
+            .and_then(|c| c.get("trace"))
+            .and_then(Annotated::value);
+        if let Some(ContextInner(Context::Trace(trace_context))) = trace {
+            let status = trace_context.status.value().unwrap_or(&SpanStatus::Unknown);
+            if [
+                // See https://github.com/getsentry/sentry-ruby/blob/ad4828f6d8d60e98217b2edb1ab003fb627d6bdb/sentry-ruby/lib/sentry/span.rb#L7-L19
+                SpanStatus::InvalidArgument,
+                SpanStatus::Unauthenticated,
+                SpanStatus::PermissionDenied,
+                SpanStatus::NotFound,
+                SpanStatus::AlreadyExists,
+                SpanStatus::ResourceExhausted,
+                SpanStatus::Cancelled,
+                SpanStatus::InternalError,
+                SpanStatus::Unimplemented,
+                SpanStatus::Unavailable,
+                SpanStatus::DeadlineExceeded,
+            ]
+            .contains(status)
+            {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+/// Set a default transaction source if it is missing, but only if the transaction name was
+/// extracted as a metrics tag.
+/// This behavior makes it possible to identify transactions for which the transaction name was
+/// not extracted as a tag on the corresponding metrics, because
+///     source == null <=> transaction name == null
+/// See `relay_server::metrics_extraction::transactions::get_transaction_name`.
+fn set_default_transaction_source(event: &mut Event) {
+    let source = event
+        .transaction_info
+        .value()
+        .and_then(|info| info.source.value());
+
+    if source.is_none() && !is_high_cardinality_sdk(event) {
+        let transaction_info = event.transaction_info.get_or_insert_with(Default::default);
+        transaction_info
+            .source
+            .set_value(Some(TransactionSource::Unknown));
+    }
+}
+
 impl Processor for TransactionsProcessor {
     fn process_event(
         &mut self,
@@ -131,6 +239,8 @@ impl Processor for TransactionsProcessor {
                 ));
             }
         }
+
+        set_default_transaction_source(event);
 
         event.process_child_values(self, state)?;
 
@@ -193,7 +303,7 @@ mod tests {
     use chrono::Utc;
 
     use crate::processor::process_value;
-    use crate::protocol::{Contexts, SpanId, TraceContext, TraceId};
+    use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
     use crate::testutils::{assert_annotated_snapshot, assert_eq_dbg};
     use crate::types::Object;
 
@@ -844,6 +954,90 @@ mod tests {
     }
 
     #[test]
+    fn test_default_transaction_source_unknown() {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
+        {
+          "type": "transaction",
+          "transaction": "/",
+          "timestamp": 946684810.0,
+          "start_timestamp": 946684800.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "http.server",
+              "type": "trace"
+            }
+          },
+          "sdk": {
+            "name": "sentry.dart.flutter"
+          },
+          "spans": []
+        }
+        "###,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        let source = event
+            .value()
+            .unwrap()
+            .transaction_info
+            .value()
+            .and_then(|info| info.source.value())
+            .unwrap();
+
+        assert_eq!(source, &TransactionSource::Unknown);
+    }
+
+    #[test]
+    fn test_default_transaction_source_none() {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
+        {
+          "type": "transaction",
+          "transaction": "/",
+          "timestamp": 946684810.0,
+          "start_timestamp": 946684800.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "http.server",
+              "type": "trace"
+            }
+          },
+          "sdk": {
+            "name": "sentry.javascript.browser"
+          },
+          "spans": []
+        }
+        "###,
+        )
+        .unwrap();
+
+        dbg!(event.value().map(|e| &e.client_sdk));
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        let transaction_info = &event.value().unwrap().transaction_info;
+
+        assert!(transaction_info.value().is_none());
+    }
+
+    #[test]
     fn test_allows_valid_transaction_event_with_spans() {
         let mut event = new_test_event();
 
@@ -969,5 +1163,54 @@ mod tests {
           ]
         }
         "###);
+    }
+
+    #[test]
+    fn test_is_high_cardinality_sdk_ruby_ok() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+
+        }
+        "#;
+        let event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(!is_high_cardinality_sdk(&event.0.unwrap()));
+    }
+
+    #[test]
+    fn test_is_high_cardinality_sdk_ruby_error() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "op": "rails.request",
+                    "status": "internal_error"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+
+        }
+        "#;
+        let event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(!event.meta().has_errors());
+
+        assert!(is_high_cardinality_sdk(&event.0.unwrap()));
     }
 }

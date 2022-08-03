@@ -7,6 +7,7 @@ use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
+use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 use smallvec::SmallVec;
 
 use super::BreakdownsConfig;
@@ -14,7 +15,8 @@ use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
     EventType, Exception, Frame, HeaderName, HeaderValue, Headers, IpAddr, Level, LogEntry,
-    Request, SpanStatus, Stacktrace, Tags, TraceContext, User, VALID_PLATFORMS,
+    Measurement, Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
+    VALID_PLATFORMS,
 };
 use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
 use crate::types::{
@@ -80,6 +82,58 @@ pub fn normalize_dist(dist: &mut Option<String>) {
     }
     if erase {
         *dist = None;
+    }
+}
+
+/// Compute additional measurements derived from existing ones.
+///
+/// The added measurements are:
+///
+/// ```text
+/// frames_slow_rate := measurements.frames_slow / measurements.frames_total
+/// frames_frozen_rate := measurements.frames_frozen / measurements.frames_total
+/// stall_percentage := measurements.stall_total_time / transaction.duration
+/// ```
+pub fn compute_measurements(transaction_duration_ms: f64, measurements: &mut Measurements) {
+    if let Some(frames_total) = measurements.get_value("frames_total") {
+        if frames_total > 0.0 {
+            if let Some(frames_frozen) = measurements.get_value("frames_frozen") {
+                let frames_frozen_rate = Measurement {
+                    value: (frames_frozen / frames_total).into(),
+                    unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                };
+                measurements.insert("frames_frozen_rate".to_owned(), frames_frozen_rate.into());
+            }
+            if let Some(frames_slow) = measurements.get_value("frames_slow") {
+                let frames_slow_rate = Measurement {
+                    value: (frames_slow / frames_total).into(),
+                    unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
+                };
+                measurements.insert("frames_slow_rate".to_owned(), frames_slow_rate.into());
+            }
+        }
+    }
+
+    // Get stall_percentage
+    if transaction_duration_ms > 0.0 {
+        if let Some(stall_total_time) = measurements
+            .get("stall_total_time")
+            .and_then(Annotated::value)
+        {
+            if matches!(
+                stall_total_time.unit.value(),
+                // Accept milliseconds or None, but not other units
+                Some(&MetricUnit::Duration(DurationUnit::MilliSecond) | &MetricUnit::None) | None
+            ) {
+                if let Some(stall_total_time) = stall_total_time.value.0 {
+                    let stall_percentage = Measurement {
+                        value: (stall_total_time / transaction_duration_ms).into(),
+                        unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                    };
+                    measurements.insert("stall_percentage".to_owned(), stall_percentage.into());
+                }
+            }
+        }
     }
 }
 
@@ -173,6 +227,13 @@ fn normalize_measurements(event: &mut Event) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
+    } else if let Some(measurements) = event.measurements.value_mut() {
+        let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
+            (Some(start), Some(end)) => relay_common::chrono_to_positive_millis(end - start),
+            _ => 0.0,
+        };
+
+        compute_measurements(duration_millis, measurements);
     }
 }
 
@@ -1727,4 +1788,61 @@ fn test_normalize_dist_whitespace() {
     let mut dist = Some(" ".to_owned());
     normalize_dist(&mut dist);
     assert_eq!(dist.unwrap(), ""); // Not sure if this is what we want
+}
+
+#[test]
+fn test_computed_measurements() {
+    use crate::types::SerializableAnnotated;
+    use insta::assert_ron_snapshot;
+
+    let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "frames_slow": {"value": 1},
+                "frames_frozen": {"value": 2},
+                "frames_total": {"value": 4},
+                "stall_total_time": {"value": 4000, "unit": "millisecond"}
+            }
+        }
+        "#;
+
+    let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+    normalize_measurements(&mut event);
+
+    assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"{
+  "type": "transaction",
+  "timestamp": 1619420405,
+  "start_timestamp": 1619420400,
+  "measurements": {
+    "frames_frozen": {
+      "value": 2,
+    },
+    "frames_frozen_rate": {
+      "value": 0.5,
+      "unit": "ratio",
+    },
+    "frames_slow": {
+      "value": 1,
+    },
+    "frames_slow_rate": {
+      "value": 0.25,
+      "unit": "ratio",
+    },
+    "frames_total": {
+      "value": 4,
+    },
+    "stall_percentage": {
+      "value": 0.8,
+      "unit": "ratio",
+    },
+    "stall_total_time": {
+      "value": 4000,
+      "unit": "millisecond",
+    },
+  },
+}"###);
 }

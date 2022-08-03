@@ -1,6 +1,6 @@
 use actix_web::HttpRequest;
 use bytes::Bytes;
-use futures::{Async, Future, Poll, Stream};
+use futures01::{Async, Future, Poll, Stream};
 use smallvec::SmallVec;
 
 use crate::extractors::{Decoder, SharedPayload};

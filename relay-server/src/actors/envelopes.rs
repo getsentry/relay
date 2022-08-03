@@ -16,7 +16,7 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use futures::{future, prelude::*, sync::oneshot};
+use futures01::{future, prelude::*, sync::oneshot};
 use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
 
@@ -1722,10 +1722,8 @@ impl EnvelopeProcessor {
                 }
             );
             state.transaction_metrics_extracted = true;
-            Ok(())
-        } else {
-            Err(ProcessingError::NoEventPayload)
         }
+        Ok(())
     }
 
     /// Apply data privacy rules to the event payload.

@@ -5,7 +5,7 @@ use actix::prelude::*;
 use actix_web::{error::PayloadError, multipart, HttpMessage, HttpRequest};
 use bytes::Bytes;
 use failure::Fail;
-use futures::{future, Async, Future, Poll, Stream};
+use futures01::{future, Async, Future, Poll, Stream};
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};

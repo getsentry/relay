@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::thread;
 
 use actix::prelude::*;
-use futures::{sync::oneshot, Future};
+use futures01::{sync::oneshot, Future};
 
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;

@@ -12,7 +12,7 @@ publish = false
 [dependencies]
 actix = "0.7.9"
 failure = "0.1.8"
-futures = "0.1.28"
+futures01 = { version = "0.1.28", package = "futures" }
 relay-log = { path = "../relay-log" }
 relay-system = { path = "../relay-system" }
 reqwest = { version = "0.11.1", features = ["json", "blocking"] }
