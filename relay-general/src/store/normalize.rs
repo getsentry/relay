@@ -562,7 +562,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     fn process_event(
         &mut self,
         event: &mut Event,
-        meta: &mut Meta,
+        _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         event.process_child_values(self, state)?;
