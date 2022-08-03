@@ -18,7 +18,7 @@ use crate::protocol::{
     Measurement, Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
-use crate::store::{light_normalize, ClockDriftProcessor, GeoIpLookup, StoreConfig};
+use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
@@ -812,6 +812,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 use crate::{
     processor::process_value,
     protocol::{PairList, TagEntry},
+    store::light_normalize,
     testutils::{assert_eq_dbg, get_path, get_value},
 };
 
