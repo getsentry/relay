@@ -12,8 +12,10 @@
 - Refactor profile processing into its own crate. ([#1340](https://github.com/getsentry/relay/pull/1340))
 - Treat "unknown" transaction source as low cardinality for safe SDKs. ([#1352](https://github.com/getsentry/relay/pull/1352), [#1356](https://github.com/getsentry/relay/pull/1356))
 - Conditionally write a default transaction source to the transaction payload. ([#1354](https://github.com/getsentry/relay/pull/1354))
+- Generate mobile measurements frames_frozen_rate, frames_slow_rate, stall_percentage. ([#1373](https://github.com/getsentry/relay/pull/1373))
 - Change to the internals of the healthcheck endpoint. ([#1374](https://github.com/getsentry/relay/pull/1374))
 - Re-encode the Typescript payload to normalize. ([#1372](https://github.com/getsentry/relay/pull/1372))
+
 
 **Bug Fixes**:
 
