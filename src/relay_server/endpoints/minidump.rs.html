@@ -226,7 +226,7 @@
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">actix_web::multipart</span>::{<span class="ident">Multipart</span>, <span class="ident">MultipartItem</span>};
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">actix::ResponseFuture</span>, <span class="ident">HttpMessage</span>, <span class="ident">HttpRequest</span>, <span class="ident">HttpResponse</span>};
 <span class="kw">use</span> <span class="ident">bytes::Bytes</span>;
-<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">Future</span>, <span class="ident">Stream</span>};
+<span class="kw">use</span> <span class="ident">futures01</span>::{<span class="ident">future</span>, <span class="ident">stream</span>, <span class="ident">Future</span>, <span class="ident">Stream</span>};
 
 <span class="kw">use</span> <span class="ident">relay_general::protocol::EventId</span>;
 
@@ -284,7 +284,7 @@
         <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(<span class="prelude-val">None</span>)),
     };
 
-    <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">Multipart::new</span>(<span class="prelude-val">Ok</span>(<span class="ident">boundary</span>.<span class="ident">to_string</span>()), <span class="ident">futures::stream::once</span>(<span class="prelude-val">Ok</span>(<span class="ident">payload</span>)))
+    <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">Multipart::new</span>(<span class="prelude-val">Ok</span>(<span class="ident">boundary</span>.<span class="ident">to_string</span>()), <span class="ident">stream::once</span>(<span class="prelude-val">Ok</span>(<span class="ident">payload</span>)))
         .<span class="ident">map_err</span>(<span class="ident">MultipartError::InvalidMultipart</span>)
         .<span class="ident">filter_map</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="ident">MultipartItem::Field</span>(<span class="ident">field</span>) <span class="op">=</span> <span class="ident">item</span> {

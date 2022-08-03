@@ -147,7 +147,7 @@
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">::actix::dev</span>::{<span class="ident">MessageResponse</span>, <span class="ident">ResponseChannel</span>};
 <span class="kw">use</span> <span class="ident">::actix::fut::IntoActorFuture</span>;
 <span class="kw">use</span> <span class="ident">::actix::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">futures::prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">futures01::prelude</span>::<span class="kw-2">*</span>;
 
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> {
     <span class="ident">Reply</span>(<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>),

@@ -179,7 +179,7 @@
 };
 
 <span class="kw">use</span> <span class="ident">actix</span>::{<span class="ident">System</span>, <span class="ident">SystemRunner</span>};
-<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">future</span>, <span class="ident">IntoFuture</span>};
+<span class="kw">use</span> <span class="ident">futures01</span>::{<span class="ident">future</span>, <span class="ident">IntoFuture</span>};
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">actix_web::test</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">tokio_timer::Delay</span>;
@@ -272,7 +272,7 @@
 <span class="doccomment">/// Returns a future which completes after the requested delay.</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">/// use std::time::Duration;</span>
-<span class="doccomment">/// use futures::future::Future;</span>
+<span class="doccomment">/// use futures01::future::Future;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// relay_test::setup();</span>
 <span class="doccomment">/// relay_test::block_fn(|| {</span>

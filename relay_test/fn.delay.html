@@ -9,7 +9,7 @@
     <h1 class="fqn"><span class="in-band">Function <a href="index.html">relay_test</a>::<wbr><a class="fn" href="#">delay</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/relay_test/lib.rs.html#138-140">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><div class="docblock item-decl"><pre class="rust fn"><code>pub fn delay(timeout: <a class="struct" href="https://doc.rust-lang.org/1.62.1/core/time/struct.Duration.html" title="struct core::time::Duration">Duration</a>) -&gt; <a class="struct" href="https://docs.rs/tokio-timer/0.2.13/tokio_timer/delay/struct.Delay.html" title="struct tokio_timer::delay::Delay">Delay</a></code></pre></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Returns a future which completes after the requested delay.</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">std::time::Duration</span>;
-<span class="kw">use</span> <span class="ident">futures::future::Future</span>;
+<span class="kw">use</span> <span class="ident">futures01::future::Future</span>;
 
 <span class="ident">relay_test::setup</span>();
 <span class="ident">relay_test::block_fn</span>(<span class="op">|</span><span class="op">|</span> {
