@@ -18,7 +18,7 @@ use crate::protocol::{
     Measurement, Measurements, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
-use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig};
+use crate::store::{light_normalize, ClockDriftProcessor, GeoIpLookup, StoreConfig};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
     ProcessingResult, Value,
@@ -943,7 +943,7 @@ fn test_user_ip_from_remote_addr() {
 
     let config = StoreConfig::default();
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let ip_addr = get_value!(event.user.ip_address!);
@@ -970,7 +970,7 @@ fn test_user_ip_from_invalid_remote_addr() {
 
     let config = StoreConfig::default();
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(Annotated::empty(), event.value().unwrap().user);
@@ -990,7 +990,7 @@ fn test_user_ip_from_client_ip_without_auto() {
     };
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
-    light_normalize_event(&mut event, Some(&ip_address), None, None, None, None, None).unwrap();
+    light_normalize(&mut event, Some(&ip_address), None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let ip_addr = get_value!(event.user.ip_address!);
@@ -1015,7 +1015,7 @@ fn test_user_ip_from_client_ip_with_auto() {
 
     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
-    light_normalize_event(&mut event, Some(&ip_address), None, None, None, None, None).unwrap();
+    light_normalize(&mut event, Some(&ip_address), None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = get_value!(event.user!);
@@ -1037,7 +1037,7 @@ fn test_user_ip_from_client_ip_without_appropriate_platform() {
 
     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
-    light_normalize_event(&mut event, Some(&ip_address), None, None, None, None, None).unwrap();
+    light_normalize(&mut event, Some(&ip_address), None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = get_value!(event.user!);
@@ -1050,20 +1050,38 @@ fn test_event_level_defaulted() {
     let processor = &mut NormalizeProcessor::default();
     let mut event = Annotated::new(Event::default());
 
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.level), Some(&Level::Error));
 }
 
 #[test]
 fn test_transaction_level_untouched() {
+    use crate::protocol::{ContextInner, SpanId, TraceId};
+    use chrono::TimeZone;
+
     let processor = &mut NormalizeProcessor::default();
     let mut event = Annotated::new(Event {
         ty: Annotated::new(EventType::Transaction),
+        timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
+        start_timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
+        contexts: Annotated::new(Contexts({
+            let mut contexts = Object::new();
+            contexts.insert(
+                "trace".to_owned(),
+                Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                })))),
+            );
+            contexts
+        })),
         ..Event::default()
     });
 
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.level), Some(&Level::Info));
 }
@@ -1079,7 +1097,7 @@ fn test_environment_tag_is_moved() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
@@ -1100,7 +1118,7 @@ fn test_empty_environment_is_removed_and_overwritten_with_tag() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
@@ -1117,7 +1135,7 @@ fn test_empty_environment_is_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.environment), None);
 }
@@ -1130,7 +1148,7 @@ fn test_none_environment_errors() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let environment = get_path!(event.environment!);
@@ -1157,7 +1175,7 @@ fn test_invalid_release_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let release = get_path!(event.release!);
@@ -1190,7 +1208,7 @@ fn test_top_level_keys_moved_into_tags() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(get_value!(event.site), None);
@@ -1244,7 +1262,7 @@ fn test_internal_tags_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq!(get_value!(event.tags!).len(), 1);
@@ -1271,7 +1289,7 @@ fn test_empty_tags_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1322,7 +1340,7 @@ fn test_tags_deduplicated() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     // should keep the first occurrence of every tag
@@ -1385,7 +1403,7 @@ fn test_unknown_debug_image() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1474,7 +1492,7 @@ fn test_too_long_tags() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1519,7 +1537,7 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
     });
 
     let mut processor = NormalizeProcessor::default();
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1548,7 +1566,7 @@ fn test_parses_sdk_info_from_header() {
         None,
     );
 
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1571,7 +1589,7 @@ fn test_discards_received() {
 
     let mut processor = NormalizeProcessor::default();
 
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(get_value!(event.received!), get_value!(event.timestamp!));
@@ -1602,7 +1620,7 @@ fn test_grouping_config() {
         None,
     );
 
-    light_normalize_event(&mut event, None, None, None, None, None, None).unwrap();
+    light_normalize(&mut event, None, None, None, None, None, None).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1653,7 +1671,7 @@ fn test_future_timestamp() {
         }),
         None,
     );
-    light_normalize_event(
+    light_normalize(
         &mut event,
         None,
         None,
@@ -1720,7 +1738,7 @@ fn test_past_timestamp() {
         }),
         None,
     );
-    light_normalize_event(
+    light_normalize(
         &mut event,
         None,
         None,

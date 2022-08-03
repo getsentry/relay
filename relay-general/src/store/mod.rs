@@ -8,7 +8,9 @@ use serde_json::Value;
 
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{Event, IpAddr};
-use crate::types::{Meta, ProcessingResult, SpanAttribute};
+use crate::types::{Annotated, Meta, ProcessingResult, SpanAttribute};
+use normalize::light_normalize_event;
+use transactions::validate_annotated_transaction;
 
 mod clock_drift;
 mod event_error;
@@ -25,12 +27,10 @@ pub use self::geo::{GeoIpError, GeoIpLookup};
 pub use normalize::breakdowns::{
     get_breakdown_measurements, BreakdownConfig, BreakdownsConfig, SpanOperationsConfig,
 };
-pub use normalize::{
-    compute_measurements, is_valid_platform, light_normalize_event, normalize_dist,
-};
+pub use normalize::{compute_measurements, is_valid_platform, normalize_dist};
 pub use transactions::{
-    get_measurement, get_transaction_op, is_high_cardinality_sdk, validate_annotated_transaction,
-    validate_timestamps, validate_transaction,
+    get_measurement, get_transaction_op, is_high_cardinality_sdk, validate_timestamps,
+    validate_transaction,
 };
 
 /// The config for store.
@@ -139,4 +139,26 @@ impl<'a> Processor for StoreProcessor<'a> {
 
         Ok(())
     }
+}
+
+pub fn light_normalize<'a>(
+    event: &mut Annotated<Event>,
+    client_ip: Option<&IpAddr>,
+    user_agent: Option<&'a str>,
+    received_at: Option<DateTime<Utc>>,
+    max_secs_in_past: Option<i64>,
+    max_secs_in_future: Option<i64>,
+    breakdowns_config: Option<BreakdownsConfig>,
+) -> ProcessingResult {
+    validate_annotated_transaction(event)?;
+    light_normalize_event(
+        event,
+        client_ip,
+        user_agent,
+        received_at,
+        max_secs_in_past,
+        max_secs_in_future,
+        breakdowns_config,
+    )?;
+    Ok(())
 }
