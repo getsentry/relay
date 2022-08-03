@@ -1872,7 +1872,7 @@ impl EnvelopeProcessor {
                 max_secs_in_future,
                 breakdowns_config,
             )
-            .map_err(|e| ProcessingError::ProcessingFailed(e))?;
+            .map_err(ProcessingError::ProcessingFailed)?;
         });
 
         Ok(())

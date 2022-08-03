@@ -434,7 +434,7 @@ fn normalize_security_report(
         if !headers.contains("User-Agent") {
             headers.insert(
                 HeaderName::new("User-Agent"),
-                Annotated::new(HeaderValue::new(client.clone())),
+                Annotated::new(HeaderValue::new(&(*client))),
             );
         }
     }
@@ -1660,9 +1660,9 @@ fn test_future_timestamp() {
 
     let mut processor = NormalizeProcessor::new(
         Arc::new(StoreConfig {
-            received_at: received_at,
-            max_secs_in_past: max_secs_in_past,
-            max_secs_in_future: max_secs_in_future,
+            received_at,
+            max_secs_in_past,
+            max_secs_in_future,
             ..Default::default()
         }),
         None,
