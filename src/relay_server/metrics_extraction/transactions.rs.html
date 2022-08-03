@@ -1732,10 +1732,77 @@
 <span id="1725">1725</span>
 <span id="1726">1726</span>
 <span id="1727">1727</span>
+<span id="1728">1728</span>
+<span id="1729">1729</span>
+<span id="1730">1730</span>
+<span id="1731">1731</span>
+<span id="1732">1732</span>
+<span id="1733">1733</span>
+<span id="1734">1734</span>
+<span id="1735">1735</span>
+<span id="1736">1736</span>
+<span id="1737">1737</span>
+<span id="1738">1738</span>
+<span id="1739">1739</span>
+<span id="1740">1740</span>
+<span id="1741">1741</span>
+<span id="1742">1742</span>
+<span id="1743">1743</span>
+<span id="1744">1744</span>
+<span id="1745">1745</span>
+<span id="1746">1746</span>
+<span id="1747">1747</span>
+<span id="1748">1748</span>
+<span id="1749">1749</span>
+<span id="1750">1750</span>
+<span id="1751">1751</span>
+<span id="1752">1752</span>
+<span id="1753">1753</span>
+<span id="1754">1754</span>
+<span id="1755">1755</span>
+<span id="1756">1756</span>
+<span id="1757">1757</span>
+<span id="1758">1758</span>
+<span id="1759">1759</span>
+<span id="1760">1760</span>
+<span id="1761">1761</span>
+<span id="1762">1762</span>
+<span id="1763">1763</span>
+<span id="1764">1764</span>
+<span id="1765">1765</span>
+<span id="1766">1766</span>
+<span id="1767">1767</span>
+<span id="1768">1768</span>
+<span id="1769">1769</span>
+<span id="1770">1770</span>
+<span id="1771">1771</span>
+<span id="1772">1772</span>
+<span id="1773">1773</span>
+<span id="1774">1774</span>
+<span id="1775">1775</span>
+<span id="1776">1776</span>
+<span id="1777">1777</span>
+<span id="1778">1778</span>
+<span id="1779">1779</span>
+<span id="1780">1780</span>
+<span id="1781">1781</span>
+<span id="1782">1782</span>
+<span id="1783">1783</span>
+<span id="1784">1784</span>
+<span id="1785">1785</span>
+<span id="1786">1786</span>
+<span id="1787">1787</span>
+<span id="1788">1788</span>
+<span id="1789">1789</span>
+<span id="1790">1790</span>
+<span id="1791">1791</span>
+<span id="1792">1792</span>
+<span id="1793">1793</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::utils</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
+<span class="kw">use</span> <span class="ident">relay_common::FractionUnit</span>;
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">SpanStatus</span>, <span class="ident">UnixTimestamp</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
     <span class="ident">AsPair</span>, <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Timestamp</span>, <span class="ident">TraceContext</span>, <span class="ident">TransactionSource</span>,
@@ -2091,12 +2158,15 @@
         <span class="string">&quot;app_start_warm&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
         <span class="string">&quot;frames_total&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::None</span>),
         <span class="string">&quot;frames_slow&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::None</span>),
+        <span class="string">&quot;frames_slow_rate&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Fraction</span>(<span class="ident">FractionUnit::Ratio</span>)),
         <span class="string">&quot;frames_frozen&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::None</span>),
+        <span class="string">&quot;frames_frozen_rate&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Fraction</span>(<span class="ident">FractionUnit::Ratio</span>)),
 
         <span class="comment">// React-Native</span>
         <span class="string">&quot;stall_count&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::None</span>),
         <span class="string">&quot;stall_total_time&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
         <span class="string">&quot;stall_longest_time&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
+        <span class="string">&quot;stall_percentage&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Fraction</span>(<span class="ident">FractionUnit::Ratio</span>)),
 
         <span class="comment">// Default</span>
         <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
@@ -2158,6 +2228,7 @@
             <span class="kw">return</span>; <span class="comment">// invalid transaction</span>
         }
     };
+    <span class="kw">let</span> <span class="ident">duration_millis</span> <span class="op">=</span> <span class="ident">relay_common::chrono_to_positive_millis</span>(<span class="ident">end_timestamp</span> <span class="op">-</span> <span class="ident">start_timestamp</span>);
 
     <span class="kw">let</span> <span class="ident">unix_timestamp</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">UnixTimestamp::from_datetime</span>(<span class="ident">end_timestamp</span>.<span class="ident">into_inner</span>()) {
         <span class="prelude-val">Some</span>(<span class="ident">ts</span>) =&gt; <span class="ident">ts</span>,
@@ -2168,6 +2239,8 @@
 
     <span class="comment">// Measurements</span>
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">measurements</span>) <span class="op">=</span> <span class="ident">event</span>.<span class="ident">measurements</span>.<span class="ident">value</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">measurements</span> <span class="op">=</span> <span class="ident">measurements</span>.<span class="ident">clone</span>();
+        <span class="ident">store::compute_measurements</span>(<span class="ident">duration_millis</span>, <span class="kw-2">&amp;mut</span> <span class="ident">measurements</span>);
         <span class="kw">for</span> (<span class="ident">name</span>, <span class="ident">annotated</span>) <span class="kw">in</span> <span class="ident">measurements</span>.<span class="ident">iter</span>() {
             <span class="kw">let</span> <span class="ident">measurement</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">annotated</span>.<span class="ident">value</span>() {
                 <span class="prelude-val">Some</span>(<span class="ident">m</span>) =&gt; <span class="ident">m</span>,
@@ -2244,8 +2317,6 @@
     };
 
     <span class="comment">// Duration</span>
-    <span class="kw">let</span> <span class="ident">duration_millis</span> <span class="op">=</span> <span class="ident">relay_common::chrono_to_positive_millis</span>(<span class="ident">end_timestamp</span> <span class="op">-</span> <span class="ident">start_timestamp</span>);
-
     <span class="ident">push_metric</span>(<span class="ident">Metric::new_mri</span>(
         <span class="ident">METRIC_NAMESPACE</span>,
         <span class="string">&quot;duration&quot;</span>,
@@ -3413,6 +3484,67 @@
             <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">TransactionMetricsConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(<span class="ident">config</span>).<span class="ident">unwrap</span>();
             <span class="macro">assert_eq!</span>(<span class="ident">config</span>.<span class="ident">accept_transaction_names</span>, <span class="ident">expected_strategy</span>);
         }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_computed_metrics</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+            &quot;type&quot;: &quot;transaction&quot;,
+            &quot;timestamp&quot;: 1619420520,
+            &quot;start_timestamp&quot;: 1619420400,
+            &quot;measurements&quot;: {
+                &quot;frames_frozen&quot;: {
+                    &quot;value&quot;: 2
+                },
+                &quot;frames_slow&quot;: {
+                    &quot;value&quot;: 1
+                },
+                &quot;frames_total&quot;: {
+                    &quot;value&quot;: 4
+                },
+                &quot;stall_total_time&quot;: {
+                    &quot;value&quot;: 4
+                }
+            }
+        }&quot;#</span>;
+
+        <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">TransactionMetricsConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(
+            <span class="string">r#&quot;
+        {
+            &quot;extractMetrics&quot;: [
+                &quot;d:transactions/measurements.frames_frozen_rate@ratio&quot;,
+                &quot;d:transactions/measurements.frames_slow_rate@ratio&quot;,
+                &quot;d:transactions/measurements.stall_percentage@ratio&quot;
+            ]
+        }
+        &quot;#</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+        <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
+
+        <span class="macro">assert_eq!</span>(<span class="ident">metrics</span>.<span class="ident">len</span>(), <span class="number">3</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="ident">metrics</span>);
+
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">metrics</span>[<span class="number">0</span>].<span class="ident">name</span>, <span class="string">&quot;d:transactions/measurements.frames_frozen_rate@ratio&quot;</span>,
+            <span class="string">&quot;{:?}&quot;</span>,
+            <span class="ident">metrics</span>[<span class="number">0</span>]
+        );
+
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">metrics</span>[<span class="number">1</span>].<span class="ident">name</span>, <span class="string">&quot;d:transactions/measurements.frames_slow_rate@ratio&quot;</span>,
+            <span class="string">&quot;{:?}&quot;</span>,
+            <span class="ident">metrics</span>[<span class="number">1</span>]
+        );
+
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">metrics</span>[<span class="number">2</span>].<span class="ident">name</span>, <span class="string">&quot;d:transactions/measurements.stall_percentage@ratio&quot;</span>,
+            <span class="string">&quot;{:?}&quot;</span>,
+            <span class="ident">metrics</span>[<span class="number">2</span>]
+        );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
