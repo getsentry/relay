@@ -229,6 +229,6 @@ lazy_static! {
         "#
     ).unwrap();
     static ref PASSWORD_KEY_REGEX: Regex = Regex::new(
-        r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken|privatekey)"
+        r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken|privatekey|private_key)"
     ).unwrap();
 }
