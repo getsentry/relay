@@ -155,8 +155,6 @@ pub unsafe extern "C" fn relay_pii_strip_event(
     let mut processor = PiiProcessor::new(&compiled);
 
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
-    validate_annotated_transaction(&mut event)?;
-    light_normalize_event(&mut event, None, None, None, None, None, None)?;
     process_value(&mut event, &mut processor, ProcessingState::root())?;
 
     RelayStr::from_string(event.to_json()?)
