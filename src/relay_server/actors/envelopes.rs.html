@@ -5294,7 +5294,7 @@
 
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EventProcessingLightNormalization</span>), {
             <span class="ident">light_normalize</span>(<span class="kw-2">&amp;mut</span> <span class="ident">state</span>.<span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>)
-                .<span class="ident">map_err</span>(<span class="ident">ProcessingError::ProcessingFailed</span>)<span class="question-mark">?</span>;
+                .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProcessingError::InvalidTransaction</span>)<span class="question-mark">?</span>;
         });
 
         <span class="prelude-val">Ok</span>(())
