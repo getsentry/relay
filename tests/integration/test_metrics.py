@@ -730,7 +730,7 @@ def test_transaction_metrics_not_extracted_on_unsupported_version(
     metrics_consumer.assert_empty()
 
 
-def test_no_transaction_metrics_when_filtered(metrics_consumer, mini_sentry, relay):
+def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
@@ -749,7 +749,10 @@ def test_no_transaction_metrics_when_filtered(metrics_consumer, mini_sentry, rel
     relay = relay(mini_sentry, options=TEST_CONFIG)
     relay.send_transaction(project_id, tx)
 
-    envelope = mini_sentry.captured_events.get(timeout=3)  # transaction envelope
+    # The only envelope received should be outcomes:
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert {item.type for item in envelope.items} == {"client_report"}
+
     assert mini_sentry.captured_events.qsize() == 0
 
 
