@@ -5,6 +5,7 @@
 **Features**:
 
 - Parse sample rates as JSON. ([#1353](https://github.com/getsentry/relay/pull/1353))
+- Add `privatekey` and `private_key` as secret key name to datascrubbers. ([#1376](https://github.com/getsentry/relay/pull/1376))
 
 **Internal**:
 
