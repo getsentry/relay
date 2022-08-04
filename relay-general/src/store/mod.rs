@@ -25,7 +25,9 @@ pub use self::geo::{GeoIpError, GeoIpLookup};
 pub use normalize::breakdowns::{
     get_breakdown_measurements, BreakdownConfig, BreakdownsConfig, SpanOperationsConfig,
 };
-pub use normalize::{compute_measurements, is_valid_platform, normalize_dist};
+pub use normalize::{
+    compute_measurements, is_valid_platform, normalize_dist, LightNormalizationConfig,
+};
 pub use transactions::{
     get_measurement, get_transaction_op, is_high_cardinality_sdk, validate_timestamps,
     validate_transaction,
@@ -138,22 +140,9 @@ impl<'a> Processor for StoreProcessor<'a> {
 
 pub fn light_normalize<'a>(
     event: &mut Annotated<Event>,
-    client_ip: Option<&IpAddr>,
-    user_agent: Option<&'a str>,
-    received_at: Option<DateTime<Utc>>,
-    max_secs_in_past: Option<i64>,
-    max_secs_in_future: Option<i64>,
-    breakdowns_config: Option<BreakdownsConfig>,
+    config: &LightNormalizationConfig,
 ) -> ProcessingResult {
     transactions::validate_annotated_transaction(event)?;
-    normalize::light_normalize_event(
-        event,
-        client_ip,
-        user_agent,
-        received_at,
-        max_secs_in_past,
-        max_secs_in_future,
-        breakdowns_config,
-    )?;
+    normalize::light_normalize_event(event, config)?;
     Ok(())
 }
