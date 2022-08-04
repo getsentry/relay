@@ -1,3 +1,6 @@
+use std::error::Error;
+use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use actix::SystemService;
@@ -14,7 +17,7 @@ use crate::statsd::RelayGauges;
 
 lazy_static::lazy_static! {
     /// Singleton of the `Healthcheck` service.
-    static ref ADDRESS: RwLock<Option<Addr<IsHealthy>>> = RwLock::new(None);
+    static ref ADDRESS: RwLock<Option<Addr<HealthcheckMessage>>> = RwLock::new(None);
 }
 
 /// Internal wrapper of a message sent through an `Addr` with return channel.
@@ -27,8 +30,16 @@ struct Message<T> {
 }
 
 /// An error when [sending](Addr::send) a message to a service fails.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct SendError;
+
+impl fmt::Display for SendError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "failed to send message to service")
+    }
+}
+
+impl Error for SendError {}
 
 /// Channel for sending public messages into a service.
 ///
@@ -54,8 +65,9 @@ impl<T> Addr<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct Healthcheck {
-    shutdown_state: Addr<ShutdownStateMessage>,
+    is_shutting_down: AtomicBool,
     config: Arc<Config>,
 }
 
@@ -67,7 +79,7 @@ impl Healthcheck {
     /// # Panics
     ///
     /// Panics if the service was not started using [`Healthcheck::start`] prior to this being used.
-    pub fn from_registry() -> Addr<IsHealthy> {
+    pub fn from_registry() -> Addr<HealthcheckMessage> {
         ADDRESS.read().as_ref().unwrap().clone()
     }
 
@@ -76,7 +88,7 @@ impl Healthcheck {
     /// The service does not run. To run the service, use [`start`](Self::start).
     pub fn new(config: Arc<Config>) -> Self {
         Healthcheck {
-            shutdown_state: ShutdownState::new().start(),
+            is_shutting_down: AtomicBool::new(false),
             config,
         }
     }
@@ -96,14 +108,7 @@ impl Healthcheck {
         match message {
             IsHealthy::Liveness => true,
             IsHealthy::Readiness => {
-                // Think about if there is a way to make the below things concurrent
-                if self
-                    .shutdown_state
-                    .send(ShutdownStateMessage::IsShuttingDown)
-                    .await
-                    .unwrap_or(false)
-                //  ^^^ Ask if this is a reasonable thing to do
-                {
+                if self.is_shutting_down.load(Ordering::Relaxed) {
                     return false;
                 }
 
@@ -122,58 +127,35 @@ impl Healthcheck {
         }
     }
 
-    async fn handle_shutdown(&self) -> bool {
-        self.shutdown_state
-            .send(ShutdownStateMessage::Shutdown)
-            .await
-            .unwrap_or(false); // <- Ask if this is a sane thing to do
-                               // I don't yet know why is this giving us an error?
-                               // Maybe the it has already shut down and that is why it errors
-
-        // Might be a lot nicer to send the result instead of just returning true
-        true // TODO(tobias): This should go away once messages are more generic
-    }
-
-    /* This is also no longer needed
-    async fn handle(&self, message: HealthcheckMessage) -> bool {
-        match message {
-            HealthcheckMessage::Health(message) => self.handle_is_healthy(message).await,
-            HealthcheckMessage::Shutdown => self.handle_shutdown().await,
-        }
-    } */
-
     /// Start this service, returning an [`Addr`] for communication.
-    pub fn start(self) -> Addr<IsHealthy> {
-        let (tx, mut rx) = mpsc::unbounded_channel::<Message<IsHealthy>>();
+    pub fn start(self) -> Addr<HealthcheckMessage> {
+        let (tx, mut rx) = mpsc::unbounded_channel::<Message<HealthcheckMessage>>();
 
         let addr = Addr { tx };
         *ADDRESS.write() = Some(addr.clone());
 
-        let service = Arc::new(self); // <-- Look into if there is a better solution for this
+        let service = Arc::new(self);
         let main_service = service.clone();
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 let service = main_service.clone();
+
                 tokio::spawn(async move {
-                    message
-                        .responder
-                        .send(service.handle_is_healthy(message.data).await)
-                        .ok();
+                    let response = match message.data {
+                        HealthcheckMessage::Health(data) => service.handle_is_healthy(data).await,
+                    };
+                    message.responder.send(response).ok();
                 });
             }
         });
 
         // Handle the shutdown signals
-        // let shutdown_service = service.clone();
         tokio::spawn(async move {
             let mut shutdown_rx = Controller::subscribe_v2().await;
 
             while shutdown_rx.changed().await.is_ok() {
                 if shutdown_rx.borrow_and_update().is_some() {
-                    // Is it better to do this <-- Ask about this
-                    service.handle_shutdown().await;
-                    // Or is it more idiomatic to do this
-                    // shutdown_service.handle_shutdown().await;
+                    service.is_shutting_down.store(true, Ordering::Relaxed);
                 }
             }
         });
@@ -182,7 +164,7 @@ impl Healthcheck {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum IsHealthy {
     /// Check if the Relay is alive at all.
     Liveness,
@@ -191,62 +173,14 @@ pub enum IsHealthy {
     Readiness,
 }
 
-/* No longer needed
 /// All the message types which can be sent to the [`Healthcheck`] actor.
 #[derive(Clone, Debug)]
 pub enum HealthcheckMessage {
     Health(IsHealthy),
-    Shutdown,
-}
-
-impl From<Shutdown> for HealthcheckMessage {
-    fn from(_: Shutdown) -> Self {
-        HealthcheckMessage::Shutdown
-    }
 }
 
 impl From<IsHealthy> for HealthcheckMessage {
     fn from(is_healthy: IsHealthy) -> Self {
         Self::Health(is_healthy)
-    }
-}
-*/
-
-// This needs some better names
-#[derive(Debug)]
-enum ShutdownStateMessage {
-    IsShuttingDown,
-    Shutdown,
-}
-
-#[derive(Debug)]
-struct ShutdownState {
-    is_shutting_down: bool,
-}
-
-impl ShutdownState {
-    pub fn new() -> Self {
-        Self {
-            is_shutting_down: false,
-        }
-    }
-
-    pub fn start(mut self) -> Addr<ShutdownStateMessage> {
-        let (tx, mut rx) = mpsc::unbounded_channel::<Message<_>>();
-
-        tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                match message.data {
-                    ShutdownStateMessage::IsShuttingDown => {
-                        message.responder.send(self.is_shutting_down).ok();
-                    }
-                    ShutdownStateMessage::Shutdown => {
-                        self.is_shutting_down = true;
-                    }
-                }
-            }
-        });
-
-        Addr { tx }
     }
 }

@@ -33,9 +33,9 @@ impl HealthcheckResponse {
 }
 
 fn healthcheck_impl(message: IsHealthy) -> ResponseFuture<HttpResponse, Error> {
-    let fut = async {
+    let fut = async move {
         let addr = Healthcheck::from_registry();
-        addr.send(message).await
+        addr.send(message.into()).await
     };
 
     Box::new(
