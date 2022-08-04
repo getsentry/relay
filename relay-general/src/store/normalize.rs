@@ -10,7 +10,7 @@ use regex::Regex;
 use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 use smallvec::SmallVec;
 
-use super::BreakdownsConfig;
+use super::{schema, BreakdownsConfig};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
@@ -510,6 +510,9 @@ pub fn light_normalize_event(
     breakdowns_config: Option<BreakdownsConfig>,
 ) -> ProcessingResult {
     event.apply(|event, meta| {
+        // Check for required and non-empty values
+        schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
+
         // Process security reports first to ensure all props.
         normalize_security_report(event, client_ip, user_agent);
 

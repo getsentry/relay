@@ -113,9 +113,6 @@ impl<'a> Processor for StoreProcessor<'a> {
         }
 
         if !is_renormalize {
-            // Check for required and non-empty values
-            schema::SchemaProcessor.process_event(event, meta, state)?;
-
             // Normalize data in all interfaces
             self.normalize.process_event(event, meta, state)?;
         }
