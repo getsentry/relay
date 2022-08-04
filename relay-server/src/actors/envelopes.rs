@@ -125,7 +125,6 @@ enum ProcessingError {
     #[fail(display = "submission rejected with reason: {:?}", _0)]
     Rejected(DiscardReason),
 
-    #[cfg(feature = "processing")]
     #[fail(display = "event filtered with reason: {:?}", _0)]
     EventFiltered(FilterStatKey),
 
@@ -194,7 +193,6 @@ impl ProcessingError {
             // These outcomes are emitted at the source.
             Self::ScheduleFailed => None,
             Self::Rejected(_) => None,
-            #[cfg(feature = "processing")]
             Self::EventFiltered(_) => None,
             Self::Sampled(_) => None,
             Self::RateLimited => None,
@@ -1613,11 +1611,12 @@ impl EnvelopeProcessor {
         Ok(())
     }
 
-    #[cfg(feature = "processing")]
     fn filter_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let event = match state.event.value_mut() {
             Some(event) => event,
-            None => return Err(ProcessingError::NoEventPayload),
+            // Some events are created by processing relays (e.g. unreal), so they do not yet
+            // exist at this point in non-processing relays.
+            None => return Ok(()),
         };
 
         let client_ip = state.envelope.meta().client_addr();
@@ -1913,9 +1912,10 @@ impl EnvelopeProcessor {
 
             self.sample_envelope(state)?;
 
+            self.filter_event(state)?;
+
             if_processing!({
                 self.store_process_event(state)?;
-                self.filter_event(state)?;
             });
         }
 

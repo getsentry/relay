@@ -193,7 +193,6 @@ pub enum RelayTimers {
     #[cfg(feature = "processing")]
     EventProcessingProcess,
     /// Time in milliseconds spent running inbound data filters on an event.
-    #[cfg(feature = "processing")]
     EventProcessingFiltering,
     /// Time in milliseconds spent checking for organization, project, and DSN rate limits.
     ///
@@ -324,7 +323,6 @@ impl TimerMetric for RelayTimers {
             }
             #[cfg(feature = "processing")]
             RelayTimers::EventProcessingProcess => "event_processing.process",
-            #[cfg(feature = "processing")]
             RelayTimers::EventProcessingFiltering => "event_processing.filtering",
             #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
