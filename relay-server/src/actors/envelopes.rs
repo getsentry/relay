@@ -1866,7 +1866,7 @@ impl EnvelopeProcessor {
 
         metric!(timer(RelayTimers::EventProcessingLightNormalization), {
             light_normalize(&mut state.event, &config)
-                .map_err(ProcessingError::ProcessingFailed)?;
+                .map_err(|_| ProcessingError::InvalidTransaction)?;
         });
 
         Ok(())
