@@ -31,7 +31,7 @@ use relay_general::protocol::{
     IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
 };
-use relay_general::store::{light_normalize, ClockDriftProcessor};
+use relay_general::store::{light_normalize, ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
@@ -1854,24 +1854,19 @@ impl EnvelopeProcessor {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        let client_ip = state.envelope.meta().client_addr().map(IpAddr::from);
-        let user_agent = state.envelope.meta().user_agent();
-        let received_at = Some(state.envelope_context.received_at);
-        let max_secs_in_past = Some(self.config.max_secs_in_past());
-        let max_secs_in_future = Some(self.config.max_secs_in_future());
-        let breakdowns_config = state.project_state.config.breakdowns_v2.clone();
+        let client_ipaddr = state.envelope.meta().client_addr().map(IpAddr::from);
+        let config = LightNormalizationConfig {
+            client_ip: client_ipaddr.as_ref(),
+            user_agent: state.envelope.meta().user_agent(),
+            received_at: Some(state.envelope_context.received_at),
+            max_secs_in_past: Some(self.config.max_secs_in_past()),
+            max_secs_in_future: Some(self.config.max_secs_in_future()),
+            breakdowns_config: state.project_state.config.breakdowns_v2.as_ref().clone(),
+        };
 
         metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-            light_normalize(
-                &mut state.event,
-                client_ip.as_ref(),
-                user_agent,
-                received_at,
-                max_secs_in_past,
-                max_secs_in_future,
-                breakdowns_config,
-            )
-            .map_err(ProcessingError::ProcessingFailed)?;
+            light_normalize(&mut state.event, &config)
+                .map_err(ProcessingError::ProcessingFailed)?;
         });
 
         Ok(())

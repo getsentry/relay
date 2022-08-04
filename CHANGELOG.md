@@ -16,7 +16,7 @@
 - Generate mobile measurements frames_frozen_rate, frames_slow_rate, stall_percentage. ([#1373](https://github.com/getsentry/relay/pull/1373))
 - Change to the internals of the healthcheck endpoint. ([#1374](https://github.com/getsentry/relay/pull/1374))
 - Re-encode the Typescript payload to normalize. ([#1372](https://github.com/getsentry/relay/pull/1372))
-- Light normalize before extracting metrics. ([#1366](https://github.com/getsentry/relay/pull/1366))
+- Partially normalize events before extracting metrics. ([#1366](https://github.com/getsentry/relay/pull/1366))
 
 **Bug Fixes**:
 
