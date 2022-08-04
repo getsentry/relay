@@ -696,7 +696,7 @@ def test_filtered_event_outcome_kafka(relay, mini_sentry):
         },
     )
 
-    event_id = _send_event(downstream, event_type="error")
+    _send_event(downstream, event_type="error")
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -713,12 +713,12 @@ def test_filtered_event_outcome_kafka(relay, mini_sentry):
         "org_id": 1,
         "project_id": 42,
         "key_id": 123,
-        "event_id": event_id,  # FIXME: This can't be, client reports drop the event ID
+        # no event ID because it was a client report
         "outcome": 1,
         "reason": "release-version",
         "category": 1,
         "quantity": 1,
-        "remote_addr": "127.0.0.1",
+        # no remote_addr because it was a client report
     }
     assert outcome == expected_outcome
 

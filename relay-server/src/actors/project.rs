@@ -145,6 +145,9 @@ pub struct LimitedProjectConfig {
     pub allowed_domains: Vec<String>,
     pub trusted_relays: Vec<PublicKey>,
     pub pii_config: Option<PiiConfig>,
+    /// Configuration for filter rules.
+    #[serde(skip_serializing_if = "FiltersConfig::is_empty")]
+    pub filter_settings: FiltersConfig,
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
