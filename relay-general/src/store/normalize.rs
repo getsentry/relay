@@ -1900,3 +1900,78 @@ fn test_computed_measurements() {
   },
 }"###);
 }
+
+#[test]
+fn test_light_normalization_is_idempotent() {
+    use crate::protocol::{ContextInner, Span, SpanId, TraceId};
+    use chrono::TimeZone;
+
+    // get an event, light normalize it. the result of that must be the same as light normalizing it once more
+    let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
+    let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
+    let mut event = Annotated::new(Event {
+        ty: Annotated::new(EventType::Transaction),
+        transaction: Annotated::new("/".to_owned()),
+        timestamp: Annotated::new(end.into()),
+        start_timestamp: Annotated::new(start.into()),
+        contexts: Annotated::new(Contexts({
+            let mut contexts = Object::new();
+            contexts.insert(
+                "trace".to_owned(),
+                Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                })))),
+            );
+            contexts
+        })),
+        spans: Annotated::new(vec![Annotated::new(Span {
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 10).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+
+            ..Default::default()
+        })]),
+        ..Default::default()
+    });
+
+    let config = LightNormalizationConfig {
+        client_ip: None,
+        user_agent: None,
+        received_at: None,
+        max_secs_in_past: None,
+        max_secs_in_future: None,
+        breakdowns_config: None,
+    };
+
+    fn remove_received_from_event(event: &mut Annotated<Event>) -> &mut Annotated<Event> {
+        event
+            .apply(|e, _m| {
+                e.received = Annotated::empty();
+                Ok(())
+            })
+            .unwrap();
+        event
+    }
+
+    light_normalize(&mut event, &config).unwrap();
+    let first = remove_received_from_event(&mut event.clone())
+        .to_json()
+        .unwrap();
+    // Expected some fields (such as timestamps) exist after first light normalization.
+
+    light_normalize(&mut event, &config).unwrap();
+    let second = remove_received_from_event(&mut event.clone())
+        .to_json()
+        .unwrap();
+    assert_eq!(&first, &second, "idempotency check failed");
+
+    light_normalize(&mut event, &config).unwrap();
+    let third = remove_received_from_event(&mut event.clone())
+        .to_json()
+        .unwrap();
+    assert_eq!(&second, &third, "idempotency check failed");
+}
