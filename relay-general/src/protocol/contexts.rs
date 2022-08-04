@@ -116,7 +116,52 @@ pub struct DeviceContext {
     #[metastructure(pii = "maybe")]
     pub timezone: Annotated<String>,
 
-    /// Additional arbitrary fields for forwards compatibility.
+    /// Number of "logical processors".
+    ///
+    /// For example, 8.
+    pub processor_count: Annotated<u64>,
+
+    /// CPU description.
+    ///
+    /// For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.
+    pub cpu_description: Annotated<String>,
+
+    /// Processor frequency in MHz.
+    ///
+    /// Note that the actual CPU frequency might vary depending on current load and
+    /// power conditions, especially on low-powered devices like phones and laptops.
+    pub processor_frequency: Annotated<u64>,
+
+    /// Kind of device the application is running on.
+    ///
+    /// For example, `Unknown`, `Handheld`, `Console`, `Desktop`.
+    pub device_type: Annotated<String>,
+
+    /// Status of the device's battery.
+    ///
+    /// For example, `Unknown`, `Charging`, `Discharging`, `NotCharging`, `Full`.
+    pub battery_status: Annotated<String>,
+
+    /// Unique device identifier.
+    #[metastructure(pii = "maybe")]
+    pub device_unique_identifier: Annotated<String>,
+
+    /// Whether vibration is available on the device.
+    pub supports_vibration: Annotated<bool>,
+
+    /// Whether the accelerometer is available on the device.
+    pub supports_accelerometer: Annotated<bool>,
+
+    /// Whether the gyroscope is available on the device.
+    pub supports_gyroscope: Annotated<bool>,
+
+    /// Whether audio is available on the device.
+    pub supports_audio: Annotated<bool>,
+
+    /// Whether location support is available on the device.
+    pub supports_location_service: Annotated<bool>,
+
+    /// Additional arbitrary fields for forwards compatibility
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
 }
