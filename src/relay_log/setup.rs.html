@@ -272,6 +272,8 @@
 <span id="265">265</span>
 <span id="266">266</span>
 <span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">std::path::PathBuf</span>;
@@ -517,27 +519,29 @@
         }
     }
 
-    <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">sentry::init</span>(<span class="ident">sentry::ClientOptions</span> {
-        <span class="ident">dsn</span>: <span class="ident">sentry</span>.<span class="ident">enabled_dsn</span>().<span class="ident">cloned</span>(),
-        <span class="ident">in_app_include</span>: <span class="macro">vec!</span>[
-            <span class="string">&quot;relay_auth::&quot;</span>,
-            <span class="string">&quot;relay_common::&quot;</span>,
-            <span class="string">&quot;relay_config::&quot;</span>,
-            <span class="string">&quot;relay_filter::&quot;</span>,
-            <span class="string">&quot;relay_general::&quot;</span>,
-            <span class="string">&quot;relay_quotas::&quot;</span>,
-            <span class="string">&quot;relay_redis::&quot;</span>,
-            <span class="string">&quot;relay_server::&quot;</span>,
-            <span class="string">&quot;relay::&quot;</span>,
-        ],
-        <span class="ident">integrations</span>: <span class="macro">vec!</span>[<span class="ident">Arc::new</span>(<span class="ident">FailureIntegration::new</span>())],
-        <span class="ident">release</span>,
-        <span class="ident">attach_stacktrace</span>: <span class="ident">config</span>.<span class="ident">enable_backtraces</span>,
-        ..<span class="ident">Default::default</span>()
-    });
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">dsn</span>) <span class="op">=</span> <span class="ident">sentry</span>.<span class="ident">enabled_dsn</span>() {
+        <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">sentry::init</span>(<span class="ident">sentry::ClientOptions</span> {
+            <span class="ident">dsn</span>: <span class="prelude-val">Some</span>(<span class="ident">dsn</span>).<span class="ident">cloned</span>(),
+            <span class="ident">in_app_include</span>: <span class="macro">vec!</span>[
+                <span class="string">&quot;relay_auth::&quot;</span>,
+                <span class="string">&quot;relay_common::&quot;</span>,
+                <span class="string">&quot;relay_config::&quot;</span>,
+                <span class="string">&quot;relay_filter::&quot;</span>,
+                <span class="string">&quot;relay_general::&quot;</span>,
+                <span class="string">&quot;relay_quotas::&quot;</span>,
+                <span class="string">&quot;relay_redis::&quot;</span>,
+                <span class="string">&quot;relay_server::&quot;</span>,
+                <span class="string">&quot;relay::&quot;</span>,
+            ],
+            <span class="ident">integrations</span>: <span class="macro">vec!</span>[<span class="ident">Arc::new</span>(<span class="ident">FailureIntegration::new</span>())],
+            <span class="ident">release</span>,
+            <span class="ident">attach_stacktrace</span>: <span class="ident">config</span>.<span class="ident">enable_backtraces</span>,
+            ..<span class="ident">Default::default</span>()
+        });
 
-    <span class="comment">// Keep the client initialized. The client is flushed manually in `main`.</span>
-    <span class="ident">std::mem::forget</span>(<span class="ident">guard</span>);
+        <span class="comment">// Keep the client initialized. The client is flushed manually in `main`.</span>
+        <span class="ident">std::mem::forget</span>(<span class="ident">guard</span>);
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_log" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.1 (e092d0b6b 2022-07-16)" ></div>
