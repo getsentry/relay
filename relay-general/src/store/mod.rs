@@ -9,8 +9,6 @@ use serde_json::Value;
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{Event, IpAddr};
 use crate::types::{Annotated, Meta, ProcessingResult, SpanAttribute};
-use normalize::light_normalize_event;
-use transactions::validate_annotated_transaction;
 
 mod clock_drift;
 mod event_error;
@@ -150,8 +148,8 @@ pub fn light_normalize<'a>(
     max_secs_in_future: Option<i64>,
     breakdowns_config: Option<BreakdownsConfig>,
 ) -> ProcessingResult {
-    validate_annotated_transaction(event)?;
-    light_normalize_event(
+    transactions::validate_annotated_transaction(event)?;
+    normalize::light_normalize_event(
         event,
         client_ip,
         user_agent,
