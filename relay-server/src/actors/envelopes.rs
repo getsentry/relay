@@ -1905,7 +1905,6 @@ impl EnvelopeProcessor {
 
             // Filter event before extracting metrics
             self.filter_event(state)?;
-
             self.extract_transaction_metrics(state)?;
 
             self.sample_envelope(state)?;
