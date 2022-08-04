@@ -5,6 +5,7 @@
 **Features**:
 
 - Parse sample rates as JSON. ([#1353](https://github.com/getsentry/relay/pull/1353))
+- Filter events in external Relays. ([#1379](https://github.com/getsentry/relay/pull/1379))
 
 **Internal**:
 

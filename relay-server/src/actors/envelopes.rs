@@ -1908,11 +1908,12 @@ impl EnvelopeProcessor {
 
             self.light_normalize_event(state)?;
 
+            // Filter event before extracting metrics
+            self.filter_event(state)?;
+
             self.extract_transaction_metrics(state)?;
 
             self.sample_envelope(state)?;
-
-            self.filter_event(state)?;
 
             if_processing!({
                 self.store_process_event(state)?;
