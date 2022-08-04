@@ -1,6 +1,4 @@
-#[cfg(feature = "uaparser")]
 use crate::protocol::{Event, Headers, PairList, Request};
-#[cfg(feature = "uaparser")]
 use crate::types::Annotated;
 
 macro_rules! assert_eq_str {
@@ -146,7 +144,6 @@ macro_rules! get_value {
 
 pub(crate) use get_value;
 
-#[cfg(feature = "uaparser")]
 /// Creates an Event with the specified user agent.
 pub(super) fn get_event_with_user_agent(user_agent: &str) -> Event {
     let headers = vec![
