@@ -5,6 +5,7 @@
 **Features**:
 
 - Parse sample rates as JSON. ([#1353](https://github.com/getsentry/relay/pull/1353))
+- Filter events in external Relays, before extracting metrics. ([#1379](https://github.com/getsentry/relay/pull/1379))
 - Add `privatekey` and `private_key` as secret key name to datascrubbers. ([#1376](https://github.com/getsentry/relay/pull/1376))
 
 **Bug Fixes**:

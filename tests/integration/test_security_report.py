@@ -126,7 +126,7 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
 
     assert resp.status_code == 200
 
-    envelope = mini_sentry.captured_events.get(timeout=7)
+    envelope = mini_sentry.captured_events.get(timeout=10)
     event = get_security_report(envelope)
     for x in ignored_properties:
         event.pop(x, None)
