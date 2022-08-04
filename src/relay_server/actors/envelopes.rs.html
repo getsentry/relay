@@ -3401,6 +3401,30 @@
 <span id="3394">3394</span>
 <span id="3395">3395</span>
 <span id="3396">3396</span>
+<span id="3397">3397</span>
+<span id="3398">3398</span>
+<span id="3399">3399</span>
+<span id="3400">3400</span>
+<span id="3401">3401</span>
+<span id="3402">3402</span>
+<span id="3403">3403</span>
+<span id="3404">3404</span>
+<span id="3405">3405</span>
+<span id="3406">3406</span>
+<span id="3407">3407</span>
+<span id="3408">3408</span>
+<span id="3409">3409</span>
+<span id="3410">3410</span>
+<span id="3411">3411</span>
+<span id="3412">3412</span>
+<span id="3413">3413</span>
+<span id="3414">3414</span>
+<span id="3415">3415</span>
+<span id="3416">3416</span>
+<span id="3417">3417</span>
+<span id="3418">3418</span>
+<span id="3419">3419</span>
+<span id="3420">3420</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3434,7 +3458,7 @@
     <span class="ident">IpAddr</span>, <span class="ident">LenientString</span>, <span class="ident">Metrics</span>, <span class="ident">RelayInfo</span>, <span class="ident">SecurityReportType</span>, <span class="ident">SessionAggregates</span>,
     <span class="ident">SessionAttributes</span>, <span class="ident">SessionUpdate</span>, <span class="ident">Timestamp</span>, <span class="ident">UserReport</span>, <span class="ident">Values</span>,
 };
-<span class="kw">use</span> <span class="ident">relay_general::store::ClockDriftProcessor</span>;
+<span class="kw">use</span> <span class="ident">relay_general::store</span>::{<span class="ident">light_normalize</span>, <span class="ident">ClockDriftProcessor</span>, <span class="ident">LightNormalizationConfig</span>};
 <span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Array</span>, <span class="ident">FromValue</span>, <span class="ident">Object</span>, <span class="ident">ProcessingAction</span>, <span class="ident">Value</span>};
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">Metric</span>};
@@ -5254,6 +5278,28 @@
         }
     }
 
+    <span class="kw">fn</span> <span class="ident">light_normalize_event</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">client_ipaddr</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>().<span class="ident">map</span>(<span class="ident">IpAddr::from</span>);
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">LightNormalizationConfig</span> {
+            <span class="ident">client_ip</span>: <span class="ident">client_ipaddr</span>.<span class="ident">as_ref</span>(),
+            <span class="ident">user_agent</span>: <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">user_agent</span>(),
+            <span class="ident">received_at</span>: <span class="prelude-val">Some</span>(<span class="ident">state</span>.<span class="ident">envelope_context</span>.<span class="ident">received_at</span>),
+            <span class="ident">max_secs_in_past</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_secs_in_past</span>()),
+            <span class="ident">max_secs_in_future</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_secs_in_future</span>()),
+            <span class="ident">breakdowns_config</span>: <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">breakdowns_v2</span>.<span class="ident">as_ref</span>(),
+        };
+
+        <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EventProcessingLightNormalization</span>), {
+            <span class="ident">light_normalize</span>(<span class="kw-2">&amp;mut</span> <span class="ident">state</span>.<span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>)
+                .<span class="ident">map_err</span>(<span class="ident">ProcessingError::ProcessingFailed</span>)<span class="question-mark">?</span>;
+        });
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">fn</span> <span class="ident">process_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="macro">macro_rules!</span> <span class="ident">if_processing</span> {
             (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">if_true</span>:<span class="ident">block</span>) =&gt; {
@@ -5282,6 +5328,8 @@
             });
 
             <span class="self">self</span>.<span class="ident">finalize_event</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
+
+            <span class="self">self</span>.<span class="ident">light_normalize_event</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
 
             <span class="self">self</span>.<span class="ident">extract_transaction_metrics</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
 

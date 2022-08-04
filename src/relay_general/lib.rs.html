@@ -31,7 +31,6 @@
 <span id="24">24</span>
 <span id="25">25</span>
 <span id="26">26</span>
-<span id="27">27</span>
 </pre><pre class="rust"><code><span class="comment">// Clippy throws errors in situations where a closure is clearly the better way. An example is</span>
 <span class="comment">// `Annotated::as_str`, which can&#39;t be used directly because it&#39;s part of two impl blocks.</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::redundant_closure</span>)]</span>
@@ -57,7 +56,6 @@
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">store</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">types</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;uaparser&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">user_agent</span>;
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.1 (e092d0b6b 2022-07-16)" ></div>

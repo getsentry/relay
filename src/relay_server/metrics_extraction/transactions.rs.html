@@ -1798,6 +1798,14 @@
 <span id="1791">1791</span>
 <span id="1792">1792</span>
 <span id="1793">1793</span>
+<span id="1794">1794</span>
+<span id="1795">1795</span>
+<span id="1796">1796</span>
+<span id="1797">1797</span>
+<span id="1798">1798</span>
+<span id="1799">1799</span>
+<span id="1800">1800</span>
+<span id="1801">1801</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::utils</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
@@ -1913,6 +1921,14 @@
 
 <span class="kw">fn</span> <span class="ident">extract_transaction_op</span>(<span class="ident">trace_context</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">op</span> <span class="op">=</span> <span class="ident">trace_context</span>.<span class="ident">op</span>.<span class="ident">value</span>()<span class="question-mark">?</span>;
+    <span class="kw">if</span> <span class="ident">op</span> <span class="op">==</span> <span class="string">&quot;default&quot;</span> {
+        <span class="comment">// This was likely set by normalization, so let&#39;s treat it as None</span>
+        <span class="comment">// See https://github.com/getsentry/relay/blob/bb2ac4ee82c25faa07a6d078f93d22d799cfc5d1/relay-general/src/store/transactions.rs#L96</span>
+
+        <span class="comment">// Note that this is the opposite behavior of what we do for transaction.status, where</span>
+        <span class="comment">// we coalesce None to &quot;unknown&quot;.</span>
+        <span class="kw">return</span> <span class="prelude-val">None</span>;
+    }
     <span class="prelude-val">Some</span>(<span class="ident">op</span>.<span class="ident">to_string</span>())
 }
 
