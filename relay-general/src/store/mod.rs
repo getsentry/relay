@@ -138,7 +138,7 @@ impl<'a> Processor for StoreProcessor<'a> {
     }
 }
 
-pub fn light_normalize<'a>(
+pub fn light_normalize(
     event: &mut Annotated<Event>,
     config: &LightNormalizationConfig,
 ) -> ProcessingResult {
