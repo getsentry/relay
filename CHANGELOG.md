@@ -7,6 +7,11 @@
 - Parse sample rates as JSON. ([#1353](https://github.com/getsentry/relay/pull/1353))
 - Add `privatekey` and `private_key` as secret key name to datascrubbers. ([#1376](https://github.com/getsentry/relay/pull/1376))
 
+**Bug Fixes**:
+
+- Fix a bug where unreal crash reports were dropped when metrics extraction is enabled. ([#1355](https://github.com/getsentry/relay/pull/1355))
+- Extract user from metrics with EventUser's priority. ([#1363](https://github.com/getsentry/relay/pull/1363))
+
 **Internal**:
 
 - Support compressed project configs in redis cache. ([#1345](https://github.com/getsentry/relay/pull/1345))
@@ -16,12 +21,7 @@
 - Generate mobile measurements frames_frozen_rate, frames_slow_rate, stall_percentage. ([#1373](https://github.com/getsentry/relay/pull/1373))
 - Change to the internals of the healthcheck endpoint. ([#1374](https://github.com/getsentry/relay/pull/1374))
 - Re-encode the Typescript payload to normalize. ([#1372](https://github.com/getsentry/relay/pull/1372))
-
-
-**Bug Fixes**:
-
-- Fix a bug where unreal crash reports were dropped when metrics extraction is enabled. ([#1355](https://github.com/getsentry/relay/pull/1355))
-- Extract user from metrics with EventUser's priority. ([#1363](https://github.com/getsentry/relay/pull/1363))
+- Spawn more threads for CPU intensive work. ([#1378](https://github.com/getsentry/relay/pull/1378))
 
 ## 22.7.0
 
