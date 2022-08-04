@@ -243,25 +243,27 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         }
     }
 
-    let guard = sentry::init(sentry::ClientOptions {
-        dsn: sentry.enabled_dsn().cloned(),
-        in_app_include: vec![
-            "relay_auth::",
-            "relay_common::",
-            "relay_config::",
-            "relay_filter::",
-            "relay_general::",
-            "relay_quotas::",
-            "relay_redis::",
-            "relay_server::",
-            "relay::",
-        ],
-        integrations: vec![Arc::new(FailureIntegration::new())],
-        release,
-        attach_stacktrace: config.enable_backtraces,
-        ..Default::default()
-    });
+    if let Some(dsn) = sentry.enabled_dsn() {
+        let guard = sentry::init(sentry::ClientOptions {
+            dsn: Some(dsn).cloned(),
+            in_app_include: vec![
+                "relay_auth::",
+                "relay_common::",
+                "relay_config::",
+                "relay_filter::",
+                "relay_general::",
+                "relay_quotas::",
+                "relay_redis::",
+                "relay_server::",
+                "relay::",
+            ],
+            integrations: vec![Arc::new(FailureIntegration::new())],
+            release,
+            attach_stacktrace: config.enable_backtraces,
+            ..Default::default()
+        });
 
-    // Keep the client initialized. The client is flushed manually in `main`.
-    std::mem::forget(guard);
+        // Keep the client initialized. The client is flushed manually in `main`.
+        std::mem::forget(guard);
+    }
 }
