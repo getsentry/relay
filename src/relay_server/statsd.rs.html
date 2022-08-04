@@ -548,8 +548,6 @@
 <span id="541">541</span>
 <span id="542">542</span>
 <span id="543">543</span>
-<span id="544">544</span>
-<span id="545">545</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -745,7 +743,6 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">EventProcessingProcess</span>,
     <span class="doccomment">/// Time in milliseconds spent running inbound data filters on an event.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">EventProcessingFiltering</span>,
     <span class="doccomment">/// Time in milliseconds spent checking for organization, project, and DSN rate limits.</span>
     <span class="doccomment">///</span>
@@ -876,7 +873,6 @@
             }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">RelayTimers::EventProcessingProcess</span> =&gt; <span class="string">&quot;event_processing.process&quot;</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">RelayTimers::EventProcessingFiltering</span> =&gt; <span class="string">&quot;event_processing.filtering&quot;</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">RelayTimers::EventProcessingRateLimiting</span> =&gt; <span class="string">&quot;event_processing.rate_limiting&quot;</span>,

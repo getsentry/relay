@@ -3425,6 +3425,7 @@
 <span id="3418">3418</span>
 <span id="3419">3419</span>
 <span id="3420">3420</span>
+<span id="3421">3421</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::cmp::max</span>;
@@ -3552,7 +3553,6 @@
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;submission rejected with reason: {:?}&quot;</span>, <span class="ident">_0</span>)]</span>
     <span class="ident">Rejected</span>(<span class="ident">DiscardReason</span>),
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;event filtered with reason: {:?}&quot;</span>, <span class="ident">_0</span>)]</span>
     <span class="ident">EventFiltered</span>(<span class="ident">FilterStatKey</span>),
 
@@ -3621,7 +3621,6 @@
             <span class="comment">// These outcomes are emitted at the source.</span>
             <span class="ident"><span class="self">Self</span>::ScheduleFailed</span> =&gt; <span class="prelude-val">None</span>,
             <span class="ident"><span class="self">Self</span>::Rejected</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident"><span class="self">Self</span>::EventFiltered</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             <span class="ident"><span class="self">Self</span>::Sampled</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             <span class="ident"><span class="self">Self</span>::RateLimited</span> =&gt; <span class="prelude-val">None</span>,
@@ -5040,11 +5039,12 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">filter_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">state</span>.<span class="ident">event</span>.<span class="ident">value_mut</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">event</span>) =&gt; <span class="ident">event</span>,
-            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ProcessingError::NoEventPayload</span>),
+            <span class="comment">// Some events are created by processing relays (e.g. unreal), so they do not yet</span>
+            <span class="comment">// exist at this point in non-processing relays.</span>
+            <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
         };
 
         <span class="kw">let</span> <span class="ident">client_ip</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
@@ -5331,13 +5331,15 @@
 
             <span class="self">self</span>.<span class="ident">light_normalize_event</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
 
+            <span class="comment">// Filter event before extracting metrics</span>
+            <span class="self">self</span>.<span class="ident">filter_event</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
+
             <span class="self">self</span>.<span class="ident">extract_transaction_metrics</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
 
             <span class="self">self</span>.<span class="ident">sample_envelope</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
 
             <span class="macro">if_processing!</span>({
                 <span class="self">self</span>.<span class="ident">store_process_event</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
-                <span class="self">self</span>.<span class="ident">filter_event</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
             });
         }
 

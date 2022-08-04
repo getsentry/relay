@@ -746,6 +746,9 @@
 <span id="739">739</span>
 <span id="740">740</span>
 <span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -893,6 +896,9 @@
     <span class="kw">pub</span> <span class="ident">allowed_domains</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">trusted_relays</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">PublicKey</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">pii_config</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Configuration for filter rules.</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;FiltersConfig::is_empty&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">filter_settings</span>: <span class="ident">FiltersConfig</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;DataScrubbingConfig::is_disabled&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">datascrubbing_settings</span>: <span class="ident">DataScrubbingConfig</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>

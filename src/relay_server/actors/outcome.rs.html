@@ -836,7 +836,6 @@
 <span id="829">829</span>
 <span id="830">830</span>
 <span id="831">831</span>
-<span id="832">832</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Outcomes describe the final &quot;fate&quot; of an event. As such, for every event exactly one outcome</span>
@@ -989,7 +988,6 @@
     <span class="comment">// #[allow(dead_code)]</span>
     <span class="comment">// Accepted,</span>
     <span class="doccomment">/// The event has been filtered due to a configured filter.</span>
-    <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>), <span class="ident">allow</span>(<span class="ident">dead_code</span>))]</span>
     <span class="ident">Filtered</span>(<span class="ident">FilterStatKey</span>),
 
     <span class="doccomment">/// The event has been filtered by a Sampling Rule</span>
