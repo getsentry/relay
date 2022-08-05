@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{Event, IpAddr};
-use crate::types::{Meta, ProcessingResult, SpanAttribute};
+use crate::types::{Annotated, Meta, ProcessingResult, SpanAttribute};
 
 mod clock_drift;
 mod event_error;
@@ -25,9 +25,12 @@ pub use self::geo::{GeoIpError, GeoIpLookup};
 pub use normalize::breakdowns::{
     get_breakdown_measurements, BreakdownConfig, BreakdownsConfig, SpanOperationsConfig,
 };
-pub use normalize::{compute_measurements, is_valid_platform, normalize_dist};
+pub use normalize::{
+    compute_measurements, is_valid_platform, normalize_dist, LightNormalizationConfig,
+};
 pub use transactions::{
     get_measurement, get_transaction_op, is_high_cardinality_sdk, validate_timestamps,
+    validate_transaction,
 };
 
 /// The config for store.
@@ -112,9 +115,6 @@ impl<'a> Processor for StoreProcessor<'a> {
         }
 
         if !is_renormalize {
-            // Check for required and non-empty values
-            schema::SchemaProcessor.process_event(event, meta, state)?;
-
             // Normalize data in all interfaces
             self.normalize.process_event(event, meta, state)?;
         }
@@ -136,4 +136,13 @@ impl<'a> Processor for StoreProcessor<'a> {
 
         Ok(())
     }
+}
+
+pub fn light_normalize(
+    event: &mut Annotated<Event>,
+    config: &LightNormalizationConfig,
+) -> ProcessingResult {
+    transactions::validate_annotated_transaction(event)?;
+    normalize::light_normalize_event(event, config)?;
+    Ok(())
 }

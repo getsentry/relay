@@ -31,7 +31,7 @@ use relay_general::protocol::{
     IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
 };
-use relay_general::store::ClockDriftProcessor;
+use relay_general::store::{light_normalize, ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
@@ -125,7 +125,6 @@ enum ProcessingError {
     #[fail(display = "submission rejected with reason: {:?}", _0)]
     Rejected(DiscardReason),
 
-    #[cfg(feature = "processing")]
     #[fail(display = "event filtered with reason: {:?}", _0)]
     EventFiltered(FilterStatKey),
 
@@ -194,7 +193,6 @@ impl ProcessingError {
             // These outcomes are emitted at the source.
             Self::ScheduleFailed => None,
             Self::Rejected(_) => None,
-            #[cfg(feature = "processing")]
             Self::EventFiltered(_) => None,
             Self::Sampled(_) => None,
             Self::RateLimited => None,
@@ -1613,11 +1611,12 @@ impl EnvelopeProcessor {
         Ok(())
     }
 
-    #[cfg(feature = "processing")]
     fn filter_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let event = match state.event.value_mut() {
             Some(event) => event,
-            None => return Err(ProcessingError::NoEventPayload),
+            // Some events are created by processing relays (e.g. unreal), so they do not yet
+            // exist at this point in non-processing relays.
+            None => return Ok(()),
         };
 
         let client_ip = state.envelope.meta().client_addr();
@@ -1851,6 +1850,28 @@ impl EnvelopeProcessor {
         }
     }
 
+    fn light_normalize_event(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        let client_ipaddr = state.envelope.meta().client_addr().map(IpAddr::from);
+        let config = LightNormalizationConfig {
+            client_ip: client_ipaddr.as_ref(),
+            user_agent: state.envelope.meta().user_agent(),
+            received_at: Some(state.envelope_context.received_at),
+            max_secs_in_past: Some(self.config.max_secs_in_past()),
+            max_secs_in_future: Some(self.config.max_secs_in_future()),
+            breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
+        };
+
+        metric!(timer(RelayTimers::EventProcessingLightNormalization), {
+            light_normalize(&mut state.event, &config)
+                .map_err(|_| ProcessingError::InvalidTransaction)?;
+        });
+
+        Ok(())
+    }
+
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         macro_rules! if_processing {
             ($if_true:block) => {
@@ -1880,13 +1901,17 @@ impl EnvelopeProcessor {
 
             self.finalize_event(state)?;
 
+            self.light_normalize_event(state)?;
+
+            // Filter event before extracting metrics
+            self.filter_event(state)?;
+
             self.extract_transaction_metrics(state)?;
 
             self.sample_envelope(state)?;
 
             if_processing!({
                 self.store_process_event(state)?;
-                self.filter_event(state)?;
             });
         }
 

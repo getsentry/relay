@@ -3,13 +3,14 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::Arc;
 
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
 use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 use smallvec::SmallVec;
 
+use super::{schema, BreakdownsConfig};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
@@ -31,7 +32,6 @@ mod request;
 mod spans;
 mod stacktrace;
 
-#[cfg(feature = "uaparser")]
 mod user_agent;
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
@@ -84,7 +84,15 @@ pub fn normalize_dist(dist: &mut Option<String>) {
     }
 }
 
-/// Compute additional measurements derived from existing ones
+/// Compute additional measurements derived from existing ones.
+///
+/// The added measurements are:
+///
+/// ```text
+/// frames_slow_rate := measurements.frames_slow / measurements.frames_total
+/// frames_frozen_rate := measurements.frames_frozen / measurements.frames_total
+/// stall_percentage := measurements.stall_total_time / transaction.duration
+/// ```
 pub fn compute_measurements(transaction_duration_ms: f64, measurements: &mut Measurements) {
     if let Some(frames_total) = measurements.get_value("frames_total") {
         if frames_total > 0.0 {
@@ -158,29 +166,6 @@ impl<'a> NormalizeProcessor<'a> {
         })
     }
 
-    /// Ensure measurements interface is only present for transaction events
-    fn normalize_measurements(&self, event: &mut Event) {
-        if event.ty.value() != Some(&EventType::Transaction) {
-            // Only transaction events may have a measurements interface
-            event.measurements = Annotated::empty();
-        } else if let Some(measurements) = event.measurements.value_mut() {
-            let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
-                (Some(start), Some(end)) => relay_common::chrono_to_positive_millis(end - start),
-                _ => 0.0,
-            };
-
-            compute_measurements(duration_millis, measurements);
-        }
-    }
-
-    /// Emit any breakdowns
-    fn normalize_breakdowns(&self, event: &mut Event) {
-        match &self.config.breakdowns {
-            None => {}
-            Some(breakdowns_config) => breakdowns::normalize_breakdowns(event, breakdowns_config),
-        }
-    }
-
     fn normalize_spans(&self, event: &mut Event) {
         if event.ty.value() == Some(&EventType::Transaction) {
             spans::normalize_spans(event, &self.config.span_attributes);
@@ -193,124 +178,6 @@ impl<'a> NormalizeProcessor<'a> {
                 trace_context.client_sample_rate = Annotated::from(self.config.client_sample_rate);
             }
         }
-    }
-
-    /// Ensures that the `release` and `dist` fields match up.
-    fn normalize_release_dist(&self, event: &mut Event) {
-        normalize_dist(event.dist.value_mut());
-    }
-
-    /// Validates the timestamp range and sets a default value.
-    fn normalize_timestamps(
-        &self,
-        event: &mut Event,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        let received_at = self.config.received_at.unwrap_or_else(Utc::now);
-
-        let mut sent_at = None;
-        let mut error_kind = ErrorKind::ClockDrift;
-
-        event.timestamp.apply(|timestamp, _meta| {
-            if let Some(secs) = self.config.max_secs_in_future {
-                if *timestamp > received_at + Duration::seconds(secs) {
-                    error_kind = ErrorKind::FutureTimestamp;
-                    sent_at = Some(*timestamp);
-                    return Ok(());
-                }
-            }
-
-            if let Some(secs) = self.config.max_secs_in_past {
-                if *timestamp < received_at - Duration::seconds(secs) {
-                    error_kind = ErrorKind::PastTimestamp;
-                    sent_at = Some(*timestamp);
-                    return Ok(());
-                }
-            }
-
-            Ok(())
-        })?;
-
-        ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
-            .error_kind(error_kind)
-            .process_event(event, meta, state)?;
-
-        // Apply this after clock drift correction, otherwise we will malform it.
-        event.received = Annotated::new(received_at.into());
-
-        if event.timestamp.value().is_none() {
-            event.timestamp.set_value(Some(received_at.into()));
-        }
-
-        event
-            .time_spent
-            .apply(|time_spent, _| validate_bounded_integer_field(*time_spent))?;
-
-        Ok(())
-    }
-
-    /// Removes internal tags and adds tags for well-known attributes.
-    fn normalize_event_tags(&self, event: &mut Event) -> ProcessingResult {
-        let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
-        let environment = &mut event.environment;
-        if environment.is_empty() {
-            *environment = Annotated::empty();
-        }
-
-        // Fix case where legacy apps pass environment as a tag instead of a top level key
-        if let Some(tag) = tags.remove("environment").and_then(Annotated::into_value) {
-            environment.get_or_insert_with(|| tag);
-        }
-
-        // Remove internal tags, that are generated with a `sentry:` prefix when saving the event.
-        // They are not allowed to be set by the client due to ambiguity. Also, deduplicate tags.
-        let mut tag_cache = DedupCache::new();
-        tags.retain(|entry| {
-            match entry.value() {
-                Some(tag) => match tag.key() {
-                    Some("release") | Some("dist") | Some("user") | Some("filename")
-                    | Some("function") => false,
-                    name => tag_cache.probe(name),
-                },
-                // ToValue will decide if we should skip serializing Annotated::empty()
-                None => true,
-            }
-        });
-
-        for tag in tags.iter_mut() {
-            tag.apply(|tag, _| {
-                if let Some(key) = tag.key() {
-                    if key.is_empty() {
-                        tag.0 = Annotated::from_error(Error::nonempty(), None);
-                    } else if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
-                        tag.0 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
-                    }
-                }
-
-                if let Some(value) = tag.value() {
-                    if value.is_empty() {
-                        tag.1 = Annotated::from_error(Error::nonempty(), None);
-                    } else if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
-                        tag.1 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
-                    }
-                }
-
-                Ok(())
-            })?;
-        }
-
-        let server_name = std::mem::take(&mut event.server_name);
-        if server_name.value().is_some() {
-            tags.insert("server_name".to_string(), server_name);
-        }
-
-        let site = std::mem::take(&mut event.site);
-        if site.value().is_some() {
-            tags.insert("site".to_string(), site);
-        }
-
-        Ok(())
     }
 
     /// Infers the `EventType` from the event's interfaces.
@@ -344,166 +211,362 @@ impl<'a> NormalizeProcessor<'a> {
             EventType::Default
         }
     }
+}
 
-    fn is_security_report(&self, event: &Event) -> bool {
-        event.csp.value().is_some()
-            || event.expectct.value().is_some()
-            || event.expectstaple.value().is_some()
-            || event.hpkp.value().is_some()
+/// Emit any breakdowns
+fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&BreakdownsConfig>) {
+    match breakdowns_config {
+        None => {}
+        Some(config) => breakdowns::normalize_breakdowns(event, config),
     }
+}
 
-    /// Backfills common security report attributes.
-    fn normalize_security_report(&self, event: &mut Event) {
-        if !self.is_security_report(event) {
-            // This event is not a security report, exit here.
-            return;
-        }
+/// Ensure measurements interface is only present for transaction events
+fn normalize_measurements(event: &mut Event) {
+    if event.ty.value() != Some(&EventType::Transaction) {
+        // Only transaction events may have a measurements interface
+        event.measurements = Annotated::empty();
+    } else if let Some(measurements) = event.measurements.value_mut() {
+        let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
+            (Some(start), Some(end)) => relay_common::chrono_to_positive_millis(end - start),
+            _ => 0.0,
+        };
 
-        event.logger.get_or_insert_with(|| "csp".to_string());
-
-        if let Some(ref client_ip) = self.config.client_ip {
-            let user = event.user.value_mut().get_or_insert_with(User::default);
-            user.ip_address = Annotated::new(client_ip.clone());
-        }
-
-        if let Some(ref client) = self.config.user_agent {
-            let request = event
-                .request
-                .value_mut()
-                .get_or_insert_with(Request::default);
-
-            let headers = request
-                .headers
-                .value_mut()
-                .get_or_insert_with(Headers::default);
-
-            if !headers.contains("User-Agent") {
-                headers.insert(
-                    HeaderName::new("User-Agent"),
-                    Annotated::new(HeaderValue::new(client.clone())),
-                );
-            }
-        }
+        compute_measurements(duration_millis, measurements);
     }
+}
 
-    /// Backfills IP addresses in various places.
-    fn normalize_ip_addresses(&self, event: &mut Event) {
-        // NOTE: This is highly order dependent, in the sense that both the statements within this
-        // function need to be executed in a certain order, and that other normalization code
-        // (geoip lookup) needs to run after this.
-        //
-        // After a series of regressions over the old Python spaghetti code we decided to put it
-        // back into one function. If a desire to split this code up overcomes you, put this in a
-        // new processor and make sure all of it runs before the rest of normalization.
-
-        // Resolve {{auto}}
-        if let Some(ref client_ip) = self.config.client_ip {
-            if let Some(ref mut request) = event.request.value_mut() {
-                if let Some(ref mut env) = request.env.value_mut() {
-                    if let Some(&mut Value::String(ref mut http_ip)) = env
-                        .get_mut("REMOTE_ADDR")
-                        .and_then(|annotated| annotated.value_mut().as_mut())
-                    {
-                        if http_ip == "{{auto}}" {
-                            *http_ip = client_ip.to_string();
-                        }
-                    }
-                }
-            }
-
-            if let Some(ref mut user) = event.user.value_mut() {
-                if let Some(ref mut user_ip) = user.ip_address.value_mut() {
-                    if user_ip.is_auto() {
-                        *user_ip = client_ip.clone();
-                    }
-                }
-            }
-        }
-
-        // Copy IPs from request interface to user, and resolve platform-specific backfilling
-        let http_ip = event
-            .request
-            .value()
-            .and_then(|request| request.env.value())
-            .and_then(|env| env.get("REMOTE_ADDR"))
-            .and_then(Annotated::<Value>::as_str)
-            .and_then(|ip| IpAddr::parse(ip).ok());
-
-        if let Some(http_ip) = http_ip {
-            let user = event.user.value_mut().get_or_insert_with(User::default);
-            user.ip_address.value_mut().get_or_insert(http_ip);
-        } else if let Some(ref client_ip) = self.config.client_ip {
-            let user = event.user.value_mut().get_or_insert_with(User::default);
-            // auto is already handled above
-            if user.ip_address.value().is_none() {
-                let platform = event.platform.as_str();
-
-                // In an ideal world all SDKs would set {{auto}} explicitly.
-                if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                    user.ip_address = Annotated::new(client_ip.clone());
-                }
-            }
-        }
+fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) {
+    if normalize_user_agent.unwrap_or(false) {
+        user_agent::normalize_user_agent(_event);
     }
+}
 
-    fn normalize_exceptions(&self, event: &mut Event) -> ProcessingResult {
-        let os_hint = mechanism::OsHint::from_event(event);
+fn normalize_exceptions(event: &mut Event) -> ProcessingResult {
+    let os_hint = mechanism::OsHint::from_event(event);
 
-        if let Some(exception_values) = event.exceptions.value_mut() {
-            if let Some(exceptions) = exception_values.values.value_mut() {
-                if exceptions.len() == 1 && event.stacktrace.value().is_some() {
-                    if let Some(exception) = exceptions.get_mut(0) {
-                        if let Some(exception) = exception.value_mut() {
-                            mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
-                            event.stacktrace = Annotated::empty();
-                        }
-                    }
-                }
-
-                // Exception mechanism needs SDK information to resolve proper names in
-                // exception meta (such as signal names). "SDK Information" really means
-                // the operating system version the event was generated on. Some
-                // normalization still works without sdk_info, such as mach_exception
-                // names (they can only occur on macOS).
-                //
-                // We also want to validate some other aspects of it.
-                for exception in exceptions {
+    if let Some(exception_values) = event.exceptions.value_mut() {
+        if let Some(exceptions) = exception_values.values.value_mut() {
+            if exceptions.len() == 1 && event.stacktrace.value().is_some() {
+                if let Some(exception) = exceptions.get_mut(0) {
                     if let Some(exception) = exception.value_mut() {
-                        if let Some(mechanism) = exception.mechanism.value_mut() {
-                            mechanism::normalize_mechanism(mechanism, os_hint)?;
-                        }
+                        mem::swap(&mut exception.stacktrace, &mut event.stacktrace);
+                        event.stacktrace = Annotated::empty();
                     }
                 }
+            }
+
+            // Exception mechanism needs SDK information to resolve proper names in
+            // exception meta (such as signal names). "SDK Information" really means
+            // the operating system version the event was generated on. Some
+            // normalization still works without sdk_info, such as mach_exception
+            // names (they can only occur on macOS).
+            //
+            // We also want to validate some other aspects of it.
+            for exception in exceptions {
+                if let Some(exception) = exception.value_mut() {
+                    if let Some(mechanism) = exception.mechanism.value_mut() {
+                        mechanism::normalize_mechanism(mechanism, os_hint)?;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Removes internal tags and adds tags for well-known attributes.
+fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
+    let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+    let environment = &mut event.environment;
+    if environment.is_empty() {
+        *environment = Annotated::empty();
+    }
+
+    // Fix case where legacy apps pass environment as a tag instead of a top level key
+    if let Some(tag) = tags.remove("environment").and_then(Annotated::into_value) {
+        environment.get_or_insert_with(|| tag);
+    }
+
+    // Remove internal tags, that are generated with a `sentry:` prefix when saving the event.
+    // They are not allowed to be set by the client due to ambiguity. Also, deduplicate tags.
+    let mut tag_cache = DedupCache::new();
+    tags.retain(|entry| {
+        match entry.value() {
+            Some(tag) => match tag.key() {
+                Some("release") | Some("dist") | Some("user") | Some("filename")
+                | Some("function") => false,
+                name => tag_cache.probe(name),
+            },
+            // ToValue will decide if we should skip serializing Annotated::empty()
+            None => true,
+        }
+    });
+
+    for tag in tags.iter_mut() {
+        tag.apply(|tag, _| {
+            if let Some(key) = tag.key() {
+                if key.is_empty() {
+                    tag.0 = Annotated::from_error(Error::nonempty(), None);
+                } else if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
+                    tag.0 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
+                }
+            }
+
+            if let Some(value) = tag.value() {
+                if value.is_empty() {
+                    tag.1 = Annotated::from_error(Error::nonempty(), None);
+                } else if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
+                    tag.1 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
+                }
+            }
+
+            Ok(())
+        })?;
+    }
+
+    let server_name = std::mem::take(&mut event.server_name);
+    if server_name.value().is_some() {
+        tags.insert("server_name".to_string(), server_name);
+    }
+
+    let site = std::mem::take(&mut event.site);
+    if site.value().is_some() {
+        tags.insert("site".to_string(), site);
+    }
+
+    Ok(())
+}
+
+/// Validates the timestamp range and sets a default value.
+fn normalize_timestamps(
+    event: &mut Event,
+    meta: &mut Meta,
+    received_at: Option<DateTime<Utc>>,
+    max_secs_in_past: Option<i64>,
+    max_secs_in_future: Option<i64>,
+) -> ProcessingResult {
+    let received_at = received_at.unwrap_or_else(Utc::now);
+
+    let mut sent_at = None;
+    let mut error_kind = ErrorKind::ClockDrift;
+
+    event.timestamp.apply(|timestamp, _meta| {
+        if let Some(secs) = max_secs_in_future {
+            if *timestamp > received_at + Duration::seconds(secs) {
+                error_kind = ErrorKind::FutureTimestamp;
+                sent_at = Some(*timestamp);
+                return Ok(());
+            }
+        }
+
+        if let Some(secs) = max_secs_in_past {
+            if *timestamp < received_at - Duration::seconds(secs) {
+                error_kind = ErrorKind::PastTimestamp;
+                sent_at = Some(*timestamp);
+                return Ok(());
             }
         }
 
         Ok(())
+    })?;
+
+    ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
+        .error_kind(error_kind)
+        .process_event(event, meta, ProcessingState::root())?;
+
+    // Apply this after clock drift correction, otherwise we will malform it.
+    event.received = Annotated::new(received_at.into());
+
+    if event.timestamp.value().is_none() {
+        event.timestamp.set_value(Some(received_at.into()));
     }
 
-    fn normalize_user_agent(&self, _event: &mut Event) {
-        if self.config.normalize_user_agent.unwrap_or(false) {
-            #[cfg(feature = "uaparser")]
-            user_agent::normalize_user_agent(_event);
+    event
+        .time_spent
+        .apply(|time_spent, _| validate_bounded_integer_field(*time_spent))?;
 
-            #[cfg(not(feature = "uaparser"))]
-            panic!("relay not built with uaparser feature");
+    Ok(())
+}
+
+/// Ensures that the `release` and `dist` fields match up.
+fn normalize_release_dist(event: &mut Event) {
+    normalize_dist(event.dist.value_mut());
+}
+
+fn is_security_report(event: &Event) -> bool {
+    event.csp.value().is_some()
+        || event.expectct.value().is_some()
+        || event.expectstaple.value().is_some()
+        || event.hpkp.value().is_some()
+}
+
+/// Backfills common security report attributes.
+fn normalize_security_report(
+    event: &mut Event,
+    client_ip: Option<&IpAddr>,
+    user_agent: Option<&str>,
+) {
+    if !is_security_report(event) {
+        // This event is not a security report, exit here.
+        return;
+    }
+
+    event.logger.get_or_insert_with(|| "csp".to_string());
+
+    if let Some(client_ip) = client_ip {
+        let user = event.user.value_mut().get_or_insert_with(User::default);
+        user.ip_address = Annotated::new(client_ip.to_owned());
+    }
+
+    if let Some(client) = user_agent {
+        let request = event
+            .request
+            .value_mut()
+            .get_or_insert_with(Request::default);
+
+        let headers = request
+            .headers
+            .value_mut()
+            .get_or_insert_with(Headers::default);
+
+        if !headers.contains("User-Agent") {
+            headers.insert(
+                HeaderName::new("User-Agent"),
+                Annotated::new(HeaderValue::new(&(*client))),
+            );
         }
     }
+}
+
+/// Backfills IP addresses in various places.
+fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
+    // NOTE: This is highly order dependent, in the sense that both the statements within this
+    // function need to be executed in a certain order, and that other normalization code
+    // (geoip lookup) needs to run after this.
+    //
+    // After a series of regressions over the old Python spaghetti code we decided to put it
+    // back into one function. If a desire to split this code up overcomes you, put this in a
+    // new processor and make sure all of it runs before the rest of normalization.
+
+    // Resolve {{auto}}
+    if let Some(client_ip) = client_ip {
+        if let Some(ref mut request) = event.request.value_mut() {
+            if let Some(ref mut env) = request.env.value_mut() {
+                if let Some(&mut Value::String(ref mut http_ip)) = env
+                    .get_mut("REMOTE_ADDR")
+                    .and_then(|annotated| annotated.value_mut().as_mut())
+                {
+                    if http_ip == "{{auto}}" {
+                        *http_ip = client_ip.to_string();
+                    }
+                }
+            }
+        }
+
+        if let Some(ref mut user) = event.user.value_mut() {
+            if let Some(ref mut user_ip) = user.ip_address.value_mut() {
+                if user_ip.is_auto() {
+                    *user_ip = client_ip.to_owned();
+                }
+            }
+        }
+    }
+
+    // Copy IPs from request interface to user, and resolve platform-specific backfilling
+    let http_ip = event
+        .request
+        .value()
+        .and_then(|request| request.env.value())
+        .and_then(|env| env.get("REMOTE_ADDR"))
+        .and_then(Annotated::<Value>::as_str)
+        .and_then(|ip| IpAddr::parse(ip).ok());
+
+    if let Some(http_ip) = http_ip {
+        let user = event.user.value_mut().get_or_insert_with(User::default);
+        user.ip_address.value_mut().get_or_insert(http_ip);
+    } else if let Some(client_ip) = client_ip {
+        let user = event.user.value_mut().get_or_insert_with(User::default);
+        // auto is already handled above
+        if user.ip_address.value().is_none() {
+            let platform = event.platform.as_str();
+
+            // In an ideal world all SDKs would set {{auto}} explicitly.
+            if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
+                user.ip_address = Annotated::new(client_ip.to_owned());
+            }
+        }
+    }
+}
+
+pub struct LightNormalizationConfig<'a> {
+    pub client_ip: Option<&'a IpAddr>,
+    pub user_agent: Option<&'a str>,
+    pub received_at: Option<DateTime<Utc>>,
+    pub max_secs_in_past: Option<i64>,
+    pub max_secs_in_future: Option<i64>,
+    pub breakdowns_config: Option<&'a BreakdownsConfig>,
+}
+
+pub fn light_normalize_event(
+    event: &mut Annotated<Event>,
+    config: &LightNormalizationConfig,
+) -> ProcessingResult {
+    event.apply(|event, meta| {
+        // Check for required and non-empty values
+        schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
+
+        // Process security reports first to ensure all props.
+        normalize_security_report(event, config.client_ip, config.user_agent);
+
+        // Insert IP addrs before recursing, since geo lookup depends on it.
+        normalize_ip_addresses(event, config.client_ip);
+
+        // Validate the basic attributes we extract metrics from
+        event.release.apply(|release, meta| {
+            if protocol::validate_release(release).is_ok() {
+                Ok(())
+            } else {
+                meta.add_error(ErrorKind::InvalidData);
+                Err(ProcessingAction::DeleteValueSoft)
+            }
+        })?;
+        event.environment.apply(|environment, meta| {
+            if protocol::validate_environment(environment).is_ok() {
+                Ok(())
+            } else {
+                meta.add_error(ErrorKind::InvalidData);
+                Err(ProcessingAction::DeleteValueSoft)
+            }
+        })?;
+
+        // Default required attributes, even if they have errors
+        normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
+        normalize_timestamps(
+            event,
+            meta,
+            config.received_at,
+            config.max_secs_in_past,
+            config.max_secs_in_future,
+        )?; // Timestamps are core in the metrics extraction
+        normalize_event_tags(event)?; // Tags are added to every metric
+        normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
+        normalize_user_agent(event, Some(true)); // Legacy browsers filter
+        normalize_measurements(event); // Measurements are part of the metric extraction
+        normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+
+        Ok(())
+    })
 }
 
 impl<'a> Processor for NormalizeProcessor<'a> {
     fn process_event(
         &mut self,
         event: &mut Event,
-        meta: &mut Meta,
+        _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        // Process security reports first to ensure all props.
-        self.normalize_security_report(event);
-
-        // Insert IP addrs before recursing, since geo lookup depends on it.
-        self.normalize_ip_addresses(event);
-
         event.process_child_values(self, state)?;
 
         // Override internal attributes, even if they were set in the payload
@@ -529,24 +592,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             }
         })?;
 
-        event.environment.apply(|environment, meta| {
-            if protocol::validate_environment(environment).is_ok() {
-                Ok(())
-            } else {
-                meta.add_error(ErrorKind::InvalidData);
-                Err(ProcessingAction::DeleteValueSoft)
-            }
-        })?;
-
-        event.release.apply(|release, meta| {
-            if protocol::validate_release(release).is_ok() {
-                Ok(())
-            } else {
-                meta.add_error(ErrorKind::InvalidData);
-                Err(ProcessingAction::DeleteValueSoft)
-            }
-        })?;
-
         // Default required attributes, even if they have errors
         event.errors.get_or_insert_with(Vec::new);
         event.id.get_or_insert_with(EventId::new);
@@ -562,13 +607,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_release_dist(event);
-        self.normalize_timestamps(event, meta, state)?;
-        self.normalize_event_tags(event)?;
-        self.normalize_exceptions(event)?;
-        self.normalize_user_agent(event);
-        self.normalize_measurements(event);
-        self.normalize_breakdowns(event);
         self.normalize_spans(event);
         self.normalize_trace_context(event);
 
@@ -781,6 +819,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 use crate::{
     processor::process_value,
     protocol::{PairList, TagEntry},
+    store::light_normalize,
     testutils::{assert_eq_dbg, get_path, get_value},
 };
 
@@ -788,6 +827,18 @@ use crate::{
 impl Default for NormalizeProcessor<'_> {
     fn default() -> Self {
         NormalizeProcessor::new(Arc::new(StoreConfig::default()), None)
+    }
+}
+
+#[cfg(test)]
+fn get_empty_light_normalization_config<'a>() -> LightNormalizationConfig<'a> {
+    LightNormalizationConfig {
+        client_ip: None,
+        user_agent: None,
+        received_at: None,
+        max_secs_in_past: None,
+        max_secs_in_future: None,
+        breakdowns_config: None,
     }
 }
 
@@ -907,6 +958,8 @@ fn test_user_ip_from_remote_addr() {
 
     let config = StoreConfig::default();
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let ip_addr = get_value!(event.user.ip_address!);
@@ -933,6 +986,8 @@ fn test_user_ip_from_invalid_remote_addr() {
 
     let config = StoreConfig::default();
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(Annotated::empty(), event.value().unwrap().user);
@@ -945,12 +1000,16 @@ fn test_user_ip_from_client_ip_without_auto() {
         ..Default::default()
     });
 
+    let ip_address = IpAddr::parse("2.125.160.216").unwrap();
     let config = StoreConfig {
-        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        client_ip: Some(ip_address.clone()),
         ..StoreConfig::default()
     };
 
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+    let mut config = get_empty_light_normalization_config();
+    config.client_ip = Some(&ip_address);
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let ip_addr = get_value!(event.user.ip_address!);
@@ -967,13 +1026,17 @@ fn test_user_ip_from_client_ip_with_auto() {
         ..Default::default()
     });
 
+    let ip_address = IpAddr::parse("2.125.160.216").unwrap();
     let config = StoreConfig {
-        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        client_ip: Some(ip_address.clone()),
         ..StoreConfig::default()
     };
 
     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
+    let mut config = get_empty_light_normalization_config();
+    config.client_ip = Some(&ip_address);
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = get_value!(event.user!);
@@ -987,13 +1050,17 @@ fn test_user_ip_from_client_ip_with_auto() {
 fn test_user_ip_from_client_ip_without_appropriate_platform() {
     let mut event = Annotated::new(Event::default());
 
+    let ip_address = IpAddr::parse("2.125.160.216").unwrap();
     let config = StoreConfig {
-        client_ip: Some(IpAddr::parse("2.125.160.216").unwrap()),
+        client_ip: Some(ip_address.clone()),
         ..StoreConfig::default()
     };
 
     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
     let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
+    let mut config = get_empty_light_normalization_config();
+    config.client_ip = Some(&ip_address);
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = get_value!(event.user!);
@@ -1005,19 +1072,39 @@ fn test_user_ip_from_client_ip_without_appropriate_platform() {
 fn test_event_level_defaulted() {
     let processor = &mut NormalizeProcessor::default();
     let mut event = Annotated::new(Event::default());
-
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.level), Some(&Level::Error));
 }
 
 #[test]
 fn test_transaction_level_untouched() {
+    use crate::protocol::{ContextInner, SpanId, TraceId};
+    use chrono::TimeZone;
+
     let processor = &mut NormalizeProcessor::default();
     let mut event = Annotated::new(Event {
         ty: Annotated::new(EventType::Transaction),
+        timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
+        start_timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
+        contexts: Annotated::new(Contexts({
+            let mut contexts = Object::new();
+            contexts.insert(
+                "trace".to_owned(),
+                Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                })))),
+            );
+            contexts
+        })),
         ..Event::default()
     });
-
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.level), Some(&Level::Info));
 }
@@ -1033,6 +1120,8 @@ fn test_environment_tag_is_moved() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
@@ -1053,6 +1142,8 @@ fn test_empty_environment_is_removed_and_overwritten_with_tag() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
@@ -1069,6 +1160,8 @@ fn test_empty_environment_is_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.environment), None);
 }
@@ -1081,6 +1174,8 @@ fn test_none_environment_errors() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let environment = get_path!(event.environment!);
@@ -1107,6 +1202,8 @@ fn test_invalid_release_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let release = get_path!(event.release!);
@@ -1139,6 +1236,8 @@ fn test_top_level_keys_moved_into_tags() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(get_value!(event.site), None);
@@ -1192,6 +1291,8 @@ fn test_internal_tags_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq!(get_value!(event.tags!).len(), 1);
@@ -1218,6 +1319,8 @@ fn test_empty_tags_removed() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1268,6 +1371,8 @@ fn test_tags_deduplicated() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     // should keep the first occurrence of every tag
@@ -1330,6 +1435,8 @@ fn test_unknown_debug_image() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1418,6 +1525,8 @@ fn test_too_long_tags() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1462,6 +1571,8 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
     });
 
     let mut processor = NormalizeProcessor::default();
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1489,6 +1600,9 @@ fn test_parses_sdk_info_from_header() {
         }),
         None,
     );
+
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1511,6 +1625,8 @@ fn test_discards_received() {
 
     let mut processor = NormalizeProcessor::default();
 
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(get_value!(event.received!), get_value!(event.timestamp!));
@@ -1541,6 +1657,8 @@ fn test_grouping_config() {
         None,
     );
 
+    let config = get_empty_light_normalization_config();
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1578,15 +1696,28 @@ fn test_future_timestamp() {
         ..Default::default()
     });
 
+    let received_at = Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0));
+    let max_secs_in_past = Some(30 * 24 * 3600);
+    let max_secs_in_future = Some(60);
+
     let mut processor = NormalizeProcessor::new(
         Arc::new(StoreConfig {
-            received_at: Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0)),
-            max_secs_in_past: Some(30 * 24 * 3600),
-            max_secs_in_future: Some(60),
+            received_at,
+            max_secs_in_past,
+            max_secs_in_future,
             ..Default::default()
         }),
         None,
     );
+    let config = LightNormalizationConfig {
+        client_ip: None,
+        user_agent: None,
+        received_at,
+        max_secs_in_past,
+        max_secs_in_future,
+        breakdowns_config: None,
+    };
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1631,15 +1762,28 @@ fn test_past_timestamp() {
         ..Default::default()
     });
 
+    let received_at = Some(Utc.ymd(2000, 3, 3).and_hms(0, 0, 0));
+    let max_secs_in_past = Some(30 * 24 * 3600);
+    let max_secs_in_future = Some(60);
+
     let mut processor = NormalizeProcessor::new(
         Arc::new(StoreConfig {
-            received_at: Some(Utc.ymd(2000, 3, 3).and_hms(0, 0, 0)),
-            max_secs_in_past: Some(30 * 24 * 3600),
-            max_secs_in_future: Some(60),
+            received_at,
+            max_secs_in_past,
+            max_secs_in_future,
             ..Default::default()
         }),
         None,
     );
+    let config = LightNormalizationConfig {
+        client_ip: None,
+        user_agent: None,
+        received_at,
+        max_secs_in_past,
+        max_secs_in_future,
+        breakdowns_config: None,
+    };
+    light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1721,13 +1865,7 @@ fn test_computed_measurements() {
 
     let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-    let processor = NormalizeProcessor::new(
-        Arc::new(StoreConfig {
-            ..Default::default()
-        }),
-        None,
-    );
-    processor.normalize_measurements(&mut event);
+    normalize_measurements(&mut event);
 
     assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"{
   "type": "transaction",
@@ -1761,4 +1899,79 @@ fn test_computed_measurements() {
     },
   },
 }"###);
+}
+
+#[test]
+fn test_light_normalization_is_idempotent() {
+    use crate::protocol::{ContextInner, Span, SpanId, TraceId};
+    use chrono::TimeZone;
+
+    // get an event, light normalize it. the result of that must be the same as light normalizing it once more
+    let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
+    let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
+    let mut event = Annotated::new(Event {
+        ty: Annotated::new(EventType::Transaction),
+        transaction: Annotated::new("/".to_owned()),
+        timestamp: Annotated::new(end.into()),
+        start_timestamp: Annotated::new(start.into()),
+        contexts: Annotated::new(Contexts({
+            let mut contexts = Object::new();
+            contexts.insert(
+                "trace".to_owned(),
+                Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                })))),
+            );
+            contexts
+        })),
+        spans: Annotated::new(vec![Annotated::new(Span {
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 10).into()),
+            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+
+            ..Default::default()
+        })]),
+        ..Default::default()
+    });
+
+    let config = LightNormalizationConfig {
+        client_ip: None,
+        user_agent: None,
+        received_at: None,
+        max_secs_in_past: None,
+        max_secs_in_future: None,
+        breakdowns_config: None,
+    };
+
+    fn remove_received_from_event(event: &mut Annotated<Event>) -> &mut Annotated<Event> {
+        event
+            .apply(|e, _m| {
+                e.received = Annotated::empty();
+                Ok(())
+            })
+            .unwrap();
+        event
+    }
+
+    light_normalize(&mut event, &config).unwrap();
+    let first = remove_received_from_event(&mut event.clone())
+        .to_json()
+        .unwrap();
+    // Expected some fields (such as timestamps) exist after first light normalization.
+
+    light_normalize(&mut event, &config).unwrap();
+    let second = remove_received_from_event(&mut event.clone())
+        .to_json()
+        .unwrap();
+    assert_eq!(&first, &second, "idempotency check failed");
+
+    light_normalize(&mut event, &config).unwrap();
+    let third = remove_received_from_event(&mut event.clone())
+        .to_json()
+        .unwrap();
+    assert_eq!(&second, &third, "idempotency check failed");
 }

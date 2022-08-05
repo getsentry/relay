@@ -46,7 +46,7 @@ def test_uses_origins(mini_sentry, relay, json_fixture_provider, allowed_origins
     )
 
     if should_be_allowed:
-        mini_sentry.captured_events.get(timeout=1).get_event()
+        mini_sentry.captured_events.get(timeout=10).get_event()
     assert mini_sentry.captured_events.empty()
 
 
@@ -126,13 +126,18 @@ def test_security_report(mini_sentry, relay, test_case, json_fixture_provider):
 
     assert resp.status_code == 200
 
-    envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.captured_events.get(timeout=10)
     event = get_security_report(envelope)
     for x in ignored_properties:
         event.pop(x, None)
 
     ext = ".no_processing.output"
     expected_evt = fixture_provider.load(test_name, ext)
+
+    if "received" in event:
+        event.pop("received")
+    if "timestamp" in event:
+        event.pop("timestamp")
 
     assert event == expected_evt
 

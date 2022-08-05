@@ -135,6 +135,9 @@ impl ServiceState {
         let outcome_producer = Arbiter::start(|_| outcome_producer);
         registry.set(outcome_producer.clone());
 
+        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
+        registry.set(outcome_aggregator.start());
+
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
                 Some(RedisPool::new(redis_config).context(ServerErrorKind::RedisError)?)
@@ -144,19 +147,17 @@ impl ServiceState {
 
         let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
         let envelope_manager = EnvelopeManager::create(config.clone(), processor)?;
-        registry.set(envelope_manager.start());
+        registry.set(Arbiter::start(|_| envelope_manager));
 
-        let project_cache = ProjectCache::new(config.clone(), redis_pool).start();
+        let project_cache = ProjectCache::new(config.clone(), redis_pool);
+        let project_cache = Arbiter::start(|_| project_cache);
         registry.set(project_cache.clone());
 
         Healthcheck::new(config.clone()).start(); // TODO(tobias): Registry is implicit
-
         registry.set(RelayCache::new(config.clone()).start());
-        registry
-            .set(Aggregator::new(config.aggregator_config(), project_cache.recipient()).start());
 
-        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
-        registry.set(outcome_aggregator.start());
+        let aggregator = Aggregator::new(config.aggregator_config(), project_cache.recipient());
+        registry.set(Arbiter::start(|_| aggregator));
 
         if let Some(aws_api) = config.aws_runtime_api() {
             if let Ok(aws_extension) = AwsExtension::new(aws_api) {
