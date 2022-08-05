@@ -124,6 +124,7 @@ pub struct DeviceContext {
     /// CPU description.
     ///
     /// For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.
+    #[metastructure(pii = "maybe")]
     pub cpu_description: Annotated<String>,
 
     /// Processor frequency in MHz.
@@ -135,15 +136,17 @@ pub struct DeviceContext {
     /// Kind of device the application is running on.
     ///
     /// For example, `Unknown`, `Handheld`, `Console`, `Desktop`.
+    #[metastructure(pii = "maybe")]
     pub device_type: Annotated<String>,
 
     /// Status of the device's battery.
     ///
     /// For example, `Unknown`, `Charging`, `Discharging`, `NotCharging`, `Full`.
+    #[metastructure(pii = "maybe")]
     pub battery_status: Annotated<String>,
 
     /// Unique device identifier.
-    #[metastructure(pii = "maybe")]
+    #[metastructure(pii = "true")]
     pub device_unique_identifier: Annotated<String>,
 
     /// Whether vibration is available on the device.
