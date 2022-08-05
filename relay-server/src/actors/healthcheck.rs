@@ -1,3 +1,6 @@
+use std::error::Error;
+use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use actix::SystemService;
@@ -7,7 +10,7 @@ use tokio::sync::{mpsc, oneshot};
 use relay_config::{Config, RelayMode};
 use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
-use relay_system::{compat, Controller, Shutdown};
+use relay_system::{compat, Controller};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::RelayGauges;
@@ -22,11 +25,21 @@ lazy_static::lazy_static! {
 struct Message<T> {
     data: T,
     // TODO(tobias): This is hard-coded to return `bool`.
+    // Might need some associated types to make this work
     responder: oneshot::Sender<bool>,
 }
 
 /// An error when [sending](Addr::send) a message to a service fails.
+#[derive(Clone, Copy, Debug)]
 pub struct SendError;
+
+impl fmt::Display for SendError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "failed to send message to service")
+    }
+}
+
+impl Error for SendError {}
 
 /// Channel for sending public messages into a service.
 ///
@@ -52,8 +65,9 @@ impl<T> Addr<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct Healthcheck {
-    is_shutting_down: bool,
+    is_shutting_down: AtomicBool,
     config: Arc<Config>,
 }
 
@@ -74,12 +88,12 @@ impl Healthcheck {
     /// The service does not run. To run the service, use [`start`](Self::start).
     pub fn new(config: Arc<Config>) -> Self {
         Healthcheck {
-            is_shutting_down: false,
+            is_shutting_down: AtomicBool::new(false),
             config,
         }
     }
 
-    async fn handle_is_healthy(&mut self, message: IsHealthy) -> bool {
+    async fn handle_is_healthy(&self, message: IsHealthy) -> bool {
         let upstream = UpstreamRelay::from_registry();
 
         if self.config.relay_mode() == RelayMode::Managed {
@@ -94,7 +108,7 @@ impl Healthcheck {
         match message {
             IsHealthy::Liveness => true,
             IsHealthy::Readiness => {
-                if self.is_shutting_down {
+                if self.is_shutting_down.load(Ordering::Relaxed) {
                     return false;
                 }
 
@@ -113,41 +127,35 @@ impl Healthcheck {
         }
     }
 
-    fn handle_shutdown(&mut self) -> bool {
-        self.is_shutting_down = true;
-        true // TODO(tobias): This should go away once messages are more generic
-    }
-
-    async fn handle(&mut self, message: HealthcheckMessage) -> bool {
-        match message {
-            HealthcheckMessage::Health(message) => self.handle_is_healthy(message).await,
-            HealthcheckMessage::Shutdown => self.handle_shutdown(),
-        }
-    }
-
     /// Start this service, returning an [`Addr`] for communication.
-    pub fn start(mut self) -> Addr<HealthcheckMessage> {
-        let (tx, mut rx) = mpsc::unbounded_channel::<Message<_>>();
+    pub fn start(self) -> Addr<HealthcheckMessage> {
+        let (tx, mut rx) = mpsc::unbounded_channel::<Message<HealthcheckMessage>>();
 
         let addr = Addr { tx };
         *ADDRESS.write() = Some(addr.clone());
 
+        let service = Arc::new(self);
+        let main_service = service.clone();
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
-                // TODO(tobias): This does not allow for concurrent execution.
-                let response = self.handle(message.data).await;
-                message.responder.send(response).ok();
+                let service = main_service.clone();
+
+                tokio::spawn(async move {
+                    let response = match message.data {
+                        HealthcheckMessage::Health(data) => service.handle_is_healthy(data).await,
+                    };
+                    message.responder.send(response).ok();
+                });
             }
         });
 
-        // Forward shutdown signals to the main message channel
-        let shutdown_addr = addr.clone();
+        // Handle the shutdown signals
         tokio::spawn(async move {
             let mut shutdown_rx = Controller::subscribe_v2().await;
 
             while shutdown_rx.changed().await.is_ok() {
                 if shutdown_rx.borrow_and_update().is_some() {
-                    let _ = shutdown_addr.send(HealthcheckMessage::Shutdown);
+                    service.is_shutting_down.store(true, Ordering::Relaxed);
                 }
             }
         });
@@ -156,7 +164,7 @@ impl Healthcheck {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum IsHealthy {
     /// Check if the Relay is alive at all.
     Liveness,
@@ -169,13 +177,6 @@ pub enum IsHealthy {
 #[derive(Clone, Debug)]
 pub enum HealthcheckMessage {
     Health(IsHealthy),
-    Shutdown,
-}
-
-impl From<Shutdown> for HealthcheckMessage {
-    fn from(_: Shutdown) -> Self {
-        HealthcheckMessage::Shutdown
-    }
 }
 
 impl From<IsHealthy> for HealthcheckMessage {
