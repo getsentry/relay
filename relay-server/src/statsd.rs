@@ -1,4 +1,7 @@
-use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
+use std::{convert::TryInto, time::Duration};
+
+use relay_statsd::{metric, CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
+use tokio_metrics::{TaskMetrics, TaskMonitor};
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {
@@ -312,6 +315,21 @@ pub enum RelayTimers {
 
     /// Time in milliseconds spent on converting a transaction event into a metric.
     TransactionMetricsExtraction,
+    /// The average time before a tokio task is polled for the first time.
+    TasksMeanFirstPollDelay,
+    /// The average time a tokio task is idle.
+    ///
+    /// This is the time the task is waiting to be awakened by a new event.
+    TasksMeanIdleDuration,
+    /// The average time a tokio task is scheduled.
+    ///
+    /// This is the time after it has been awakened but while the scheduler has not yet
+    /// managed to execute it, so has not yet been polled.
+    TasksMeanScheduledDuration,
+    /// The average time it takes to poll a tokio task.
+    ///
+    /// This is the time the task is executing on the CPU.
+    TasksMeanPollDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -342,6 +360,10 @@ impl TimerMetric for RelayTimers {
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::TransactionMetricsExtraction => "metrics.extraction.transactions",
+            RelayTimers::TasksMeanFirstPollDelay => "tasks.mean_first_poll_delay",
+            RelayTimers::TasksMeanIdleDuration => "tasks.mean_idle_duration",
+            RelayTimers::TasksMeanScheduledDuration => "tasks.mean_scheduled_duration",
+            RelayTimers::TasksMeanPollDuration => "tasks.mean_poll_duration",
         }
     }
 }
@@ -508,6 +530,10 @@ pub enum RelayCounters {
     MetricBucketsParsingFailed,
     /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     MetricsTransactionNameExtracted,
+    /// The number of tasks instrumented.
+    TasksInstrumentedCount,
+    /// The number of tasks dropped before they completed.
+    TasksDroppedCount,
 }
 
 impl CounterMetric for RelayCounters {
@@ -538,6 +564,56 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
+            RelayCounters::TasksInstrumentedCount => "tasks.instrumented",
+            RelayCounters::TasksDroppedCount => "tasks.dropped",
         }
     }
+}
+
+pub fn start_taskmon(name: &'static str) -> TaskMonitor {
+    let taskmon = TaskMonitor::new();
+    let taskmon_clone = taskmon.clone();
+    tokio::spawn(async move {
+        for interval in taskmon.intervals() {
+            record_task_metrics(name, &interval);
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    });
+    taskmon_clone
+}
+
+trait ToMaxingI64: TryInto<i64> + Copy {
+    fn to_maxing_i64(self) -> i64 {
+        self.try_into().unwrap_or(i64::MAX)
+    }
+}
+
+impl<T: TryInto<i64> + Copy> ToMaxingI64 for T {}
+
+fn record_task_metrics(name: &str, metrics: &TaskMetrics) {
+    metric!(
+        counter(RelayCounters::TasksInstrumentedCount) +=
+            metrics.instrumented_count.to_maxing_i64(),
+        taskname = name,
+    );
+    metric!(
+        counter(RelayCounters::TasksDroppedCount) += metrics.dropped_count.to_maxing_i64(),
+        taskname = name,
+    );
+    metric!(
+        timer(RelayTimers::TasksMeanFirstPollDelay) = metrics.mean_first_poll_delay(),
+        taskname = name,
+    );
+    metric!(
+        timer(RelayTimers::TasksMeanIdleDuration) = metrics.mean_idle_duration(),
+        taskname = name,
+    );
+    metric!(
+        timer(RelayTimers::TasksMeanScheduledDuration) = metrics.mean_scheduled_duration(),
+        taskname = name,
+    );
+    metric!(
+        timer(RelayTimers::TasksMeanPollDuration) = metrics.mean_poll_duration(),
+        taskname = name,
+    );
 }

@@ -136,21 +136,24 @@ impl Healthcheck {
 
         let service = Arc::new(self);
         let main_service = service.clone();
-        tokio::spawn(async move {
+        let taskmon = crate::statsd::start_taskmon("svc.healthcheck.main");
+        tokio::spawn(taskmon.instrument(async move {
+            let taskmon = crate::statsd::start_taskmon("svc.healthcheck.handle");
             while let Some(message) = rx.recv().await {
                 let service = main_service.clone();
 
-                tokio::spawn(async move {
+                tokio::spawn(taskmon.instrument(async move {
                     let response = match message.data {
                         HealthcheckMessage::Health(data) => service.handle_is_healthy(data).await,
                     };
                     message.responder.send(response).ok();
-                });
+                }));
             }
-        });
+        }));
 
         // Handle the shutdown signals
-        tokio::spawn(async move {
+        let taskmon = crate::statsd::start_taskmon("svc.healthcheck.shutdown");
+        tokio::spawn(taskmon.instrument(async move {
             let mut shutdown_rx = Controller::subscribe_v2().await;
 
             while shutdown_rx.changed().await.is_ok() {
@@ -158,7 +161,7 @@ impl Healthcheck {
                     service.is_shutting_down.store(true, Ordering::Relaxed);
                 }
             }
-        });
+        }));
 
         addr
     }
