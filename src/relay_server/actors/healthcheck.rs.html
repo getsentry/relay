@@ -190,7 +190,11 @@
 <span id="183">183</span>
 <span id="184">184</span>
 <span id="185">185</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+<span id="186">186</span>
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::error::Error</span>;
+<span class="kw">use</span> <span class="ident">std::fmt</span>;
+<span class="kw">use</span> <span class="ident">std::sync::atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">Ordering</span>};
+<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
 <span class="kw">use</span> <span class="ident">actix::SystemService</span>;
 <span class="kw">use</span> <span class="ident">parking_lot::RwLock</span>;
@@ -199,7 +203,7 @@
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">AcceptsMetrics</span>, <span class="ident">Aggregator</span>};
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">compat</span>, <span class="ident">Controller</span>, <span class="ident">Shutdown</span>};
+<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">compat</span>, <span class="ident">Controller</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">IsAuthenticated</span>, <span class="ident">IsNetworkOutage</span>, <span class="ident">UpstreamRelay</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayGauges</span>;
@@ -214,11 +218,21 @@
 <span class="kw">struct</span> <span class="ident">Message</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="ident">data</span>: <span class="ident">T</span>,
     <span class="comment">// TODO(tobias): This is hard-coded to return `bool`.</span>
+    <span class="comment">// Might need some associated types to make this work</span>
     <span class="ident">responder</span>: <span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// An error when [sending](Addr::send) a message to a service fails.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendError</span>;
+
+<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">SendError</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;failed to send message to service&quot;</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Error</span> <span class="kw">for</span> <span class="ident">SendError</span> {}
 
 <span class="doccomment">/// Channel for sending public messages into a service.</span>
 <span class="doccomment">///</span>
@@ -244,8 +258,9 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Healthcheck</span> {
-    <span class="ident">is_shutting_down</span>: <span class="ident">bool</span>,
+    <span class="ident">is_shutting_down</span>: <span class="ident">AtomicBool</span>,
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
 }
 
@@ -266,12 +281,12 @@
     <span class="doccomment">/// The service does not run. To run the service, use [`start`](Self::start).</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="ident">Healthcheck</span> {
-            <span class="ident">is_shutting_down</span>: <span class="bool-val">false</span>,
+            <span class="ident">is_shutting_down</span>: <span class="ident">AtomicBool::new</span>(<span class="bool-val">false</span>),
             <span class="ident">config</span>,
         }
     }
 
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle_is_healthy</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">IsHealthy</span>) -&gt; <span class="ident">bool</span> {
+    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle_is_healthy</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">IsHealthy</span>) -&gt; <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="ident">upstream</span> <span class="op">=</span> <span class="ident">UpstreamRelay::from_registry</span>();
 
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode::Managed</span> {
@@ -286,7 +301,7 @@
         <span class="kw">match</span> <span class="ident">message</span> {
             <span class="ident">IsHealthy::Liveness</span> =&gt; <span class="bool-val">true</span>,
             <span class="ident">IsHealthy::Readiness</span> =&gt; {
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_shutting_down</span> {
+                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_shutting_down</span>.<span class="ident">load</span>(<span class="ident">Ordering::Relaxed</span>) {
                     <span class="kw">return</span> <span class="bool-val">false</span>;
                 }
 
@@ -305,41 +320,35 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_shutdown</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">is_shutting_down</span> <span class="op">=</span> <span class="bool-val">true</span>;
-        <span class="bool-val">true</span> <span class="comment">// TODO(tobias): This should go away once messages are more generic</span>
-    }
-
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">HealthcheckMessage</span>) -&gt; <span class="ident">bool</span> {
-        <span class="kw">match</span> <span class="ident">message</span> {
-            <span class="ident">HealthcheckMessage::Health</span>(<span class="ident">message</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_is_healthy</span>(<span class="ident">message</span>).<span class="kw">await</span>,
-            <span class="ident">HealthcheckMessage::Shutdown</span> =&gt; <span class="self">self</span>.<span class="ident">handle_shutdown</span>(),
-        }
-    }
-
     <span class="doccomment">/// Start this service, returning an [`Addr`] for communication.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">HealthcheckMessage</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">mpsc::unbounded_channel</span>::<span class="op">&lt;</span><span class="ident">Message</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>();
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="self">self</span>) -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">HealthcheckMessage</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">mpsc::unbounded_channel</span>::<span class="op">&lt;</span><span class="ident">Message</span><span class="op">&lt;</span><span class="ident">HealthcheckMessage</span><span class="op">&gt;</span><span class="op">&gt;</span>();
 
         <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">Addr</span> { <span class="ident">tx</span> };
         <span class="kw-2">*</span><span class="ident">ADDRESS</span>.<span class="ident">write</span>() <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">addr</span>.<span class="ident">clone</span>());
 
+        <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="self">self</span>);
+        <span class="kw">let</span> <span class="ident">main_service</span> <span class="op">=</span> <span class="ident">service</span>.<span class="ident">clone</span>();
         <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
             <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
-                <span class="comment">// TODO(tobias): This does not allow for concurrent execution.</span>
-                <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">handle</span>(<span class="ident">message</span>.<span class="ident">data</span>).<span class="kw">await</span>;
-                <span class="ident">message</span>.<span class="ident">responder</span>.<span class="ident">send</span>(<span class="ident">response</span>).<span class="ident">ok</span>();
+                <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">main_service</span>.<span class="ident">clone</span>();
+
+                <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+                    <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">message</span>.<span class="ident">data</span> {
+                        <span class="ident">HealthcheckMessage::Health</span>(<span class="ident">data</span>) =&gt; <span class="ident">service</span>.<span class="ident">handle_is_healthy</span>(<span class="ident">data</span>).<span class="kw">await</span>,
+                    };
+                    <span class="ident">message</span>.<span class="ident">responder</span>.<span class="ident">send</span>(<span class="ident">response</span>).<span class="ident">ok</span>();
+                });
             }
         });
 
-        <span class="comment">// Forward shutdown signals to the main message channel</span>
-        <span class="kw">let</span> <span class="ident">shutdown_addr</span> <span class="op">=</span> <span class="ident">addr</span>.<span class="ident">clone</span>();
+        <span class="comment">// Handle the shutdown signals</span>
         <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">shutdown_rx</span> <span class="op">=</span> <span class="ident">Controller::subscribe_v2</span>().<span class="kw">await</span>;
 
             <span class="kw">while</span> <span class="ident">shutdown_rx</span>.<span class="ident">changed</span>().<span class="kw">await</span>.<span class="ident">is_ok</span>() {
                 <span class="kw">if</span> <span class="ident">shutdown_rx</span>.<span class="ident">borrow_and_update</span>().<span class="ident">is_some</span>() {
-                    <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">shutdown_addr</span>.<span class="ident">send</span>(<span class="ident">HealthcheckMessage::Shutdown</span>);
+                    <span class="ident">service</span>.<span class="ident">is_shutting_down</span>.<span class="ident">store</span>(<span class="bool-val">true</span>, <span class="ident">Ordering::Relaxed</span>);
                 }
             }
         });
@@ -348,7 +357,7 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">IsHealthy</span> {
     <span class="doccomment">/// Check if the Relay is alive at all.</span>
     <span class="ident">Liveness</span>,
@@ -361,13 +370,6 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">HealthcheckMessage</span> {
     <span class="ident">Health</span>(<span class="ident">IsHealthy</span>),
-    <span class="ident">Shutdown</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Shutdown</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HealthcheckMessage</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="kw">_</span>: <span class="ident">Shutdown</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">HealthcheckMessage::Shutdown</span>
-    }
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">IsHealthy</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HealthcheckMessage</span> {
