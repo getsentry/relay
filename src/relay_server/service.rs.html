@@ -310,6 +310,7 @@
 <span id="303">303</span>
 <span id="304">304</span>
 <span id="305">305</span>
+<span id="306">306</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
@@ -326,10 +327,11 @@
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Configure</span>, <span class="ident">Controller</span>};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">EnvelopeProcessor</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes::EnvelopeManager</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::healthcheck::Healthcheck</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome::OutcomeProducer</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::processor::EnvelopeProcessor</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache::ProjectCache</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::relays::RelayCache</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream::UpstreamRelay</span>;
