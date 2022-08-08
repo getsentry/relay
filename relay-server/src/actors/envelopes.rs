@@ -31,7 +31,7 @@ use relay_general::protocol::{
     IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
 };
-use relay_general::store::{light_normalize, ClockDriftProcessor, LightNormalizationConfig};
+use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
@@ -1865,7 +1865,7 @@ impl EnvelopeProcessor {
         };
 
         metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-            light_normalize(&mut state.event, &config)
+            relay_general::store::light_normalize_event(&mut state.event, &config)
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
         });
 

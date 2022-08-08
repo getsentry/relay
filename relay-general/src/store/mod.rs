@@ -26,7 +26,8 @@ pub use normalize::breakdowns::{
     get_breakdown_measurements, BreakdownConfig, BreakdownsConfig, SpanOperationsConfig,
 };
 pub use normalize::{
-    compute_measurements, is_valid_platform, normalize_dist, LightNormalizationConfig,
+    compute_measurements, is_valid_platform, light_normalize_event, normalize_dist,
+    LightNormalizationConfig,
 };
 pub use transactions::{
     get_measurement, get_transaction_op, is_high_cardinality_sdk, validate_timestamps,
@@ -136,13 +137,4 @@ impl<'a> Processor for StoreProcessor<'a> {
 
         Ok(())
     }
-}
-
-pub fn light_normalize(
-    event: &mut Annotated<Event>,
-    config: &LightNormalizationConfig,
-) -> ProcessingResult {
-    transactions::validate_annotated_transaction(event)?;
-    normalize::light_normalize_event(event, config)?;
-    Ok(())
 }
