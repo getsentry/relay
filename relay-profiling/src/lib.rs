@@ -105,10 +105,11 @@ mod utils;
 
 use crate::android::parse_android_profile;
 use crate::cocoa::parse_cocoa_profile;
-use crate::error::ProfileError;
 use crate::python::parse_python_profile;
 use crate::rust::parse_rust_profile;
 use crate::typescript::parse_typescript_profile;
+
+pub use crate::error::ProfileError;
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
