@@ -22,8 +22,7 @@ use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{
-    EncodeEnvelope, EnvelopeContext, EnvelopeProcessor, ProcessEnvelope, ProcessMetrics,
-    ProcessingError,
+    EncodeEnvelope, EnvelopeProcessor, ProcessEnvelope, ProcessMetrics, ProcessingError,
 };
 use crate::actors::project_cache::{
     CheckEnvelope, GetProjectState, ProjectCache, UpdateRateLimits,
@@ -34,7 +33,7 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
-use crate::utils::{self, FutureExt, SendWithOutcome};
+use crate::utils::{self, EnvelopeContext, FutureExt, SendWithOutcome};
 
 #[cfg(feature = "processing")]
 use crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder};

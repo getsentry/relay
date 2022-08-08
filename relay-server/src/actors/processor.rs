@@ -23,9 +23,9 @@ use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
-    self, Breadcrumb, ClientReport, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionUpdate, Timestamp, UserReport, Values,
+    self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
+    LenientString, Metrics, RelayInfo, SecurityReportType, SessionAggregates, SessionAttributes,
+    SessionUpdate, Timestamp, UserReport, Values,
 };
 use relay_general::store::{light_normalize, ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
@@ -49,7 +49,7 @@ use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeSummary, ErrorBoundary, FormDataIter, SamplingResult,
+    self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
 };
 
 #[cfg(feature = "processing")]
@@ -225,112 +225,6 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
         env.is_some() || release.is_some()
     } else {
         false
-    }
-}
-
-// TODO(ja): Move this!
-/// Contains the required envelope related information to create an outcome.
-#[derive(Clone, Copy, Debug)]
-pub struct EnvelopeContext {
-    summary: EnvelopeSummary,
-    received_at: DateTime<Utc>,
-    event_id: Option<EventId>,
-    remote_addr: Option<net::IpAddr>,
-    scoping: Scoping,
-}
-
-impl EnvelopeContext {
-    /// Creates an envelope context from the given request meta data.
-    ///
-    /// This context contains partial scoping and no envelope summary. There will be no outcomes
-    /// logged without updating this context.
-    pub fn from_request(meta: &RequestMeta) -> Self {
-        Self {
-            summary: EnvelopeSummary::empty(),
-            received_at: relay_common::instant_to_date_time(meta.start_time()),
-            event_id: None,
-            remote_addr: meta.client_addr(),
-            scoping: meta.get_partial_scoping(),
-        }
-    }
-
-    /// Computes an envelope context from the given envelope.
-    ///
-    /// To provide additional scoping, use [`EnvelopeContext::scope`].
-    pub fn from_envelope(envelope: &Envelope) -> Self {
-        let mut context = Self::from_request(envelope.meta());
-        context.update(envelope);
-        context
-    }
-
-    /// Update the context with new envelope information.
-    ///
-    /// This updates the item summary as well as the event id.
-    pub fn update(&mut self, envelope: &Envelope) -> &mut Self {
-        self.event_id = envelope.event_id();
-        self.summary = EnvelopeSummary::compute(envelope);
-        self
-    }
-
-    /// Re-scopes this context to the given scoping.
-    pub fn scope(&mut self, scoping: Scoping) -> &mut Self {
-        self.scoping = scoping;
-        self
-    }
-
-    /// Returns scoping stored in this context.
-    pub fn scoping(&self) -> Scoping {
-        self.scoping
-    }
-
-    /// Returns the event id of this context, if any.
-    pub fn event_id(&self) -> Option<EventId> {
-        self.event_id
-    }
-
-    /// Records outcomes for all items stored in this context.
-    ///
-    /// This does not send outcomes for empty envelopes or request-only contexts.
-    pub fn send_outcomes(&self, outcome: Outcome) {
-        let outcome_aggregator = OutcomeAggregator::from_registry();
-        if let Some(category) = self.summary.event_category {
-            outcome_aggregator.do_send(TrackOutcome {
-                timestamp: self.received_at,
-                scoping: self.scoping,
-                outcome: outcome.clone(),
-                event_id: self.event_id,
-                remote_addr: self.remote_addr,
-                category,
-                quantity: 1,
-            });
-        }
-
-        if self.summary.attachment_quantity > 0 {
-            outcome_aggregator.do_send(TrackOutcome {
-                timestamp: self.received_at,
-                scoping: self.scoping,
-                outcome: outcome.clone(),
-                event_id: self.event_id,
-                remote_addr: self.remote_addr,
-                category: DataCategory::Attachment,
-                // XXX: attachment_quantity is usize which lets us go all the way to
-                // 64bit on our machines, but the protocl and data store can only
-                // do 32.
-                quantity: self.summary.attachment_quantity as u32,
-            });
-        }
-
-        if self.summary.profile_quantity > 0 {
-            outcome_aggregator.do_send(TrackOutcome {
-                timestamp: self.received_at,
-                scoping: self.scoping,
-                outcome,
-                event_id: self.event_id,
-                remote_addr: self.remote_addr,
-                category: DataCategory::Profile,
-                quantity: self.summary.profile_quantity as u32,
-            })
-        }
     }
 }
 
@@ -778,7 +672,7 @@ impl EnvelopeProcessor {
     /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
     /// are out of range after clock drift correction.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
-        let received = state.envelope_context.received_at;
+        let received = state.envelope_context.received_at();
         let extracted_metrics = &mut state.extracted_metrics;
         let metrics_config = state.project_state.config().session_metrics;
         let envelope = &mut state.envelope;
@@ -865,7 +759,7 @@ impl EnvelopeProcessor {
 
         let mut timestamp = None;
         let mut output_events = BTreeMap::new();
-        let received = state.envelope_context.received_at;
+        let received = state.envelope_context.received_at();
 
         let clock_drift_processor = ClockDriftProcessor::new(state.envelope.sent_at(), received)
             .at_least(MINIMUM_CLOCK_DRIFT);
@@ -968,7 +862,7 @@ impl EnvelopeProcessor {
 
             producer.do_send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
-                scoping: state.envelope_context.scoping,
+                scoping: state.envelope_context.scoping(),
                 outcome,
                 event_id: None,
                 remote_addr: None, // omitting the client address allows for better aggregation
@@ -995,17 +889,11 @@ impl EnvelopeProcessor {
                                 return true;
                             }
                             Err(_) => {
-                                let outcome_aggregator = OutcomeAggregator::from_registry();
-
-                                outcome_aggregator.do_send(TrackOutcome {
-                                    timestamp: context.received_at,
-                                    scoping: context.scoping,
-                                    outcome: Outcome::Invalid(DiscardReason::ProcessProfile),
-                                    event_id: context.event_id,
-                                    remote_addr: context.remote_addr,
-                                    category: DataCategory::Profile,
-                                    quantity: 1,
-                                });
+                                context.track_outcome(
+                                    Outcome::Invalid(DiscardReason::ProcessProfile),
+                                    DataCategory::Profile,
+                                    1,
+                                );
 
                                 return false;
                             }
@@ -1541,7 +1429,7 @@ impl EnvelopeProcessor {
             None => None,
         };
 
-        let mut processor = ClockDriftProcessor::new(sent_at, state.envelope_context.received_at)
+        let mut processor = ClockDriftProcessor::new(sent_at, state.envelope_context.received_at())
             .at_least(MINIMUM_CLOCK_DRIFT);
         process_value(&mut state.event, &mut processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -1550,7 +1438,7 @@ impl EnvelopeProcessor {
         // store processing, which could modify the timestamp if it exceeds a threshold. We are
         // interested in the actual delay before this correction.
         if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-            let event_delay = state.envelope_context.received_at - timestamp.into_inner();
+            let event_delay = state.envelope_context.received_at() - timestamp.into_inner();
             if event_delay > SignedDuration::minutes(1) {
                 let category = state.event_category().unwrap_or(DataCategory::Unknown);
                 metric!(
@@ -1599,7 +1487,7 @@ impl EnvelopeProcessor {
             remove_other: Some(true),
             normalize_user_agent: Some(true),
             sent_at: envelope.sent_at(),
-            received_at: Some(envelope_context.received_at),
+            received_at: Some(envelope_context.received_at()),
             breakdowns: project_state.config.breakdowns_v2.clone(),
             span_attributes: project_state.config.span_attributes.clone(),
             client_sample_rate: envelope.sampling_context().and_then(|ctx| ctx.sample_rate),
@@ -1669,12 +1557,12 @@ impl EnvelopeProcessor {
 
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter
-                .enforce(&mut state.envelope, &state.envelope_context.scoping)
+                .enforce(&mut state.envelope, &state.envelope_context.scoping())
                 .map_err(ProcessingError::QuotasFailed)?
         });
 
         state.rate_limits = limits;
-        enforcement.track_outcomes(&state.envelope, &state.envelope_context.scoping);
+        enforcement.track_outcomes(&state.envelope, &state.envelope_context.scoping());
 
         if remove_event {
             state.remove_event();
@@ -1864,7 +1752,7 @@ impl EnvelopeProcessor {
         let config = LightNormalizationConfig {
             client_ip: client_ipaddr.as_ref(),
             user_agent: state.envelope.meta().user_agent(),
-            received_at: Some(state.envelope_context.received_at),
+            received_at: Some(state.envelope_context.received_at()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
@@ -1963,7 +1851,7 @@ impl EnvelopeProcessor {
                         if !state.extracted_metrics.is_empty() {
                             let project_cache = ProjectCache::from_registry();
                             project_cache.do_send(InsertMetrics::new(
-                                envelope_context.scoping.project_key,
+                                envelope_context.scoping().project_key,
                                 state.extracted_metrics,
                             ));
                         }
@@ -1981,7 +1869,7 @@ impl EnvelopeProcessor {
                         if !state.extracted_metrics.is_empty() && err.should_keep_metrics() {
                             let project_cache = ProjectCache::from_registry();
                             project_cache.do_send(InsertMetrics::new(
-                                envelope_context.scoping.project_key,
+                                envelope_context.scoping().project_key,
                                 state.extracted_metrics,
                             ));
                         }
@@ -2375,7 +2263,7 @@ mod tests {
     #[test]
     fn test_user_report_invalid() {
         let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
-        let event_id = EventId::new();
+        let event_id = protocol::EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
