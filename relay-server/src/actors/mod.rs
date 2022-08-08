@@ -11,7 +11,7 @@
 //!    configurations. Its requests are debounced and batched based on a configured interval (100ms
 //!    by default). Also, missing projects are cached for some time.
 //!  - [`EnvelopeManager`](envelopes::EnvelopeManager) and
-//!    [`EnvelopeProcessor`](envelopes::EnvelopeProcessor): Handle a queue of envelopes, verify
+//!    [`EnvelopeProcessor`](processor::EnvelopeProcessor): Handle a queue of envelopes, verify
 //!    their projects, execute PII stripping and finally send the envelope to the upstream. The
 //!    processor is spawned in multiple synchronous worker threads (via `SyncArbiter`).
 //!  - [`UpstreamRelay`](upstream::UpstreamRelay): Abstraction for communication with the upstream
