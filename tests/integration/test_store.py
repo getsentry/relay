@@ -385,6 +385,12 @@ def test_processing(
     assert event.get("project") is not None
     assert event.get("version") is not None
 
+    if event_type == "transaction":
+        assert event["transaction_info"]["source"] == "unknown"  # the default
+    else:
+        # Should not be serialized
+        assert "transaction_info" not in event
+
 
 # TODO: This parameterization should be unit-tested, instead
 @pytest.mark.parametrize(
