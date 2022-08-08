@@ -154,12 +154,12 @@ contexts:
     api_type: Direct3D11
     multi_threaded_rendering: true
     npot_support: Full
-    graphics_shader_level: Shader Model 5.0
     max_texture_size: 16384
-    supports_compute_shaders: true
+    graphics_shader_level: Shader Model 5.0
     supports_draw_call_instancing: true
-    supports_geometry_shaders: true
     supports_ray_tracing: false
+    supports_compute_shaders: true
+    supports_geometry_shaders: true
     type: gpu
   os:
     name: Windows 10  (10.0.19042) 64bit
