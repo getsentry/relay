@@ -14,7 +14,7 @@ use relay_general::pii::{
 use relay_general::processor::{process_value, split_chunks, ProcessingState};
 use relay_general::protocol::{Event, VALID_PLATFORMS};
 use relay_general::store::{
-    light_normalize, GeoIpLookup, LightNormalizationConfig, StoreConfig, StoreProcessor,
+    light_normalize_event, GeoIpLookup, LightNormalizationConfig, StoreConfig, StoreProcessor,
 };
 use relay_general::types::{Annotated, Remark};
 use relay_sampling::{RuleCondition, SamplingConfig};
@@ -115,7 +115,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         max_secs_in_future: None,
         breakdowns_config: None,
     };
-    light_normalize(&mut event, &config)?;
+    light_normalize_event(&mut event, &config)?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;
     RelayStr::from_string(event.to_json()?)
 }
