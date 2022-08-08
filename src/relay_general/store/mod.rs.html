@@ -145,14 +145,6 @@
 <span id="138">138</span>
 <span id="139">139</span>
 <span id="140">140</span>
-<span id="141">141</span>
-<span id="142">142</span>
-<span id="143">143</span>
-<span id="144">144</span>
-<span id="145">145</span>
-<span id="146">146</span>
-<span id="147">147</span>
-<span id="148">148</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility code for sentry&#39;s internal store.</span>
 <span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -163,7 +155,7 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Event</span>, <span class="ident">IpAddr</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>, <span class="ident">SpanAttribute</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>, <span class="ident">SpanAttribute</span>};
 
 <span class="kw">mod</span> <span class="ident">clock_drift</span>;
 <span class="kw">mod</span> <span class="ident">event_error</span>;
@@ -181,7 +173,8 @@
     <span class="ident">get_breakdown_measurements</span>, <span class="ident">BreakdownConfig</span>, <span class="ident">BreakdownsConfig</span>, <span class="ident">SpanOperationsConfig</span>,
 };
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">normalize</span>::{
-    <span class="ident">compute_measurements</span>, <span class="ident">is_valid_platform</span>, <span class="ident">normalize_dist</span>, <span class="ident">LightNormalizationConfig</span>,
+    <span class="ident">compute_measurements</span>, <span class="ident">is_valid_platform</span>, <span class="ident">light_normalize_event</span>, <span class="ident">normalize_dist</span>,
+    <span class="ident">LightNormalizationConfig</span>,
 };
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">transactions</span>::{
     <span class="ident">get_measurement</span>, <span class="ident">get_transaction_op</span>, <span class="ident">is_high_cardinality_sdk</span>, <span class="ident">validate_timestamps</span>,
@@ -291,15 +284,6 @@
 
         <span class="prelude-val">Ok</span>(())
     }
-}
-
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">light_normalize</span>(
-    <span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span>,
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">LightNormalizationConfig</span>,
-) -&gt; <span class="ident">ProcessingResult</span> {
-    <span class="ident">transactions::validate_annotated_transaction</span>(<span class="ident">event</span>)<span class="question-mark">?</span>;
-    <span class="ident">normalize::light_normalize_event</span>(<span class="ident">event</span>, <span class="ident">config</span>)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(())
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.1 (e092d0b6b 2022-07-16)" ></div>

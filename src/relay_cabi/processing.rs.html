@@ -305,7 +305,7 @@
 <span class="kw">use</span> <span class="ident">relay_general::processor</span>::{<span class="ident">process_value</span>, <span class="ident">split_chunks</span>, <span class="ident">ProcessingState</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">Event</span>, <span class="ident">VALID_PLATFORMS</span>};
 <span class="kw">use</span> <span class="ident">relay_general::store</span>::{
-    <span class="ident">light_normalize</span>, <span class="ident">GeoIpLookup</span>, <span class="ident">LightNormalizationConfig</span>, <span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>,
+    <span class="ident">light_normalize_event</span>, <span class="ident">GeoIpLookup</span>, <span class="ident">LightNormalizationConfig</span>, <span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>,
 };
 <span class="kw">use</span> <span class="ident">relay_general::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Remark</span>};
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">RuleCondition</span>, <span class="ident">SamplingConfig</span>};
@@ -406,7 +406,7 @@
         <span class="ident">max_secs_in_future</span>: <span class="prelude-val">None</span>,
         <span class="ident">breakdowns_config</span>: <span class="prelude-val">None</span>,
     };
-    <span class="ident">light_normalize</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>)<span class="question-mark">?</span>;
+    <span class="ident">light_normalize_event</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>)<span class="question-mark">?</span>;
     <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="kw-2">*</span><span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>())<span class="question-mark">?</span>;
     <span class="ident">RelayStr::from_string</span>(<span class="ident">event</span>.<span class="ident">to_json</span>()<span class="question-mark">?</span>)
 }
