@@ -26,6 +26,7 @@
 - Partially normalize events before extracting metrics. ([#1366](https://github.com/getsentry/relay/pull/1366))
 - Spawn more threads for CPU intensive work. ([#1378](https://github.com/getsentry/relay/pull/1378))
 - Add missing fields to DeviceContext ([#1383](https://github.com/getsentry/relay/pull/1383))
+- Add missing fields to GPUContext ([#1391](https://github.com/getsentry/relay/pull/1391))
 
 ## 22.7.0
 
