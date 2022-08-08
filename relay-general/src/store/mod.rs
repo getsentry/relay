@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::processor::{ProcessingState, Processor};
 use crate::protocol::{Event, IpAddr};
-use crate::types::{Annotated, Meta, ProcessingResult, SpanAttribute};
+use crate::types::{Meta, ProcessingResult, SpanAttribute};
 
 mod clock_drift;
 mod event_error;
