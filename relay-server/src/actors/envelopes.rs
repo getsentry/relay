@@ -226,39 +226,27 @@ impl EnvelopeManager {
         // potentially apply correction again. This is done as close to sending as
         // possible so that we avoid internal delays.
         envelope.set_sent_at(Utc::now());
-        let envelope_meta = envelope.meta();
 
-        let original_body = match envelope.to_vec() {
+        let envelope_body = match envelope.to_vec() {
             Ok(v) => v,
             Err(e) => return Box::new(future::err(SendEnvelopeError::EnvelopeBuildFailed(e))),
         };
-        let http_encoding = self.config.http_encoding();
 
         let (tx, rx) = oneshot::channel();
-        match http_encoding {
-            HttpEncoding::Identity => {
-                let request = SendEnvelope {
-                    envelope_body: original_body,
-                    envelope_meta: envelope_meta.to_owned(),
-                    scoping,
-                    http_encoding,
-                    response_sender: Some(tx),
-                    project_key,
-                };
-                UpstreamRelay::from_registry().do_send(SendRequest(request));
-            }
-            _ => {
-                let request = EncodeEnvelope {
-                    envelope_body: original_body,
-                    envelope_meta: envelope_meta.to_owned(),
-                    scoping,
-                    http_encoding,
-                    response_sender: Some(tx),
-                    project_key,
-                };
-                self.processor.do_send(request);
-            }
+        let request = SendEnvelope {
+            envelope_body,
+            envelope_meta: envelope.meta().clone(),
+            scoping,
+            http_encoding: self.config.http_encoding(),
+            response_sender: Some(tx),
+            project_key,
         };
+
+        if let HttpEncoding::Identity = request.http_encoding {
+            UpstreamRelay::from_registry().do_send(SendRequest(request));
+        } else {
+            self.processor.do_send(EncodeEnvelope::new(request));
+        }
 
         Box::new(
             rx.map_err(|_| {
@@ -725,7 +713,7 @@ impl Handler<SendMetrics> for EnvelopeManager {
     }
 }
 
-/// Sends a client report to the upstream
+/// Sends a client report to the upstream.
 pub struct SendClientReports {
     /// The client report to be sent.
     pub client_reports: Vec<ClientReport>,

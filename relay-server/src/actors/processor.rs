@@ -12,7 +12,6 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use futures01::sync::oneshot;
 use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
 
@@ -43,7 +42,6 @@ use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{InsertMetrics, MergeBuckets, ProjectCache, ProjectError};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
 use crate::envelope::{AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType};
-use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::service::ServerError;
@@ -2061,13 +2059,14 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
 /// This message is a workaround for a single-threaded upstream actor.
 #[derive(Debug)]
 pub struct EncodeEnvelope {
-    // TODO(ja): Clean this up
-    pub envelope_body: Vec<u8>,
-    pub envelope_meta: RequestMeta,
-    pub scoping: Scoping,
-    pub http_encoding: HttpEncoding,
-    pub response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
-    pub project_key: ProjectKey,
+    request: SendEnvelope,
+}
+
+impl EncodeEnvelope {
+    /// Creates a new `EncodeEnvelope` message from `SendEnvelope` request.
+    pub fn new(request: SendEnvelope) -> Self {
+        Self { request }
+    }
 }
 
 impl Message for EncodeEnvelope {
@@ -2078,32 +2077,17 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
     type Result = ();
 
     fn handle(&mut self, message: EncodeEnvelope, _context: &mut Self::Context) -> Self::Result {
-        let EncodeEnvelope {
-            envelope_body,
-            envelope_meta,
-            scoping,
-            http_encoding,
-            response_sender,
-            project_key,
-        } = message;
-
-        match Self::encode_envelope_body(envelope_body, http_encoding) {
+        let mut request = message.request;
+        match Self::encode_envelope_body(request.envelope_body, request.http_encoding) {
             Err(e) => {
-                response_sender.map(|sender| {
+                request.response_sender.map(|sender| {
                     sender
                         .send(Err(SendEnvelopeError::BodyEncodingFailed(e)))
                         .ok()
                 });
             }
             Ok(envelope_body) => {
-                let request = SendEnvelope {
-                    envelope_body,
-                    envelope_meta,
-                    scoping,
-                    http_encoding,
-                    response_sender,
-                    project_key,
-                };
+                request.envelope_body = envelope_body;
                 UpstreamRelay::from_registry().do_send(SendRequest(request));
             }
         }
