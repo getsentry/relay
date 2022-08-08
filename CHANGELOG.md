@@ -13,6 +13,7 @@
 - Fix a bug where unreal crash reports were dropped when metrics extraction is enabled. ([#1355](https://github.com/getsentry/relay/pull/1355))
 - Extract user from metrics with EventUser's priority. ([#1363](https://github.com/getsentry/relay/pull/1363))
 - Honor `SentryConfig.enabled` and don't init SDK at all if it is false. ([#1380](https://github.com/getsentry/relay/pull/1380))
+- The priority thread metadata on profiles is now optional, do not fail the profile if it's not present. ([#1392](https://github.com/getsentry/relay/pull/1392))
 
 **Internal**:
 
