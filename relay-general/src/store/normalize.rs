@@ -1705,12 +1705,10 @@ fn test_future_timestamp() {
         None,
     );
     let config = LightNormalizationConfig {
-        client_ip: None,
-        user_agent: None,
         received_at,
         max_secs_in_past,
         max_secs_in_future,
-        breakdowns_config: None,
+        ..Default::default()
     };
     light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -1771,12 +1769,10 @@ fn test_past_timestamp() {
         None,
     );
     let config = LightNormalizationConfig {
-        client_ip: None,
-        user_agent: None,
         received_at,
         max_secs_in_past,
         max_secs_in_future,
-        breakdowns_config: None,
+        ..Default::default()
     };
     light_normalize(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -1933,14 +1929,7 @@ fn test_light_normalization_is_idempotent() {
         ..Default::default()
     });
 
-    let config = LightNormalizationConfig {
-        client_ip: None,
-        user_agent: None,
-        received_at: None,
-        max_secs_in_past: None,
-        max_secs_in_future: None,
-        breakdowns_config: None,
-    };
+    let config = LightNormalizationConfig::default();
 
     fn remove_received_from_event(event: &mut Annotated<Event>) -> &mut Annotated<Event> {
         event
