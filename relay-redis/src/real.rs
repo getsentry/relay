@@ -115,23 +115,30 @@ impl RedisPool {
     /// Creates a `RedisPool` from configuration.
     pub fn new(config: &RedisConfig, readonly: bool) -> Result<Self, RedisError> {
         match config {
-            RedisConfig::Cluster { ref cluster_nodes } => {
+            RedisConfig::Cluster {
+                ref cluster_nodes,
+                max_connections,
+            } => {
                 let servers = cluster_nodes.iter().map(String::as_str).collect();
-                Self::cluster(servers, readonly)
+                Self::cluster(servers, *max_connections, readonly)
             }
             RedisConfig::Single(ref server) => Self::single(server),
         }
     }
 
     /// Creates a `RedisPool` in cluster configuration.
-    pub fn cluster(servers: Vec<&str>, readonly: bool) -> Result<Self, RedisError> {
+    pub fn cluster(
+        servers: Vec<&str>,
+        max_connections: u32,
+        readonly: bool,
+    ) -> Result<Self, RedisError> {
         let client = redis::cluster::ClusterClientBuilder::new(servers)
             .readonly(readonly)
             .open()
             .map_err(RedisError::Redis)?;
 
         let pool = Pool::builder()
-            .max_size(24)
+            .max_size(max_connections)
             .build(client)
             .map_err(RedisError::Pool)?;
 
