@@ -11,7 +11,6 @@ use relay_aws_extension::AwsExtension;
 use relay_common::clone;
 use relay_config::Config;
 use relay_metrics::Aggregator;
-use relay_redis::RedisPool;
 use relay_system::{Configure, Controller};
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeProcessor};
@@ -138,18 +137,11 @@ impl ServiceState {
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
         registry.set(outcome_aggregator.start());
 
-        let redis_pool = match config.redis() {
-            Some(redis_config) if config.processing_enabled() => {
-                Some(RedisPool::new(redis_config).context(ServerErrorKind::RedisError)?)
-            }
-            _ => None,
-        };
-
-        let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
+        let processor = EnvelopeProcessor::start(config.clone())?;
         let envelope_manager = EnvelopeManager::create(config.clone(), processor)?;
         registry.set(Arbiter::start(|_| envelope_manager));
 
-        let project_cache = ProjectCache::new(config.clone(), redis_pool);
+        let project_cache = ProjectCache::new(config.clone())?;
         let project_cache = Arbiter::start(|_| project_cache);
         registry.set(project_cache.clone());
 

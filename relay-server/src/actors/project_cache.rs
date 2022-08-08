@@ -11,7 +11,6 @@ use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
 use relay_metrics::{self, AggregateMetricsError, Bucket, FlushBuckets, Metric};
 use relay_quotas::{RateLimits, Scoping};
-use relay_redis::RedisPool;
 use relay_statsd::metric;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
@@ -20,11 +19,15 @@ use crate::actors::project::{Expiry, Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
+use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{ActorResponse, Response};
 
 #[cfg(feature = "processing")]
-use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
+use {
+    crate::actors::project_redis::RedisProjectSource, crate::service::ServerErrorKind,
+    failure::ResultExt, relay_common::clone, relay_redis::RedisPool,
+};
 
 #[derive(Fail, Debug)]
 pub enum ProjectError {
@@ -47,29 +50,37 @@ pub struct ProjectCache {
 }
 
 impl ProjectCache {
-    pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> Self {
+    pub fn new(config: Arc<Config>) -> Result<Self, ServerError> {
         let local_source = LocalProjectSource::new(config.clone()).start();
         let upstream_source = UpstreamProjectSource::new(config.clone()).start();
 
         #[cfg(feature = "processing")]
-        let redis_source = _redis.map(|pool| {
-            SyncArbiter::start(
-                config.cpu_concurrency(),
-                clone!(config, || RedisProjectSource::new(
-                    config.clone(),
-                    pool.clone()
-                )),
-            )
-        });
+        let redis_source = match config.redis() {
+            Some(redis_config) if config.processing_enabled() => {
+                let pool =
+                    RedisPool::new(redis_config, true).context(ServerErrorKind::RedisError)?;
 
-        ProjectCache {
+                let addr = SyncArbiter::start(
+                    config.cpu_concurrency(),
+                    clone!(config, || RedisProjectSource::new(
+                        config.clone(),
+                        pool.clone()
+                    )),
+                );
+
+                Some(addr)
+            }
+            _ => None,
+        };
+
+        Ok(ProjectCache {
             config,
             projects: HashMap::new(),
             local_source,
             upstream_source,
             #[cfg(feature = "processing")]
             redis_source,
-        }
+        })
     }
 
     fn evict_stale_project_caches(&mut self) {

@@ -36,7 +36,6 @@ use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, ReasonCode, Scoping};
-use relay_redis::RedisPool;
 use relay_sampling::RuleId;
 use relay_statsd::metric;
 
@@ -68,6 +67,7 @@ use {
     failure::ResultExt,
     relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -483,10 +483,7 @@ pub struct EnvelopeProcessor {
 
 impl EnvelopeProcessor {
     /// Starts a multi-threaded envelope processor.
-    pub fn start(
-        config: Arc<Config>,
-        _redis: Option<RedisPool>,
-    ) -> Result<Addr<Self>, ServerError> {
+    pub fn start(config: Arc<Config>) -> Result<Addr<Self>, ServerError> {
         let thread_count = config.cpu_concurrency();
         relay_log::info!("starting {} envelope processing workers", thread_count);
 
@@ -499,8 +496,15 @@ impl EnvelopeProcessor {
                 None => None,
             };
 
-            let rate_limiter =
-                _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
+            let rate_limiter = match config.redis() {
+                Some(redis_config) if config.processing_enabled() => {
+                    let pool =
+                        RedisPool::new(redis_config, false).context(ServerErrorKind::RedisError)?;
+                    let limiter = RedisRateLimiter::new(pool).max_limit(config.max_rate_limit());
+                    Some(limiter)
+                }
+                _ => None,
+            };
 
             Ok(SyncArbiter::start(
                 thread_count,
