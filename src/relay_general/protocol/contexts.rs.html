@@ -1127,6 +1127,76 @@
 <span id="1120">1120</span>
 <span id="1121">1121</span>
 <span id="1122">1122</span>
+<span id="1123">1123</span>
+<span id="1124">1124</span>
+<span id="1125">1125</span>
+<span id="1126">1126</span>
+<span id="1127">1127</span>
+<span id="1128">1128</span>
+<span id="1129">1129</span>
+<span id="1130">1130</span>
+<span id="1131">1131</span>
+<span id="1132">1132</span>
+<span id="1133">1133</span>
+<span id="1134">1134</span>
+<span id="1135">1135</span>
+<span id="1136">1136</span>
+<span id="1137">1137</span>
+<span id="1138">1138</span>
+<span id="1139">1139</span>
+<span id="1140">1140</span>
+<span id="1141">1141</span>
+<span id="1142">1142</span>
+<span id="1143">1143</span>
+<span id="1144">1144</span>
+<span id="1145">1145</span>
+<span id="1146">1146</span>
+<span id="1147">1147</span>
+<span id="1148">1148</span>
+<span id="1149">1149</span>
+<span id="1150">1150</span>
+<span id="1151">1151</span>
+<span id="1152">1152</span>
+<span id="1153">1153</span>
+<span id="1154">1154</span>
+<span id="1155">1155</span>
+<span id="1156">1156</span>
+<span id="1157">1157</span>
+<span id="1158">1158</span>
+<span id="1159">1159</span>
+<span id="1160">1160</span>
+<span id="1161">1161</span>
+<span id="1162">1162</span>
+<span id="1163">1163</span>
+<span id="1164">1164</span>
+<span id="1165">1165</span>
+<span id="1166">1166</span>
+<span id="1167">1167</span>
+<span id="1168">1168</span>
+<span id="1169">1169</span>
+<span id="1170">1170</span>
+<span id="1171">1171</span>
+<span id="1172">1172</span>
+<span id="1173">1173</span>
+<span id="1174">1174</span>
+<span id="1175">1175</span>
+<span id="1176">1176</span>
+<span id="1177">1177</span>
+<span id="1178">1178</span>
+<span id="1179">1179</span>
+<span id="1180">1180</span>
+<span id="1181">1181</span>
+<span id="1182">1182</span>
+<span id="1183">1183</span>
+<span id="1184">1184</span>
+<span id="1185">1185</span>
+<span id="1186">1186</span>
+<span id="1187">1187</span>
+<span id="1188">1188</span>
+<span id="1189">1189</span>
+<span id="1190">1190</span>
+<span id="1191">1191</span>
+<span id="1192">1192</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">regex::Regex</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
@@ -1245,7 +1315,55 @@
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">timezone</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
 
-    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
+    <span class="doccomment">/// Number of &quot;logical processors&quot;.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For example, 8.</span>
+    <span class="kw">pub</span> <span class="ident">processor_count</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// CPU description.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">cpu_description</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Processor frequency in MHz.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that the actual CPU frequency might vary depending on current load and</span>
+    <span class="doccomment">/// power conditions, especially on low-powered devices like phones and laptops.</span>
+    <span class="kw">pub</span> <span class="ident">processor_frequency</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Kind of device the application is running on.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For example, `Unknown`, `Handheld`, `Console`, `Desktop`.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">device_type</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Status of the device&#39;s battery.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For example, `Unknown`, `Charging`, `Discharging`, `NotCharging`, `Full`.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">battery_status</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Unique device identifier.</span>
+    <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">device_unique_identifier</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Whether vibration is available on the device.</span>
+    <span class="kw">pub</span> <span class="ident">supports_vibration</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Whether the accelerometer is available on the device.</span>
+    <span class="kw">pub</span> <span class="ident">supports_accelerometer</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Whether the gyroscope is available on the device.</span>
+    <span class="kw">pub</span> <span class="ident">supports_gyroscope</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Whether audio is available on the device.</span>
+    <span class="kw">pub</span> <span class="ident">supports_audio</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Whether location support is available on the device.</span>
+    <span class="kw">pub</span> <span class="ident">supports_location_service</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Additional arbitrary fields for forwards compatibility</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>, <span class="ident">retain</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">other</span>: <span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
 }
@@ -1904,6 +2022,17 @@
   &quot;external_free_storage&quot;: 2097152,
   &quot;boot_time&quot;: &quot;2018-02-08T12:52:12Z&quot;,
   &quot;timezone&quot;: &quot;Europe/Vienna&quot;,
+  &quot;processor_count&quot;: 8,
+  &quot;cpu_description&quot;: &quot;Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz&quot;,
+  &quot;processor_frequency&quot;: 2400,
+  &quot;device_type&quot;: &quot;Handheld&quot;,
+  &quot;battery_status&quot;: &quot;Charging&quot;,
+  &quot;device_unique_identifier&quot;: &quot;1234567&quot;,
+  &quot;supports_vibration&quot;: true,
+  &quot;supports_accelerometer&quot;: true,
+  &quot;supports_gyroscope&quot;: true,
+  &quot;supports_audio&quot;: true,
+  &quot;supports_location_service&quot;: true,
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;device&quot;
 }&quot;#</span>;
@@ -1933,6 +2062,17 @@
         <span class="ident">external_free_storage</span>: <span class="ident">Annotated::new</span>(<span class="number">2_097_152</span>),
         <span class="ident">boot_time</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;2018-02-08T12:52:12Z&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">timezone</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Europe/Vienna&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">processor_count</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
+        <span class="ident">cpu_description</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">processor_frequency</span>: <span class="ident">Annotated::new</span>(<span class="number">2400</span>),
+        <span class="ident">device_type</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Handheld&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">battery_status</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Charging&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">device_unique_identifier</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;1234567&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="ident">supports_vibration</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+        <span class="ident">supports_accelerometer</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+        <span class="ident">supports_gyroscope</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+        <span class="ident">supports_audio</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+        <span class="ident">supports_location_service</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
         <span class="ident">other</span>: {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
