@@ -35,7 +35,7 @@ def test_forced_shutdown(mini_sentry, relay, rerun):
 
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
-        sleep(2)  # Ensures the event is stuck in the queue when we send SIGINT
+        sleep(10)  # Ensures the event is stuck in the queue when we send SIGINT
         return get_project_config_original()
 
     relay = relay(mini_sentry)
