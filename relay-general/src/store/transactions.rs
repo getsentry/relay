@@ -565,6 +565,9 @@ mod tests {
         {
           "type": "transaction",
           "transaction": "/",
+          "transaction_info": {
+            "source": "unknown"
+          },
           "timestamp": 946684810.0,
           "start_timestamp": 946684800.0,
           "contexts": {
@@ -669,6 +672,9 @@ mod tests {
         {
           "type": "transaction",
           "transaction": "/",
+          "transaction_info": {
+            "source": "unknown"
+          },
           "timestamp": 946684810.0,
           "start_timestamp": 946684800.0,
           "contexts": {
@@ -930,6 +936,9 @@ mod tests {
         {
           "type": "transaction",
           "transaction": "/",
+          "transaction_info": {
+            "source": "unknown"
+          },
           "timestamp": 946684810.0,
           "start_timestamp": 946684800.0,
           "contexts": {
@@ -1052,6 +1061,9 @@ mod tests {
         {
           "type": "transaction",
           "transaction": "/",
+          "transaction_info": {
+            "source": "unknown"
+          },
           "timestamp": 946684810.0,
           "start_timestamp": 946684800.0,
           "contexts": {
@@ -1097,6 +1109,9 @@ mod tests {
         {
           "type": "transaction",
           "transaction": "<unlabeled transaction>",
+          "transaction_info": {
+            "source": "unknown"
+          },
           "timestamp": 946684810.0,
           "start_timestamp": 946684800.0,
           "contexts": {
@@ -1142,6 +1157,9 @@ mod tests {
         {
           "type": "transaction",
           "transaction": "<unlabeled transaction>",
+          "transaction_info": {
+            "source": "unknown"
+          },
           "timestamp": 946684810.0,
           "start_timestamp": 946684800.0,
           "contexts": {

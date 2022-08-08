@@ -18,16 +18,16 @@ use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 
-use crate::actors::envelopes::{
-    EnvelopeContext, EnvelopeManager, QueueEnvelope, QueueEnvelopeError,
-};
+use crate::actors::envelopes::{EnvelopeManager, QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError, SendWithOutcome};
+use crate::utils::{
+    self, ApiErrorResponse, EnvelopeContext, FormDataIter, MultipartError, SendWithOutcome,
+};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {

@@ -4,7 +4,7 @@ use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Event;
 use relay_general::store::{
-    light_normalize, LightNormalizationConfig, StoreConfig, StoreProcessor,
+    light_normalize_event, LightNormalizationConfig, StoreConfig, StoreProcessor,
 };
 use relay_general::types::{Annotated, SerializableAnnotated};
 
@@ -83,7 +83,7 @@ macro_rules! event_snapshot {
                   max_secs_in_future: None,
                   breakdowns_config: None,
                 };
-                light_normalize(&mut event, &config).unwrap();
+                light_normalize_event(&mut event, &config).unwrap();
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
                 let compiled = PII_CONFIG.compiled();

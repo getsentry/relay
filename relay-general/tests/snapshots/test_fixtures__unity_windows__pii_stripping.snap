@@ -137,10 +137,10 @@ contexts:
     memory_size: ~
     boot_time: ~
     timezone: ~
-    battery_status: Full
+    processor_count: 12
     cpu_description: Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz
     device_type: Desktop
-    processor_count: 12
+    battery_status: Full
     supports_vibration: false
     timezone_display_name: "(UTC+02:00) Helsinki, Kyiv, Riga, Sofia, Tallinn, Vilnius"
     type: device
@@ -256,3 +256,4 @@ _meta:
           rem:
             - - "@anything:remove"
               - x
+

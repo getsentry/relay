@@ -14,10 +14,11 @@ use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 use relay_system::{Configure, Controller};
 
-use crate::actors::envelopes::{EnvelopeManager, EnvelopeProcessor};
+use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::outcome_aggregator::OutcomeAggregator;
+use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
 use crate::actors::upstream::UpstreamRelay;
