@@ -10,7 +10,7 @@ use regex::Regex;
 use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 use smallvec::SmallVec;
 
-use super::{schema, BreakdownsConfig};
+use super::{schema, transactions, BreakdownsConfig};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
     self, AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId,
@@ -514,6 +514,7 @@ pub fn light_normalize_event(
     event: &mut Annotated<Event>,
     config: &LightNormalizationConfig,
 ) -> ProcessingResult {
+    transactions::validate_annotated_transaction(event)?;
     event.apply(|event, meta| {
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
@@ -820,7 +821,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 use crate::{
     processor::process_value,
     protocol::{PairList, TagEntry},
-    store::light_normalize,
     testutils::{assert_eq_dbg, get_path, get_value},
 };
 
@@ -948,7 +948,7 @@ fn test_user_ip_from_remote_addr() {
     let config = StoreConfig::default();
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let ip_addr = get_value!(event.user.ip_address!);
@@ -976,7 +976,7 @@ fn test_user_ip_from_invalid_remote_addr() {
     let config = StoreConfig::default();
     let mut processor = NormalizeProcessor::new(Arc::new(config), None);
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(Annotated::empty(), event.value().unwrap().user);
@@ -1000,7 +1000,7 @@ fn test_user_ip_from_client_ip_without_auto() {
         client_ip: Some(&ip_address),
         ..Default::default()
     };
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let ip_addr = get_value!(event.user.ip_address!);
@@ -1029,7 +1029,7 @@ fn test_user_ip_from_client_ip_with_auto() {
         client_ip: Some(&ip_address),
         ..Default::default()
     };
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = get_value!(event.user!);
@@ -1055,7 +1055,7 @@ fn test_user_ip_from_client_ip_without_appropriate_platform() {
         client_ip: Some(&ip_address),
         ..Default::default()
     };
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let user = get_value!(event.user!);
@@ -1068,7 +1068,7 @@ fn test_event_level_defaulted() {
     let processor = &mut NormalizeProcessor::default();
     let mut event = Annotated::new(Event::default());
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.level), Some(&Level::Error));
 }
@@ -1099,7 +1099,7 @@ fn test_transaction_level_untouched() {
         ..Event::default()
     });
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.level), Some(&Level::Info));
 }
@@ -1116,7 +1116,7 @@ fn test_environment_tag_is_moved() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
@@ -1138,7 +1138,7 @@ fn test_empty_environment_is_removed_and_overwritten_with_tag() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let event = event.value().unwrap();
@@ -1156,7 +1156,7 @@ fn test_empty_environment_is_removed() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
     assert_eq_dbg!(get_value!(event.environment), None);
 }
@@ -1170,7 +1170,7 @@ fn test_none_environment_errors() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let environment = get_path!(event.environment!);
@@ -1198,7 +1198,7 @@ fn test_invalid_release_removed() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     let release = get_path!(event.release!);
@@ -1232,7 +1232,7 @@ fn test_top_level_keys_moved_into_tags() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(get_value!(event.site), None);
@@ -1287,7 +1287,7 @@ fn test_internal_tags_removed() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq!(get_value!(event.tags!).len(), 1);
@@ -1315,7 +1315,7 @@ fn test_empty_tags_removed() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1367,7 +1367,7 @@ fn test_tags_deduplicated() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     // should keep the first occurrence of every tag
@@ -1431,7 +1431,7 @@ fn test_unknown_debug_image() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1521,7 +1521,7 @@ fn test_too_long_tags() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1567,7 +1567,7 @@ fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
 
     let mut processor = NormalizeProcessor::default();
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1597,7 +1597,7 @@ fn test_parses_sdk_info_from_header() {
     );
 
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(
@@ -1621,7 +1621,7 @@ fn test_discards_received() {
     let mut processor = NormalizeProcessor::default();
 
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_eq_dbg!(get_value!(event.received!), get_value!(event.timestamp!));
@@ -1653,7 +1653,7 @@ fn test_grouping_config() {
     );
 
     let config = LightNormalizationConfig::default();
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1710,7 +1710,7 @@ fn test_future_timestamp() {
         max_secs_in_future,
         ..Default::default()
     };
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1774,7 +1774,7 @@ fn test_past_timestamp() {
         max_secs_in_future,
         ..Default::default()
     };
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
     assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1941,19 +1941,19 @@ fn test_light_normalization_is_idempotent() {
         event
     }
 
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     let first = remove_received_from_event(&mut event.clone())
         .to_json()
         .unwrap();
     // Expected some fields (such as timestamps) exist after first light normalization.
 
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     let second = remove_received_from_event(&mut event.clone())
         .to_json()
         .unwrap();
     assert_eq!(&first, &second, "idempotency check failed");
 
-    light_normalize(&mut event, &config).unwrap();
+    light_normalize_event(&mut event, &config).unwrap();
     let third = remove_received_from_event(&mut event.clone())
         .to_json()
         .unwrap();
