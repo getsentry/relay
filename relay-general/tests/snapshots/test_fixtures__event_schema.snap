@@ -982,6 +982,14 @@ expression: event_json_schema()
               ],
               "format": "double"
             },
+            "battery_status": {
+              "description": " Status of the device's battery.\n\n For example, `Unknown`, `Charging`, `Discharging`, `NotCharging`, `Full`.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "boot_time": {
               "description": " Indicator when the device was booted.",
               "default": null,
@@ -1003,6 +1011,30 @@ expression: event_json_schema()
               "default": null,
               "type": [
                 "boolean",
+                "null"
+              ]
+            },
+            "cpu_description": {
+              "description": " CPU description.\n\n For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "device_type": {
+              "description": " Kind of device the application is running on.\n\n For example, `Unknown`, `Handheld`, `Console`, `Desktop`.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "device_unique_identifier": {
+              "description": " Unique device identifier.",
+              "default": null,
+              "type": [
+                "string",
                 "null"
               ]
             },
@@ -1120,6 +1152,26 @@ expression: event_json_schema()
                 "null"
               ]
             },
+            "processor_count": {
+              "description": " Number of \"logical processors\".\n\n For example, 8.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "processor_frequency": {
+              "description": " Processor frequency in MHz.\n\n Note that the actual CPU frequency might vary depending on current load and\n power conditions, especially on low-powered devices like phones and laptops.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "screen_density": {
               "description": " Device screen density.",
               "default": null,
@@ -1164,6 +1216,46 @@ expression: event_json_schema()
               ],
               "format": "uint64",
               "minimum": 0.0
+            },
+            "supports_accelerometer": {
+              "description": " Whether the accelerometer is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_audio": {
+              "description": " Whether audio is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_gyroscope": {
+              "description": " Whether the gyroscope is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_location_service": {
+              "description": " Whether location support is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_vibration": {
+              "description": " Whether vibration is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "timezone": {
               "description": " Timezone of the device.",
