@@ -44,6 +44,7 @@ def test_forced_shutdown(mini_sentry, relay, rerun):
 
     try:
         relay.send_event(project_id)
+        sleep(0.5)  # Give the event time to get stuck
 
         relay.shutdown(sig=signal.SIGINT)
         pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
