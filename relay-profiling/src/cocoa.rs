@@ -43,6 +43,8 @@ struct ThreadMetadata {
 
     #[serde(default, skip_serializing_if = "String::is_empty")]
     name: String,
+
+    #[serde(default)]
     priority: u32,
 }
 
