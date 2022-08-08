@@ -2,8 +2,8 @@ use actix::prelude::dev::ToEnvelope;
 use actix::prelude::*;
 use futures01::prelude::*;
 
-use crate::actors::envelopes::EnvelopeContext;
 use crate::actors::outcome::{DiscardReason, Outcome};
+use crate::actors::processor::EnvelopeContext;
 
 /// Extension trait for [`Addr`] to log [`Outcome`] for failed messages.
 pub trait SendWithOutcome<A> {

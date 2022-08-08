@@ -18,10 +18,9 @@ use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 
-use crate::actors::envelopes::{
-    EnvelopeContext, EnvelopeManager, QueueEnvelope, QueueEnvelopeError,
-};
+use crate::actors::envelopes::{EnvelopeManager, QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome};
+use crate::actors::processor::EnvelopeContext;
 use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;

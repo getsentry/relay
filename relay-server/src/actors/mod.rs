@@ -32,6 +32,7 @@ pub mod envelopes;
 pub mod healthcheck;
 pub mod outcome;
 pub mod outcome_aggregator;
+pub mod processor;
 pub mod project;
 pub mod project_cache;
 pub mod project_local;
