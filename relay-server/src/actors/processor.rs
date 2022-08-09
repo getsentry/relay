@@ -366,7 +366,7 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
     }
 }
 
-pub fn outcome_from_profile_error(err: relay_profiling::ProfileError) -> Outcome {
+fn outcome_from_profile_error(err: relay_profiling::ProfileError) -> Outcome {
     let discard_reason = match err {
         relay_profiling::ProfileError::CannotSerializePayload => DiscardReason::Internal,
         relay_profiling::ProfileError::NotEnoughSamples => DiscardReason::InvalidProfile,
