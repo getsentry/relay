@@ -136,9 +136,6 @@ pub enum ProcessingError {
     #[fail(display = "failed to apply quotas")]
     QuotasFailed(#[cause] RateLimitingError),
 
-    #[fail(display = "envelope exceeded its configured lifetime")]
-    Timeout,
-
     #[fail(display = "event dropped by sampling rule {}", _0)]
     Sampled(RuleId),
 }
@@ -169,7 +166,6 @@ impl ProcessingError {
             // Internal errors
             Self::SerializeFailed(_)
             | Self::ProjectFailed(_)
-            | Self::Timeout
             | Self::ProcessingFailed(_)
             | Self::MissingProjectId => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]

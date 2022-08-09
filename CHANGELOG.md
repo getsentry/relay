@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Remove timeout-based expiry of envelopes in Relay's internal buffers. The `cache.envelope_expiry` is now inactive. To control the size of the envelope buffer, use `cache.envelope_buffer_size` exclusively, instead. ([#1398](https://github.com/getsentry/relay/pull/1398))
 - Parse sample rates as JSON. ([#1353](https://github.com/getsentry/relay/pull/1353))
 - Filter events in external Relays, before extracting metrics. ([#1379](https://github.com/getsentry/relay/pull/1379))
 - Add `privatekey` and `private_key` as secret key name to datascrubbers. ([#1376](https://github.com/getsentry/relay/pull/1376))
@@ -26,6 +27,7 @@
 - Partially normalize events before extracting metrics. ([#1366](https://github.com/getsentry/relay/pull/1366))
 - Spawn more threads for CPU intensive work. ([#1378](https://github.com/getsentry/relay/pull/1378))
 - Add missing fields to DeviceContext ([#1383](https://github.com/getsentry/relay/pull/1383))
+- Improve performance of Redis accesses by not running `PING` everytime a connection is reused. ([#1394](https://github.com/getsentry/relay/pull/1394))
 
 ## 22.7.0
 
