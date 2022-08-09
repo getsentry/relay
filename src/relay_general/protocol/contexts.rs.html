@@ -1197,6 +1197,28 @@
 <span id="1190">1190</span>
 <span id="1191">1191</span>
 <span id="1192">1192</span>
+<span id="1193">1193</span>
+<span id="1194">1194</span>
+<span id="1195">1195</span>
+<span id="1196">1196</span>
+<span id="1197">1197</span>
+<span id="1198">1198</span>
+<span id="1199">1199</span>
+<span id="1200">1200</span>
+<span id="1201">1201</span>
+<span id="1202">1202</span>
+<span id="1203">1203</span>
+<span id="1204">1204</span>
+<span id="1205">1205</span>
+<span id="1206">1206</span>
+<span id="1207">1207</span>
+<span id="1208">1208</span>
+<span id="1209">1209</span>
+<span id="1210">1210</span>
+<span id="1211">1211</span>
+<span id="1212">1212</span>
+<span id="1213">1213</span>
+<span id="1214">1214</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">regex::Regex</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
@@ -1616,6 +1638,28 @@
     <span class="doccomment">/// The Non-Power-Of-Two support.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">npot_support</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Largest size of a texture that is supported by the graphics hardware.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For Example: 16384</span>
+    <span class="kw">pub</span> <span class="ident">max_texture_size</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Approximate &quot;shader capability&quot; level of the graphics device.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For Example: Shader Model 2.0, OpenGL ES 3.0, Metal / OpenGL ES 3.1, 27 (unknown)</span>
+    <span class="kw">pub</span> <span class="ident">graphics_shader_level</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Whether GPU draw call instancing is supported.</span>
+    <span class="kw">pub</span> <span class="ident">supports_draw_call_instancing</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Whether ray tracing is available on the device.</span>
+    <span class="kw">pub</span> <span class="ident">supports_ray_tracing</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Whether compute shaders are available on the device.</span>
+    <span class="kw">pub</span> <span class="ident">supports_compute_shaders</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Whether geometry shaders are available on the device.</span>
+    <span class="kw">pub</span> <span class="ident">supports_geometry_shaders</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>, <span class="ident">retain</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
