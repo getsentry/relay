@@ -2555,6 +2555,15 @@
 <span id="2548">2548</span>
 <span id="2549">2549</span>
 <span id="2550">2550</span>
+<span id="2551">2551</span>
+<span id="2552">2552</span>
+<span id="2553">2553</span>
+<span id="2554">2554</span>
+<span id="2555">2555</span>
+<span id="2556">2556</span>
+<span id="2557">2557</span>
+<span id="2558">2558</span>
+<span id="2559">2559</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -2921,6 +2930,15 @@
             <span class="ident">other</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="ident">other</span>)),
         })),
     }
+}
+
+<span class="kw">fn</span> <span class="ident">outcome_from_profile_error</span>(<span class="ident">err</span>: <span class="ident">relay_profiling::ProfileError</span>) -&gt; <span class="ident">Outcome</span> {
+    <span class="kw">let</span> <span class="ident">discard_reason</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">err</span> {
+        <span class="ident">relay_profiling::ProfileError::CannotSerializePayload</span> =&gt; <span class="ident">DiscardReason::Internal</span>,
+        <span class="ident">relay_profiling::ProfileError::NotEnoughSamples</span> =&gt; <span class="ident">DiscardReason::InvalidProfile</span>,
+        <span class="kw">_</span> =&gt; <span class="ident">DiscardReason::ProcessProfile</span>,
+    };
+    <span class="ident">Outcome::Invalid</span>(<span class="ident">discard_reason</span>)
 }
 
 <span class="doccomment">/// Synchronous service for processing envelopes.</span>
@@ -3439,9 +3457,9 @@
                                 <span class="ident">item</span>.<span class="ident">set_payload</span>(<span class="ident">ContentType::Json</span>, <span class="kw-2">&amp;</span><span class="ident">payload</span>[..]);
                                 <span class="kw">return</span> <span class="bool-val">true</span>;
                             }
-                            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                            <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
                                 <span class="ident">context</span>.<span class="ident">track_outcome</span>(
-                                    <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProcessProfile</span>),
+                                    <span class="ident">outcome_from_profile_error</span>(<span class="ident">err</span>),
                                     <span class="ident">DataCategory::Profile</span>,
                                     <span class="number">1</span>,
                                 );

@@ -135,6 +135,7 @@
 <span id="130">130</span>
 <span id="131">131</span>
 <span id="132">132</span>
+<span id="133">133</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for</span>
@@ -242,10 +243,11 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::android::parse_android_profile</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::cocoa::parse_cocoa_profile</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::ProfileError</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::python::parse_python_profile</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::rust::parse_rust_profile</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::typescript::parse_typescript_profile</span>;
+
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::ProfileError</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>)]</span>
 <span class="kw">struct</span> <span class="ident">MinimalProfile</span> {

@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["parse_profile",""]]});
+initSidebarItems({"enum":[["ProfileError",""]],"fn":[["parse_profile",""]]});
