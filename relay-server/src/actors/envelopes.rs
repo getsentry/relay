@@ -10,7 +10,6 @@ use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::Utc;
 use failure::Fail;
-use futures::{FutureExt, TryFutureExt};
 use futures01::{future, prelude::*, sync::oneshot};
 
 use relay_common::{clone, ProjectKey};
@@ -20,7 +19,6 @@ use relay_log::LogError;
 use relay_metrics::Bucket;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use tokio::runtime::Runtime;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{
@@ -35,15 +33,16 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
-use crate::utils::{
-    self,
-    EnvelopeContext,
-    FutureExt as OtherFutureExt, // Needed because of the compat
-    SendWithOutcome,
-};
+use crate::utils::{self, EnvelopeContext, FutureExt as _, SendWithOutcome};
 
 #[cfg(feature = "processing")]
 use crate::actors::store::{StoreAddr, StoreEnvelope, StoreError, StoreForwarder};
+
+#[cfg(feature = "processing")]
+use tokio::runtime::Runtime;
+
+#[cfg(feature = "processing")]
+use futures::{FutureExt, TryFutureExt};
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
