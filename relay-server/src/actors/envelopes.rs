@@ -20,6 +20,7 @@ use relay_log::LogError;
 use relay_metrics::Bucket;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
+use tokio::runtime::Runtime;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{
@@ -160,6 +161,8 @@ pub struct EnvelopeManager {
     processor: Addr<EnvelopeProcessor>,
     #[cfg(feature = "processing")]
     store_forwarder: Option<StoreAddr<StoreEnvelope>>,
+    #[cfg(feature = "processing")]
+    _runtime: Runtime,
 }
 
 impl EnvelopeManager {
@@ -167,18 +170,20 @@ impl EnvelopeManager {
         config: Arc<Config>,
         processor: Addr<EnvelopeProcessor>,
     ) -> Result<Self, ServerError> {
+        // Enter the tokio runtime so we can start spawning tasks from the outside.
+        #[cfg(feature = "processing")]
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+
+        #[cfg(feature = "processing")]
+        let _guard = runtime.enter();
+
         #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
             let actor = StoreForwarder::create(config.clone())?;
-
-            let runtime = tokio::runtime::Builder::new_multi_thread() // TODO(tobias): Check if this is valid, not sure
-                .worker_threads(1)
-                .enable_all()
-                .build()
-                .unwrap();
-
-            // Enter the tokio runtime so we can start spawning tasks from the outside.
-            let _guard = runtime.enter();
             Some(actor.start())
         } else {
             None
@@ -191,6 +196,8 @@ impl EnvelopeManager {
             processor,
             #[cfg(feature = "processing")]
             store_forwarder,
+            #[cfg(feature = "processing")]
+            _runtime: runtime,
         })
     }
 
@@ -206,9 +213,6 @@ impl EnvelopeManager {
         {
             if let Some(store_forwarder) = self.store_forwarder.clone() {
                 relay_log::trace!("sending envelope to kafka");
-
-                // TODO(tobias): Fix this, all though it complies 59 test
-                // Fail with: dropped envelope: could not schedule project fetch
                 let fut = async move {
                     let addr = store_forwarder.clone();
                     addr.send(StoreEnvelope {
@@ -216,16 +220,15 @@ impl EnvelopeManager {
                         start_time,
                         scoping,
                     })
-                    .map_err(|_| SendEnvelopeError::ScheduleFailed) // TODO(tobias): Not sure about this but might be nice
                     .await
                 };
 
-                return Box::new(
-                    fut.boxed_local()
-                        .compat()
-                        .map_err(|_| SendEnvelopeError::ScheduleFailed)
-                        .and_then(|result| result.map_err(SendEnvelopeError::StoreFailed)),
-                );
+                let future = fut
+                    .boxed_local()
+                    .compat()
+                    .map_err(|_| SendEnvelopeError::ScheduleFailed)
+                    .and_then(|result| result.map_err(SendEnvelopeError::StoreFailed));
+                return Box::new(future);
             }
         }
 

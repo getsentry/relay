@@ -51,14 +51,14 @@ pub enum StoreError {
     NoEventId,
 }
 
-/// Internal wrapper of a message sent through an `Addr` with return channel.
+/// Internal wrapper of a message sent through an `StoreAddr` with return channel.
 #[derive(Debug)]
 pub struct StoreMessage<T> {
     data: T,
     responder: oneshot::Sender<Result<(), StoreError>>,
 }
 
-/// An error when [sending](Addr::send) a message to a service fails.
+/// An error when [sending](StoreAddr::send) a message to a service fails.
 #[derive(Clone, Copy, Debug)]
 pub struct SendError;
 
@@ -72,7 +72,7 @@ impl std::error::Error for SendError {}
 
 /// Channel for sending public messages into a service.
 ///
-/// To send a message, use [`Addr::send`].
+/// To send a message, use [`StoreAddr::send`].
 #[derive(Clone, Debug)]
 pub struct StoreAddr<T> {
     tx: mpsc::UnboundedSender<StoreMessage<T>>,
