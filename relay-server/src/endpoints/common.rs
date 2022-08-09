@@ -74,7 +74,7 @@ pub enum BadStoreRequest {
     PayloadError(#[cause] PayloadError),
 
     #[fail(
-        display = "sentry dropped data due to a quota or internal rate limit being reached. this will not affect your application. see https://docs.sentry.io/product/accounts/quotas/ for more information."
+        display = "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
     )]
     RateLimited(RateLimits),
 
