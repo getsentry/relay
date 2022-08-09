@@ -30,6 +30,7 @@
 - Add missing fields to DeviceContext ([#1383](https://github.com/getsentry/relay/pull/1383))
 - Improve performance of Redis accesses by not running `PING` everytime a connection is reused. ([#1394](https://github.com/getsentry/relay/pull/1394))
 - Distinguish between various discard reasons for profiles. ([#1395](https://github.com/getsentry/relay/pull/1395))
+- Add missing fields to GPUContext ([#1391](https://github.com/getsentry/relay/pull/1391))
 
 ## 22.7.0
 

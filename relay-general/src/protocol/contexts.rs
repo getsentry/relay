@@ -418,6 +418,28 @@ pub struct GpuContext {
     #[metastructure(pii = "maybe")]
     pub npot_support: Annotated<String>,
 
+    /// Largest size of a texture that is supported by the graphics hardware.
+    ///
+    /// For Example: 16384
+    pub max_texture_size: Annotated<u64>,
+
+    /// Approximate "shader capability" level of the graphics device.
+    ///
+    /// For Example: Shader Model 2.0, OpenGL ES 3.0, Metal / OpenGL ES 3.1, 27 (unknown)
+    pub graphics_shader_level: Annotated<String>,
+
+    /// Whether GPU draw call instancing is supported.
+    pub supports_draw_call_instancing: Annotated<bool>,
+
+    /// Whether ray tracing is available on the device.
+    pub supports_ray_tracing: Annotated<bool>,
+
+    /// Whether compute shaders are available on the device.
+    pub supports_compute_shaders: Annotated<bool>,
+
+    /// Whether geometry shaders are available on the device.
+    pub supports_geometry_shaders: Annotated<bool>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
