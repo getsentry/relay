@@ -10,6 +10,7 @@ use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::Utc;
 use failure::Fail;
+use futures::{FutureExt, TryFutureExt};
 use futures01::{future, prelude::*, sync::oneshot};
 
 use relay_common::{clone, ProjectKey};
@@ -33,10 +34,15 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
-use crate::utils::{self, EnvelopeContext, FutureExt, SendWithOutcome};
+use crate::utils::{
+    self,
+    EnvelopeContext,
+    FutureExt as OtherFutureExt, // Needed because of the compat
+    SendWithOutcome,
+};
 
 #[cfg(feature = "processing")]
-use crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder};
+use crate::actors::store::{StoreAddr, StoreEnvelope, StoreError, StoreForwarder};
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
