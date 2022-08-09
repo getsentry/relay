@@ -2,10 +2,10 @@
 //! The actor uses kafka topics to forward data to Sentry
 
 use std::collections::BTreeMap;
+use std::fmt;
 use std::sync::Arc;
 use std::time::Instant;
 
-use actix::prelude::*;
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
 use rdkafka::error::KafkaError;
@@ -13,6 +13,7 @@ use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
+use tokio::sync::{mpsc, oneshot};
 
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
@@ -48,6 +49,49 @@ pub enum StoreError {
     InvalidJson(#[cause] serde_json::Error),
     #[fail(display = "failed to store event because event id was missing")]
     NoEventId,
+}
+
+/// Internal wrapper of a message sent through an `Addr` with return channel.
+#[derive(Debug)]
+pub struct StoreMessage<T> {
+    data: T,
+    responder: oneshot::Sender<Result<(), StoreError>>,
+}
+
+/// An error when [sending](Addr::send) a message to a service fails.
+#[derive(Clone, Copy, Debug)]
+pub struct SendError;
+
+impl fmt::Display for SendError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "failed to send message to service")
+    }
+}
+
+impl std::error::Error for SendError {}
+
+/// Channel for sending public messages into a service.
+///
+/// To send a message, use [`Addr::send`].
+#[derive(Clone, Debug)]
+pub struct StoreAddr<T> {
+    tx: mpsc::UnboundedSender<StoreMessage<T>>,
+}
+
+impl<T> StoreAddr<T> {
+    /// Sends an asynchronous message to the service and waits for the response.
+    ///
+    /// The result of the message does not have to be awaited. The message will be delivered and
+    /// handled regardless. The communication channel with the service is unbounded, so backlogs
+    /// could occur when sending too many messages.
+    ///
+    /// Sending the message can fail with `Err(SendError)` if the service has shut down.
+    pub async fn send(&self, data: T) -> Result<Result<(), StoreError>, SendError> {
+        let (responder, rx) = oneshot::channel();
+        let message = StoreMessage { data, responder };
+        self.tx.send(message).map_err(|_| SendError)?;
+        rx.await.map_err(|_| SendError)
+    }
 }
 
 type Producer = Arc<ThreadedProducer>;
@@ -130,6 +174,169 @@ fn make_producer<'a>(
 }
 
 impl StoreForwarder {
+    fn handle_store_evelope(
+        &self, // TODO(tobias): Removed Mut here not sure if that causes all the Kafka issues
+        message: StoreEnvelope,
+    ) -> Result<(), StoreError> {
+        let StoreEnvelope {
+            envelope,
+            start_time,
+            scoping,
+        } = message;
+
+        let retention = envelope.retention();
+        let client = envelope.meta().client();
+        let event_id = envelope.event_id();
+        let event_item = envelope.get_item_by(|item| {
+            matches!(
+                item.ty(),
+                ItemType::Event | ItemType::Transaction | ItemType::Security
+            )
+        });
+
+        let topic = if envelope.get_item_by(is_slow_item).is_some() {
+            KafkaTopic::Attachments
+        } else if event_item.map(|x| x.ty()) == Some(&ItemType::Transaction) {
+            KafkaTopic::Transactions
+        } else {
+            KafkaTopic::Events
+        };
+
+        let mut attachments = Vec::new();
+
+        for item in envelope.items() {
+            match item.ty() {
+                ItemType::Attachment => {
+                    debug_assert!(topic == KafkaTopic::Attachments);
+                    let attachment = self.produce_attachment_chunks(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.project_id,
+                        item,
+                    )?;
+                    attachments.push(attachment);
+                }
+                ItemType::UserReport => {
+                    debug_assert!(topic == KafkaTopic::Attachments);
+                    self.produce_user_report(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.project_id,
+                        start_time,
+                        item,
+                    )?;
+                    metric!(
+                        counter(RelayCounters::ProcessingMessageProduced) += 1,
+                        event_type = "user_report"
+                    );
+                }
+                ItemType::Session | ItemType::Sessions => {
+                    self.produce_sessions(
+                        scoping.organization_id,
+                        scoping.project_id,
+                        retention,
+                        client,
+                        item,
+                    )?;
+                }
+                ItemType::MetricBuckets => {
+                    self.produce_metrics(scoping.organization_id, scoping.project_id, item)?
+                }
+                ItemType::Profile => self.produce_profile(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    scoping.key_id,
+                    start_time,
+                    item,
+                )?,
+                ItemType::ReplayRecording => {
+                    let replay_recording = self.produce_replay_recording_chunks(
+                        event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.project_id,
+                        item,
+                    )?;
+                    relay_log::trace!("Sending individual replay_recordings of envelope to kafka");
+                    let replay_recording_message =
+                        KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
+                            replay_id: event_id.ok_or(StoreError::NoEventId)?,
+                            project_id: scoping.project_id,
+                            retention_days: retention,
+                            replay_recording,
+                        });
+
+                    self.produce(KafkaTopic::ReplayRecordings, replay_recording_message)?;
+                    metric!(
+                        counter(RelayCounters::ProcessingMessageProduced) += 1,
+                        event_type = "replay_recording"
+                    );
+                }
+                ItemType::ReplayEvent => self.produce_replay_event(
+                    event_id.ok_or(StoreError::NoEventId)?,
+                    scoping.project_id,
+                    start_time,
+                    retention,
+                    item,
+                )?,
+                _ => {}
+            }
+        }
+
+        if let Some(event_item) = event_item {
+            relay_log::trace!("Sending event item of envelope to kafka");
+            let event_message = KafkaMessage::Event(EventKafkaMessage {
+                payload: event_item.payload(),
+                start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+                event_id: event_id.ok_or(StoreError::NoEventId)?,
+                project_id: scoping.project_id,
+                remote_addr: envelope.meta().client_addr().map(|addr| addr.to_string()),
+                attachments,
+            });
+
+            self.produce(topic, event_message)?;
+            metric!(
+                counter(RelayCounters::ProcessingMessageProduced) += 1,
+                event_type = &event_item.ty().to_string()
+            );
+        } else if !attachments.is_empty() {
+            relay_log::trace!("Sending individual attachments of envelope to kafka");
+            for attachment in attachments {
+                let attachment_message = KafkaMessage::Attachment(AttachmentKafkaMessage {
+                    event_id: event_id.ok_or(StoreError::NoEventId)?,
+                    project_id: scoping.project_id,
+                    attachment,
+                });
+
+                self.produce(topic, attachment_message)?;
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = "attachment"
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn start(self) -> StoreAddr<StoreEnvelope> {
+        relay_log::info!("store forwarder started");
+
+        let (tx, mut rx) = mpsc::unbounded_channel::<StoreMessage<StoreEnvelope>>();
+
+        let service = Arc::new(self);
+        tokio::spawn(async move {
+            while let Some(message) = rx.recv().await {
+                let service = service.clone();
+
+                tokio::spawn(async move {
+                    let response = service.handle_store_evelope(message.data);
+                    message.responder.send(response).ok();
+                });
+            }
+
+            relay_log::info!("store forwarder stopped");
+        });
+
+        StoreAddr { tx }
+    }
+
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let mut reused_producers = BTreeMap::new();
         let producers = Producers {
@@ -548,6 +755,7 @@ impl StoreForwarder {
 
 /// StoreMessageForwarder is an async actor since the only thing it does is put the messages
 /// in the kafka topics
+/*
 impl Actor for StoreForwarder {
     type Context = Context<Self>;
 
@@ -564,6 +772,7 @@ impl Actor for StoreForwarder {
         relay_log::info!("store forwarder stopped");
     }
 }
+*/
 
 /// Common attributes for both standalone attachments and processing-relevant attachments.
 #[derive(Debug, Serialize)]
@@ -851,9 +1060,11 @@ pub struct StoreEnvelope {
     pub scoping: Scoping,
 }
 
+/*
 impl Message for StoreEnvelope {
     type Result = Result<(), StoreError>;
 }
+*/
 
 /// Determines if the given item is considered slow.
 ///
@@ -862,6 +1073,7 @@ fn is_slow_item(item: &Item) -> bool {
     item.ty() == &ItemType::Attachment || item.ty() == &ItemType::UserReport
 }
 
+/*
 impl Handler<StoreEnvelope> for StoreForwarder {
     type Result = Result<(), StoreError>;
 
@@ -1003,3 +1215,4 @@ impl Handler<StoreEnvelope> for StoreForwarder {
         Ok(())
     }
 }
+*/

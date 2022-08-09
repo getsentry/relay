@@ -16,6 +16,7 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
+use futures::{FutureExt, TryFutureExt};
 use futures01::{future, prelude::*, sync::oneshot};
 use lazy_static::lazy_static;
 use serde_json::Value as SerdeValue;
@@ -56,13 +57,19 @@ use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, EnvelopeSummary, ErrorBoundary, FormDataIter, FutureExt,
-    SamplingResult, SendWithOutcome,
+    self,
+    ChunkedFormDataAggregator,
+    EnvelopeSummary,
+    ErrorBoundary,
+    FormDataIter,
+    FutureExt as OtherFutureExt, // TODO(tobias) ASK if this is a valid fix, this complained because the futures::FutureExt(which is needed for compat)
+    SamplingResult,
+    SendWithOutcome,
 };
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
+    crate::actors::store::{StoreAddr, StoreEnvelope, StoreError, StoreForwarder},
     crate::service::ServerErrorKind,
     crate::utils::EnvelopeLimiter,
     failure::ResultExt,
@@ -2277,7 +2284,7 @@ pub struct EnvelopeManager {
     captures: BTreeMap<EventId, CapturedEnvelope>,
     processor: Addr<EnvelopeProcessor>,
     #[cfg(feature = "processing")]
-    store_forwarder: Option<Addr<StoreForwarder>>,
+    store_forwarder: Option<StoreAddr<StoreEnvelope>>,
 }
 
 impl EnvelopeManager {
@@ -2288,7 +2295,16 @@ impl EnvelopeManager {
         #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
             let actor = StoreForwarder::create(config.clone())?;
-            Some(Arbiter::start(move |_| actor))
+
+            let runtime = tokio::runtime::Builder::new_multi_thread() // TODO(tobias): Check if this is valid, not sure
+                .worker_threads(1)
+                .enable_all()
+                .build()
+                .unwrap();
+
+            // Enter the tokio runtime so we can start spawning tasks from the outside.
+            let _guard = runtime.enter();
+            Some(actor.start())
         } else {
             None
         };
@@ -2313,18 +2329,28 @@ impl EnvelopeManager {
     ) -> ResponseFuture<(), SendEnvelopeError> {
         #[cfg(feature = "processing")]
         {
-            if let Some(ref store_forwarder) = self.store_forwarder {
+            if let Some(store_forwarder) = self.store_forwarder.clone() {
                 relay_log::trace!("sending envelope to kafka");
-                let future = store_forwarder
-                    .send(StoreEnvelope {
+
+                // TODO(tobias): Fix this, all though it complies 59 test
+                // Fail with: dropped envelope: could not schedule project fetch
+                let fut = async move {
+                    let addr = store_forwarder.clone();
+                    addr.send(StoreEnvelope {
                         envelope,
                         start_time,
                         scoping,
                     })
-                    .map_err(|_| SendEnvelopeError::ScheduleFailed)
-                    .and_then(|result| result.map_err(SendEnvelopeError::StoreFailed));
+                    .map_err(|_| SendEnvelopeError::ScheduleFailed) // TODO(tobias): Not sure about this but might be nice
+                    .await
+                };
 
-                return Box::new(future);
+                return Box::new(
+                    fut.boxed_local()
+                        .compat()
+                        .map_err(|_| SendEnvelopeError::ScheduleFailed)
+                        .and_then(|result| result.map_err(SendEnvelopeError::StoreFailed)),
+                );
             }
         }
 
