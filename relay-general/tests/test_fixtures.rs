@@ -3,7 +3,9 @@ use std::fs;
 use relay_general::pii::{PiiConfig, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Event;
-use relay_general::store::{StoreConfig, StoreProcessor};
+use relay_general::store::{
+    light_normalize_event, LightNormalizationConfig, StoreConfig, StoreProcessor,
+};
 use relay_general::types::{Annotated, SerializableAnnotated};
 
 use insta::assert_yaml_snapshot;
@@ -73,6 +75,15 @@ macro_rules! event_snapshot {
 
                 let config = StoreConfig::default();
                 let mut processor = StoreProcessor::new(config, None);
+                let config = LightNormalizationConfig {
+                  client_ip: None,
+                  user_agent: None,
+                  received_at: None,
+                  max_secs_in_past: None,
+                  max_secs_in_future: None,
+                  breakdowns_config: None,
+                };
+                light_normalize_event(&mut event, &config).unwrap();
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
                 let compiled = PII_CONFIG.compiled();

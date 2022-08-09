@@ -113,6 +113,14 @@ fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
 
 fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
     let op = trace_context.op.value()?;
+    if op == "default" {
+        // This was likely set by normalization, so let's treat it as None
+        // See https://github.com/getsentry/relay/blob/bb2ac4ee82c25faa07a6d078f93d22d799cfc5d1/relay-general/src/store/transactions.rs#L96
+
+        // Note that this is the opposite behavior of what we do for transaction.status, where
+        // we coalesce None to "unknown".
+        return None;
+    }
     Some(op.to_string())
 }
 

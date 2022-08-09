@@ -258,7 +258,7 @@ pub struct Event {
     pub transaction: Annotated<String>,
 
     /// Additional information about the name of the transaction.
-    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(skip_serialization = "null")]
     pub transaction_info: Annotated<TransactionInfo>,
 
     /// Time since the start of the transaction until the error occurred.

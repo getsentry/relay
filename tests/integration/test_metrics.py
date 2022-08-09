@@ -730,6 +730,32 @@ def test_transaction_metrics_not_extracted_on_unsupported_version(
     metrics_consumer.assert_empty()
 
 
+def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "extractMetrics": ["d:transactions/duration@millisecond"],
+        "version": 1,
+    }
+    config["filterSettings"]["releases"] = {"releases": ["foo@1.2.4"]}
+
+    tx = generate_transaction_item()
+    tx["release"] = "foo@1.2.4"
+    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
+    timestamp = datetime.now(tz=timezone.utc)
+    tx["timestamp"] = timestamp.isoformat()
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay.send_transaction(project_id, tx)
+
+    # The only envelope received should be outcomes:
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert {item.type for item in envelope.items} == {"client_report"}
+
+    assert mini_sentry.captured_events.qsize() == 0
+
+
 def test_graceful_shutdown(mini_sentry, relay):
     relay = relay(
         mini_sentry,

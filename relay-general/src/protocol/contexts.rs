@@ -116,7 +116,55 @@ pub struct DeviceContext {
     #[metastructure(pii = "maybe")]
     pub timezone: Annotated<String>,
 
-    /// Additional arbitrary fields for forwards compatibility.
+    /// Number of "logical processors".
+    ///
+    /// For example, 8.
+    pub processor_count: Annotated<u64>,
+
+    /// CPU description.
+    ///
+    /// For example, Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz.
+    #[metastructure(pii = "maybe")]
+    pub cpu_description: Annotated<String>,
+
+    /// Processor frequency in MHz.
+    ///
+    /// Note that the actual CPU frequency might vary depending on current load and
+    /// power conditions, especially on low-powered devices like phones and laptops.
+    pub processor_frequency: Annotated<u64>,
+
+    /// Kind of device the application is running on.
+    ///
+    /// For example, `Unknown`, `Handheld`, `Console`, `Desktop`.
+    #[metastructure(pii = "maybe")]
+    pub device_type: Annotated<String>,
+
+    /// Status of the device's battery.
+    ///
+    /// For example, `Unknown`, `Charging`, `Discharging`, `NotCharging`, `Full`.
+    #[metastructure(pii = "maybe")]
+    pub battery_status: Annotated<String>,
+
+    /// Unique device identifier.
+    #[metastructure(pii = "true")]
+    pub device_unique_identifier: Annotated<String>,
+
+    /// Whether vibration is available on the device.
+    pub supports_vibration: Annotated<bool>,
+
+    /// Whether the accelerometer is available on the device.
+    pub supports_accelerometer: Annotated<bool>,
+
+    /// Whether the gyroscope is available on the device.
+    pub supports_gyroscope: Annotated<bool>,
+
+    /// Whether audio is available on the device.
+    pub supports_audio: Annotated<bool>,
+
+    /// Whether location support is available on the device.
+    pub supports_location_service: Annotated<bool>,
+
+    /// Additional arbitrary fields for forwards compatibility
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
 }
@@ -775,6 +823,17 @@ fn test_device_context_roundtrip() {
   "external_free_storage": 2097152,
   "boot_time": "2018-02-08T12:52:12Z",
   "timezone": "Europe/Vienna",
+  "processor_count": 8,
+  "cpu_description": "Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz",
+  "processor_frequency": 2400,
+  "device_type": "Handheld",
+  "battery_status": "Charging",
+  "device_unique_identifier": "1234567",
+  "supports_vibration": true,
+  "supports_accelerometer": true,
+  "supports_gyroscope": true,
+  "supports_audio": true,
+  "supports_location_service": true,
   "other": "value",
   "type": "device"
 }"#;
@@ -804,6 +863,17 @@ fn test_device_context_roundtrip() {
         external_free_storage: Annotated::new(2_097_152),
         boot_time: Annotated::new("2018-02-08T12:52:12Z".to_string()),
         timezone: Annotated::new("Europe/Vienna".to_string()),
+        processor_count: Annotated::new(8),
+        cpu_description: Annotated::new("Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz".to_string()),
+        processor_frequency: Annotated::new(2400),
+        device_type: Annotated::new("Handheld".to_string()),
+        battery_status: Annotated::new("Charging".to_string()),
+        device_unique_identifier: Annotated::new("1234567".to_string()),
+        supports_vibration: Annotated::new(true),
+        supports_accelerometer: Annotated::new(true),
+        supports_gyroscope: Annotated::new(true),
+        supports_audio: Annotated::new(true),
+        supports_location_service: Annotated::new(true),
         other: {
             let mut map = Object::new();
             map.insert(

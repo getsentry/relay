@@ -150,7 +150,6 @@ pub enum Outcome {
     // #[allow(dead_code)]
     // Accepted,
     /// The event has been filtered due to a configured filter.
-    #[cfg_attr(not(feature = "processing"), allow(dead_code))]
     Filtered(FilterStatKey),
 
     /// The event has been filtered by a Sampling Rule

@@ -140,10 +140,10 @@ contexts:
     memory_size: ~
     boot_time: ~
     timezone: ~
-    battery_status: NotCharging
+    processor_count: 16
     cpu_description: Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz
     device_type: Desktop
-    processor_count: 16
+    battery_status: NotCharging
     supports_vibration: false
     type: device
   gpu:
@@ -288,3 +288,4 @@ _meta:
                       - 7
                       - 13
                   len: 69
+

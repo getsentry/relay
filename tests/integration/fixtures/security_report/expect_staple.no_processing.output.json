@@ -1,31 +1,38 @@
 {
   "type": "expectstaple",
+  "contexts": {
+    "browser": {
+      "name": "Chrome",
+      "type": "browser",
+      "version": "74.0.3729"
+    },
+    "client_os": {
+      "name": "Windows",
+      "type": "os",
+      "version": "10"
+    }
+  },
   "culprit": "www.example.com",
   "logentry": {
     "formatted": "Expect-Staple failed for 'www.example.com'"
   },
+  "logger": "csp",
   "release": "01d5c3165d9fbc5c8bdcf9550a1d6793a80fc02b",
   "environment": "production",
   "request": {
+    "headers": [
+      [
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
+      ]
+    ],
     "url": "www.example.com"
   },
   "tags": [
-    [
-      "hostname",
-      "www.example.com"
-    ],
-    [
-      "port",
-      "443"
-    ],
-    [
-      "response_status",
-      "ERROR_RESPONSE"
-    ],
-    [
-      "cert_status",
-      "REVOKED"
-    ]
+    ["hostname", "www.example.com"],
+    ["port", "443"],
+    ["response_status", "ERROR_RESPONSE"],
+    ["cert_status", "REVOKED"]
   ],
   "expectstaple": {
     "date_time": "2014-04-06T13:00:50+00:00",
@@ -40,5 +47,6 @@
     "validated_certificate_chain": [
       "-----BEGIN CERTIFICATE-----\nCDE\n-----END CERTIFICATE-----"
     ]
-  }
+  },
+  "user": { "ip_address": "127.0.0.1" }
 }
