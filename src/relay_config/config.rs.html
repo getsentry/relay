@@ -2071,7 +2071,6 @@
 <span id="2064">2064</span>
 <span id="2065">2065</span>
 <span id="2066">2066</span>
-<span id="2067">2067</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -2801,7 +2800,11 @@
     <span class="ident">project_grace_period</span>: <span class="ident">u32</span>,
     <span class="doccomment">/// The cache timeout for downstream relay info (public keys) in seconds.</span>
     <span class="ident">relay_expiry</span>: <span class="ident">u32</span>,
-    <span class="doccomment">/// The cache timeout for envelopes (store) before dropping them.</span>
+    <span class="doccomment">/// Unused cache timeout for envelopes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The envelope buffer is instead controlled by `envelope_buffer_size`, which controls the</span>
+    <span class="doccomment">/// maximum number of envelopes in the buffer. A time based configuration may be re-introduced</span>
+    <span class="doccomment">/// at a later point.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">alias</span> <span class="op">=</span> <span class="string">&quot;event_expiry&quot;</span>)]</span>
     <span class="ident">envelope_expiry</span>: <span class="ident">u32</span>,
     <span class="doccomment">/// The maximum amount of envelopes to queue before dropping them.</span>
@@ -3852,11 +3855,6 @@
     <span class="doccomment">/// Returns the expiry timeout for cached relay infos (public keys).</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">relay_cache_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
         <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">relay_expiry</span>.<span class="ident">into</span>())
-    }
-
-    <span class="doccomment">/// Returns the timeout for buffered envelopes (due to upstream errors).</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">envelope_buffer_expiry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Duration</span> {
-        <span class="ident">Duration::from_secs</span>(<span class="self">self</span>.<span class="ident">values</span>.<span class="ident">cache</span>.<span class="ident">envelope_expiry</span>.<span class="ident">into</span>())
     }
 
     <span class="doccomment">/// Returns the maximum number of buffered envelopes</span>

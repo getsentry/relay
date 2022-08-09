@@ -2555,10 +2555,6 @@
 <span id="2548">2548</span>
 <span id="2549">2549</span>
 <span id="2550">2550</span>
-<span id="2551">2551</span>
-<span id="2552">2552</span>
-<span id="2553">2553</span>
-<span id="2554">2554</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -2697,9 +2693,6 @@
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to apply quotas&quot;</span>)]</span>
     <span class="ident">QuotasFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">RateLimitingError</span>),
 
-    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;envelope exceeded its configured lifetime&quot;</span>)]</span>
-    <span class="ident">Timeout</span>,
-
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;event dropped by sampling rule {}&quot;</span>, <span class="ident">_0</span>)]</span>
     <span class="ident">Sampled</span>(<span class="ident">RuleId</span>),
 }
@@ -2730,7 +2723,6 @@
             <span class="comment">// Internal errors</span>
             <span class="ident"><span class="self">Self</span>::SerializeFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::ProjectFailed</span>(<span class="kw">_</span>)
-            <span class="op">|</span> <span class="ident"><span class="self">Self</span>::Timeout</span>
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::ProcessingFailed</span>(<span class="kw">_</span>)
             <span class="op">|</span> <span class="ident"><span class="self">Self</span>::MissingProjectId</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
