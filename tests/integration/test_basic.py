@@ -27,6 +27,7 @@ def test_graceful_shutdown(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
+@pytest.mark.skip("Flaky test")
 def test_forced_shutdown(mini_sentry, relay):
     from time import sleep
 
