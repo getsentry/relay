@@ -1754,6 +1754,7 @@ impl EnvelopeProcessor {
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
+            normalize_user_agent: Some(true),
         };
 
         metric!(timer(RelayTimers::EventProcessingLightNormalization), {

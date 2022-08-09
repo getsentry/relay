@@ -508,6 +508,7 @@ pub struct LightNormalizationConfig<'a> {
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
+    pub normalize_user_agent: Option<bool>,
 }
 
 pub fn light_normalize_event(
@@ -554,7 +555,7 @@ pub fn light_normalize_event(
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
-        normalize_user_agent(event, Some(true)); // Legacy browsers filter
+        normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(event); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
