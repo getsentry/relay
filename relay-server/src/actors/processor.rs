@@ -366,6 +366,15 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
     }
 }
 
+fn outcome_from_profile_error(err: relay_profiling::ProfileError) -> Outcome {
+    let discard_reason = match err {
+        relay_profiling::ProfileError::CannotSerializePayload => DiscardReason::Internal,
+        relay_profiling::ProfileError::NotEnoughSamples => DiscardReason::InvalidProfile,
+        _ => DiscardReason::ProcessProfile,
+    };
+    Outcome::Invalid(discard_reason)
+}
+
 /// Synchronous service for processing envelopes.
 pub struct EnvelopeProcessor {
     config: Arc<Config>,
@@ -882,9 +891,9 @@ impl EnvelopeProcessor {
                                 item.set_payload(ContentType::Json, &payload[..]);
                                 return true;
                             }
-                            Err(_) => {
+                            Err(err) => {
                                 context.track_outcome(
-                                    Outcome::Invalid(DiscardReason::ProcessProfile),
+                                    outcome_from_profile_error(err),
                                     DataCategory::Profile,
                                     1,
                                 );
