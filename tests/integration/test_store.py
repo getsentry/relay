@@ -116,36 +116,6 @@ def test_store_pii_stripping(mini_sentry, relay):
     assert event["extra"]["foo"] == "[email]"
 
 
-def test_store_timeout(mini_sentry, relay):
-    from time import sleep
-
-    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
-
-    @mini_sentry.app.endpoint("get_project_config")
-    def get_project_config():
-        sleep(1.5)  # Causes the first event to drop, but not the second one
-        return get_project_config_original()
-
-    relay = relay(mini_sentry, {"cache": {"event_expiry": 1}})
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-
-    try:
-        relay.send_event(project_id, {"message": "invalid"})
-        sleep(1)  # Sleep so that the second event also has to wait but succeeds
-        relay.send_event(project_id, {"message": "correct"})
-
-        event = mini_sentry.captured_events.get(timeout=1).get_event()
-        assert event["logentry"] == {"formatted": "correct"}
-        pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
-        ((route, error),) = mini_sentry.test_failures
-        assert route == "/api/666/envelope/"
-        assert "configured lifetime" in str(error)
-    finally:
-        mini_sentry.test_failures.clear()
-
-
 def test_store_rate_limit(mini_sentry, relay):
     from time import sleep
 
