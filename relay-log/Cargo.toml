@@ -17,8 +17,8 @@ failure = "0.1.8"
 log = { version = "0.4.11", features = ["serde"] }
 pretty_env_logger = { version = "0.4.0", optional = true }
 relay-crash = { path = "../relay-crash", optional = true }
-sentry = { version = "0.22.0", features = ["debug-images", "log"], optional = true }
-sentry-core = { version = "0.22.0" }
+sentry = { version = "0.27.0", features = ["debug-images", "log"], optional = true }
+sentry-core = { version = "0.27.0" }
 serde = { version = "1.0.114", features = ["derive"], optional = true }
 serde_json = { version = "1.0.55", optional = true }
 

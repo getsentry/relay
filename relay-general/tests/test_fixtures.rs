@@ -75,14 +75,7 @@ macro_rules! event_snapshot {
 
                 let config = StoreConfig::default();
                 let mut processor = StoreProcessor::new(config, None);
-                let config = LightNormalizationConfig {
-                  client_ip: None,
-                  user_agent: None,
-                  received_at: None,
-                  max_secs_in_past: None,
-                  max_secs_in_future: None,
-                  breakdowns_config: None,
-                };
+                let config = LightNormalizationConfig::default();
                 light_normalize_event(&mut event, &config).unwrap();
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
