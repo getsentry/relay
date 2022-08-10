@@ -496,7 +496,11 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                         Ok((envelope, envelope_context))
                     }
                     // errors from rate limiting already produced outcomes nothing more to do
-                    None => Err(ProcessingError::RateLimited),
+                    None => {
+                        // TODO(ja): THIS IS WRONG, we miss an envelope_context.update().
+                        envelope_context.accept();
+                        Err(ProcessingError::RateLimited)
+                    }
                 }
             })
             .and_then(move |(envelope, envelope_context)| {

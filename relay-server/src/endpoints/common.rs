@@ -338,7 +338,11 @@ where
             let envelope = match checked.envelope {
                 Some(envelope) => envelope,
                 // rate limit outcome logged by CheckEnvelope already
-                None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
+                None => {
+                    // TODO(ja): THIS IS WRONG, we miss an envelope_context.update().
+                    envelope_context.accept();
+                    return Err(BadStoreRequest::RateLimited(checked.rate_limits));
+                }
             };
 
             envelope_context.update(&envelope);
