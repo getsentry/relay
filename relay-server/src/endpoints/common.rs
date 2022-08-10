@@ -73,7 +73,9 @@ pub enum BadStoreRequest {
     #[fail(display = "failed to read request body")]
     PayloadError(#[cause] PayloadError),
 
-    #[fail(display = "event rejected due to rate limit")]
+    #[fail(
+        display = "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
+    )]
     RateLimited(RateLimits),
 
     #[fail(display = "event submission rejected with_reason: {:?}", _0)]

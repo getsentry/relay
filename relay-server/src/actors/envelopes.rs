@@ -583,10 +583,10 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 }
             }))
             .into_actor(self)
-            .and_then(clone!(envelope_context, |envelope, slf, _| {
+            .and_then(move |envelope, slf, _| {
                 let scoping = envelope_context.borrow().scoping();
                 slf.send_envelope(project_key, envelope, scoping, start_time)
-                    .then(clone!(envelope_context, |result| {
+                    .then(move |result| {
                         result.map_err(|error| {
                             let envelope_context = envelope_context.borrow();
                             let outcome = Outcome::Invalid(DiscardReason::Internal);
@@ -623,13 +623,9 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                                 }
                             }
                         })
-                    }))
+                    })
                     .into_actor(slf)
-            }))
-            .timeout(
-                self.config.envelope_buffer_expiry(),
-                ProcessingError::Timeout,
-            )
+            })
             .map(|_, _, _| metric!(counter(RelayCounters::EnvelopeAccepted) += 1))
             .map_err(move |error, slf, _| {
                 metric!(counter(RelayCounters::EnvelopeRejected) += 1);
@@ -660,13 +656,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     );
                 } else {
                     relay_log::debug!("dropped envelope: {}", LogError(&error));
-                }
-
-                if let ProcessingError::Timeout = error {
-                    // handle the last failure (the timeout)
-                    if let Some(outcome) = outcome {
-                        envelope_context.borrow().send_outcomes(outcome);
-                    }
                 }
             })
             .then(move |x, slf, _| {

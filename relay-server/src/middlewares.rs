@@ -198,7 +198,7 @@ impl<S: 'static> Middleware<S> for SentryMiddleware {
 
         let root_scope = hub.push_scope();
         hub.configure_scope(move |scope| {
-            scope.add_event_processor(Box::new(move |mut event| {
+            scope.add_event_processor(move |mut event| {
                 let mut cached_data = cached_data.lock().unwrap();
                 if cached_data.is_none() && req.is_valid() {
                     let with_pii = client
@@ -226,7 +226,7 @@ impl<S: 'static> Middleware<S> for SentryMiddleware {
                 }
 
                 Some(event)
-            }));
+            });
         });
 
         outer_req.extensions_mut().insert(HubWrapper {
@@ -246,7 +246,7 @@ impl<S: 'static> Middleware<S> for SentryMiddleware {
                 Some(event_id) if self.emit_header => {
                     resp.headers_mut().insert(
                         "x-sentry-event",
-                        event_id.to_simple_ref().to_string().parse().unwrap(),
+                        event_id.as_simple().to_string().parse().unwrap(),
                     );
                 }
                 _ => {}

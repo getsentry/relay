@@ -1690,9 +1690,27 @@ expression: event_json_schema()
                 "null"
               ]
             },
+            "graphics_shader_level": {
+              "description": " Approximate \"shader capability\" level of the graphics device.\n\n For Example: Shader Model 2.0, OpenGL ES 3.0, Metal / OpenGL ES 3.1, 27 (unknown)",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "id": {
               "description": " The PCI identifier of the graphics device.",
               "default": null
+            },
+            "max_texture_size": {
+              "description": " Largest size of a texture that is supported by the graphics hardware.\n\n For Example: 16384",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             },
             "memory_size": {
               "description": " The total GPU memory available in Megabytes.",
@@ -1725,6 +1743,38 @@ expression: event_json_schema()
               "default": null,
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "supports_compute_shaders": {
+              "description": " Whether compute shaders are available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_draw_call_instancing": {
+              "description": " Whether GPU draw call instancing is supported.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_geometry_shaders": {
+              "description": " Whether geometry shaders are available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "supports_ray_tracing": {
+              "description": " Whether ray tracing is available on the device.",
+              "default": null,
+              "type": [
+                "boolean",
                 "null"
               ]
             },

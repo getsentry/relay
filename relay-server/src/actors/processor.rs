@@ -136,9 +136,6 @@ pub enum ProcessingError {
     #[fail(display = "failed to apply quotas")]
     QuotasFailed(#[cause] RateLimitingError),
 
-    #[fail(display = "envelope exceeded its configured lifetime")]
-    Timeout,
-
     #[fail(display = "event dropped by sampling rule {}", _0)]
     Sampled(RuleId),
 }
@@ -169,7 +166,6 @@ impl ProcessingError {
             // Internal errors
             Self::SerializeFailed(_)
             | Self::ProjectFailed(_)
-            | Self::Timeout
             | Self::ProcessingFailed(_)
             | Self::MissingProjectId => Some(Outcome::Invalid(DiscardReason::Internal)),
             #[cfg(feature = "processing")]
@@ -368,6 +364,15 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
             other => Some(ReasonCode::new(other)),
         })),
     }
+}
+
+fn outcome_from_profile_error(err: relay_profiling::ProfileError) -> Outcome {
+    let discard_reason = match err {
+        relay_profiling::ProfileError::CannotSerializePayload => DiscardReason::Internal,
+        relay_profiling::ProfileError::NotEnoughSamples => DiscardReason::InvalidProfile,
+        _ => DiscardReason::ProcessProfile,
+    };
+    Outcome::Invalid(discard_reason)
 }
 
 /// Synchronous service for processing envelopes.
@@ -886,9 +891,9 @@ impl EnvelopeProcessor {
                                 item.set_payload(ContentType::Json, &payload[..]);
                                 return true;
                             }
-                            Err(_) => {
+                            Err(err) => {
                                 context.track_outcome(
-                                    Outcome::Invalid(DiscardReason::ProcessProfile),
+                                    outcome_from_profile_error(err),
                                     DataCategory::Profile,
                                     1,
                                 );

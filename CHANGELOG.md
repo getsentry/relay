@@ -4,15 +4,18 @@
 
 **Features**:
 
+- Remove timeout-based expiry of envelopes in Relay's internal buffers. The `cache.envelope_expiry` is now inactive. To control the size of the envelope buffer, use `cache.envelope_buffer_size` exclusively, instead. ([#1398](https://github.com/getsentry/relay/pull/1398))
 - Parse sample rates as JSON. ([#1353](https://github.com/getsentry/relay/pull/1353))
 - Filter events in external Relays, before extracting metrics. ([#1379](https://github.com/getsentry/relay/pull/1379))
 - Add `privatekey` and `private_key` as secret key name to datascrubbers. ([#1376](https://github.com/getsentry/relay/pull/1376))
+- Explain why we responded with 429. ([#1389](https://github.com/getsentry/relay/pull/1389))
 
 **Bug Fixes**:
 
 - Fix a bug where unreal crash reports were dropped when metrics extraction is enabled. ([#1355](https://github.com/getsentry/relay/pull/1355))
 - Extract user from metrics with EventUser's priority. ([#1363](https://github.com/getsentry/relay/pull/1363))
 - Honor `SentryConfig.enabled` and don't init SDK at all if it is false. ([#1380](https://github.com/getsentry/relay/pull/1380))
+- The priority thread metadata on profiles is now optional, do not fail the profile if it's not present. ([#1392](https://github.com/getsentry/relay/pull/1392))
 
 **Internal**:
 
@@ -27,6 +30,8 @@
 - Spawn more threads for CPU intensive work. ([#1378](https://github.com/getsentry/relay/pull/1378))
 - Add missing fields to DeviceContext ([#1383](https://github.com/getsentry/relay/pull/1383))
 - Improve performance of Redis accesses by not running `PING` everytime a connection is reused. ([#1394](https://github.com/getsentry/relay/pull/1394))
+- Distinguish between various discard reasons for profiles. ([#1395](https://github.com/getsentry/relay/pull/1395))
+- Add missing fields to GPUContext ([#1391](https://github.com/getsentry/relay/pull/1391))
 - Change to the internals of the store actor. ([#1397](https://github.com/getsentry/relay/pull/1397))
 
 ## 22.7.0
