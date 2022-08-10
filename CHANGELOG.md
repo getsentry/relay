@@ -32,7 +32,7 @@
 - Improve performance of Redis accesses by not running `PING` everytime a connection is reused. ([#1394](https://github.com/getsentry/relay/pull/1394))
 - Distinguish between various discard reasons for profiles. ([#1395](https://github.com/getsentry/relay/pull/1395))
 - Add missing fields to GPUContext ([#1391](https://github.com/getsentry/relay/pull/1391))
-- Store actor now uses Tokio for message handling instead of Actix . ([#1397](https://github.com/getsentry/relay/pull/1397))
+- Store actor now uses Tokio for message handling instead of Actix. ([#1397](https://github.com/getsentry/relay/pull/1397))
 
 ## 22.7.0
 

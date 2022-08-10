@@ -36,13 +36,11 @@ use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
 use crate::utils::{self, EnvelopeContext, FutureExt as _, SendWithOutcome};
 
 #[cfg(feature = "processing")]
-use crate::actors::store::{StoreAddr, StoreEnvelope, StoreError, StoreForwarder};
-
-#[cfg(feature = "processing")]
-use tokio::runtime::Runtime;
-
-#[cfg(feature = "processing")]
-use futures::{FutureExt, TryFutureExt};
+use {
+    crate::actors::store::{StoreAddr, StoreEnvelope, StoreError, StoreForwarder},
+    futures::{FutureExt, TryFutureExt},
+    tokio::runtime::Runtime,
+};
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
