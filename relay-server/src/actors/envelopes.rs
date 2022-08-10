@@ -33,10 +33,14 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelaySets, RelayTimers};
-use crate::utils::{self, EnvelopeContext, FutureExt, SendWithOutcome};
+use crate::utils::{self, EnvelopeContext, FutureExt as _, SendWithOutcome};
 
 #[cfg(feature = "processing")]
-use crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder};
+use {
+    crate::actors::store::{StoreAddr, StoreEnvelope, StoreError, StoreForwarder},
+    futures::{FutureExt, TryFutureExt},
+    tokio::runtime::Runtime,
+};
 
 #[derive(Debug, Fail)]
 pub enum QueueEnvelopeError {
@@ -153,7 +157,9 @@ pub struct EnvelopeManager {
     captures: BTreeMap<EventId, CapturedEnvelope>,
     processor: Addr<EnvelopeProcessor>,
     #[cfg(feature = "processing")]
-    store_forwarder: Option<Addr<StoreForwarder>>,
+    store_forwarder: Option<StoreAddr<StoreEnvelope>>,
+    #[cfg(feature = "processing")]
+    _runtime: Runtime,
 }
 
 impl EnvelopeManager {
@@ -161,10 +167,21 @@ impl EnvelopeManager {
         config: Arc<Config>,
         processor: Addr<EnvelopeProcessor>,
     ) -> Result<Self, ServerError> {
+        // Enter the tokio runtime so we can start spawning tasks from the outside.
+        #[cfg(feature = "processing")]
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+
+        #[cfg(feature = "processing")]
+        let _guard = runtime.enter();
+
         #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
             let actor = StoreForwarder::create(config.clone())?;
-            Some(Arbiter::start(move |_| actor))
+            Some(actor.start())
         } else {
             None
         };
@@ -176,6 +193,8 @@ impl EnvelopeManager {
             processor,
             #[cfg(feature = "processing")]
             store_forwarder,
+            #[cfg(feature = "processing")]
+            _runtime: runtime,
         })
     }
 
@@ -189,17 +208,23 @@ impl EnvelopeManager {
     ) -> ResponseFuture<(), SendEnvelopeError> {
         #[cfg(feature = "processing")]
         {
-            if let Some(ref store_forwarder) = self.store_forwarder {
+            if let Some(store_forwarder) = self.store_forwarder.clone() {
                 relay_log::trace!("sending envelope to kafka");
-                let future = store_forwarder
-                    .send(StoreEnvelope {
+                let fut = async move {
+                    let addr = store_forwarder.clone();
+                    addr.send(StoreEnvelope {
                         envelope,
                         start_time,
                         scoping,
                     })
+                    .await
+                };
+
+                let future = fut
+                    .boxed_local()
+                    .compat()
                     .map_err(|_| SendEnvelopeError::ScheduleFailed)
                     .and_then(|result| result.map_err(SendEnvelopeError::StoreFailed));
-
                 return Box::new(future);
             }
         }
