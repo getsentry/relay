@@ -2273,16 +2273,18 @@ mod tests {
             item
         });
 
-        let envelope_response = processor
-            .process(ProcessEnvelope {
-                envelope_context: EnvelopeContext::from_envelope(&envelope),
-                envelope,
-                project_state: Arc::new(ProjectState::allowed()),
-                sampling_project_state: None,
-            })
-            .unwrap();
+        let new_envelope = relay_test::with_system(move || {
+            let envelope_response = processor
+                .process(ProcessEnvelope {
+                    envelope_context: EnvelopeContext::from_envelope(&envelope),
+                    envelope,
+                    project_state: Arc::new(ProjectState::allowed()),
+                    sampling_project_state: None,
+                })
+                .unwrap();
 
-        let (new_envelope, _) = envelope_response.envelope.unwrap();
+            envelope_response.envelope.unwrap().0
+        });
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
