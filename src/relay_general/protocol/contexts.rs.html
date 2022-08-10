@@ -1219,6 +1219,11 @@
 <span id="1212">1212</span>
 <span id="1213">1213</span>
 <span id="1214">1214</span>
+<span id="1215">1215</span>
+<span id="1216">1216</span>
+<span id="1217">1217</span>
+<span id="1218">1218</span>
+<span id="1219">1219</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">regex::Regex</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
@@ -1512,6 +1517,9 @@
 
     <span class="doccomment">/// Internal build ID as it appears on the platform.</span>
     <span class="kw">pub</span> <span class="ident">app_build</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">LenientString</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// Amount of memory used by the application in bytes.</span>
+    <span class="kw">pub</span> <span class="ident">app_memory</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.</span>
     <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">additional_properties</span>, <span class="ident">retain</span> <span class="op">=</span> <span class="string">&quot;true&quot;</span>, <span class="ident">pii</span> <span class="op">=</span> <span class="string">&quot;maybe&quot;</span>)]</span>
@@ -2203,6 +2211,7 @@
   &quot;app_name&quot;: &quot;Baz App&quot;,
   &quot;app_version&quot;: &quot;1.0&quot;,
   &quot;app_build&quot;: &quot;100001&quot;,
+  &quot;app_memory&quot;: 22883948,
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;app&quot;
 }&quot;#</span>;
@@ -2214,6 +2223,7 @@
         <span class="ident">app_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Baz App&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">app_version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;1.0&quot;</span>.<span class="ident">to_string</span>()),
         <span class="ident">app_build</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;100001&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+        <span class="ident">app_memory</span>: <span class="ident">Annotated::new</span>(<span class="number">22883948</span>),
         <span class="ident">other</span>: {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
             <span class="ident">map</span>.<span class="ident">insert</span>(
