@@ -222,11 +222,7 @@ impl EnvelopeManager {
     ) -> Result<Self, ServerError> {
         // Enter the tokio runtime so we can start spawning tasks from the outside.
         #[cfg(feature = "processing")]
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .build()
-            .unwrap();
+        let runtime = utils::construct_runtime();
 
         #[cfg(feature = "processing")]
         let _guard = runtime.enter();

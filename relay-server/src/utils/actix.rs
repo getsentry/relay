@@ -2,6 +2,8 @@ use ::actix::dev::{MessageResponse, ResponseChannel};
 use ::actix::fut::IntoActorFuture;
 use ::actix::prelude::*;
 use futures01::prelude::*;
+use relay_common::clone;
+use tokio::runtime::Runtime;
 
 pub enum Response<T, E> {
     Reply(Result<T, E>),
@@ -136,4 +138,15 @@ impl<T: 'static, E: 'static> Response<T, E> {
             Response::Future(future) => ActorResponse::Future(Box::new(fut::wrap_future(future))),
         }
     }
+}
+
+/// Constructs a single threaded tokio [`Runtime`] containing a clone of the actix [`System`]
+pub fn construct_runtime() -> Runtime {
+    let system = System::current();
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .on_thread_start(clone!(system, || System::set_current(system.clone())))
+        .build()
+        .unwrap()
 }

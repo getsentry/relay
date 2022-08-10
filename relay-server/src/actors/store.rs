@@ -319,15 +319,10 @@ impl StoreForwarder {
 
         let (tx, mut rx) = mpsc::unbounded_channel::<StoreMessage<StoreEnvelope>>();
 
-        let service = Arc::new(self);
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
-                let service = service.clone();
-
-                tokio::spawn(async move {
-                    let response = service.handle_store_evelope(message.data);
-                    message.responder.send(response).ok();
-                });
+                let response = self.handle_store_evelope(message.data);
+                message.responder.send(response).ok();
             }
 
             relay_log::info!("store forwarder stopped");
