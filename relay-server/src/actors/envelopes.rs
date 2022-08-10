@@ -467,7 +467,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 
         let HandleEnvelope {
             envelope,
-            mut envelope_context,
+            envelope_context,
             project_key,
         } = message;
 
@@ -475,7 +475,11 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
         let event_id = envelope.event_id();
 
         let future = ProjectCache::from_registry()
-            .send(CheckEnvelope::fetched(project_key, envelope))
+            .send(CheckEnvelope::fetched(
+                project_key,
+                envelope,
+                envelope_context,
+            ))
             .map_err(|_| ProcessingError::ScheduleFailed)
             .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
             .and_then(move |response| {
@@ -483,25 +487,8 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 let project_id = response.scoping.project_id.value();
                 metric!(set(RelaySets::UniqueProjects) = project_id as i64);
 
-                envelope_context.scope(response.scoping);
-
-                let checked = response.result.map_err(|reason| {
-                    envelope_context.reject(Outcome::Invalid(reason));
-                    ProcessingError::Rejected(reason)
-                })?;
-
-                match checked.envelope {
-                    Some(envelope) => {
-                        envelope_context.update(&envelope);
-                        Ok((envelope, envelope_context))
-                    }
-                    // errors from rate limiting already produced outcomes nothing more to do
-                    None => {
-                        // TODO(ja): THIS IS WRONG, we miss an envelope_context.update().
-                        envelope_context.accept();
-                        Err(ProcessingError::RateLimited)
-                    }
-                }
+                let checked = response.result.map_err(ProcessingError::Rejected)?;
+                checked.envelope.ok_or(ProcessingError::RateLimited)
             })
             .and_then(move |(envelope, envelope_context)| {
                 // get the state for the current project. we can always fetch the cached version

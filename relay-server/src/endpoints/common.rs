@@ -321,31 +321,22 @@ where
         }))
         .and_then(move |(envelope, envelope_context)| {
             ProjectCache::from_registry()
-                .send(CheckEnvelope::cached(project_key, envelope))
+                .send(CheckEnvelope::cached(
+                    project_key,
+                    envelope,
+                    envelope_context,
+                ))
                 .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
-                .map(|response| (response, envelope_context))
         })
-        .and_then(move |(response, mut envelope_context)| {
-            envelope_context.scope(response.scoping);
-
-            let checked = response.result.map_err(|reason| {
-                envelope_context.reject(Outcome::Invalid(reason));
-                BadStoreRequest::EventRejected(reason)
-            })?;
-
+        .and_then(move |response| {
             // Skip over queuing and issue a rate limit right away
-            let envelope = match checked.envelope {
-                Some(envelope) => envelope,
-                // rate limit outcome logged by CheckEnvelope already
-                None => {
-                    // TODO(ja): THIS IS WRONG, we miss an envelope_context.update().
-                    envelope_context.accept();
-                    return Err(BadStoreRequest::RateLimited(checked.rate_limits));
-                }
+            let checked = response.result.map_err(BadStoreRequest::EventRejected)?;
+            let (envelope, mut envelope_context) = match checked.envelope {
+                Some(tuple) => tuple,
+                None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
             };
 
-            envelope_context.update(&envelope);
             if utils::check_envelope_size_limits(&config, &envelope) {
                 Ok((envelope, envelope_context, checked.rate_limits))
             } else {
