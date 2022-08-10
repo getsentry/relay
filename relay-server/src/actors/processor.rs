@@ -878,7 +878,7 @@ impl EnvelopeProcessor {
     /// Remove profiles if the feature flag is not enabled
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-        let context = state.envelope_context;
+        let context = &state.envelope_context;
         state.envelope.retain_items(|item| {
             match item.ty() {
                 ItemType::Profile => {
@@ -1521,8 +1521,7 @@ impl EnvelopeProcessor {
 
         metric!(timer(RelayTimers::EventProcessingFiltering), {
             relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-                state.envelope_context.send_outcomes(Outcome::Filtered(err));
-
+                state.envelope_context.reject(Outcome::Filtered(err));
                 ProcessingError::EventFiltered(err)
             })
         })
@@ -1725,7 +1724,7 @@ impl EnvelopeProcessor {
     }
 
     /// Run dynamic sampling rules to see if we keep the envelope or remove it.
-    fn sample_envelope(&self, state: &ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let client_ip = state.envelope.meta().client_addr();
 
         match utils::should_keep_event(
@@ -1739,7 +1738,7 @@ impl EnvelopeProcessor {
             SamplingResult::Drop(rule_id) => {
                 state
                     .envelope_context
-                    .send_outcomes(Outcome::FilteredSampling(rule_id));
+                    .reject(Outcome::FilteredSampling(rule_id));
 
                 Err(ProcessingError::Sampled(rule_id))
             }
@@ -1798,14 +1797,9 @@ impl EnvelopeProcessor {
             });
 
             self.finalize_event(state)?;
-
             self.light_normalize_event(state)?;
-
-            // Filter event before extracting metrics
             self.filter_event(state)?;
-
             self.extract_transaction_metrics(state)?;
-
             self.sample_envelope(state)?;
 
             if_processing!({
@@ -1848,16 +1842,14 @@ impl EnvelopeProcessor {
                 }
             },
             || {
-                let envelope_context = state.envelope_context;
+                let project_key = state.envelope_context.scoping().project_key;
 
                 match self.process_state(&mut state) {
                     Ok(()) => {
                         if !state.extracted_metrics.is_empty() {
                             let project_cache = ProjectCache::from_registry();
-                            project_cache.do_send(InsertMetrics::new(
-                                envelope_context.scoping().project_key,
-                                state.extracted_metrics,
-                            ));
+                            project_cache
+                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
                         Ok(ProcessEnvelopeResponse {
@@ -1867,15 +1859,13 @@ impl EnvelopeProcessor {
                     }
                     Err(err) => {
                         if let Some(outcome) = err.to_outcome() {
-                            envelope_context.send_outcomes(outcome);
+                            state.envelope_context.reject(outcome);
                         }
 
                         if !state.extracted_metrics.is_empty() && err.should_keep_metrics() {
                             let project_cache = ProjectCache::from_registry();
-                            project_cache.do_send(InsertMetrics::new(
-                                envelope_context.scoping().project_key,
-                                state.extracted_metrics,
-                            ));
+                            project_cache
+                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
                         Err(err)
