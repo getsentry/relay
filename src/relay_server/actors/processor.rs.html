@@ -2564,6 +2564,7 @@
 <span id="2557">2557</span>
 <span id="2558">2558</span>
 <span id="2559">2559</span>
+<span id="2560">2560</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -4325,6 +4326,7 @@
             <span class="ident">max_secs_in_past</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_secs_in_past</span>()),
             <span class="ident">max_secs_in_future</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_secs_in_future</span>()),
             <span class="ident">breakdowns_config</span>: <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">config</span>.<span class="ident">breakdowns_v2</span>.<span class="ident">as_ref</span>(),
+            <span class="ident">normalize_user_agent</span>: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
         };
 
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EventProcessingLightNormalization</span>), {
