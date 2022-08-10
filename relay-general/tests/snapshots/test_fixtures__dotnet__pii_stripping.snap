@@ -241,14 +241,6 @@ request:
     SERVER_SOFTWARE: Kestrel
   inferred_content_type: application/json
 contexts:
-  browser:
-    name: Chrome
-    version: 67.0.3396
-    type: browser
-  client_os:
-    name: Windows
-    version: "10"
-    type: os
   server-os:
     name: Windows
     version: "10"

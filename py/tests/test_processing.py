@@ -101,6 +101,35 @@ def test_broken_json():
         assert event["logentry"]["formatted"] != bad_str
 
 
+@pytest.mark.parametrize(
+    "must_normalize", [None, False, True],
+)
+def test_normalize_user_agent(must_normalize):
+    normalizer = sentry_relay.StoreNormalizer(
+        project_id=1, normalize_user_agent=must_normalize
+    )
+    event = normalizer.normalize_event(
+        {
+            "request": {
+                "headers": [
+                    [
+                        "User-Agent",
+                        "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:15.0) Gecko/20100101 Firefox/15.0.1",
+                    ],
+                ],
+            },
+        }
+    )
+
+    if must_normalize:
+        assert event["contexts"] == {
+            "browser": {"name": "Firefox", "version": "15.0.1", "type": "browser"},
+            "client_os": {"name": "Ubuntu", "type": "os"},
+        }
+    else:
+        assert "contexts" not in event
+
+
 def test_validate_pii_config():
     sentry_relay.validate_pii_config("{}")
     sentry_relay.validate_pii_config('{"applications": {}}')
