@@ -51,6 +51,7 @@ pub enum StoreError {
     NoEventId,
 }
 
+// TODO(tobias): Still need to unify with the message in the Healthcheck actor
 /// Internal wrapper of a message sent through an `StoreAddr` with return channel.
 #[derive(Debug)]
 pub struct StoreMessage<T> {
@@ -70,6 +71,7 @@ impl fmt::Display for SendError {
 
 impl std::error::Error for SendError {}
 
+// TODO(tobias): Still need to unify with the Addr in the Healthcheck actor
 /// Channel for sending public messages into a service.
 ///
 /// To send a message, use [`StoreAddr::send`].
@@ -174,10 +176,7 @@ fn make_producer<'a>(
 }
 
 impl StoreForwarder {
-    fn handle_store_evelope(
-        &self, // TODO(tobias): Removed Mut here not sure if that causes all the Kafka issues
-        message: StoreEnvelope,
-    ) -> Result<(), StoreError> {
+    fn handle_store_evelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
         let StoreEnvelope {
             envelope,
             start_time,
