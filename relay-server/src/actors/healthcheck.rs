@@ -17,16 +17,13 @@ use crate::statsd::RelayGauges;
 
 lazy_static::lazy_static! {
     /// Singleton of the `Healthcheck` service.
-    static ref ADDRESS: RwLock<Option<Addr<HealthcheckMessage>>> = RwLock::new(None);
+    static ref ADDRESS: RwLock<Option<Addr<HealthcheckEnvelope>>> = RwLock::new(None);
 }
 
-/// Internal wrapper of a message sent through an `Addr` with return channel.
-#[derive(Debug)]
-struct Message<T> {
-    data: T,
-    // TODO(tobias): This is hard-coded to return `bool`.
-    // Might need some associated types to make this work
-    responder: oneshot::Sender<bool>,
+pub trait ActorMessage<E> {
+    type Response;
+
+    fn into_envelope(self) -> (E, oneshot::Receiver<Self::Response>);
 }
 
 /// An error when [sending](Addr::send) a message to a service fails.
@@ -44,12 +41,21 @@ impl Error for SendError {}
 /// Channel for sending public messages into a service.
 ///
 /// To send a message, use [`Addr::send`].
-#[derive(Clone, Debug)]
-pub struct Addr<T> {
-    tx: mpsc::UnboundedSender<Message<T>>,
+#[derive(Debug)]
+pub struct Addr<E> {
+    tx: mpsc::UnboundedSender<E>,
 }
 
-impl<T> Addr<T> {
+// For some reason the derive macro can't cope with this ¯\_(ツ)_/¯
+impl<E> Clone for Addr<E> {
+    fn clone(&self) -> Self {
+        Self {
+            tx: self.tx.clone(),
+        }
+    }
+}
+
+impl<E> Addr<E> {
     /// Sends an asynchronous message to the service and waits for the response.
     ///
     /// The result of the message does not have to be awaited. The message will be delivered and
@@ -57,11 +63,13 @@ impl<T> Addr<T> {
     /// could occur when sending too many messages.
     ///
     /// Sending the message can fail with `Err(SendError)` if the service has shut down.
-    pub async fn send(&self, data: T) -> Result<bool, SendError> {
-        let (responder, rx) = oneshot::channel();
-        let message = Message { data, responder };
-        self.tx.send(message).map_err(|_| SendError)?;
-        rx.await.map_err(|_| SendError)
+    pub async fn send<M>(&self, message: M) -> Result<M::Response, SendError>
+    where
+        M: ActorMessage<E>,
+    {
+        let (envelope, response_rx) = message.into_envelope();
+        self.tx.send(envelope).map_err(|_| SendError)?;
+        response_rx.await.map_err(|_| SendError)
     }
 }
 
@@ -79,7 +87,7 @@ impl Healthcheck {
     /// # Panics
     ///
     /// Panics if the service was not started using [`Healthcheck::start`] prior to this being used.
-    pub fn from_registry() -> Addr<HealthcheckMessage> {
+    pub fn from_registry() -> Addr<HealthcheckEnvelope> {
         ADDRESS.read().as_ref().unwrap().clone()
     }
 
@@ -128,8 +136,8 @@ impl Healthcheck {
     }
 
     /// Start this service, returning an [`Addr`] for communication.
-    pub fn start(self) -> Addr<HealthcheckMessage> {
-        let (tx, mut rx) = mpsc::unbounded_channel::<Message<HealthcheckMessage>>();
+    pub fn start(self) -> Addr<HealthcheckEnvelope> {
+        let (tx, mut rx) = mpsc::unbounded_channel::<HealthcheckEnvelope>();
 
         let addr = Addr { tx };
         *ADDRESS.write() = Some(addr.clone());
@@ -141,10 +149,12 @@ impl Healthcheck {
                 let service = main_service.clone();
 
                 tokio::spawn(async move {
-                    let response = match message.data {
-                        HealthcheckMessage::Health(data) => service.handle_is_healthy(data).await,
+                    match message {
+                        HealthcheckEnvelope::IsHealthy(msg, response_tx) => {
+                            let response = service.handle_is_healthy(msg).await;
+                            response_tx.send(response).ok()
+                        }
                     };
-                    message.responder.send(response).ok();
                 });
             }
         });
@@ -173,14 +183,17 @@ pub enum IsHealthy {
     Readiness,
 }
 
-/// All the message types which can be sent to the [`Healthcheck`] actor.
-#[derive(Clone, Debug)]
-pub enum HealthcheckMessage {
-    Health(IsHealthy),
+impl ActorMessage<HealthcheckEnvelope> for IsHealthy {
+    type Response = bool;
+
+    fn into_envelope(self) -> (HealthcheckEnvelope, oneshot::Receiver<Self::Response>) {
+        let (tx, rx) = oneshot::channel();
+        (HealthcheckEnvelope::IsHealthy(self, tx), rx)
+    }
 }
 
-impl From<IsHealthy> for HealthcheckMessage {
-    fn from(is_healthy: IsHealthy) -> Self {
-        Self::Health(is_healthy)
-    }
+/// All the message types which can be sent to the [`Healthcheck`] actor.
+#[derive(Debug)]
+pub enum HealthcheckEnvelope {
+    IsHealthy(IsHealthy, oneshot::Sender<bool>),
 }

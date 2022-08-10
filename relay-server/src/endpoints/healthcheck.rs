@@ -35,14 +35,14 @@ impl HealthcheckResponse {
 fn healthcheck_impl(message: IsHealthy) -> ResponseFuture<HttpResponse, Error> {
     let fut = async move {
         let addr = Healthcheck::from_registry();
-        addr.send(message.into()).await
+        addr.send(message).await
     };
 
     Box::new(
         fut.boxed_local()
             .compat()
             .map_err(|_| ())
-            .and_then(move |is_healthy| {
+            .and_then(move |is_healthy: bool| {
                 if !is_healthy {
                     Err(())
                 } else {
