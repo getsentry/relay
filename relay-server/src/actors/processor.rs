@@ -30,7 +30,7 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
-use relay_quotas::{DataCategory, RateLimits, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, RateLimits, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::RuleId;
 use relay_statsd::metric;
@@ -927,10 +927,9 @@ impl EnvelopeProcessor {
     ) -> Result<ProcessEnvelopeState, ProcessingError> {
         let ProcessEnvelope {
             mut envelope,
+            envelope_context,
             project_state,
             sampling_project_state,
-            start_time: _,
-            scoping,
         } = message;
 
         // Set the event retention. Effectively, this value will only be available in processing
@@ -955,8 +954,6 @@ impl EnvelopeProcessor {
         //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
-        let mut envelope_context = EnvelopeContext::from_envelope(&envelope);
-        envelope_context.scope(scoping);
 
         Ok(ProcessEnvelopeState {
             envelope,
@@ -1852,8 +1849,20 @@ impl EnvelopeProcessor {
                                 .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
                         }
 
+                        // The envelope could be modified or even emptied during processing, which
+                        // requires recomputation of the context.
+                        state.envelope_context.update(&state.envelope);
+
+                        let envelope_response = if state.envelope.is_empty() {
+                            // Individual rate limits have already been issued
+                            state.envelope_context.reject(Outcome::RateLimited(None));
+                            None
+                        } else {
+                            Some((state.envelope, state.envelope_context))
+                        };
+
                         Ok(ProcessEnvelopeResponse {
-                            envelope: Some(state.envelope).filter(|e| !e.is_empty()),
+                            envelope: envelope_response,
                             rate_limits: state.rate_limits,
                         })
                     }
@@ -1919,7 +1928,7 @@ pub struct ProcessEnvelopeResponse {
     /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
     /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
     /// to be dropped, this is `None`.
-    pub envelope: Option<Envelope>,
+    pub envelope: Option<(Envelope, EnvelopeContext)>,
 
     /// All rate limits that have been applied on the envelope.
     pub rate_limits: RateLimits,
@@ -1937,10 +1946,9 @@ pub struct ProcessEnvelopeResponse {
 #[derive(Debug)]
 pub struct ProcessEnvelope {
     pub envelope: Envelope,
+    pub envelope_context: EnvelopeContext,
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
-    pub start_time: Instant,
-    pub scoping: Scoping,
 }
 
 impl Message for ProcessEnvelope {
@@ -1951,7 +1959,8 @@ impl Handler<ProcessEnvelope> for EnvelopeProcessor {
     type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
 
     fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
-        metric!(timer(RelayTimers::EnvelopeWaitTime) = message.start_time.elapsed());
+        let wait_time = message.envelope_context.start_time().elapsed();
+        metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
         metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message)
         })
@@ -2266,21 +2275,14 @@ mod tests {
 
         let envelope_response = processor
             .process(ProcessEnvelope {
+                envelope_context: EnvelopeContext::from_envelope(&envelope),
                 envelope,
                 project_state: Arc::new(ProjectState::allowed()),
                 sampling_project_state: None,
-                start_time: Instant::now(),
-                scoping: Scoping {
-                    project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-
-                    organization_id: 1,
-                    project_id: ProjectId::new(1),
-                    key_id: None,
-                },
             })
             .unwrap();
 
-        let new_envelope = envelope_response.envelope.unwrap();
+        let (new_envelope, _) = envelope_response.envelope.unwrap();
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
@@ -2325,16 +2327,10 @@ mod tests {
         let envelope_response = relay_test::with_system(move || {
             processor
                 .process(ProcessEnvelope {
+                    envelope_context: EnvelopeContext::from_envelope(&envelope),
                     envelope,
                     project_state: Arc::new(ProjectState::allowed()),
                     sampling_project_state: None,
-                    start_time: Instant::now(),
-                    scoping: Scoping {
-                        project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                        organization_id: 1,
-                        project_id: ProjectId::new(1),
-                        key_id: None,
-                    },
                 })
                 .unwrap()
         });
@@ -2382,21 +2378,15 @@ mod tests {
         let envelope_response = relay_test::with_system(move || {
             processor
                 .process(ProcessEnvelope {
+                    envelope_context: EnvelopeContext::from_envelope(&envelope),
                     envelope,
                     project_state: Arc::new(ProjectState::allowed()),
                     sampling_project_state: None,
-                    start_time: Instant::now(),
-                    scoping: Scoping {
-                        project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                        organization_id: 1,
-                        project_id: ProjectId::new(1),
-                        key_id: None,
-                    },
                 })
                 .unwrap()
         });
 
-        let envelope = envelope_response.envelope.unwrap();
+        let (envelope, _) = envelope_response.envelope.unwrap();
         let item = envelope.items().next().unwrap();
         assert_eq!(item.ty(), &ItemType::ClientReport);
     }
@@ -2445,16 +2435,10 @@ mod tests {
         let envelope_response = relay_test::with_system(move || {
             processor
                 .process(ProcessEnvelope {
+                    envelope_context: EnvelopeContext::from_envelope(&envelope),
                     envelope,
                     project_state: Arc::new(ProjectState::allowed()),
                     sampling_project_state: None,
-                    start_time: Instant::now(),
-                    scoping: Scoping {
-                        project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                        organization_id: 1,
-                        project_id: ProjectId::new(1),
-                        key_id: None,
-                    },
                 })
                 .unwrap()
         });

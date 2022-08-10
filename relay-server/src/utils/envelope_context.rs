@@ -126,7 +126,16 @@ impl EnvelopeContext {
         self.scoping
     }
 
+    /// Returns the instant at which the envelope was received at this Relay.
+    ///
+    /// This is the monotonic time equivalent to [`received_at`](Self::received_at).
+    pub fn start_time(&self) -> Instant {
+        self.start_time
+    }
+
     /// Returns the time at which the envelope was received at this Relay.
+    ///
+    /// This is the date time equivalent to [`start_time`](Self::start_time).
     pub fn received_at(&self) -> DateTime<Utc> {
         self.received_at
     }

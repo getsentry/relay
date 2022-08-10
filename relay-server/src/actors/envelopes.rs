@@ -509,57 +509,48 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
                     .map(|state| (envelope, envelope_context, state))
             })
-            .and_then(|(envelope, context, project_state)| {
+            .and_then(|(envelope, envelope_context, project_state)| {
                 // get the state for the sampling project.
                 // TODO: Could this run concurrently with main project cache fetch?
                 if let Some(sampling_project_key) = utils::get_sampling_key(&envelope) {
                     let future = ProjectCache::from_registry()
                         .send(GetProjectState::new(sampling_project_key))
                         .then(move |response| {
-                            // ignore all errors and leave envelope unsampled
-                            let sampling_state = response.ok().and_then(|r| r.ok());
-                            Ok((envelope, context, project_state, sampling_state))
+                            Ok(ProcessEnvelope {
+                                envelope,
+                                envelope_context,
+                                project_state,
+                                // ignore all errors and leave envelope unsampled
+                                sampling_project_state: response.ok().and_then(|r| r.ok()),
+                            })
                         });
 
                     Box::new(future) as ResponseFuture<_, _>
                 } else {
-                    Box::new(future::ok((envelope, context, project_state, None)))
+                    Box::new(future::ok(ProcessEnvelope {
+                        envelope,
+                        envelope_context,
+                        project_state,
+                        sampling_project_state: None,
+                    }))
                 }
             })
-            .and_then(
-                move |(envelope, envelope_context, project_state, sampling_project_state)| {
-                    let message = ProcessEnvelope {
-                        envelope,
-                        project_state,
-                        sampling_project_state,
-                        start_time,
-                        scoping: envelope_context.scoping(),
-                    };
-
-                    processor
-                        .send(message)
-                        .map_err(|_| ProcessingError::ScheduleFailed)
-                        .flatten()
-                        .map(|processed| (processed, envelope_context))
-                },
-            )
-            .and_then(move |(processed, mut envelope_context)| {
-                let project_cache = ProjectCache::from_registry();
-                let rate_limits = processed.rate_limits;
-
+            .and_then(move |process_message| {
+                processor
+                    .send(process_message)
+                    .map_err(|_| ProcessingError::ScheduleFailed)
+                    .flatten()
+            })
+            .and_then(move |processed| {
                 // Processing returned new rate limits. Cache them on the project to avoid expensive
                 // processing while the limit is active.
+                let rate_limits = processed.rate_limits;
                 if rate_limits.is_limited() {
+                    let project_cache = ProjectCache::from_registry();
                     project_cache.do_send(UpdateRateLimits::new(project_key, rate_limits));
                 }
 
-                match processed.envelope {
-                    Some(envelope) => {
-                        envelope_context.update(&envelope);
-                        Ok((envelope, envelope_context))
-                    }
-                    None => Err(ProcessingError::RateLimited),
-                }
+                processed.envelope.ok_or(ProcessingError::RateLimited)
             })
             .into_actor(self)
             .and_then(move |(envelope, mut envelope_context), slf, _| {
