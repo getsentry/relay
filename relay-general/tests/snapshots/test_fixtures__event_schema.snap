@@ -421,6 +421,16 @@ expression: event_json_schema()
                 "null"
               ]
             },
+            "app_memory": {
+              "description": " Amount of memory used by the application in bytes.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "app_name": {
               "description": " Application name as it appears on the platform.",
               "default": null,

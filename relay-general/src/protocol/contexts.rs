@@ -292,6 +292,9 @@ pub struct AppContext {
     /// Internal build ID as it appears on the platform.
     pub app_build: Annotated<LenientString>,
 
+    /// Amount of memory used by the application in bytes.
+    pub app_memory: Annotated<u64>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -982,6 +985,7 @@ fn test_app_context_roundtrip() {
   "app_name": "Baz App",
   "app_version": "1.0",
   "app_build": "100001",
+  "app_memory": 22883948,
   "other": "value",
   "type": "app"
 }"#;
@@ -993,6 +997,7 @@ fn test_app_context_roundtrip() {
         app_name: Annotated::new("Baz App".to_string()),
         app_version: Annotated::new("1.0".to_string()),
         app_build: Annotated::new("100001".to_string().into()),
+        app_memory: Annotated::new(22883948),
         other: {
             let mut map = Object::new();
             map.insert(
