@@ -776,6 +776,31 @@
 <span id="769">769</span>
 <span id="770">770</span>
 <span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
@@ -811,10 +836,14 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServerError</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>, <span class="ident">RelayTimers</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="self">self</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">FutureExt</span>, <span class="ident">SendWithOutcome</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="self">self</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">FutureExt</span> <span class="kw">as</span> <span class="kw">_</span>, <span class="ident">SendWithOutcome</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::store</span>::{<span class="ident">StoreEnvelope</span>, <span class="ident">StoreError</span>, <span class="ident">StoreForwarder</span>};
+<span class="kw">use</span> {
+    <span class="ident"><span class="kw">crate</span>::actors::store</span>::{<span class="ident">StoreAddr</span>, <span class="ident">StoreEnvelope</span>, <span class="ident">StoreError</span>, <span class="ident">StoreForwarder</span>},
+    <span class="ident">futures</span>::{<span class="ident">FutureExt</span>, <span class="ident">TryFutureExt</span>},
+    <span class="ident">tokio::runtime::Runtime</span>,
+};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Fail</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">QueueEnvelopeError</span> {
@@ -931,7 +960,9 @@
     <span class="ident">captures</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">EventId</span>, <span class="ident">CapturedEnvelope</span><span class="op">&gt;</span>,
     <span class="ident">processor</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeProcessor</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">store_forwarder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">StoreForwarder</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">store_forwarder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StoreAddr</span><span class="op">&lt;</span><span class="ident">StoreEnvelope</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">_runtime</span>: <span class="ident">Runtime</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">EnvelopeManager</span> {
@@ -939,10 +970,21 @@
         <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
         <span class="ident">processor</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeProcessor</span><span class="op">&gt;</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
+        <span class="comment">// Enter the tokio runtime so we can start spawning tasks from the outside.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+        <span class="kw">let</span> <span class="ident">runtime</span> <span class="op">=</span> <span class="ident">tokio::runtime::Builder::new_multi_thread</span>()
+            .<span class="ident">worker_threads</span>(<span class="number">1</span>)
+            .<span class="ident">enable_all</span>()
+            .<span class="ident">build</span>()
+            .<span class="ident">unwrap</span>();
+
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+        <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">runtime</span>.<span class="ident">enter</span>();
+
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
         <span class="kw">let</span> <span class="ident">store_forwarder</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
             <span class="kw">let</span> <span class="ident">actor</span> <span class="op">=</span> <span class="ident">StoreForwarder::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
-            <span class="prelude-val">Some</span>(<span class="ident">Arbiter::start</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">actor</span>))
+            <span class="prelude-val">Some</span>(<span class="ident">actor</span>.<span class="ident">start</span>())
         } <span class="kw">else</span> {
             <span class="prelude-val">None</span>
         };
@@ -954,6 +996,8 @@
             <span class="ident">processor</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">store_forwarder</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">_runtime</span>: <span class="ident">runtime</span>,
         })
     }
 
@@ -967,17 +1011,23 @@
     ) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">SendEnvelopeError</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
         {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">store_forwarder</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">store_forwarder</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">store_forwarder</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">store_forwarder</span>.<span class="ident">clone</span>() {
                 <span class="macro">relay_log::trace!</span>(<span class="string">&quot;sending envelope to kafka&quot;</span>);
-                <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">store_forwarder</span>
-                    .<span class="ident">send</span>(<span class="ident">StoreEnvelope</span> {
+                <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="kw">async</span> <span class="kw">move</span> {
+                    <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">store_forwarder</span>.<span class="ident">clone</span>();
+                    <span class="ident">addr</span>.<span class="ident">send</span>(<span class="ident">StoreEnvelope</span> {
                         <span class="ident">envelope</span>,
                         <span class="ident">start_time</span>,
                         <span class="ident">scoping</span>,
                     })
+                    .<span class="kw">await</span>
+                };
+
+                <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">fut</span>
+                    .<span class="ident">boxed_local</span>()
+                    .<span class="ident">compat</span>()
                     .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SendEnvelopeError::ScheduleFailed</span>)
                     .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">SendEnvelopeError::StoreFailed</span>));
-
                 <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future</span>);
             }
         }

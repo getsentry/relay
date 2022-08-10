@@ -1010,14 +1010,55 @@
 <span id="1003">1003</span>
 <span id="1004">1004</span>
 <span id="1005">1005</span>
+<span id="1006">1006</span>
+<span id="1007">1007</span>
+<span id="1008">1008</span>
+<span id="1009">1009</span>
+<span id="1010">1010</span>
+<span id="1011">1011</span>
+<span id="1012">1012</span>
+<span id="1013">1013</span>
+<span id="1014">1014</span>
+<span id="1015">1015</span>
+<span id="1016">1016</span>
+<span id="1017">1017</span>
+<span id="1018">1018</span>
+<span id="1019">1019</span>
+<span id="1020">1020</span>
+<span id="1021">1021</span>
+<span id="1022">1022</span>
+<span id="1023">1023</span>
+<span id="1024">1024</span>
+<span id="1025">1025</span>
+<span id="1026">1026</span>
+<span id="1027">1027</span>
+<span id="1028">1028</span>
+<span id="1029">1029</span>
+<span id="1030">1030</span>
+<span id="1031">1031</span>
+<span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
+<span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The actor uses kafka topics to forward data to Sentry</span>
 
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
+<span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
 
-<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">bytes::Bytes</span>;
 <span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Fail</span>, <span class="ident">ResultExt</span>};
 <span class="kw">use</span> <span class="ident">rdkafka::error::KafkaError</span>;
@@ -1025,6 +1066,7 @@
 <span class="kw">use</span> <span class="ident">rdkafka::ClientConfig</span>;
 <span class="kw">use</span> <span class="ident">rmp_serde::encode::Error</span> <span class="kw">as</span> <span class="ident">RmpError</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">ser::Error</span>, <span class="ident">Serialize</span>};
+<span class="kw">use</span> <span class="ident">tokio::sync</span>::{<span class="ident">mpsc</span>, <span class="ident">oneshot</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">KafkaTopic</span>};
@@ -1060,6 +1102,51 @@
     <span class="ident">InvalidJson</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">serde_json::Error</span>),
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to store event because event id was missing&quot;</span>)]</span>
     <span class="ident">NoEventId</span>,
+}
+
+<span class="comment">// TODO(tobias): Still need to unify with the message in the Healthcheck actor</span>
+<span class="doccomment">/// Internal wrapper of a message sent through an `StoreAddr` with return channel.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StoreMessage</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">data</span>: <span class="ident">T</span>,
+    <span class="ident">responder</span>: <span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+}
+
+<span class="doccomment">/// An error when [sending](StoreAddr::send) a message to a service fails.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SendError</span>;
+
+<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">SendError</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;failed to send message to service&quot;</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">SendError</span> {}
+
+<span class="comment">// TODO(tobias): Still need to unify with the Addr in the Healthcheck actor</span>
+<span class="doccomment">/// Channel for sending public messages into a service.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// To send a message, use [`StoreAddr::send`].</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StoreAddr</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">tx</span>: <span class="ident">mpsc::UnboundedSender</span><span class="op">&lt;</span><span class="ident">StoreMessage</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">StoreAddr</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Sends an asynchronous message to the service and waits for the response.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The result of the message does not have to be awaited. The message will be delivered and</span>
+    <span class="doccomment">/// handled regardless. The communication channel with the service is unbounded, so backlogs</span>
+    <span class="doccomment">/// could occur when sending too many messages.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Sending the message can fail with `Err(SendError)` if the service has shut down.</span>
+    <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">send</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="ident">T</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span>, <span class="ident">SendError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> (<span class="ident">responder</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
+        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">StoreMessage</span> { <span class="ident">data</span>, <span class="ident">responder</span> };
+        <span class="self">self</span>.<span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">message</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SendError</span>)<span class="question-mark">?</span>;
+        <span class="ident">rx</span>.<span class="kw">await</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SendError</span>)
+    }
 }
 
 <span class="kw">type</span> <span class="ident">Producer</span> <span class="op">=</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span>;
@@ -1142,6 +1229,166 @@
 }
 
 <span class="kw">impl</span> <span class="ident">StoreForwarder</span> {
+    <span class="kw">fn</span> <span class="ident">handle_store_evelope</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">StoreEnvelope</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">StoreEnvelope</span> {
+            <span class="ident">envelope</span>,
+            <span class="ident">start_time</span>,
+            <span class="ident">scoping</span>,
+        } <span class="op">=</span> <span class="ident">message</span>;
+
+        <span class="kw">let</span> <span class="ident">retention</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">retention</span>();
+        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client</span>();
+        <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
+        <span class="kw">let</span> <span class="ident">event_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
+            <span class="macro">matches!</span>(
+                <span class="ident">item</span>.<span class="ident">ty</span>(),
+                <span class="ident">ItemType::Event</span> <span class="op">|</span> <span class="ident">ItemType::Transaction</span> <span class="op">|</span> <span class="ident">ItemType::Security</span>
+            )
+        });
+
+        <span class="kw">let</span> <span class="ident">topic</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="ident">is_slow_item</span>).<span class="ident">is_some</span>() {
+            <span class="ident">KafkaTopic::Attachments</span>
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">event_item</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">ty</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">ItemType::Transaction</span>) {
+            <span class="ident">KafkaTopic::Transactions</span>
+        } <span class="kw">else</span> {
+            <span class="ident">KafkaTopic::Events</span>
+        };
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">attachments</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+
+        <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">envelope</span>.<span class="ident">items</span>() {
+            <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
+                <span class="ident">ItemType::Attachment</span> =&gt; {
+                    <span class="macro">debug_assert!</span>(<span class="ident">topic</span> <span class="op">==</span> <span class="ident">KafkaTopic::Attachments</span>);
+                    <span class="kw">let</span> <span class="ident">attachment</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">produce_attachment_chunks</span>(
+                        <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                        <span class="ident">item</span>,
+                    )<span class="question-mark">?</span>;
+                    <span class="ident">attachments</span>.<span class="ident">push</span>(<span class="ident">attachment</span>);
+                }
+                <span class="ident">ItemType::UserReport</span> =&gt; {
+                    <span class="macro">debug_assert!</span>(<span class="ident">topic</span> <span class="op">==</span> <span class="ident">KafkaTopic::Attachments</span>);
+                    <span class="self">self</span>.<span class="ident">produce_user_report</span>(
+                        <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                        <span class="ident">start_time</span>,
+                        <span class="ident">item</span>,
+                    )<span class="question-mark">?</span>;
+                    <span class="macro">metric!</span>(
+                        <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+                        <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;user_report&quot;</span>
+                    );
+                }
+                <span class="ident">ItemType::Session</span> <span class="op">|</span> <span class="ident">ItemType::Sessions</span> =&gt; {
+                    <span class="self">self</span>.<span class="ident">produce_sessions</span>(
+                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
+                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                        <span class="ident">retention</span>,
+                        <span class="ident">client</span>,
+                        <span class="ident">item</span>,
+                    )<span class="question-mark">?</span>;
+                }
+                <span class="ident">ItemType::MetricBuckets</span> =&gt; {
+                    <span class="self">self</span>.<span class="ident">produce_metrics</span>(<span class="ident">scoping</span>.<span class="ident">organization_id</span>, <span class="ident">scoping</span>.<span class="ident">project_id</span>, <span class="ident">item</span>)<span class="question-mark">?</span>
+                }
+                <span class="ident">ItemType::Profile</span> =&gt; <span class="self">self</span>.<span class="ident">produce_profile</span>(
+                    <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
+                    <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                    <span class="ident">scoping</span>.<span class="ident">key_id</span>,
+                    <span class="ident">start_time</span>,
+                    <span class="ident">item</span>,
+                )<span class="question-mark">?</span>,
+                <span class="ident">ItemType::ReplayRecording</span> =&gt; {
+                    <span class="kw">let</span> <span class="ident">replay_recording</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">produce_replay_recording_chunks</span>(
+                        <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                        <span class="ident">item</span>,
+                    )<span class="question-mark">?</span>;
+                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending individual replay_recordings of envelope to kafka&quot;</span>);
+                    <span class="kw">let</span> <span class="ident">replay_recording_message</span> <span class="op">=</span>
+                        <span class="ident">KafkaMessage::ReplayRecording</span>(<span class="ident">ReplayRecordingKafkaMessage</span> {
+                            <span class="ident">replay_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                            <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                            <span class="ident">retention_days</span>: <span class="ident">retention</span>,
+                            <span class="ident">replay_recording</span>,
+                        });
+
+                    <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::ReplayRecordings</span>, <span class="ident">replay_recording_message</span>)<span class="question-mark">?</span>;
+                    <span class="macro">metric!</span>(
+                        <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+                        <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;replay_recording&quot;</span>
+                    );
+                }
+                <span class="ident">ItemType::ReplayEvent</span> =&gt; <span class="self">self</span>.<span class="ident">produce_replay_event</span>(
+                    <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                    <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                    <span class="ident">start_time</span>,
+                    <span class="ident">retention</span>,
+                    <span class="ident">item</span>,
+                )<span class="question-mark">?</span>,
+                <span class="kw">_</span> =&gt; {}
+            }
+        }
+
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_item</span>) <span class="op">=</span> <span class="ident">event_item</span> {
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending event item of envelope to kafka&quot;</span>);
+            <span class="kw">let</span> <span class="ident">event_message</span> <span class="op">=</span> <span class="ident">KafkaMessage::Event</span>(<span class="ident">EventKafkaMessage</span> {
+                <span class="ident">payload</span>: <span class="ident">event_item</span>.<span class="ident">payload</span>(),
+                <span class="ident">start_time</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
+                <span class="ident">event_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                <span class="ident">remote_addr</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">addr</span><span class="op">|</span> <span class="ident">addr</span>.<span class="ident">to_string</span>()),
+                <span class="ident">attachments</span>,
+            });
+
+            <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">event_message</span>)<span class="question-mark">?</span>;
+            <span class="macro">metric!</span>(
+                <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+                <span class="ident">event_type</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event_item</span>.<span class="ident">ty</span>().<span class="ident">to_string</span>()
+            );
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">attachments</span>.<span class="ident">is_empty</span>() {
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending individual attachments of envelope to kafka&quot;</span>);
+            <span class="kw">for</span> <span class="ident">attachment</span> <span class="kw">in</span> <span class="ident">attachments</span> {
+                <span class="kw">let</span> <span class="ident">attachment_message</span> <span class="op">=</span> <span class="ident">KafkaMessage::Attachment</span>(<span class="ident">AttachmentKafkaMessage</span> {
+                    <span class="ident">event_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                    <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
+                    <span class="ident">attachment</span>,
+                });
+
+                <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
+                <span class="macro">metric!</span>(
+                    <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+                    <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;attachment&quot;</span>
+                );
+            }
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="self">self</span>) -&gt; <span class="ident">StoreAddr</span><span class="op">&lt;</span><span class="ident">StoreEnvelope</span><span class="op">&gt;</span> {
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder started&quot;</span>);
+
+        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">mpsc::unbounded_channel</span>::<span class="op">&lt;</span><span class="ident">StoreMessage</span><span class="op">&lt;</span><span class="ident">StoreEnvelope</span><span class="op">&gt;</span><span class="op">&gt;</span>();
+
+        <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="self">self</span>);
+        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
+                <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">service</span>.<span class="ident">clone</span>();
+
+                <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+                    <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="ident">service</span>.<span class="ident">handle_store_evelope</span>(<span class="ident">message</span>.<span class="ident">data</span>);
+                    <span class="ident">message</span>.<span class="ident">responder</span>.<span class="ident">send</span>(<span class="ident">response</span>).<span class="ident">ok</span>();
+                });
+            }
+
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder stopped&quot;</span>);
+        });
+
+        <span class="ident">StoreAddr</span> { <span class="ident">tx</span> }
+    }
+
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reused_producers</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
         <span class="kw">let</span> <span class="ident">producers</span> <span class="op">=</span> <span class="ident">Producers</span> {
@@ -1558,25 +1805,6 @@
     }
 }
 
-<span class="doccomment">/// StoreMessageForwarder is an async actor since the only thing it does is put the messages</span>
-<span class="doccomment">/// in the kafka topics</span>
-<span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">StoreForwarder</span> {
-    <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">Context</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
-
-    <span class="kw">fn</span> <span class="ident">started</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
-        <span class="comment">// Set the mailbox size to the size of the envelope buffer. This is a rough estimate but</span>
-        <span class="comment">// should ensure that we&#39;re not dropping events unintentionally after we&#39;ve accepted them.</span>
-        <span class="kw">let</span> <span class="ident">mailbox_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">envelope_buffer_size</span>() <span class="kw">as</span> <span class="ident">usize</span>;
-        <span class="ident">context</span>.<span class="ident">set_mailbox_capacity</span>(<span class="ident">mailbox_size</span>);
-
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder started&quot;</span>);
-    }
-
-    <span class="kw">fn</span> <span class="ident">stopped</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder stopped&quot;</span>);
-    }
-}
-
 <span class="doccomment">/// Common attributes for both standalone attachments and processing-relevant attachments.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
 <span class="kw">struct</span> <span class="ident">ChunkedAttachment</span> {
@@ -1863,157 +2091,11 @@
     <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">StoreEnvelope</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span>;
-}
-
 <span class="doccomment">/// Determines if the given item is considered slow.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Slow items must be routed to the `Attachments` topic.</span>
 <span class="kw">fn</span> <span class="ident">is_slow_item</span>(<span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>) -&gt; <span class="ident">bool</span> {
     <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::Attachment</span> <span class="op">|</span><span class="op">|</span> <span class="ident">item</span>.<span class="ident">ty</span>() <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">ItemType::UserReport</span>
-}
-
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">StoreEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">StoreForwarder</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span>;
-
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">StoreEnvelope</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="kw">let</span> <span class="ident">StoreEnvelope</span> {
-            <span class="ident">envelope</span>,
-            <span class="ident">start_time</span>,
-            <span class="ident">scoping</span>,
-        } <span class="op">=</span> <span class="ident">message</span>;
-
-        <span class="kw">let</span> <span class="ident">retention</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">retention</span>();
-        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client</span>();
-        <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
-        <span class="kw">let</span> <span class="ident">event_item</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
-            <span class="macro">matches!</span>(
-                <span class="ident">item</span>.<span class="ident">ty</span>(),
-                <span class="ident">ItemType::Event</span> <span class="op">|</span> <span class="ident">ItemType::Transaction</span> <span class="op">|</span> <span class="ident">ItemType::Security</span>
-            )
-        });
-
-        <span class="kw">let</span> <span class="ident">topic</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">get_item_by</span>(<span class="ident">is_slow_item</span>).<span class="ident">is_some</span>() {
-            <span class="ident">KafkaTopic::Attachments</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">event_item</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">ty</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">ItemType::Transaction</span>) {
-            <span class="ident">KafkaTopic::Transactions</span>
-        } <span class="kw">else</span> {
-            <span class="ident">KafkaTopic::Events</span>
-        };
-
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">attachments</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
-
-        <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">envelope</span>.<span class="ident">items</span>() {
-            <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
-                <span class="ident">ItemType::Attachment</span> =&gt; {
-                    <span class="macro">debug_assert!</span>(<span class="ident">topic</span> <span class="op">==</span> <span class="ident">KafkaTopic::Attachments</span>);
-                    <span class="kw">let</span> <span class="ident">attachment</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">produce_attachment_chunks</span>(
-                        <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                        <span class="ident">item</span>,
-                    )<span class="question-mark">?</span>;
-                    <span class="ident">attachments</span>.<span class="ident">push</span>(<span class="ident">attachment</span>);
-                }
-                <span class="ident">ItemType::UserReport</span> =&gt; {
-                    <span class="macro">debug_assert!</span>(<span class="ident">topic</span> <span class="op">==</span> <span class="ident">KafkaTopic::Attachments</span>);
-                    <span class="self">self</span>.<span class="ident">produce_user_report</span>(
-                        <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                        <span class="ident">start_time</span>,
-                        <span class="ident">item</span>,
-                    )<span class="question-mark">?</span>;
-                    <span class="macro">metric!</span>(
-                        <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-                        <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;user_report&quot;</span>
-                    );
-                }
-                <span class="ident">ItemType::Session</span> <span class="op">|</span> <span class="ident">ItemType::Sessions</span> =&gt; {
-                    <span class="self">self</span>.<span class="ident">produce_sessions</span>(
-                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                        <span class="ident">retention</span>,
-                        <span class="ident">client</span>,
-                        <span class="ident">item</span>,
-                    )<span class="question-mark">?</span>;
-                }
-                <span class="ident">ItemType::MetricBuckets</span> =&gt; {
-                    <span class="self">self</span>.<span class="ident">produce_metrics</span>(<span class="ident">scoping</span>.<span class="ident">organization_id</span>, <span class="ident">scoping</span>.<span class="ident">project_id</span>, <span class="ident">item</span>)<span class="question-mark">?</span>
-                }
-                <span class="ident">ItemType::Profile</span> =&gt; <span class="self">self</span>.<span class="ident">produce_profile</span>(
-                    <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
-                    <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                    <span class="ident">scoping</span>.<span class="ident">key_id</span>,
-                    <span class="ident">start_time</span>,
-                    <span class="ident">item</span>,
-                )<span class="question-mark">?</span>,
-                <span class="ident">ItemType::ReplayRecording</span> =&gt; {
-                    <span class="kw">let</span> <span class="ident">replay_recording</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">produce_replay_recording_chunks</span>(
-                        <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                        <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                        <span class="ident">item</span>,
-                    )<span class="question-mark">?</span>;
-                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending individual replay_recordings of envelope to kafka&quot;</span>);
-                    <span class="kw">let</span> <span class="ident">replay_recording_message</span> <span class="op">=</span>
-                        <span class="ident">KafkaMessage::ReplayRecording</span>(<span class="ident">ReplayRecordingKafkaMessage</span> {
-                            <span class="ident">replay_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                            <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                            <span class="ident">retention_days</span>: <span class="ident">retention</span>,
-                            <span class="ident">replay_recording</span>,
-                        });
-
-                    <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::ReplayRecordings</span>, <span class="ident">replay_recording_message</span>)<span class="question-mark">?</span>;
-                    <span class="macro">metric!</span>(
-                        <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-                        <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;replay_recording&quot;</span>
-                    );
-                }
-                <span class="ident">ItemType::ReplayEvent</span> =&gt; <span class="self">self</span>.<span class="ident">produce_replay_event</span>(
-                    <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                    <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                    <span class="ident">start_time</span>,
-                    <span class="ident">retention</span>,
-                    <span class="ident">item</span>,
-                )<span class="question-mark">?</span>,
-                <span class="kw">_</span> =&gt; {}
-            }
-        }
-
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_item</span>) <span class="op">=</span> <span class="ident">event_item</span> {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending event item of envelope to kafka&quot;</span>);
-            <span class="kw">let</span> <span class="ident">event_message</span> <span class="op">=</span> <span class="ident">KafkaMessage::Event</span>(<span class="ident">EventKafkaMessage</span> {
-                <span class="ident">payload</span>: <span class="ident">event_item</span>.<span class="ident">payload</span>(),
-                <span class="ident">start_time</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
-                <span class="ident">event_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                <span class="ident">remote_addr</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">addr</span><span class="op">|</span> <span class="ident">addr</span>.<span class="ident">to_string</span>()),
-                <span class="ident">attachments</span>,
-            });
-
-            <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">event_message</span>)<span class="question-mark">?</span>;
-            <span class="macro">metric!</span>(
-                <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-                <span class="ident">event_type</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event_item</span>.<span class="ident">ty</span>().<span class="ident">to_string</span>()
-            );
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">attachments</span>.<span class="ident">is_empty</span>() {
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending individual attachments of envelope to kafka&quot;</span>);
-            <span class="kw">for</span> <span class="ident">attachment</span> <span class="kw">in</span> <span class="ident">attachments</span> {
-                <span class="kw">let</span> <span class="ident">attachment_message</span> <span class="op">=</span> <span class="ident">KafkaMessage::Attachment</span>(<span class="ident">AttachmentKafkaMessage</span> {
-                    <span class="ident">event_id</span>: <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
-                    <span class="ident">project_id</span>: <span class="ident">scoping</span>.<span class="ident">project_id</span>,
-                    <span class="ident">attachment</span>,
-                });
-
-                <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
-                <span class="macro">metric!</span>(
-                    <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
-                    <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;attachment&quot;</span>
-                );
-            }
-        }
-
-        <span class="prelude-val">Ok</span>(())
-    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.1 (e092d0b6b 2022-07-16)" ></div>
