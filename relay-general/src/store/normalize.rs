@@ -500,7 +500,7 @@ fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
     pub user_agent: Option<&'a str>,
