@@ -21,7 +21,7 @@ use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{ActorResponse, Response};
+use crate::utils::{ActorResponse, EnvelopeContext, Response};
 
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
@@ -382,24 +382,27 @@ impl Handler<GetCachedProjectState> for ProjectCache {
 pub struct CheckEnvelope {
     project_key: ProjectKey,
     envelope: Envelope,
+    context: EnvelopeContext,
     fetch: bool,
 }
 
 impl CheckEnvelope {
     /// Fetches the project state and checks the envelope.
-    pub fn fetched(project_key: ProjectKey, envelope: Envelope) -> Self {
+    pub fn fetched(project_key: ProjectKey, envelope: Envelope, context: EnvelopeContext) -> Self {
         Self {
             project_key,
             envelope,
+            context,
             fetch: true,
         }
     }
 
     /// Uses a cached project state and checks the envelope.
-    pub fn cached(project_key: ProjectKey, envelope: Envelope) -> Self {
+    pub fn cached(project_key: ProjectKey, envelope: Envelope, context: EnvelopeContext) -> Self {
         Self {
             project_key,
             envelope,
+            context,
             fetch: false,
         }
     }
@@ -411,7 +414,7 @@ impl CheckEnvelope {
 /// from the envelope, `None` is returned in place of the envelope.
 #[derive(Debug)]
 pub struct CheckedEnvelope {
-    pub envelope: Option<Envelope>,
+    pub envelope: Option<(Envelope, EnvelopeContext)>,
     pub rate_limits: RateLimits,
 }
 
@@ -441,7 +444,7 @@ impl Handler<CheckEnvelope> for ProjectCache {
                     // TODO RaduW can we do better that this ????
                     // (need to retrieve project again to get around borrowing problems)
                     let project = slf.get_or_create_project(message.project_key);
-                    project.check_envelope(message.envelope)
+                    project.check_envelope(message.envelope, message.context)
                 })
         } else {
             // Preload the project cache so that it arrives a little earlier in processing. However,
@@ -451,7 +454,7 @@ impl Handler<CheckEnvelope> for ProjectCache {
 
             // message.fetch == false: Fetching must not block the store request. The
             // EnvelopeManager will later fetch the project state.
-            ActorResponse::ok(project.check_envelope(message.envelope))
+            ActorResponse::ok(project.check_envelope(message.envelope, message.context))
         }
     }
 }
