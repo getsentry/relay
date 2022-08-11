@@ -1785,8 +1785,8 @@ impl Config {
     }
 
     /// Returns the maximum number of buffered envelopes
-    pub fn envelope_buffer_size(&self) -> u32 {
-        self.values.cache.envelope_buffer_size
+    pub fn envelope_buffer_size(&self) -> usize {
+        self.values.cache.envelope_buffer_size as usize
     }
 
     /// Returns the expiry timeout for cached misses before trying to refetch.

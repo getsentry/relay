@@ -14,7 +14,7 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::EnvelopeSummary;
+use crate::utils::{EnvelopeSummary, SemaphorePermit};
 
 /// Contains the required envelope related information to create an outcome.
 #[derive(Debug)]
@@ -25,14 +25,13 @@ pub struct EnvelopeContext {
     event_id: Option<EventId>,
     remote_addr: Option<net::IpAddr>,
     scoping: Scoping,
+    slot: Option<SemaphorePermit>,
     done: bool,
 }
 
 impl EnvelopeContext {
     /// Computes an envelope context from the given envelope.
-    ///
-    /// To provide additional scoping, use [`EnvelopeContext::scope`].
-    pub fn from_envelope(envelope: &Envelope) -> Self {
+    fn new_internal(envelope: &Envelope, slot: Option<SemaphorePermit>) -> Self {
         let meta = &envelope.meta();
         Self {
             summary: EnvelopeSummary::compute(envelope),
@@ -41,8 +40,22 @@ impl EnvelopeContext {
             event_id: envelope.event_id(),
             remote_addr: meta.client_addr(),
             scoping: meta.get_partial_scoping(),
+            slot,
             done: false,
         }
+    }
+
+    /// TODO(ja): Describe
+    #[cfg(test)]
+    pub fn standalone(envelope: &Envelope) -> Self {
+        Self::new_internal(envelope, None)
+    }
+
+    /// TODO(ja): Describe
+    ///
+    /// To provide additional scoping, use [`EnvelopeContext::scope`].
+    pub fn new(envelope: &Envelope, slot: SemaphorePermit) -> Self {
+        Self::new_internal(envelope, Some(slot))
     }
 
     /// Update the context with new envelope information.
@@ -142,8 +155,11 @@ impl EnvelopeContext {
 
     /// Resets inner state to ensure there's no more logging.
     fn finish(&mut self, counter: RelayCounters) {
+        self.slot.take();
+
         relay_statsd::metric!(counter(counter) += 1);
         relay_statsd::metric!(timer(RelayTimers::EnvelopeTotalTime) = self.start_time.elapsed());
+
         self.done = true;
     }
 }
