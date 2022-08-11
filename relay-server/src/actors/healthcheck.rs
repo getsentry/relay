@@ -17,13 +17,33 @@ use crate::statsd::RelayGauges;
 
 lazy_static::lazy_static! {
     /// Singleton of the `Healthcheck` service.
-    static ref ADDRESS: RwLock<Option<Addr<HealthcheckEnvelope>>> = RwLock::new(None);
+    static ref ADDRESS: RwLock<Option<Addr<Healthcheck>>> = RwLock::new(None);
 }
 
-pub trait ActorMessage<E> {
+/// Our definition of a service.
+///
+/// Services are much like actors: they receive messages from an inbox and handles them one
+/// by one.  Services are free to concurrently process these messages or not, most probably
+/// should.
+///
+/// Messages always have a response which will be sent once the message is handled by the
+/// service.
+pub trait Service {
+    /// The envelope is what is sent to the inbox of this service.
+    ///
+    /// It is an enum of all the message types that can be handled by this service together
+    /// with the response [sender](oneshot::Sender) for each message.
+    type Envelope;
+}
+
+/// A message which can be sent to a service.
+///
+/// Messages have an associated `Response` type and can be unconditionally converted into
+/// the envelope type of their [`Service`].
+pub trait ServiceMessage<S: Service> {
     type Response;
 
-    fn into_envelope(self) -> (E, oneshot::Receiver<Self::Response>);
+    fn into_envelope(self) -> (S::Envelope, oneshot::Receiver<Self::Response>);
 }
 
 /// An error when [sending](Addr::send) a message to a service fails.
@@ -38,16 +58,17 @@ impl fmt::Display for SendError {
 
 impl Error for SendError {}
 
-/// Channel for sending public messages into a service.
+/// The address for a [`Service`].
 ///
-/// To send a message, use [`Addr::send`].
+/// The address of a [`Service`] allows you to [send](Addr::send) messages to the service as
+/// long as the service is running.  It can be freely cloned.
 #[derive(Debug)]
-pub struct Addr<E> {
-    tx: mpsc::UnboundedSender<E>,
+pub struct Addr<S: Service> {
+    tx: mpsc::UnboundedSender<S::Envelope>,
 }
 
 // For some reason the derive macro can't cope with this ¯\_(ツ)_/¯
-impl<E> Clone for Addr<E> {
+impl<S: Service> Clone for Addr<S> {
     fn clone(&self) -> Self {
         Self {
             tx: self.tx.clone(),
@@ -55,7 +76,7 @@ impl<E> Clone for Addr<E> {
     }
 }
 
-impl<E> Addr<E> {
+impl<S: Service> Addr<S> {
     /// Sends an asynchronous message to the service and waits for the response.
     ///
     /// The result of the message does not have to be awaited. The message will be delivered and
@@ -65,7 +86,7 @@ impl<E> Addr<E> {
     /// Sending the message can fail with `Err(SendError)` if the service has shut down.
     pub async fn send<M>(&self, message: M) -> Result<M::Response, SendError>
     where
-        M: ActorMessage<E>,
+        M: ServiceMessage<S>,
     {
         let (envelope, response_rx) = message.into_envelope();
         self.tx.send(envelope).map_err(|_| SendError)?;
@@ -79,6 +100,10 @@ pub struct Healthcheck {
     config: Arc<Config>,
 }
 
+impl Service for Healthcheck {
+    type Envelope = HealthcheckEnvelope;
+}
+
 impl Healthcheck {
     /// Returns the [`Addr`] of the [`Healthcheck`] actor.
     ///
@@ -87,7 +112,7 @@ impl Healthcheck {
     /// # Panics
     ///
     /// Panics if the service was not started using [`Healthcheck::start`] prior to this being used.
-    pub fn from_registry() -> Addr<HealthcheckEnvelope> {
+    pub fn from_registry() -> Addr<Self> {
         ADDRESS.read().as_ref().unwrap().clone()
     }
 
@@ -136,7 +161,7 @@ impl Healthcheck {
     }
 
     /// Start this service, returning an [`Addr`] for communication.
-    pub fn start(self) -> Addr<HealthcheckEnvelope> {
+    pub fn start(self) -> Addr<Self> {
         let (tx, mut rx) = mpsc::unbounded_channel::<HealthcheckEnvelope>();
 
         let addr = Addr { tx };
@@ -183,7 +208,7 @@ pub enum IsHealthy {
     Readiness,
 }
 
-impl ActorMessage<HealthcheckEnvelope> for IsHealthy {
+impl ServiceMessage<Healthcheck> for IsHealthy {
     type Response = bool;
 
     fn into_envelope(self) -> (HealthcheckEnvelope, oneshot::Receiver<Self::Response>) {
