@@ -530,6 +530,9 @@ impl Project {
     fn update_metrics_allowed(&mut self) {
         if let Some(state) = self.state() {
             self.metrics_allowed = state.check_disabled(&self.config).is_ok();
+        } else {
+            // Projects without state go back to the original state of allowing metrics.
+            self.metrics_allowed = true;
         }
     }
 
@@ -537,14 +540,23 @@ impl Project {
         self.rate_limits.merge(rate_limits);
     }
 
-    /// Returns a reference to the project state if available.
-    pub fn state(&self) -> Option<&ProjectState> {
-        self.state.as_deref()
+    /// Helper function for `state` and `state_clone`.
+    fn valid_state_ref(&self) -> Option<&Arc<ProjectState>> {
+        let state = self.state.as_ref()?;
+        match state.check_expiry(&self.config) {
+            Expiry::Expired => None,
+            _ => Some(state),
+        }
     }
 
-    /// Returns a reference to the project state if available.
+    /// Returns a reference to the project state if not yet expired.
+    pub fn state(&self) -> Option<&ProjectState> {
+        self.valid_state_ref().map(|arc| arc.as_ref())
+    }
+
+    /// Returns a reference to the project state if not yet expired.
     pub fn state_clone(&self) -> Option<Arc<ProjectState>> {
-        self.state.clone()
+        self.valid_state_ref().map(Arc::clone)
     }
 
     /// The last time the project state was updated
@@ -753,5 +765,52 @@ impl Project {
 
         let result = self.check_envelope_scoped(envelope, envelope_context);
         CheckEnvelopeResponse { result, scoping }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use relay_common::{ProjectId, ProjectKey};
+
+    use super::{Config, Project, ProjectState};
+
+    #[test]
+    fn get_state_expired() {
+        for expiry in [9999, 0] {
+            let config = Arc::new(
+                Config::from_json_value(serde_json::json!(
+                    {
+                        "cache": {
+                            "project_expiry": expiry,
+                            "project_grace_period": 0,
+                            "eviction_interval": 9999 // do not evict
+                        }
+                    }
+                ))
+                .unwrap(),
+            );
+
+            // Initialize project with a state
+            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+            let mut project_state = ProjectState::allowed();
+            project_state.project_id = Some(ProjectId::new(123));
+            let mut project = Project::new(project_key, config.clone());
+            project.state = Some(Arc::new(project_state));
+
+            // Direct access should always yield a state:
+            assert!(project.state.is_some());
+
+            if expiry > 0 {
+                // With long expiry, should get a state
+                assert!(project.state().is_some());
+                assert!(project.state_clone().is_some());
+            } else {
+                // With 0 expiry, project should expire immediately. No state can be set.
+                assert!(project.state().is_none());
+                assert!(project.state_clone().is_none());
+            }
+        }
     }
 }
