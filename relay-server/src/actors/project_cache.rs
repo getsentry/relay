@@ -21,7 +21,7 @@ use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{ActorResponse, EnvelopeContext, Response};
+use crate::utils::{ActorResponse, EnvelopeContext, GarbageDisposal, Response};
 
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
@@ -44,6 +44,7 @@ pub struct ProjectCache {
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
     redis_source: Option<Addr<RedisProjectSource>>,
+    garbage_disposal: GarbageDisposal<Project>,
 }
 
 impl ProjectCache {
@@ -69,6 +70,7 @@ impl ProjectCache {
             upstream_source,
             #[cfg(feature = "processing")]
             redis_source,
+            garbage_disposal: GarbageDisposal::new(),
         }
     }
 
@@ -77,8 +79,20 @@ impl ProjectCache {
         let eviction_start = Instant::now();
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
 
-        self.projects
-            .retain(|_, entry| entry.last_updated_at() + delta > eviction_start);
+        let config = &self.config;
+        let garbage = &self.garbage_disposal;
+        self.projects.retain(|key, entry| {
+            let keep = entry.last_updated_at() + delta > eviction_start;
+            if !keep {
+                // Useless creation of placeholder project here.
+                // This would not be necessary with nightly `drain_filter`.
+                let mut placeholder = Project::new(*key, config.clone());
+                std::mem::swap(entry, &mut placeholder);
+                // `placeholder` is now the removed entry:
+                garbage.dispose(placeholder);
+            }
+            keep
+        });
 
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }
