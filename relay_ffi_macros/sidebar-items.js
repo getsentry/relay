@@ -1,1 +1,1 @@
-initSidebarItems({"attr":[["catch_unwind","Captures errors and panics in a thread-local on `unsafe` functions."]]});
+window.SIDEBAR_ITEMS = {"attr":[["catch_unwind","Captures errors and panics in a thread-local on `unsafe` functions."]]};

@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["main",""],["print_error",""]],"struct":[["Cli","Processes a Sentry event payload."]]});
+window.SIDEBAR_ITEMS = {"fn":[["main",""],["print_error",""]],"struct":[["Cli","Processes a Sentry event payload."]]};

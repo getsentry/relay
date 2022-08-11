@@ -1,1 +1,1 @@
-initSidebarItems({"derive":[["Empty",""],["FromValue",""],["IntoValue",""],["JsonSchema",""],["ProcessValue",""]]});
+window.SIDEBAR_ITEMS = {"derive":[["Empty",""],["FromValue",""],["IntoValue",""],["JsonSchema",""],["ProcessValue",""]]};

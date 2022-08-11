@@ -1,11 +1,12 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/envelope_context.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelope_context.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><script defer src="../../../main.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script>
-    <noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/utils/envelope_context.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelope_context.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
         </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
-                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><div id="settings-menu" tabindex="-1">
+                                <a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div>
+                        </div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -160,6 +161,39 @@
 <span id="153">153</span>
 <span id="154">154</span>
 <span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.</span>
 
 <span class="kw">use</span> <span class="ident">std::net</span>;
@@ -176,9 +210,23 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayTimers</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::EnvelopeSummary</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">EnvelopeSummary</span>, <span class="ident">SemaphorePermit</span>};
 
-<span class="doccomment">/// Contains the required envelope related information to create an outcome.</span>
+<span class="doccomment">/// Tracks the lifetime of an [`Envelope`] in Relay.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The envelope context accompanies envelopes through the processing pipeline in Relay and ensures</span>
+<span class="doccomment">/// that outcomes are recorded when the Envelope is dropped. They can be dropped in one of three</span>
+<span class="doccomment">/// ways:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///  - By calling [`accept`](Self::accept). Responsibility of the envelope has been transferred to</span>
+<span class="doccomment">///    another service, and no further outcomes need to be recorded.</span>
+<span class="doccomment">///  - By calling [`reject`](Self::reject). The entire envelope was dropped, and the outcome</span>
+<span class="doccomment">///    specifies the reason.</span>
+<span class="doccomment">///  - By dropping the envelope context. This indicates an issue or a bug and raises the</span>
+<span class="doccomment">///    `&quot;internal&quot;` outcome. There should be additional error handling to report an error to Sentry.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The envelope context also holds a processing queue permit which is used for backpressure</span>
+<span class="doccomment">/// management. It is automatically reclaimed when the context is dropped along with the envelope.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EnvelopeContext</span> {
     <span class="ident">summary</span>: <span class="ident">EnvelopeSummary</span>,
@@ -187,14 +235,13 @@
     <span class="ident">event_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
     <span class="ident">remote_addr</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">net::IpAddr</span><span class="op">&gt;</span>,
     <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
+    <span class="ident">slot</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SemaphorePermit</span><span class="op">&gt;</span>,
     <span class="ident">done</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">EnvelopeContext</span> {
     <span class="doccomment">/// Computes an envelope context from the given envelope.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// To provide additional scoping, use [`EnvelopeContext::scope`].</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_envelope</span>(<span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new_internal</span>(<span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>, <span class="ident">slot</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SemaphorePermit</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">envelope</span>.<span class="ident">meta</span>();
         <span class="self">Self</span> {
             <span class="ident">summary</span>: <span class="ident">EnvelopeSummary::compute</span>(<span class="ident">envelope</span>),
@@ -203,8 +250,25 @@
             <span class="ident">event_id</span>: <span class="ident">envelope</span>.<span class="ident">event_id</span>(),
             <span class="ident">remote_addr</span>: <span class="ident">meta</span>.<span class="ident">client_addr</span>(),
             <span class="ident">scoping</span>: <span class="ident">meta</span>.<span class="ident">get_partial_scoping</span>(),
+            <span class="ident">slot</span>,
             <span class="ident">done</span>: <span class="bool-val">false</span>,
         }
+    }
+
+    <span class="doccomment">/// Creates a standalone `EnvelopeContext` for testing purposes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it</span>
+    <span class="doccomment">/// suitable for unit testing internals of the processing pipeline.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">standalone</span>(<span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::new_internal</span>(<span class="ident">envelope</span>, <span class="prelude-val">None</span>)
+    }
+
+    <span class="doccomment">/// Computes an envelope context from the given envelope and binds it to the processing queue.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// To provide additional scoping, use [`EnvelopeContext::scope`].</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>, <span class="ident">slot</span>: <span class="ident">SemaphorePermit</span>) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::new_internal</span>(<span class="ident">envelope</span>, <span class="prelude-val">Some</span>(<span class="ident">slot</span>))
     }
 
     <span class="doccomment">/// Update the context with new envelope information.</span>
@@ -304,8 +368,11 @@
 
     <span class="doccomment">/// Resets inner state to ensure there&#39;s no more logging.</span>
     <span class="kw">fn</span> <span class="ident">finish</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">counter</span>: <span class="ident">RelayCounters</span>) {
+        <span class="self">self</span>.<span class="ident">slot</span>.<span class="ident">take</span>();
+
         <span class="macro">relay_statsd::metric!</span>(<span class="ident">counter</span>(<span class="ident">counter</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
         <span class="macro">relay_statsd::metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EnvelopeTotalTime</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">start_time</span>.<span class="ident">elapsed</span>());
+
         <span class="self">self</span>.<span class="ident">done</span> <span class="op">=</span> <span class="bool-val">true</span>;
     }
 }
@@ -316,5 +383,5 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.1 (e092d0b6b 2022-07-16)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>
 </body></html>

@@ -1,11 +1,12 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/envelopes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelopes.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><script defer src="../../../main.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script>
-    <noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/envelopes.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>envelopes.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
                     <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
         </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../relay_server/index.html">
-                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><div id="settings-menu" tabindex="-1">
+                                <a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div>
+                        </div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -762,6 +763,42 @@
 <span id="755">755</span>
 <span id="756">756</span>
 <span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -795,7 +832,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::http</span>::{<span class="ident">HttpError</span>, <span class="ident">Request</span>, <span class="ident">RequestBuilder</span>, <span class="ident">Response</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServerError</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayHistograms</span>, <span class="ident">RelaySets</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="self">self</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">FutureExt</span> <span class="kw">as</span> <span class="kw">_</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="self">self</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">FutureExt</span> <span class="kw">as</span> <span class="kw">_</span>, <span class="ident">Semaphore</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">use</span> {
@@ -808,6 +845,60 @@
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">QueueEnvelopeError</span> {
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;Too many envelopes (event_buffer_size reached)&quot;</span>)]</span>
     <span class="ident">TooManyEnvelopes</span>,
+}
+
+<span class="doccomment">/// Access control for envelope processing.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The buffer guard is basically a semaphore that ensures the buffer does not outgrow the maximum</span>
+<span class="doccomment">/// number of envelopes configured through [`Config::envelope_buffer_size`]. To enter a new envelope</span>
+<span class="doccomment">/// into the processing pipeline, use [`BufferGuard::enter`].</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BufferGuard</span> {
+    <span class="ident">inner</span>: <span class="ident">Semaphore</span>,
+    <span class="ident">capacity</span>: <span class="ident">usize</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">BufferGuard</span> {
+    <span class="doccomment">/// Creates a new `BufferGuard` based on config values.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">capacity</span>: <span class="ident">usize</span>) -&gt; <span class="self">Self</span> {
+        <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="ident">Semaphore::new</span>(<span class="ident">capacity</span>);
+        <span class="self">Self</span> { <span class="ident">inner</span>, <span class="ident">capacity</span> }
+    }
+
+    <span class="doccomment">/// Returns the unused capacity of the pipeline.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">available</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">available</span>()
+    }
+
+    <span class="doccomment">/// Returns the number of envelopes in the pipeline.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">used</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">capacity</span>.<span class="ident">saturating_sub</span>(<span class="self">self</span>.<span class="ident">available</span>())
+    }
+
+    <span class="doccomment">/// Reserves resources for processing an envelope in Relay.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Returns `Ok(EnvelopeContext)` on success, which internally holds a handle to the reserved</span>
+    <span class="doccomment">/// resources. When the envelope context is dropped, the slot is automatically reclaimed and can</span>
+    <span class="doccomment">/// be reused by a subsequent call to `enter`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the buffer is full, this function returns `Err`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enter</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">EnvelopeContext</span>, <span class="ident">QueueEnvelopeError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">permit</span> <span class="op">=</span> <span class="self">self</span>
+            .<span class="ident">inner</span>
+            .<span class="ident">try_acquire</span>()
+            .<span class="ident">ok_or</span>(<span class="ident">QueueEnvelopeError::TooManyEnvelopes</span>)<span class="question-mark">?</span>;
+
+        <span class="macro">metric!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms::EnvelopeQueueSize</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">used</span>() <span class="kw">as</span> <span class="ident">u64</span>);
+
+        <span class="macro">metric!</span>(
+            <span class="ident">histogram</span>(<span class="ident">RelayHistograms::EnvelopeQueueSizePct</span>) <span class="op">=</span> {
+                <span class="kw">let</span> <span class="ident">queue_size_pct</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">used</span>() <span class="kw">as</span> <span class="ident">f64</span> <span class="op">*</span> <span class="number">100.0</span> <span class="op">/</span> <span class="self">self</span>.<span class="ident">capacity</span> <span class="kw">as</span> <span class="ident">f64</span>;
+                <span class="ident">queue_size_pct</span>.<span class="ident">floor</span>() <span class="kw">as</span> <span class="ident">u64</span>
+            }
+        );
+
+        <span class="prelude-val">Ok</span>(<span class="ident">EnvelopeContext::new</span>(<span class="ident">envelope</span>, <span class="ident">permit</span>))
+    }
 }
 
 <span class="doccomment">/// Error created while handling [`SendEnvelope`].</span>
@@ -915,7 +1006,7 @@
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EnvelopeManager</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">active_envelopes</span>: <span class="ident">u32</span>,
+    <span class="ident">buffer_guard</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;</span>,
     <span class="ident">captures</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">EventId</span>, <span class="ident">CapturedEnvelope</span><span class="op">&gt;</span>,
     <span class="ident">processor</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeProcessor</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -928,6 +1019,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(
         <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
         <span class="ident">processor</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeProcessor</span><span class="op">&gt;</span>,
+        <span class="ident">buffer_guard</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="comment">// Enter the tokio runtime so we can start spawning tasks from the outside.</span>
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -950,7 +1042,7 @@
 
         <span class="prelude-val">Ok</span>(<span class="ident">EnvelopeManager</span> {
             <span class="ident">config</span>,
-            <span class="ident">active_envelopes</span>: <span class="number">0</span>,
+            <span class="ident">buffer_guard</span>,
             <span class="ident">captures</span>: <span class="ident">BTreeMap::new</span>(),
             <span class="ident">processor</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -1102,26 +1194,12 @@
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>, <span class="ident">QueueEnvelopeError</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">QueueEnvelope</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-        <span class="macro">metric!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms::EnvelopeQueueSize</span>) <span class="op">=</span> <span class="ident">u64::from</span>(<span class="self">self</span>.<span class="ident">active_envelopes</span>));
-
-        <span class="macro">metric!</span>(
-            <span class="ident">histogram</span>(<span class="ident">RelayHistograms::EnvelopeQueueSizePct</span>) <span class="op">=</span> {
-                <span class="kw">let</span> <span class="ident">queue_size_pct</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">active_envelopes</span> <span class="kw">as</span> <span class="ident">f32</span> <span class="op">*</span> <span class="number">100.0</span>
-                    <span class="op">/</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">envelope_buffer_size</span>() <span class="kw">as</span> <span class="ident">f32</span>;
-                <span class="ident">queue_size_pct</span>.<span class="ident">floor</span>() <span class="kw">as</span> <span class="ident">u64</span>
-            }
-        );
-
         <span class="kw">let</span> <span class="ident">QueueEnvelope</span> {
             <span class="kw-2">mut</span> <span class="ident">envelope</span>,
             <span class="kw-2">mut</span> <span class="ident">envelope_context</span>,
             <span class="ident">project_key</span>,
             <span class="ident">start_time</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
-
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">envelope_buffer_size</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">active_envelopes</span> {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">QueueEnvelopeError::TooManyEnvelopes</span>);
-        }
 
         <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
 
@@ -1150,10 +1228,10 @@
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;queueing separate envelope for non-event items&quot;</span>);
 
             <span class="comment">// The envelope has been split, so we need to fork the context.</span>
+            <span class="kw">let</span> <span class="ident">event_context</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">buffer_guard</span>.<span class="ident">enter</span>(<span class="kw-2">&amp;</span><span class="ident">event_envelope</span>)<span class="question-mark">?</span>;
+            <span class="comment">// Update the old context after successful forking.</span>
             <span class="ident">envelope_context</span>.<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
-            <span class="kw">let</span> <span class="ident">event_context</span> <span class="op">=</span> <span class="ident">EnvelopeContext::from_envelope</span>(<span class="kw-2">&amp;</span><span class="ident">event_envelope</span>);
 
-            <span class="self">self</span>.<span class="ident">active_envelopes</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
             <span class="ident">context</span>.<span class="ident">notify</span>(<span class="ident">HandleEnvelope</span> {
                 <span class="ident">envelope</span>: <span class="ident">event_envelope</span>,
                 <span class="ident">envelope_context</span>: <span class="ident">event_context</span>,
@@ -1167,7 +1245,6 @@
             <span class="ident">envelope_context</span>.<span class="ident">accept</span>();
         } <span class="kw">else</span> {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;queueing envelope&quot;</span>);
-            <span class="self">self</span>.<span class="ident">active_envelopes</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
             <span class="ident">context</span>.<span class="ident">notify</span>(<span class="ident">HandleEnvelope</span> {
                 <span class="ident">envelope</span>,
                 <span class="ident">envelope_context</span>,
@@ -1382,10 +1459,6 @@
                     <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropped envelope: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
                 }
             })
-            .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">x</span>, <span class="ident">slf</span>, <span class="kw">_</span><span class="op">|</span> {
-                <span class="ident">slf</span>.<span class="ident">active_envelopes</span> <span class="op">-</span><span class="op">=</span> <span class="number">1</span>;
-                <span class="ident">fut::result</span>(<span class="ident">x</span>)
-            })
             .<span class="ident">drop_guard</span>(<span class="string">&quot;process_envelope&quot;</span>);
 
         <span class="ident">Box::new</span>(<span class="ident">future</span>)
@@ -1520,5 +1593,5 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.62.1 (e092d0b6b 2022-07-16)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>
 </body></html>
