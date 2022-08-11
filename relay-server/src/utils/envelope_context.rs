@@ -1,11 +1,10 @@
 //! Envelope context type and helpers to ensure outcomes.
 
 use std::net;
+use std::time::Instant;
 
-use actix::prelude::dev::ToEnvelope;
-use actix::prelude::*;
+use actix::SystemService;
 use chrono::{DateTime, Utc};
-use futures01::prelude::*;
 
 use relay_common::DataCategory;
 use relay_general::protocol::EventId;
@@ -14,41 +13,36 @@ use relay_quotas::Scoping;
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::envelope::Envelope;
-use crate::extractors::RequestMeta;
+use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::EnvelopeSummary;
 
 /// Contains the required envelope related information to create an outcome.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct EnvelopeContext {
     summary: EnvelopeSummary,
+    start_time: Instant,
     received_at: DateTime<Utc>,
     event_id: Option<EventId>,
     remote_addr: Option<net::IpAddr>,
     scoping: Scoping,
+    done: bool,
 }
 
 impl EnvelopeContext {
-    /// Creates an envelope context from the given request meta data.
-    ///
-    /// This context contains partial scoping and no envelope summary. There will be no outcomes
-    /// logged without updating this context.
-    pub fn from_request(meta: &RequestMeta) -> Self {
-        Self {
-            summary: EnvelopeSummary::empty(),
-            received_at: relay_common::instant_to_date_time(meta.start_time()),
-            event_id: None,
-            remote_addr: meta.client_addr(),
-            scoping: meta.get_partial_scoping(),
-        }
-    }
-
     /// Computes an envelope context from the given envelope.
     ///
     /// To provide additional scoping, use [`EnvelopeContext::scope`].
     pub fn from_envelope(envelope: &Envelope) -> Self {
-        let mut context = Self::from_request(envelope.meta());
-        context.update(envelope);
-        context
+        let meta = &envelope.meta();
+        Self {
+            summary: EnvelopeSummary::compute(envelope),
+            start_time: meta.start_time(),
+            received_at: relay_common::instant_to_date_time(meta.start_time()),
+            event_id: envelope.event_id(),
+            remote_addr: meta.client_addr(),
+            scoping: meta.get_partial_scoping(),
+            done: false,
+        }
     }
 
     /// Update the context with new envelope information.
@@ -66,10 +60,44 @@ impl EnvelopeContext {
         self
     }
 
-    /// Records outcomes for all items stored in this context.
+    /// Records an outcome scoped to this envelope's context.
+    ///
+    /// This envelope context should be updated using [`update`](Self::update) soon after this
+    /// operation to ensure that subsequent outcomes are consistent.
+    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
+        let outcome_aggregator = OutcomeAggregator::from_registry();
+        outcome_aggregator.do_send(TrackOutcome {
+            timestamp: self.received_at,
+            scoping: self.scoping,
+            outcome,
+            event_id: self.event_id,
+            remote_addr: self.remote_addr,
+            category,
+            // Quantities are usually `usize` which lets us go all the way to 64-bit on our
+            // machines, but the protocol and data store can only do 32-bit.
+            quantity: quantity as u32,
+        });
+    }
+
+    /// Accepts the envelope and drops the context.
+    ///
+    /// This should be called if the envelope has been accepted by the upstream, which means that
+    /// the responsibility for logging outcomes has been moved. This function will not log any
+    /// outcomes.
+    pub fn accept(mut self) {
+        if !self.done {
+            self.finish(RelayCounters::EnvelopeAccepted);
+        }
+    }
+
+    /// Records rejection outcomes for all items stored in this context.
     ///
     /// This does not send outcomes for empty envelopes or request-only contexts.
-    pub fn send_outcomes(&self, outcome: Outcome) {
+    pub fn reject(&mut self, outcome: Outcome) {
+        if self.done {
+            return;
+        }
+
         if let Some(category) = self.summary.event_category {
             self.track_outcome(outcome.clone(), category, 1);
         }
@@ -89,22 +117,8 @@ impl EnvelopeContext {
                 self.summary.profile_quantity,
             );
         }
-    }
 
-    /// Records an outcome scoped to this envelope's context.
-    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
-        let outcome_aggregator = OutcomeAggregator::from_registry();
-        outcome_aggregator.do_send(TrackOutcome {
-            timestamp: self.received_at,
-            scoping: self.scoping,
-            outcome,
-            event_id: self.event_id,
-            remote_addr: self.remote_addr,
-            category,
-            // Quantities are usually `usize` which lets us go all the way to 64-bit on our
-            // machines, but the protocol and data store can only do 32-bit.
-            quantity: quantity as u32,
-        });
+        self.finish(RelayCounters::EnvelopeRejected);
     }
 
     /// Returns scoping stored in this context.
@@ -112,59 +126,30 @@ impl EnvelopeContext {
         self.scoping
     }
 
-    /// Returns the event id of this context, if any.
-    pub fn event_id(&self) -> Option<EventId> {
-        self.event_id
+    /// Returns the instant at which the envelope was received at this Relay.
+    ///
+    /// This is the monotonic time equivalent to [`received_at`](Self::received_at).
+    pub fn start_time(&self) -> Instant {
+        self.start_time
     }
 
     /// Returns the time at which the envelope was received at this Relay.
+    ///
+    /// This is the date time equivalent to [`start_time`](Self::start_time).
     pub fn received_at(&self) -> DateTime<Utc> {
         self.received_at
     }
+
+    /// Resets inner state to ensure there's no more logging.
+    fn finish(&mut self, counter: RelayCounters) {
+        relay_statsd::metric!(counter(counter) += 1);
+        relay_statsd::metric!(timer(RelayTimers::EnvelopeTotalTime) = self.start_time.elapsed());
+        self.done = true;
+    }
 }
 
-/// Extension trait for [`Addr`] to log [`Outcome`] for failed messages.
-pub trait SendWithOutcome<A> {
-    /// Sends an asynchronous message to the actor, tracking outcomes on failure.
-    ///
-    /// Communication channel to the actor is bounded. If the returned `Future` object get dropped,
-    /// the message cancels.
-    ///
-    /// If the actor rejects the message, an `Invalid` outcome with internal reason is logged. Any
-    /// error within the message result is not tracked by this function.
-    fn send_tracked<M>(
-        &self,
-        message: M,
-        envelope_context: EnvelopeContext,
-    ) -> ResponseFuture<M::Result, MailboxError>
-    where
-        M: Message,
-        A: Handler<M>,
-        A::Context: ToEnvelope<A, M>,
-        M: Message + Send + 'static,
-        M::Result: Send;
-}
-
-impl<A> SendWithOutcome<A> for Addr<A>
-where
-    A: Actor,
-{
-    fn send_tracked<M>(
-        &self,
-        message: M,
-        envelope_context: EnvelopeContext,
-    ) -> ResponseFuture<M::Result, MailboxError>
-    where
-        A: Handler<M>,
-        A::Context: ToEnvelope<A, M>,
-        M: Message + Send + 'static,
-        M::Result: Send,
-    {
-        let future = self.send(message).map_err(move |mailbox_error| {
-            envelope_context.send_outcomes(Outcome::Invalid(DiscardReason::Internal));
-            mailbox_error
-        });
-
-        Box::new(future)
+impl Drop for EnvelopeContext {
+    fn drop(&mut self) {
+        self.reject(Outcome::Invalid(DiscardReason::Internal));
     }
 }

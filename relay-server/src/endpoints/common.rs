@@ -25,9 +25,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 use crate::statsd::RelayCounters;
-use crate::utils::{
-    self, ApiErrorResponse, EnvelopeContext, FormDataIter, MultipartError, SendWithOutcome,
-};
+use crate::utils::{self, ApiErrorResponse, EnvelopeContext, FormDataIter, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -80,49 +78,6 @@ pub enum BadStoreRequest {
 
     #[fail(display = "event submission rejected with_reason: {:?}", _0)]
     EventRejected(DiscardReason),
-}
-
-impl BadStoreRequest {
-    fn to_outcome(&self) -> Option<Outcome> {
-        Some(match self {
-            BadStoreRequest::UnsupportedProtocolVersion(_) => {
-                Outcome::Invalid(DiscardReason::AuthVersion)
-            }
-
-            BadStoreRequest::EmptyBody => Outcome::Invalid(DiscardReason::NoData),
-            BadStoreRequest::EmptyEnvelope => Outcome::Invalid(DiscardReason::EmptyEnvelope),
-            BadStoreRequest::InvalidJson(_) => Outcome::Invalid(DiscardReason::InvalidJson),
-            BadStoreRequest::InvalidMsgpack(_) => Outcome::Invalid(DiscardReason::InvalidMsgpack),
-            BadStoreRequest::InvalidMultipart(_) => {
-                Outcome::Invalid(DiscardReason::InvalidMultipart)
-            }
-            BadStoreRequest::InvalidMinidump => Outcome::Invalid(DiscardReason::InvalidMinidump),
-            BadStoreRequest::MissingMinidump => {
-                Outcome::Invalid(DiscardReason::MissingMinidumpUpload)
-            }
-            BadStoreRequest::InvalidEnvelope(_) => Outcome::Invalid(DiscardReason::InvalidEnvelope),
-
-            BadStoreRequest::QueueFailed(event_error) => match event_error {
-                QueueEnvelopeError::TooManyEnvelopes => Outcome::Invalid(DiscardReason::Internal),
-            },
-            BadStoreRequest::ProjectFailed(project_error) => match project_error {
-                ProjectError::FetchFailed => Outcome::Invalid(DiscardReason::ProjectState),
-                _ => Outcome::Invalid(DiscardReason::Internal),
-            },
-            BadStoreRequest::PayloadError(payload_error) => match payload_error {
-                PayloadError::Overflow => Outcome::Invalid(DiscardReason::TooLarge),
-                _ => Outcome::Invalid(DiscardReason::Payload),
-            },
-
-            // should actually never create an outcome
-            BadStoreRequest::InvalidEventId => Outcome::Invalid(DiscardReason::Internal),
-
-            // Outcomes emitted at the source
-            BadStoreRequest::EventRejected(_) => return None,
-            BadStoreRequest::RateLimited(_) => return None,
-            BadStoreRequest::ScheduleFailed => return None,
-        })
-    }
 }
 
 impl ResponseError for BadStoreRequest {
@@ -344,85 +299,65 @@ where
     let project_key = meta.public_key();
     let start_time = meta.start_time();
     let config = request.state().config();
-
-    let envelope_context = Rc::new(RefCell::new(EnvelopeContext::from_request(&meta)));
+    let event_id = Rc::new(RefCell::new(None));
 
     let future = extract_envelope(&request, meta)
         .into_future()
-        .and_then(clone!(config, envelope_context, |mut envelope| {
-            envelope_context.borrow_mut().update(&envelope);
+        .and_then(clone!(config, event_id, |mut envelope| {
+            *event_id.borrow_mut() = envelope.event_id();
 
             // If configured, remove unknown items at the very beginning. If the envelope is
             // empty, we fail the request with a special control flow error to skip checks and
             // queueing, that still results in a `200 OK` response.
             utils::remove_unknown_items(&config, &mut envelope);
 
+            let mut envelope_context = EnvelopeContext::from_envelope(&envelope);
             if envelope.is_empty() {
-                // envelope is empty, cannot send outcomes
+                envelope_context.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
                 Err(BadStoreRequest::EmptyEnvelope)
             } else {
-                Ok(envelope)
+                Ok((envelope, envelope_context))
             }
         }))
-        .and_then(clone!(envelope_context, |envelope| {
+        .and_then(move |(envelope, envelope_context)| {
             ProjectCache::from_registry()
-                .send_tracked(
-                    CheckEnvelope::cached(project_key, envelope),
-                    *envelope_context.clone().borrow(),
-                )
+                .send(CheckEnvelope::cached(
+                    project_key,
+                    envelope,
+                    envelope_context,
+                ))
                 .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
-                .map_err(move |err| {
-                    if let Some(outcome) = err.to_outcome() {
-                        envelope_context.borrow().send_outcomes(outcome);
-                    }
-                    err
-                })
-        }))
-        .and_then(clone!(envelope_context, |response| {
-            let mut envelope_context = envelope_context.borrow_mut();
-            envelope_context.scope(response.scoping);
-
-            let checked = response.result.map_err(|reason| {
-                envelope_context.send_outcomes(Outcome::Invalid(reason));
-                BadStoreRequest::EventRejected(reason)
-            })?;
-
+        })
+        .and_then(move |response| {
             // Skip over queuing and issue a rate limit right away
-            let envelope = match checked.envelope {
-                Some(envelope) => envelope,
-                // rate limit outcome logged by CheckEnvelope already
+            let checked = response.result.map_err(BadStoreRequest::EventRejected)?;
+            let (envelope, mut envelope_context) = match checked.envelope {
+                Some(tuple) => tuple,
                 None => return Err(BadStoreRequest::RateLimited(checked.rate_limits)),
             };
 
-            envelope_context.update(&envelope);
             if utils::check_envelope_size_limits(&config, &envelope) {
-                Ok((envelope, checked.rate_limits))
+                Ok((envelope, envelope_context, checked.rate_limits))
             } else {
-                envelope_context.send_outcomes(Outcome::Invalid(DiscardReason::TooLarge));
+                envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
                 Err(BadStoreRequest::PayloadError(PayloadError::Overflow))
             }
-        }))
-        .and_then(clone!(envelope_context, |(envelope, rate_limits)| {
+        })
+        .and_then(move |(envelope, envelope_context, rate_limits)| {
             let message = QueueEnvelope {
                 envelope,
+                envelope_context,
                 project_key,
                 start_time,
             };
 
             EnvelopeManager::from_registry()
-                .send_tracked(message, *envelope_context.clone().borrow())
+                .send(message)
                 .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::QueueFailed))
-                .map_err(move |err| {
-                    if let Some(outcome) = err.to_outcome() {
-                        // TODO: Move this into Handler<QueueEnvelope>
-                        envelope_context.borrow().send_outcomes(outcome)
-                    }
-                    err
-                })
                 .map(move |event_id| (event_id, rate_limits))
-        }))
+        })
         .and_then(move |(event_id, rate_limits)| {
             if rate_limits.is_limited() {
                 Err(BadStoreRequest::RateLimited(rate_limits))
@@ -432,7 +367,7 @@ where
         })
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
-            let event_id = envelope_context.borrow().event_id();
+            let event_id = *event_id.borrow();
 
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
                 return Ok(create_response(event_id));
