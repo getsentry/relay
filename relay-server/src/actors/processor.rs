@@ -1810,6 +1810,18 @@ impl EnvelopeProcessor {
 
             if_processing!({
                 self.store_process_event(state)?;
+
+                // Run filter_event again to see if there's anything missing from light normalization.
+                // To stay consistent with metrics, this does not drop anything, but only logs an
+                // error.
+                self.filter_event(state)
+                    .map_err(|e| {
+                        relay_log::configure_scope(|scope| {
+                            scope.set_tag("reason", format!("{}", e))
+                        });
+                        relay_log::error!("Event not filtered");
+                    })
+                    .ok();
             });
         }
 
