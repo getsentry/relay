@@ -1,7 +1,9 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-/// TODO(ja): Doc
+/// RAII guard for reserved resources in a [`Semaphore`].
+///
+/// Returned by [`Semaphore::try_acquire`].
 #[must_use]
 #[derive(Debug)]
 pub struct SemaphorePermit {
