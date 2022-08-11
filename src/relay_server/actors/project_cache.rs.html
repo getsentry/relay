@@ -612,6 +612,9 @@
 <span id="605">605</span>
 <span id="606">606</span>
 <span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
@@ -635,7 +638,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_upstream::UpstreamProjectSource</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">Response</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">Response</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">use</span> {<span class="ident"><span class="kw">crate</span>::actors::project_redis::RedisProjectSource</span>, <span class="ident">relay_common::clone</span>};
@@ -996,24 +999,27 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CheckEnvelope</span> {
     <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
     <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
+    <span class="ident">context</span>: <span class="ident">EnvelopeContext</span>,
     <span class="ident">fetch</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">CheckEnvelope</span> {
     <span class="doccomment">/// Fetches the project state and checks the envelope.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fetched</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">envelope</span>: <span class="ident">Envelope</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fetched</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">envelope</span>: <span class="ident">Envelope</span>, <span class="ident">context</span>: <span class="ident">EnvelopeContext</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">project_key</span>,
             <span class="ident">envelope</span>,
+            <span class="ident">context</span>,
             <span class="ident">fetch</span>: <span class="bool-val">true</span>,
         }
     }
 
     <span class="doccomment">/// Uses a cached project state and checks the envelope.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cached</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">envelope</span>: <span class="ident">Envelope</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cached</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">envelope</span>: <span class="ident">Envelope</span>, <span class="ident">context</span>: <span class="ident">EnvelopeContext</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">project_key</span>,
             <span class="ident">envelope</span>,
+            <span class="ident">context</span>,
             <span class="ident">fetch</span>: <span class="bool-val">false</span>,
         }
     }
@@ -1025,7 +1031,7 @@
 <span class="doccomment">/// from the envelope, `None` is returned in place of the envelope.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CheckedEnvelope</span> {
-    <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Envelope</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Envelope</span>, <span class="ident">EnvelopeContext</span>)<span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>,
 }
 
@@ -1055,7 +1061,7 @@
                     <span class="comment">// TODO RaduW can we do better that this ????</span>
                     <span class="comment">// (need to retrieve project again to get around borrowing problems)</span>
                     <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
-                    <span class="ident">project</span>.<span class="ident">check_envelope</span>(<span class="ident">message</span>.<span class="ident">envelope</span>)
+                    <span class="ident">project</span>.<span class="ident">check_envelope</span>(<span class="ident">message</span>.<span class="ident">envelope</span>, <span class="ident">message</span>.<span class="ident">context</span>)
                 })
         } <span class="kw">else</span> {
             <span class="comment">// Preload the project cache so that it arrives a little earlier in processing. However,</span>
@@ -1065,7 +1071,7 @@
 
             <span class="comment">// message.fetch == false: Fetching must not block the store request. The</span>
             <span class="comment">// EnvelopeManager will later fetch the project state.</span>
-            <span class="ident">ActorResponse::ok</span>(<span class="ident">project</span>.<span class="ident">check_envelope</span>(<span class="ident">message</span>.<span class="ident">envelope</span>))
+            <span class="ident">ActorResponse::ok</span>(<span class="ident">project</span>.<span class="ident">check_envelope</span>(<span class="ident">message</span>.<span class="ident">envelope</span>, <span class="ident">message</span>.<span class="ident">context</span>))
         }
     }
 }
