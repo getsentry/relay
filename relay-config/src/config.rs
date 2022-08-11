@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::convert::TryInto;
 use std::env;
 use std::fmt;
 use std::fs;
@@ -1785,8 +1786,12 @@ impl Config {
     }
 
     /// Returns the maximum number of buffered envelopes
-    pub fn envelope_buffer_size(&self) -> u32 {
-        self.values.cache.envelope_buffer_size
+    pub fn envelope_buffer_size(&self) -> usize {
+        self.values
+            .cache
+            .envelope_buffer_size
+            .try_into()
+            .unwrap_or(usize::MAX)
     }
 
     /// Returns the expiry timeout for cached misses before trying to refetch.

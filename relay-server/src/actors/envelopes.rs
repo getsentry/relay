@@ -31,7 +31,7 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
 use crate::statsd::{RelayHistograms, RelaySets};
-use crate::utils::{self, EnvelopeContext, FutureExt as _};
+use crate::utils::{self, EnvelopeContext, FutureExt as _, Semaphore};
 
 #[cfg(feature = "processing")]
 use {
@@ -44,6 +44,60 @@ use {
 pub enum QueueEnvelopeError {
     #[fail(display = "Too many envelopes (event_buffer_size reached)")]
     TooManyEnvelopes,
+}
+
+/// Access control for envelope processing.
+///
+/// The buffer guard is basically a semaphore that ensures the buffer does not outgrow the maximum
+/// number of envelopes configured through [`Config::envelope_buffer_size`]. To enter a new envelope
+/// into the processing pipeline, use [`BufferGuard::enter`].
+#[derive(Debug)]
+pub struct BufferGuard {
+    inner: Semaphore,
+    capacity: usize,
+}
+
+impl BufferGuard {
+    /// Creates a new `BufferGuard` based on config values.
+    pub fn new(capacity: usize) -> Self {
+        let inner = Semaphore::new(capacity);
+        Self { inner, capacity }
+    }
+
+    /// Returns the unused capacity of the pipeline.
+    pub fn available(&self) -> usize {
+        self.inner.available()
+    }
+
+    /// Returns the number of envelopes in the pipeline.
+    pub fn used(&self) -> usize {
+        self.capacity.saturating_sub(self.available())
+    }
+
+    /// Reserves resources for processing an envelope in Relay.
+    ///
+    /// Returns `Ok(EnvelopeContext)` on success, which internally holds a handle to the reserved
+    /// resources. When the envelope context is dropped, the slot is automatically reclaimed and can
+    /// be reused by a subsequent call to `enter`.
+    ///
+    /// If the buffer is full, this function returns `Err`.
+    pub fn enter(&self, envelope: &Envelope) -> Result<EnvelopeContext, QueueEnvelopeError> {
+        let permit = self
+            .inner
+            .try_acquire()
+            .ok_or(QueueEnvelopeError::TooManyEnvelopes)?;
+
+        metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
+
+        metric!(
+            histogram(RelayHistograms::EnvelopeQueueSizePct) = {
+                let queue_size_pct = self.used() as f64 * 100.0 / self.capacity as f64;
+                queue_size_pct.floor() as u64
+            }
+        );
+
+        Ok(EnvelopeContext::new(envelope, permit))
+    }
 }
 
 /// Error created while handling [`SendEnvelope`].
@@ -151,7 +205,7 @@ impl UpstreamRequest for SendEnvelope {
 
 pub struct EnvelopeManager {
     config: Arc<Config>,
-    active_envelopes: u32,
+    buffer_guard: Arc<BufferGuard>,
     captures: BTreeMap<EventId, CapturedEnvelope>,
     processor: Addr<EnvelopeProcessor>,
     #[cfg(feature = "processing")]
@@ -164,6 +218,7 @@ impl EnvelopeManager {
     pub fn create(
         config: Arc<Config>,
         processor: Addr<EnvelopeProcessor>,
+        buffer_guard: Arc<BufferGuard>,
     ) -> Result<Self, ServerError> {
         // Enter the tokio runtime so we can start spawning tasks from the outside.
         #[cfg(feature = "processing")]
@@ -186,7 +241,7 @@ impl EnvelopeManager {
 
         Ok(EnvelopeManager {
             config,
-            active_envelopes: 0,
+            buffer_guard,
             captures: BTreeMap::new(),
             processor,
             #[cfg(feature = "processing")]
@@ -338,26 +393,12 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
     type Result = Result<Option<EventId>, QueueEnvelopeError>;
 
     fn handle(&mut self, message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
-        metric!(histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.active_envelopes));
-
-        metric!(
-            histogram(RelayHistograms::EnvelopeQueueSizePct) = {
-                let queue_size_pct = self.active_envelopes as f32 * 100.0
-                    / self.config.envelope_buffer_size() as f32;
-                queue_size_pct.floor() as u64
-            }
-        );
-
         let QueueEnvelope {
             mut envelope,
             mut envelope_context,
             project_key,
             start_time,
         } = message;
-
-        if self.config.envelope_buffer_size() <= self.active_envelopes {
-            return Err(QueueEnvelopeError::TooManyEnvelopes);
-        }
 
         let event_id = envelope.event_id();
 
@@ -386,10 +427,10 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
             relay_log::trace!("queueing separate envelope for non-event items");
 
             // The envelope has been split, so we need to fork the context.
+            let event_context = self.buffer_guard.enter(&event_envelope)?;
+            // Update the old context after successful forking.
             envelope_context.update(&envelope);
-            let event_context = EnvelopeContext::from_envelope(&event_envelope);
 
-            self.active_envelopes += 1;
             context.notify(HandleEnvelope {
                 envelope: event_envelope,
                 envelope_context: event_context,
@@ -403,7 +444,6 @@ impl Handler<QueueEnvelope> for EnvelopeManager {
             envelope_context.accept();
         } else {
             relay_log::trace!("queueing envelope");
-            self.active_envelopes += 1;
             context.notify(HandleEnvelope {
                 envelope,
                 envelope_context,
@@ -617,10 +657,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 } else {
                     relay_log::debug!("dropped envelope: {}", LogError(&error));
                 }
-            })
-            .then(move |x, slf, _| {
-                slf.active_envelopes -= 1;
-                fut::result(x)
             })
             .drop_guard("process_envelope");
 

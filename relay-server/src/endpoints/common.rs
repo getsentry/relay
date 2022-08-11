@@ -25,7 +25,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ApiErrorResponse, EnvelopeContext, FormDataIter, MultipartError};
+use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -311,7 +311,12 @@ where
             // queueing, that still results in a `200 OK` response.
             utils::remove_unknown_items(&config, &mut envelope);
 
-            let mut envelope_context = EnvelopeContext::from_envelope(&envelope);
+            let mut envelope_context = request
+                .state()
+                .buffer_guard()
+                .enter(&envelope)
+                .map_err(BadStoreRequest::QueueFailed)?;
+
             if envelope.is_empty() {
                 envelope_context.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
                 Err(BadStoreRequest::EmptyEnvelope)
