@@ -16,7 +16,21 @@ use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
 
-/// Contains the required envelope related information to create an outcome.
+/// Tracks the lifetime of an [`Envelope`] in Relay.
+///
+/// The envelope context accompanies envelopes through the processing pipeline in Relay and ensures
+/// that outcomes are recorded when the Envelope is dropped. They can be dropped in one of three
+/// ways:
+///
+///  - By calling [`accept`](Self::accept). Responsibility of the envelope has been transferred to
+///    another service, and no further outcomes need to be recorded.
+///  - By calling [`reject`](Self::reject). The entire envelope was dropped, and the outcome
+///    specifies the reason.
+///  - By dropping the envelope context. This indicates an issue or a bug and raises the
+///    `"internal"` outcome. There should be additional error handling to report an error to Sentry.
+///
+/// The envelope context also holds a processing queue permit which is used for backpressure
+/// management. It is automatically reclaimed when the context is dropped along with the envelope.
 #[derive(Debug)]
 pub struct EnvelopeContext {
     summary: EnvelopeSummary,
@@ -45,13 +59,16 @@ impl EnvelopeContext {
         }
     }
 
-    /// TODO(ja): Describe
+    /// Creates a standalone `EnvelopeContext` for testing purposes.
+    ///
+    /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
+    /// suitable for unit testing internals of the processing pipeline.
     #[cfg(test)]
     pub fn standalone(envelope: &Envelope) -> Self {
         Self::new_internal(envelope, None)
     }
 
-    /// TODO(ja): Describe
+    /// Computes an envelope context from the given envelope and binds it to the processing queue.
     ///
     /// To provide additional scoping, use [`EnvelopeContext::scope`].
     pub fn new(envelope: &Envelope, slot: SemaphorePermit) -> Self {

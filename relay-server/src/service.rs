@@ -147,7 +147,7 @@ impl ServiceState {
             _ => None,
         };
 
-        let buffer = Arc::new(BufferGuard::new(&config));
+        let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
         let envelope_manager = EnvelopeManager::create(config.clone(), processor, buffer.clone())?;
         registry.set(Arbiter::start(|_| envelope_manager));
@@ -180,7 +180,10 @@ impl ServiceState {
         self.config.clone()
     }
 
-    /// TODO(ja): Doc
+    /// Returns a reference to the guard of the envelope buffer.
+    ///
+    /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
+    /// buffer. See [`BufferGuard`] for more information.
     pub fn buffer_guard(&self) -> &BufferGuard {
         &self.buffer_guard
     }

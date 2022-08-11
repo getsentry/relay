@@ -46,43 +46,52 @@ pub enum QueueEnvelopeError {
     TooManyEnvelopes,
 }
 
-/// TODO(ja): Doc
+/// Access control for envelope processing.
+///
+/// The buffer guard is basically a semaphore that ensures the buffer does not outgrow the maximum
+/// number of envelopes configured through [`Config::envelope_buffer_size`]. To enter a new envelope
+/// into the processing pipeline, use [`BufferGuard::enter`].
 #[derive(Debug)]
 pub struct BufferGuard {
     inner: Semaphore,
-    total: usize,
+    capacity: usize,
 }
 
 impl BufferGuard {
-    /// TODO(ja): Doc
-    pub fn new(config: &Config) -> Self {
-        let total = config.envelope_buffer_size();
-        let inner = Semaphore::new(total);
-        Self { inner, total }
+    /// Creates a new `BufferGuard` based on config values.
+    pub fn new(capacity: usize) -> Self {
+        let inner = Semaphore::new(capacity);
+        Self { inner, capacity }
     }
 
-    /// TODO(ja): Doc
-    pub fn capacity(&self) -> usize {
-        self.inner.capacity()
+    /// Returns the unused capacity of the pipeline.
+    pub fn available(&self) -> usize {
+        self.inner.available()
     }
 
-    /// TODO(ja): Doc
-    pub fn utilization(&self) -> usize {
-        self.total.saturating_sub(self.capacity())
+    /// Returns the number of envelopes in the pipeline.
+    pub fn used(&self) -> usize {
+        self.capacity.saturating_sub(self.available())
     }
 
-    /// TODO(ja): Doc
+    /// Reserves resources for processing an envelope in Relay.
+    ///
+    /// Returns `Ok(EnvelopeContext)` on success, which internally holds a handle to the reserved
+    /// resources. When the envelope context is dropped, the slot is automatically reclaimed and can
+    /// be reused by a subsequent call to `enter`.
+    ///
+    /// If the buffer is full, this function returns `Err`.
     pub fn enter(&self, envelope: &Envelope) -> Result<EnvelopeContext, QueueEnvelopeError> {
         let permit = self
             .inner
             .try_acquire()
             .ok_or(QueueEnvelopeError::TooManyEnvelopes)?;
 
-        metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.utilization() as u64);
+        metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
 
         metric!(
             histogram(RelayHistograms::EnvelopeQueueSizePct) = {
-                let queue_size_pct = self.utilization() as f64 * 100.0 / self.total as f64;
+                let queue_size_pct = self.used() as f64 * 100.0 / self.capacity as f64;
                 queue_size_pct.floor() as u64
             }
         );
