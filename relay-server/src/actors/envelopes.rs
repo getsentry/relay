@@ -7,7 +7,7 @@ use std::time::Instant;
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::Utc;
-use failure::Fail;
+use failure::{AsFail, Fail};
 use futures01::{future, prelude::*, sync::oneshot};
 
 use relay_common::ProjectKey;
@@ -203,6 +203,7 @@ impl EnvelopeManager {
         mut envelope: Envelope,
         scoping: Scoping,
         #[allow(unused_variables)] start_time: Instant,
+        context: &mut <Self as Actor>::Context,
     ) -> ResponseFuture<(), SendEnvelopeError> {
         #[cfg(feature = "processing")]
         {
@@ -228,16 +229,8 @@ impl EnvelopeManager {
         }
 
         // if we are in capture mode, we stash away the event instead of forwarding it.
-        if self.config.relay_mode() == RelayMode::Capture {
-            // XXX: this is wrong because captured_events does not take envelopes without
-            // event_id into account.
-            if let Some(event_id) = envelope.event_id() {
-                relay_log::debug!("capturing envelope");
-                self.captures.insert(event_id, Ok(envelope));
-            } else {
-                relay_log::debug!("dropping non event envelope");
-            }
-
+        if Capture::should_capture(&self.config) {
+            context.notify(Capture::accepted(envelope));
             return Box::new(future::ok(()));
         }
 
@@ -463,7 +456,6 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
         //    the total time an envelope spent in this Relay, corrected by incoming network delays.
 
         let processor = self.processor.clone();
-        let capture = self.config.relay_mode() == RelayMode::Capture;
 
         let HandleEnvelope {
             envelope,
@@ -544,9 +536,9 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                 processed.envelope.ok_or(ProcessingError::RateLimited)
             })
             .into_actor(self)
-            .and_then(move |(envelope, mut envelope_context), slf, _| {
+            .and_then(move |(envelope, mut envelope_context), slf, ctx| {
                 let scoping = envelope_context.scoping();
-                slf.send_envelope(project_key, envelope, scoping, start_time)
+                slf.send_envelope(project_key, envelope, scoping, start_time, ctx)
                     .then(move |result| match result {
                         Ok(_) => {
                             envelope_context.accept();
@@ -592,17 +584,9 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
                     })
                     .into_actor(slf)
             })
-            .map_err(move |error, slf, _| {
-                // if we are in capture mode, we stash away the event instead of forwarding it.
-                if capture {
-                    // XXX: does not work with envelopes without event_id
-                    if let Some(event_id) = event_id {
-                        relay_log::debug!("capturing failed event {}", event_id);
-                        let msg = LogError(&error).to_string();
-                        slf.captures.insert(event_id, Err(msg));
-                    } else {
-                        relay_log::debug!("dropping failed envelope without event");
-                    }
+            .map_err(move |error, slf, context| {
+                if Capture::should_capture(&slf.config) {
+                    context.notify(Capture::rejected(event_id, &error));
                 }
 
                 let outcome = error.to_outcome();
@@ -658,7 +642,7 @@ impl Message for SendMetrics {
 impl Handler<SendMetrics> for EnvelopeManager {
     type Result = ResponseFuture<(), Vec<Bucket>>;
 
-    fn handle(&mut self, message: SendMetrics, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: SendMetrics, context: &mut Self::Context) -> Self::Result {
         let SendMetrics {
             buckets,
             scoping,
@@ -681,7 +665,7 @@ impl Handler<SendMetrics> for EnvelopeManager {
         envelope.add_item(item);
 
         let future = self
-            .send_envelope(project_key, envelope, scoping, Instant::now())
+            .send_envelope(project_key, envelope, scoping, Instant::now(), context)
             .map_err(|_| buckets);
 
         Box::new(future)
@@ -703,7 +687,7 @@ impl Message for SendClientReports {
 impl Handler<SendClientReports> for EnvelopeManager {
     type Result = ResponseFuture<(), ()>;
 
-    fn handle(&mut self, message: SendClientReports, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: SendClientReports, ctx: &mut Self::Context) -> Self::Result {
         let SendClientReports {
             client_reports,
             scoping,
@@ -726,7 +710,7 @@ impl Handler<SendClientReports> for EnvelopeManager {
             envelope.add_item(item);
         }
         let future = self
-            .send_envelope(scoping.project_key, envelope, scoping, Instant::now())
+            .send_envelope(scoping.project_key, envelope, scoping, Instant::now(), ctx)
             .map_err(|e| {
                 relay_log::trace!("Failed to send envelope for client report: {:?}", e);
             });
@@ -753,5 +737,67 @@ impl Handler<GetCapturedEnvelope> for EnvelopeManager {
         _context: &mut Self::Context,
     ) -> Self::Result {
         self.captures.get(&message.event_id).cloned()
+    }
+}
+
+/// Inserts an envelope or failure into internal captures.
+///
+/// Can be retrieved using [`GetCapturedEnvelope`]. Use [`Capture::should_capture`] to check whether
+/// the message should even be sent to reduce the overheads.
+pub struct Capture {
+    event_id: Option<EventId>,
+    capture: CapturedEnvelope,
+}
+
+impl Capture {
+    /// Returns `true` if Relay is in capture mode.
+    ///
+    /// The `Capture` message can still be sent and and will be ignored. This function is purely for
+    /// optimization purposes.
+    pub fn should_capture(config: &Config) -> bool {
+        matches!(config.relay_mode(), RelayMode::Capture)
+    }
+
+    /// Captures an accepted envelope.
+    pub fn accepted(envelope: Envelope) -> Self {
+        Self {
+            event_id: envelope.event_id(),
+            capture: Ok(envelope),
+        }
+    }
+
+    /// Captures the error that lead to envelope rejection.
+    pub fn rejected<E: AsFail + ?Sized>(event_id: Option<EventId>, error: &E) -> Self {
+        Self {
+            event_id,
+            capture: Err(LogError(error).to_string()),
+        }
+    }
+}
+
+impl Message for Capture {
+    type Result = ();
+}
+
+impl Handler<Capture> for EnvelopeManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: Capture, _ctx: &mut Self::Context) -> Self::Result {
+        if let RelayMode::Capture = self.config.relay_mode() {
+            match (msg.event_id, msg.capture) {
+                (Some(event_id), Ok(envelope)) => {
+                    relay_log::debug!("capturing envelope");
+                    self.captures.insert(event_id, Ok(envelope));
+                }
+                (Some(event_id), Err(message)) => {
+                    relay_log::debug!("capturing failed event {}", event_id);
+                    self.captures.insert(event_id, Err(message));
+                }
+
+                // XXX: does not work with envelopes without event_id
+                (None, Ok(_)) => relay_log::debug!("dropping non event envelope"),
+                (None, Err(_)) => relay_log::debug!("dropping failed envelope without event"),
+            }
+        }
     }
 }
