@@ -22,7 +22,7 @@ use crate::types::{
 /// be stripped liberally because it would break processing for certain platforms.
 ///
 /// Those strings get special treatment in our PII processor to avoid stripping the basename.
-#[derive(Debug, FromValue, IntoValue, Empty, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, FromValue, IntoValue, Empty, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NativeImagePath(pub String);
 

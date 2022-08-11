@@ -1,14 +1,14 @@
 use relay_common::{DataCategory, UnixTimestamp};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiscardedEvent {
     pub reason: String,
     pub category: DataCategory,
     pub quantity: u32,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClientReport {
     /// The timestamp of when the report was created.
     pub timestamp: Option<UnixTimestamp>,

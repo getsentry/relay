@@ -125,7 +125,7 @@ type Count = u32;
 ///
 /// Distributions serialize as sorted lists of floating point values. The list contains one entry
 /// for each value in the distribution, including duplicates.
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct DistributionValue {
     values: BTreeMap<FloatOrd<DistributionType>, Count>,
     length: Count,

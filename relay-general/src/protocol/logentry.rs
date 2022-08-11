@@ -63,7 +63,7 @@ impl From<String> for LogEntry {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(value_type = "Message", value_type = "String")]
 pub struct Message(String);

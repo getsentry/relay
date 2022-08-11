@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use crate::types::{Meta, Remark, RemarkType};
 
 /// A type for dealing with chunks of annotated text.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Chunk<'a> {
     /// Unmodified text chunk.

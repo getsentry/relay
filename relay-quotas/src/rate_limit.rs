@@ -135,7 +135,7 @@ impl RateLimitScope {
 }
 
 /// A bounded rate limit.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(serde::Serialize))]
 pub struct RateLimit {
     /// A set of data categories that this quota applies to. If missing or empty, this rate limit

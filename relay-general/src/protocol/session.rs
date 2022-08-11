@@ -63,7 +63,7 @@ derive_fromstr_and_display!(SessionStatus, ParseSessionStatusError, {
 });
 
 /// Additional attributes for Sessions.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionAttributes {
     /// The release version string.
     pub release: String,
@@ -212,7 +212,7 @@ fn is_zero(val: &u32) -> bool {
     *val == 0
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionAggregateItem {
     /// The timestamp of when the session itself started.
     pub started: DateTime<Utc>,
@@ -270,7 +270,7 @@ impl SessionLike for SessionAggregateItem {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionAggregates {
     /// A batch of sessions that were started.
     #[serde(default)]
