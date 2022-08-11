@@ -799,6 +799,52 @@
 <span id="791">791</span>
 <span id="792">792</span>
 <span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -808,7 +854,7 @@
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">actix_web::http::Method</span>;
 <span class="kw">use</span> <span class="ident">chrono::Utc</span>;
-<span class="kw">use</span> <span class="ident">failure::Fail</span>;
+<span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">AsFail</span>, <span class="ident">Fail</span>};
 <span class="kw">use</span> <span class="ident">futures01</span>::{<span class="ident">future</span>, <span class="ident">prelude</span>::<span class="kw-2">*</span>, <span class="ident">sync::oneshot</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common::ProjectKey</span>;
@@ -1059,6 +1105,7 @@
         <span class="kw-2">mut</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
         <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
         <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_variables</span>)]</span> <span class="ident">start_time</span>: <span class="ident">Instant</span>,
+        <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="op">&lt;</span><span class="self">Self</span> <span class="kw">as</span> <span class="ident">Actor</span><span class="op">&gt;</span><span class="ident">::Context</span>,
     ) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">SendEnvelopeError</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
         {
@@ -1084,16 +1131,8 @@
         }
 
         <span class="comment">// if we are in capture mode, we stash away the event instead of forwarding it.</span>
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode::Capture</span> {
-            <span class="comment">// XXX: this is wrong because captured_events does not take envelopes without</span>
-            <span class="comment">// event_id into account.</span>
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_id</span>) <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>() {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;capturing envelope&quot;</span>);
-                <span class="self">self</span>.<span class="ident">captures</span>.<span class="ident">insert</span>(<span class="ident">event_id</span>, <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>));
-            } <span class="kw">else</span> {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping non event envelope&quot;</span>);
-            }
-
+        <span class="kw">if</span> <span class="ident">Capture::should_capture</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>) {
+            <span class="ident">context</span>.<span class="ident">notify</span>(<span class="ident">Capture::accepted</span>(<span class="ident">envelope</span>));
             <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(()));
         }
 
@@ -1304,7 +1343,6 @@
         <span class="comment">//    the total time an envelope spent in this Relay, corrected by incoming network delays.</span>
 
         <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">processor</span>.<span class="ident">clone</span>();
-        <span class="kw">let</span> <span class="ident">capture</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() <span class="op">==</span> <span class="ident">RelayMode::Capture</span>;
 
         <span class="kw">let</span> <span class="ident">HandleEnvelope</span> {
             <span class="ident">envelope</span>,
@@ -1385,9 +1423,9 @@
                 <span class="ident">processed</span>.<span class="ident">envelope</span>.<span class="ident">ok_or</span>(<span class="ident">ProcessingError::RateLimited</span>)
             })
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
-            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">envelope</span>, <span class="kw-2">mut</span> <span class="ident">envelope_context</span>), <span class="ident">slf</span>, <span class="kw">_</span><span class="op">|</span> {
+            .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">envelope</span>, <span class="kw-2">mut</span> <span class="ident">envelope_context</span>), <span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">envelope_context</span>.<span class="ident">scoping</span>();
-                <span class="ident">slf</span>.<span class="ident">send_envelope</span>(<span class="ident">project_key</span>, <span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="ident">start_time</span>)
+                <span class="ident">slf</span>.<span class="ident">send_envelope</span>(<span class="ident">project_key</span>, <span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="ident">start_time</span>, <span class="ident">ctx</span>)
                     .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">result</span> {
                         <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
                             <span class="ident">envelope_context</span>.<span class="ident">accept</span>();
@@ -1433,17 +1471,9 @@
                     })
                     .<span class="ident">into_actor</span>(<span class="ident">slf</span>)
             })
-            .<span class="ident">map_err</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">error</span>, <span class="ident">slf</span>, <span class="kw">_</span><span class="op">|</span> {
-                <span class="comment">// if we are in capture mode, we stash away the event instead of forwarding it.</span>
-                <span class="kw">if</span> <span class="ident">capture</span> {
-                    <span class="comment">// XXX: does not work with envelopes without event_id</span>
-                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_id</span>) <span class="op">=</span> <span class="ident">event_id</span> {
-                        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;capturing failed event {}&quot;</span>, <span class="ident">event_id</span>);
-                        <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>).<span class="ident">to_string</span>();
-                        <span class="ident">slf</span>.<span class="ident">captures</span>.<span class="ident">insert</span>(<span class="ident">event_id</span>, <span class="prelude-val">Err</span>(<span class="ident">msg</span>));
-                    } <span class="kw">else</span> {
-                        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping failed envelope without event&quot;</span>);
-                    }
+            .<span class="ident">map_err</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">error</span>, <span class="ident">slf</span>, <span class="ident">context</span><span class="op">|</span> {
+                <span class="kw">if</span> <span class="ident">Capture::should_capture</span>(<span class="kw-2">&amp;</span><span class="ident">slf</span>.<span class="ident">config</span>) {
+                    <span class="ident">context</span>.<span class="ident">notify</span>(<span class="ident">Capture::rejected</span>(<span class="ident">event_id</span>, <span class="kw-2">&amp;</span><span class="ident">error</span>));
                 }
 
                 <span class="kw">let</span> <span class="ident">outcome</span> <span class="op">=</span> <span class="ident">error</span>.<span class="ident">to_outcome</span>();
@@ -1495,7 +1525,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">SendMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendMetrics</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">SendMetrics</span> {
             <span class="ident">buckets</span>,
             <span class="ident">scoping</span>,
@@ -1518,7 +1548,7 @@
         <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item</span>);
 
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">send_envelope</span>(<span class="ident">project_key</span>, <span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="ident">Instant::now</span>())
+            .<span class="ident">send_envelope</span>(<span class="ident">project_key</span>, <span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="ident">Instant::now</span>(), <span class="ident">context</span>)
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">buckets</span>);
 
         <span class="ident">Box::new</span>(<span class="ident">future</span>)
@@ -1540,7 +1570,7 @@
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">SendClientReports</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendClientReports</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SendClientReports</span>, <span class="ident">ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">SendClientReports</span> {
             <span class="ident">client_reports</span>,
             <span class="ident">scoping</span>,
@@ -1563,7 +1593,7 @@
             <span class="ident">envelope</span>.<span class="ident">add_item</span>(<span class="ident">item</span>);
         }
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>
-            .<span class="ident">send_envelope</span>(<span class="ident">scoping</span>.<span class="ident">project_key</span>, <span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="ident">Instant::now</span>())
+            .<span class="ident">send_envelope</span>(<span class="ident">scoping</span>.<span class="ident">project_key</span>, <span class="ident">envelope</span>, <span class="ident">scoping</span>, <span class="ident">Instant::now</span>(), <span class="ident">ctx</span>)
             .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
                 <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Failed to send envelope for client report: {:?}&quot;</span>, <span class="ident">e</span>);
             });
@@ -1590,6 +1620,68 @@
         <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>,
     ) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="self">self</span>.<span class="ident">captures</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">event_id</span>).<span class="ident">cloned</span>()
+    }
+}
+
+<span class="doccomment">/// Inserts an envelope or failure into internal captures.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Can be retrieved using [`GetCapturedEnvelope`]. Use [`Capture::should_capture`] to check whether</span>
+<span class="doccomment">/// the message should even be sent to reduce the overheads.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Capture</span> {
+    <span class="ident">event_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>,
+    <span class="ident">capture</span>: <span class="ident">CapturedEnvelope</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">Capture</span> {
+    <span class="doccomment">/// Returns `true` if Relay is in capture mode.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The `Capture` message can still be sent and and will be ignored. This function is purely for</span>
+    <span class="doccomment">/// optimization purposes.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">should_capture</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="ident">bool</span> {
+        <span class="macro">matches!</span>(<span class="ident">config</span>.<span class="ident">relay_mode</span>(), <span class="ident">RelayMode::Capture</span>)
+    }
+
+    <span class="doccomment">/// Captures an accepted envelope.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">accepted</span>(<span class="ident">envelope</span>: <span class="ident">Envelope</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">event_id</span>: <span class="ident">envelope</span>.<span class="ident">event_id</span>(),
+            <span class="ident">capture</span>: <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>),
+        }
+    }
+
+    <span class="doccomment">/// Captures the error that lead to envelope rejection.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rejected</span><span class="op">&lt;</span><span class="ident">E</span>: <span class="ident">AsFail</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="ident">event_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">EventId</span><span class="op">&gt;</span>, <span class="ident">error</span>: <span class="kw-2">&amp;</span><span class="ident">E</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">event_id</span>,
+            <span class="ident">capture</span>: <span class="prelude-val">Err</span>(<span class="ident">LogError</span>(<span class="ident">error</span>).<span class="ident">to_string</span>()),
+        }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">Capture</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+}
+
+<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">Capture</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeManager</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">Capture</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">RelayMode::Capture</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">relay_mode</span>() {
+            <span class="kw">match</span> (<span class="ident">msg</span>.<span class="ident">event_id</span>, <span class="ident">msg</span>.<span class="ident">capture</span>) {
+                (<span class="prelude-val">Some</span>(<span class="ident">event_id</span>), <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>)) =&gt; {
+                    <span class="macro">relay_log::debug!</span>(<span class="string">&quot;capturing envelope&quot;</span>);
+                    <span class="self">self</span>.<span class="ident">captures</span>.<span class="ident">insert</span>(<span class="ident">event_id</span>, <span class="prelude-val">Ok</span>(<span class="ident">envelope</span>));
+                }
+                (<span class="prelude-val">Some</span>(<span class="ident">event_id</span>), <span class="prelude-val">Err</span>(<span class="ident">message</span>)) =&gt; {
+                    <span class="macro">relay_log::debug!</span>(<span class="string">&quot;capturing failed event {}&quot;</span>, <span class="ident">event_id</span>);
+                    <span class="self">self</span>.<span class="ident">captures</span>.<span class="ident">insert</span>(<span class="ident">event_id</span>, <span class="prelude-val">Err</span>(<span class="ident">message</span>));
+                }
+
+                <span class="comment">// XXX: does not work with envelopes without event_id</span>
+                (<span class="prelude-val">None</span>, <span class="prelude-val">Ok</span>(<span class="kw">_</span>)) =&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping non event envelope&quot;</span>),
+                (<span class="prelude-val">None</span>, <span class="prelude-val">Err</span>(<span class="kw">_</span>)) =&gt; <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping failed envelope without event&quot;</span>),
+            }
+        }
     }
 }
 </code></pre></div>
