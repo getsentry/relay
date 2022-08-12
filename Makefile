@@ -94,7 +94,7 @@ lint: lint-rust lint-python
 
 lint-rust: setup-git
 	@rustup component add clippy --toolchain stable 2> /dev/null
-	cargo +stable clippy --workspace --all-features --tests -- -D clippy::all
+	cargo +stable clippy --workspace --all-features --tests -- -D clippy::all -A clippy::derive_partial_eq_without_eq
 .PHONY: lint-rust
 
 lint-python: setup-venv
