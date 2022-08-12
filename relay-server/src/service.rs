@@ -14,7 +14,7 @@ use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 use relay_system::{Configure, Controller};
 
-use crate::actors::envelopes::EnvelopeManager;
+use crate::actors::envelopes::{BufferGuard, EnvelopeManager};
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::outcome_aggregator::OutcomeAggregator;
@@ -110,6 +110,7 @@ impl From<Context<ServerErrorKind>> for ServerError {
 #[derive(Clone)]
 pub struct ServiceState {
     config: Arc<Config>,
+    buffer_guard: Arc<BufferGuard>,
     _runtime: Arc<tokio::runtime::Runtime>,
 }
 
@@ -146,8 +147,9 @@ impl ServiceState {
             _ => None,
         };
 
+        let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
-        let envelope_manager = EnvelopeManager::create(config.clone(), processor)?;
+        let envelope_manager = EnvelopeManager::create(config.clone(), processor, buffer.clone())?;
         registry.set(Arbiter::start(|_| envelope_manager));
 
         let project_cache = ProjectCache::new(config.clone(), redis_pool);
@@ -167,6 +169,7 @@ impl ServiceState {
         }
 
         Ok(ServiceState {
+            buffer_guard: buffer,
             config,
             _runtime: Arc::new(runtime),
         })
@@ -175,6 +178,14 @@ impl ServiceState {
     /// Returns an atomically counted reference to the config.
     pub fn config(&self) -> Arc<Config> {
         self.config.clone()
+    }
+
+    /// Returns a reference to the guard of the envelope buffer.
+    ///
+    /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
+    /// buffer. See [`BufferGuard`] for more information.
+    pub fn buffer_guard(&self) -> &BufferGuard {
+        &self.buffer_guard
     }
 }
 

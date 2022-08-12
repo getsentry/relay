@@ -33,6 +33,7 @@
 - Distinguish between various discard reasons for profiles. ([#1395](https://github.com/getsentry/relay/pull/1395))
 - Add missing fields to GPUContext ([#1391](https://github.com/getsentry/relay/pull/1391))
 - Store actor now uses Tokio for message handling instead of Actix. ([#1397](https://github.com/getsentry/relay/pull/1397))
+- Add app_memory to AppContext struct. ([#1403](https://github.com/getsentry/relay/pull/1403))
 
 ## 22.7.0
 

@@ -280,6 +280,7 @@ pub struct MultipartItems {
     remaining_size: usize,
     // Collect all form data in here.
     form_data: FormDataWriter,
+    #[allow(clippy::type_complexity)]
     infer_type: Box<dyn Fn(Option<&str>) -> AttachmentType>,
 }
 
