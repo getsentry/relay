@@ -291,6 +291,7 @@
 <span id="283">283</span>
 <span id="284">284</span>
 <span id="285">285</span>
+<span id="286">286</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This module contains the [`run`] function which starts the relay server. It responds on</span>
@@ -544,6 +545,7 @@
     <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
 )]</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
 
 <span class="kw">mod</span> <span class="ident">actors</span>;
 <span class="kw">mod</span> <span class="ident">body</span>;

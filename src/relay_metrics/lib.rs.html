@@ -111,6 +111,7 @@
 <span id="103">103</span>
 <span id="104">104</span>
 <span id="105">105</span>
+<span id="106">106</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Metric protocol, aggregation and processing for Sentry.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Metrics are high-volume values sent from Sentry clients, integrations, or extracted from errors</span>
@@ -209,6 +210,7 @@
     <span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     <span class="ident">html_favicon_url</span> <span class="op">=</span> <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>
 )]</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::derive_partial_eq_without_eq</span>)]</span>
 
 <span class="kw">mod</span> <span class="ident">aggregation</span>;
 <span class="kw">mod</span> <span class="ident">protocol</span>;

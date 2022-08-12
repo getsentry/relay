@@ -889,7 +889,7 @@
         <span class="kw">for</span> (<span class="ident">quota</span>, <span class="ident">is_rejected</span>) <span class="kw">in</span> <span class="ident">tracked_quotas</span>.<span class="ident">iter</span>().<span class="ident">zip</span>(<span class="ident">rejections</span>) {
             <span class="kw">if</span> <span class="ident">is_rejected</span> {
                 <span class="kw">let</span> <span class="ident">retry_after</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">retry_after</span>((<span class="ident">quota</span>.<span class="ident">expiry</span>() <span class="op">-</span> <span class="ident">timestamp</span>).<span class="ident">as_secs</span>());
-                <span class="ident">rate_limits</span>.<span class="ident">add</span>(<span class="ident">RateLimit::from_quota</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">quota</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">item_scoping</span>, <span class="ident">retry_after</span>));
+                <span class="ident">rate_limits</span>.<span class="ident">add</span>(<span class="ident">RateLimit::from_quota</span>(<span class="ident">quota</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">item_scoping</span>, <span class="ident">retry_after</span>));
             }
         }
 
