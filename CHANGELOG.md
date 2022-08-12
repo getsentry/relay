@@ -34,6 +34,7 @@
 - Add missing fields to GPUContext ([#1391](https://github.com/getsentry/relay/pull/1391))
 - Store actor now uses Tokio for message handling instead of Actix. ([#1397](https://github.com/getsentry/relay/pull/1397))
 - Add app_memory to AppContext struct. ([#1403](https://github.com/getsentry/relay/pull/1403))
+- Defer dropping of projects to a background thread to speed up cache eviction. ([#1410](https://github.com/getsentry/relay/pull/1410))
 
 ## 22.7.0
 
