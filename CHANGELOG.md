@@ -34,6 +34,7 @@
 - Add missing fields to GPUContext ([#1391](https://github.com/getsentry/relay/pull/1391))
 - Store actor now uses Tokio for message handling instead of Actix. ([#1397](https://github.com/getsentry/relay/pull/1397))
 - Add app_memory to AppContext struct. ([#1403](https://github.com/getsentry/relay/pull/1403))
+- Refactor tokio-based Addr from healthcheck to be generic. ([#1405](https://github.com/relay/pull/1405))
 
 ## 22.7.0
 
