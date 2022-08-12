@@ -16,6 +16,7 @@
 - Extract user from metrics with EventUser's priority. ([#1363](https://github.com/getsentry/relay/pull/1363))
 - Honor `SentryConfig.enabled` and don't init SDK at all if it is false. ([#1380](https://github.com/getsentry/relay/pull/1380))
 - The priority thread metadata on profiles is now optional, do not fail the profile if it's not present. ([#1392](https://github.com/getsentry/relay/pull/1392))
+- Do not apply rate limits or reject data based on expired project configs. ([#1404](https://github.com/getsentry/relay/pull/1404))
 
 **Internal**:
 
@@ -34,7 +35,6 @@
 - Add missing fields to GPUContext ([#1391](https://github.com/getsentry/relay/pull/1391))
 - Store actor now uses Tokio for message handling instead of Actix. ([#1397](https://github.com/getsentry/relay/pull/1397))
 - Add app_memory to AppContext struct. ([#1403](https://github.com/getsentry/relay/pull/1403))
-- Project::state() return None for expired projects. ([#1404](https://github.com/getsentry/relay/pull/1404))
 
 ## 22.7.0
 

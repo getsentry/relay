@@ -72,6 +72,12 @@ impl ProjectCache {
         }
     }
 
+    /// Evict projects that are over its expiry date.
+    ///
+    /// Ideally, we would use `check_expiry` to determine expiry here.
+    /// However, for eviction, we want to add an additional delay, such that we do not delete
+    /// a project that has expired recently and for which a fetch is already underway in
+    /// [`super::project_upstream`].
     fn evict_stale_project_caches(&mut self) {
         metric!(counter(RelayCounters::EvictingStaleProjectCaches) += 1);
         let eviction_start = Instant::now();
