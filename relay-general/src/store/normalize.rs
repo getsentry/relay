@@ -434,7 +434,7 @@ fn normalize_security_report(
         if !headers.contains("User-Agent") {
             headers.insert(
                 HeaderName::new("User-Agent"),
-                Annotated::new(HeaderValue::new(&(*client))),
+                Annotated::new(HeaderValue::new(client)),
             );
         }
     }

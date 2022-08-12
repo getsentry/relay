@@ -230,7 +230,7 @@ where
 {
     CURRENT_CLIENT.with(|client| {
         if let Some(client) = client {
-            f(&*client)
+            f(client)
         } else {
             R::default()
         }
