@@ -1,7 +1,7 @@
 //! TODO
-// TODO(tobias): Update with the changes made by Floris
 
 use std::fmt;
+use std::future::Future;
 
 use tokio::sync::{mpsc, oneshot};
 
@@ -18,7 +18,7 @@ pub trait Service {
     ///
     /// It is an enum of all the message types that can be handled by this service together
     /// with the response [sender](oneshot::Sender) for each message.
-    type Envelope;
+    type Envelope: Send + 'static;
 }
 
 /// A message which can be sent to a service.
@@ -27,7 +27,7 @@ pub trait Service {
 /// the envelope type of their [`Service`].
 pub trait ServiceMessage<S: Service> {
     /// The type of the `Response`
-    type Response;
+    type Response: Send + 'static;
 
     /// TODO
     fn into_envelope(self) -> (S::Envelope, oneshot::Receiver<Self::Response>);
@@ -55,7 +55,8 @@ pub struct Addr<S: Service> {
     pub tx: mpsc::UnboundedSender<S::Envelope>,
 }
 
-// For some reason the derive macro can't cope with this ¯\_(ツ)_/¯
+// Manually derive clone since we do not require `S: Clone` and the Clone derive adds this
+// constraint.
 impl<S: Service> Clone for Addr<S> {
     fn clone(&self) -> Self {
         Self {
@@ -72,12 +73,19 @@ impl<S: Service> Addr<S> {
     /// could occur when sending too many messages.
     ///
     /// Sending the message can fail with `Err(SendError)` if the service has shut down.
-    pub async fn send<M>(&self, message: M) -> Result<M::Response, SendError>
+    // Note: this is written as returning `impl Future` instead of `async fn` in order not
+    // to capture the lifetime of `&self` in the returned future.
+    pub fn send<M>(&self, message: M) -> impl Future<Output = Result<M::Response, SendError>>
     where
         M: ServiceMessage<S>,
     {
         let (envelope, response_rx) = message.into_envelope();
-        self.tx.send(envelope).map_err(|_| SendError)?;
-        response_rx.await.map_err(|_| SendError)
+        let res = self.tx.send(envelope).map_err(|_| SendError);
+        async move {
+            match res {
+                Ok(_) => response_rx.await.map_err(|_| SendError),
+                Err(_) => Err(SendError),
+            }
+        }
     }
 }

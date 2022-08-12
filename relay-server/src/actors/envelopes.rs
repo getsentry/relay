@@ -17,7 +17,6 @@ use relay_log::LogError;
 use relay_metrics::Bucket;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::service::Addr as ServiceAddr; // TODO think if there is a better way to fix this
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{
@@ -38,6 +37,7 @@ use crate::utils::{self, EnvelopeContext, FutureExt as _, Semaphore};
 use {
     crate::actors::store::{StoreError, StoreForwarder, StoreMessage},
     futures::{FutureExt, TryFutureExt},
+    relay_system::service::Addr as ServiceAddr, // TODO think if there is a better way to fix this
     tokio::runtime::Runtime,
 };
 
