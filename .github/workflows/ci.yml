@@ -62,7 +62,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --workspace --all-features --tests -- -D clippy::all -A clippy::derive_partial_eq_without_eq
+          args: --workspace --all-features --tests -- -D clippy::all
 
       - name: Rust Doc Comments
         uses: actions-rs/cargo@v1

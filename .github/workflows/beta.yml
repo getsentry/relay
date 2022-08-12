@@ -36,8 +36,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-features --workspace --tests --examples -- -D clippy::all -A clippy::derive_partial_eq_without_eq
-
+          args: --all-features --workspace --tests --examples -- -D clippy::all
       - uses: actions-rs/cargo@v1
         with:
           command: test

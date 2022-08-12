@@ -1,6 +1,7 @@
 // TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 #![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
 use std::cmp::Ordering;
 use std::ffi::CStr;
