@@ -42,7 +42,7 @@ fn healthcheck_impl(message: IsHealthy) -> ResponseFuture<HttpResponse, Error> {
         fut.boxed_local()
             .compat()
             .map_err(|_| ())
-            .and_then(move |is_healthy: bool| {
+            .and_then(move |is_healthy| {
                 if !is_healthy {
                     Err(())
                 } else {
