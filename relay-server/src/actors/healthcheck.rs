@@ -67,7 +67,8 @@ pub struct Addr<S: Service> {
     tx: mpsc::UnboundedSender<S::Envelope>,
 }
 
-// For some reason the derive macro can't cope with this ¯\_(ツ)_/¯
+// Manually derive clone since we do not require `S: Clone` and the Clone derive adds this
+// constraint.
 impl<S: Service> Clone for Addr<S> {
     fn clone(&self) -> Self {
         Self {
