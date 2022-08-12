@@ -33,7 +33,7 @@ pub trait Service {
     ///
     /// It is an enum of all the message types that can be handled by this service together
     /// with the response [sender](oneshot::Sender) for each message.
-    type Envelope;
+    type Envelope: Send + 'static;
 }
 
 /// A message which can be sent to a service.
@@ -41,7 +41,7 @@ pub trait Service {
 /// Messages have an associated `Response` type and can be unconditionally converted into
 /// the envelope type of their [`Service`].
 pub trait ServiceMessage<S: Service> {
-    type Response;
+    type Response: Send + 'static;
 
     fn into_envelope(self) -> (S::Envelope, oneshot::Receiver<Self::Response>);
 }
