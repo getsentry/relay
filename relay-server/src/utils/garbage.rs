@@ -1,15 +1,17 @@
 use std::sync::mpsc;
+use std::thread::JoinHandle;
 
 pub struct GarbageDisposal<T> {
-    tx: mpsc::Sender<T>,
+    tx: Option<mpsc::Sender<T>>,
+    join_handle: Option<JoinHandle<()>>,
 }
 
 impl<T: Send + 'static> GarbageDisposal<T> {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
 
-        std::thread::spawn(move || {
-            relay_log::info!("Start garbage collection thread");
+        let join_handle = std::thread::spawn(move || {
+            relay_log::debug!("Start garbage collection thread");
             while let Ok(object) = rx.recv() {
                 // TODO: Log size of channel queue as a gauge here
                 relay_log::trace!(
@@ -19,64 +21,81 @@ impl<T: Send + 'static> GarbageDisposal<T> {
                 );
                 drop(object);
             }
-
-            // TODO: We create a memory leak if this thread silently crashes
+            relay_log::debug!("Stop garbage collection thread");
         });
 
-        Self { tx }
+        Self {
+            tx: Some(tx),
+            join_handle: Some(join_handle),
+        }
     }
 
     pub fn dispose(&self, object: T) {
-        self.tx
-            .send(object)
+        let tx = self.tx.as_ref().expect("Join handle not initialized");
+        tx.send(object)
             .map_err(|e| {
-                relay_log::error!("Unable to send object to garbage collector thread, drop here");
+                relay_log::error!("Failed to send object to garbage disposal thread, drop here");
                 drop(e.0);
             })
             .ok();
     }
 }
 
+impl<T> Drop for GarbageDisposal<T> {
+    fn drop(&mut self) {
+        // Cut off the sender:
+        drop(self.tx.take());
+        // Wait for receiver to empty its queue:
+        if let Some(join_handle) = self.join_handle.take() {
+            if join_handle.join().is_err() {
+                relay_log::error!("Failed to join on garbage disposal thread");
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::{
+        sync::{Arc, Mutex},
+        thread::ThreadId,
+    };
+
     use super::GarbageDisposal;
 
     struct SomeStruct {
-        should_go_to_garbage_collector: bool,
-        created_on_thread: std::thread::ThreadId,
-    }
-
-    impl SomeStruct {
-        fn simple() -> Self {
-            Self {
-                should_go_to_garbage_collector: false,
-                created_on_thread: std::thread::current().id(),
-            }
-        }
-
-        fn garbage_collected() -> Self {
-            Self {
-                should_go_to_garbage_collector: true,
-                created_on_thread: std::thread::current().id(),
-            }
-        }
+        thread_ids: Arc<Mutex<Vec<ThreadId>>>,
     }
 
     impl Drop for SomeStruct {
         fn drop(&mut self) {
-            dbg!("DROPPING");
-            let different_thread = std::thread::current().id() != self.created_on_thread;
-            assert_eq!(different_thread, self.should_go_to_garbage_collector);
+            self.thread_ids
+                .lock()
+                .unwrap()
+                .push(std::thread::current().id())
         }
     }
 
     #[test]
     fn test_garbage_disposal() {
-        let x1 = SomeStruct::simple();
+        let thread_ids = Arc::new(Mutex::new(Vec::<ThreadId>::new()));
+
+        let x1 = SomeStruct {
+            thread_ids: thread_ids.clone(),
+        };
         drop(x1);
 
-        let x2 = SomeStruct::garbage_collected();
-        let gc = GarbageDisposal::new();
-        gc.dispose(x2);
+        let x2 = SomeStruct {
+            thread_ids: thread_ids.clone(),
+        };
+
+        let garbage = GarbageDisposal::new();
+        garbage.dispose(x2);
+        drop(garbage); // Join garbage disposal thread
+
+        let thread_ids = thread_ids.lock().unwrap();
+        assert_eq!(thread_ids.len(), 2);
+        assert_eq!(thread_ids[0], std::thread::current().id());
+        assert!(thread_ids[0] != thread_ids[1]);
     }
 }
