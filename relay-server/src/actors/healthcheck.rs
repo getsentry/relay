@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt;
+use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -85,13 +86,20 @@ impl<S: Service> Addr<S> {
     /// could occur when sending too many messages.
     ///
     /// Sending the message can fail with `Err(SendError)` if the service has shut down.
-    pub async fn send<M>(&self, message: M) -> Result<M::Response, SendError>
+    // Note: this is written as returning `impl Future` instead of `async fn` in order not
+    // to capture the lifetime of `&self` in the returned future.
+    pub fn send<M>(&self, message: M) -> impl Future<Output = Result<M::Response, SendError>>
     where
         M: ServiceMessage<S>,
     {
         let (envelope, response_rx) = message.into_envelope();
-        self.tx.send(envelope).map_err(|_| SendError)?;
-        response_rx.await.map_err(|_| SendError)
+        let res = self.tx.send(envelope).map_err(|_| SendError);
+        async move {
+            match res {
+                Ok(_) => response_rx.await.map_err(|_| SendError),
+                Err(_) => Err(SendError),
+            }
+        }
     }
 }
 
