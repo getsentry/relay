@@ -2276,7 +2276,7 @@ mod tests {
         let new_envelope = relay_test::with_system(move || {
             let envelope_response = processor
                 .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::from_envelope(&envelope),
+                    envelope_context: EnvelopeContext::standalone(&envelope),
                     envelope,
                     project_state: Arc::new(ProjectState::allowed()),
                     sampling_project_state: None,
@@ -2329,7 +2329,7 @@ mod tests {
         let envelope_response = relay_test::with_system(move || {
             processor
                 .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::from_envelope(&envelope),
+                    envelope_context: EnvelopeContext::standalone(&envelope),
                     envelope,
                     project_state: Arc::new(ProjectState::allowed()),
                     sampling_project_state: None,
@@ -2380,7 +2380,7 @@ mod tests {
         let envelope_response = relay_test::with_system(move || {
             processor
                 .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::from_envelope(&envelope),
+                    envelope_context: EnvelopeContext::standalone(&envelope),
                     envelope,
                     project_state: Arc::new(ProjectState::allowed()),
                     sampling_project_state: None,
@@ -2437,7 +2437,7 @@ mod tests {
         let envelope_response = relay_test::with_system(move || {
             processor
                 .process(ProcessEnvelope {
-                    envelope_context: EnvelopeContext::from_envelope(&envelope),
+                    envelope_context: EnvelopeContext::standalone(&envelope),
                     envelope,
                     project_state: Arc::new(ProjectState::allowed()),
                     sampling_project_state: None,
