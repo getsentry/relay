@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -39,7 +38,7 @@ impl ResponseError for ProjectError {}
 
 pub struct ProjectCache {
     config: Arc<Config>,
-    projects: HashMap<ProjectKey, Project>,
+    projects: hashbrown::HashMap<ProjectKey, Project>, // need hashbrown because drain_filter is not stable in std yet
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
@@ -65,7 +64,7 @@ impl ProjectCache {
 
         ProjectCache {
             config,
-            projects: HashMap::new(),
+            projects: hashbrown::HashMap::new(),
             local_source,
             upstream_source,
             #[cfg(feature = "processing")]
@@ -79,20 +78,14 @@ impl ProjectCache {
         let eviction_start = Instant::now();
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
 
-        let config = &self.config;
-        let garbage = &self.garbage_disposal;
-        self.projects.retain(|key, entry| {
-            let keep = entry.last_updated_at() + delta > eviction_start;
-            if !keep {
-                // Useless creation of placeholder project here.
-                // This would not be necessary with nightly `drain_filter`.
-                let mut placeholder = Project::new(*key, config.clone());
-                std::mem::swap(entry, &mut placeholder);
-                // `placeholder` is now the removed entry:
-                garbage.dispose(placeholder);
-            }
-            keep
-        });
+        let expired = self
+            .projects
+            .drain_filter(|_, entry| entry.last_updated_at() + delta <= eviction_start);
+
+        // Defer dropping the projects to a dedicated thread:
+        for (_, project) in expired {
+            self.garbage_disposal.dispose(project);
+        }
 
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }
