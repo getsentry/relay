@@ -554,7 +554,7 @@ fn get_mach_exception_name(number: i64) -> Option<&'static str> {
 }
 
 /// Internal utility trait to indicate the OS.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum OsHint {
     Windows,
     Linux,

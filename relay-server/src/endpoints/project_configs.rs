@@ -45,7 +45,7 @@ impl<S> FromRequest<S> for VersionQuery {
     type Result = Self;
 
     fn from_request(req: &actix_web::HttpRequest<S>, _: &Self::Config) -> Self::Result {
-        Self::from_request(req)
+        Self::from_request(&*req)
     }
 }
 

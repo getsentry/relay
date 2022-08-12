@@ -134,7 +134,7 @@ impl ResponseError for BadStoreRequest {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq)]
 pub struct MinimalEvent {
     #[serde(default, rename = "event_id")]
     pub id: Option<EventId>,

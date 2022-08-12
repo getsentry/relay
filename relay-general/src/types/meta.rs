@@ -34,7 +34,7 @@ pub enum RemarkType {
 }
 
 /// Information on a modified section in a string.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Remark {
     pub ty: RemarkType,
     pub rule_id: String,

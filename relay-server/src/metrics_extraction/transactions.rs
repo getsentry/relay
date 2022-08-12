@@ -56,7 +56,7 @@ pub struct CustomMeasurementConfig {
 /// The version is an integer scalar, incremented by one on each new version.
 const EXTRACT_MAX_VERSION: u16 = 1;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum AcceptTransactionNames {
     /// For some SDKs, accept all transaction names, while for others, apply strict rules.

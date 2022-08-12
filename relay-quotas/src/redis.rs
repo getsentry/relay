@@ -226,7 +226,7 @@ impl RedisRateLimiter {
         for (quota, is_rejected) in tracked_quotas.iter().zip(rejections) {
             if is_rejected {
                 let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-                rate_limits.add(RateLimit::from_quota(quota, &*item_scoping, retry_after));
+                rate_limits.add(RateLimit::from_quota(&*quota, &*item_scoping, retry_after));
             }
         }
 

@@ -488,7 +488,7 @@ impl MonitorContext {
 }
 
 /// A 32-character hex string as described in the W3C trace context spec.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Empty, IntoValue, ProcessValue)]
+#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TraceId(pub String);
 

@@ -86,7 +86,7 @@ derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
 });
 
 /// The maximum length of a field.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash)]
 pub enum MaxChars {
     Hash,
     EnumLike,
@@ -150,7 +150,7 @@ impl MaxChars {
 }
 
 /// The maximum size of a databag.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash)]
 pub enum BagSize {
     Small,
     Medium,

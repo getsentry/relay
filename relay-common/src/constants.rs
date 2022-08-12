@@ -204,7 +204,7 @@ impl From<EventType> for DataCategory {
 //
 // Note: This type is represented as a u8 in Snuba/Clickhouse, with Unknown being the default
 // value. We use repr(u8) to statically validate that the trace status has 255 variants at most.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[repr(u8)] // size limit in clickhouse

@@ -5,7 +5,7 @@ use crate::types::{
 };
 
 /// A fingerprint value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Fingerprint(Vec<String>);
 
