@@ -16,5 +16,6 @@
 
 pub mod compat;
 mod controller;
+pub mod service;
 
 pub use self::controller::*;

@@ -17,6 +17,7 @@ use relay_log::LogError;
 use relay_metrics::Bucket;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
+use relay_system::service::Addr as ServiceAddr; // TODO think if there is a better way to fix this
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{
@@ -35,7 +36,7 @@ use crate::utils::{self, EnvelopeContext, FutureExt as _, Semaphore};
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{StoreAddr, StoreEnvelope, StoreError, StoreForwarder},
+    crate::actors::store::{StoreError, StoreForwarder, StoreMessage},
     futures::{FutureExt, TryFutureExt},
     tokio::runtime::Runtime,
 };
@@ -209,7 +210,7 @@ pub struct EnvelopeManager {
     captures: BTreeMap<EventId, CapturedEnvelope>,
     processor: Addr<EnvelopeProcessor>,
     #[cfg(feature = "processing")]
-    store_forwarder: Option<StoreAddr<StoreEnvelope>>,
+    store_forwarder: Option<ServiceAddr<StoreForwarder>>,
     #[cfg(feature = "processing")]
     _runtime: Runtime,
 }
@@ -262,7 +263,7 @@ impl EnvelopeManager {
                 relay_log::trace!("sending envelope to kafka");
                 let fut = async move {
                     let addr = store_forwarder.clone();
-                    addr.send(StoreEnvelope {
+                    addr.send(StoreMessage {
                         envelope,
                         start_time,
                         scoping,
