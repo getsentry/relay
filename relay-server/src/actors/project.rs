@@ -508,7 +508,6 @@ pub struct Project {
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
-    metrics_allowed: bool,
 }
 
 impl Project {
@@ -522,18 +521,17 @@ impl Project {
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
-            metrics_allowed: true,
         }
     }
 
     /// If we know that a project is disabled, disallow metrics, too.
-    fn update_metrics_allowed(&mut self) {
-        if let Some(state) = self.state() {
-            self.metrics_allowed = state.check_disabled(&self.config).is_ok();
+    fn metrics_allowed(&self) -> bool {
+        return if let Some(state) = self.state() {
+            state.check_disabled(&self.config).is_ok()
         } else {
             // Projects without state go back to the original state of allowing metrics.
-            self.metrics_allowed = true;
-        }
+            true
+        };
     }
 
     pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {
@@ -575,7 +573,7 @@ impl Project {
     ///
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
-        if self.metrics_allowed {
+        if self.metrics_allowed() {
             Aggregator::from_registry()
                 .do_send(relay_metrics::MergeBuckets::new(self.project_key, buckets));
         }
@@ -585,7 +583,7 @@ impl Project {
     ///
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
-        if self.metrics_allowed {
+        if self.metrics_allowed() {
             Aggregator::from_registry()
                 .do_send(relay_metrics::InsertMetrics::new(self.project_key, metrics));
         }
@@ -676,7 +674,6 @@ impl Project {
 
         self.state_channel = None;
         self.state = state_result.map(|resp| resp.state);
-        self.update_metrics_allowed();
 
         if let Some(ref state) = self.state {
             relay_log::debug!("project state {} updated", self.project_key);
