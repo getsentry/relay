@@ -16,12 +16,13 @@ use relay_statsd::metric;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
+use crate::actors::processor::ProcessEnvelope;
 use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{ActorResponse, EnvelopeContext, Response};
+use crate::utils::{self, EnvelopeContext, Response};
 
 use super::project::ExpiryState;
 
@@ -297,8 +298,17 @@ impl Handler<UpdateProjectState> for ProjectCache {
             })
             .into_actor(self)
             .then(move |state_result, slf, _context| {
-                let project = slf.get_or_create_project(project_key);
-                project.update_state(state_result.ok(), no_cache);
+                let state = match state_result {
+                    Ok(response) => response.state,
+                    Err(()) => {
+                        relay_log::error!("unexpected error during project fetch");
+                        Arc::new(ProjectState::err())
+                    }
+                };
+
+                slf.get_or_create_project(project_key)
+                    .update_state(state, no_cache);
+
                 fut::ok(())
             })
             .spawn(context);
@@ -391,27 +401,15 @@ pub struct CheckEnvelope {
     project_key: ProjectKey,
     envelope: Envelope,
     context: EnvelopeContext,
-    fetch: bool,
 }
 
 impl CheckEnvelope {
-    /// Fetches the project state and checks the envelope.
-    pub fn fetched(project_key: ProjectKey, envelope: Envelope, context: EnvelopeContext) -> Self {
-        Self {
-            project_key,
-            envelope,
-            context,
-            fetch: true,
-        }
-    }
-
     /// Uses a cached project state and checks the envelope.
-    pub fn cached(project_key: ProjectKey, envelope: Envelope, context: EnvelopeContext) -> Self {
+    pub fn new(project_key: ProjectKey, envelope: Envelope, context: EnvelopeContext) -> Self {
         Self {
             project_key,
             envelope,
             context,
-            fetch: false,
         }
     }
 }
@@ -438,32 +436,99 @@ impl Message for CheckEnvelope {
 }
 
 impl Handler<CheckEnvelope> for ProjectCache {
-    type Result = ActorResponse<Self, CheckEnvelopeResponse, ProjectError>;
+    type Result = Result<CheckEnvelopeResponse, ProjectError>;
 
-    fn handle(&mut self, message: CheckEnvelope, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: CheckEnvelope, _: &mut Self::Context) -> Self::Result {
         let project = self.get_or_create_project(message.project_key);
-        if message.fetch {
-            // Project state fetching is allowed, so ensure the state is fetched and up-to-date.
-            // This will return synchronously if the state is still cached.
-            project
-                .get_or_fetch_state(message.envelope.meta().no_cache())
-                .into_actor()
-                .map(self, context, move |_, slf, _context| {
-                    // TODO RaduW can we do better that this ????
-                    // (need to retrieve project again to get around borrowing problems)
-                    let project = slf.get_or_create_project(message.project_key);
-                    project.check_envelope(message.envelope, message.context)
-                })
-        } else {
-            // Preload the project cache so that it arrives a little earlier in processing. However,
-            // do not pass `no_cache`. In case the project is rate limited, we do not want to force
-            // a full reload.
-            project.get_or_fetch_state(false);
 
-            // message.fetch == false: Fetching must not block the store request. The
-            // EnvelopeManager will later fetch the project state.
-            ActorResponse::ok(project.check_envelope(message.envelope, message.context))
+        // Preload the project cache so that it arrives a little earlier in processing. However,
+        // do not pass `no_cache`. In case the project is rate limited, we do not want to force
+        // a full reload. Fetching must not block the store request.
+        project.get_or_fetch_state(false);
+
+        Ok(project.check_envelope(message.envelope, message.context))
+    }
+}
+
+/// Validates the envelope against project configuration and rate limits.
+///
+/// This ensures internally that the project state is up to date and then runs the same checks as
+/// [`CheckEnvelope`]. Once the envelope has been validated, remaining items are forwarded to the
+/// next stage:
+///
+///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the
+///    [`ProjectCache`] to add the required project state.
+///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
+pub struct ValidateEnvelope {
+    project_key: ProjectKey,
+    envelope: Envelope,
+    envelope_context: EnvelopeContext,
+}
+
+impl ValidateEnvelope {
+    pub fn new(
+        project_key: ProjectKey,
+        envelope: Envelope,
+        envelope_context: EnvelopeContext,
+    ) -> Self {
+        Self {
+            project_key,
+            envelope,
+            envelope_context,
         }
+    }
+}
+
+impl Message for ValidateEnvelope {
+    type Result = ();
+}
+
+impl Handler<ValidateEnvelope> for ProjectCache {
+    type Result = ();
+
+    fn handle(&mut self, message: ValidateEnvelope, _: &mut Self::Context) -> Self::Result {
+        // Preload the project cache for dynamic sampling in parallel to the main one.
+        if let Some(sampling_key) = utils::get_sampling_key(&message.envelope) {
+            self.get_or_create_project(sampling_key)
+                .get_or_fetch_state(message.envelope.meta().no_cache());
+        }
+
+        self.get_or_create_project(message.project_key)
+            .enqueue_validation(message.envelope, message.envelope_context);
+    }
+}
+
+/// Adds the project state for dynamic sampling and sends the envelope to processing.
+///
+/// If the project state is up to date, the envelope will be immediately submitted for processing.
+/// Otherwise, this queues the envelope and flushes it when the project has been updated.
+///
+/// This message will trigger an update of the project state internally if the state is stale or
+/// outdated.
+pub struct AddSamplingState {
+    project_key: ProjectKey,
+    message: ProcessEnvelope,
+}
+
+impl AddSamplingState {
+    pub fn new(project_key: ProjectKey, message: ProcessEnvelope) -> Self {
+        Self {
+            project_key,
+            message,
+        }
+    }
+}
+
+impl Message for AddSamplingState {
+    type Result = ();
+}
+
+impl Handler<AddSamplingState> for ProjectCache {
+    type Result = ();
+
+    fn handle(&mut self, message: AddSamplingState, _: &mut Self::Context) -> Self::Result {
+        self.get_or_create_project(message.project_key)
+            .enqueue_sampling(message.message);
     }
 }
 
@@ -497,6 +562,7 @@ impl Handler<UpdateRateLimits> for ProjectCache {
         project.merge_rate_limits(rate_limits);
     }
 }
+
 /// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetrics {
@@ -575,13 +641,10 @@ impl Handler<FlushBuckets> for ProjectCache {
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
         // metrics can be forwarded or not. We never wait for this update.
-        if !matches!(expiry_state, ExpiryState::Updated(_)) {
-            project.get_or_fetch_state(false);
-        }
+        project.get_or_fetch_state(false);
 
         let project_state = match expiry_state {
-            ExpiryState::Updated(state) => state,
-            ExpiryState::Stale(state) => state,
+            ExpiryState::Updated(state) | ExpiryState::Stale(state) => state,
             ExpiryState::Expired => {
                 // If the state is outdated, we need to wait for an updated state. Put them back into the
                 // aggregator and wait for the next flush cycle.

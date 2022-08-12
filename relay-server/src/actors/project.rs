@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -23,8 +23,9 @@ use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
+use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project_cache::{
-    CheckEnvelopeResponse, CheckedEnvelope, ProjectCache, ProjectError, ProjectStateResponse,
+    AddSamplingState, CheckEnvelopeResponse, CheckedEnvelope, ProjectCache, ProjectError,
     UpdateProjectState,
 };
 use crate::envelope::Envelope;
@@ -33,7 +34,7 @@ use crate::metrics_extraction::sessions::SessionMetricsConfig;
 use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
 use crate::statsd::RelayCounters;
-use crate::utils::{EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
+use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -517,6 +518,9 @@ pub struct Project {
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
+    // TODO(ja): Log dropped envelopes
+    pending_validations: VecDeque<(Envelope, EnvelopeContext)>,
+    pending_sampling: VecDeque<ProcessEnvelope>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
 }
@@ -530,6 +534,8 @@ impl Project {
             config,
             state: None,
             state_channel: None,
+            pending_validations: VecDeque::new(),
+            pending_sampling: VecDeque::new(),
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
         }
@@ -552,14 +558,13 @@ impl Project {
     /// Returns the current [`ExpiryState`] for this project.
     /// If the project state's [`Expiry`] is `Expired`, do not return it.
     pub fn expiry_state(&self) -> ExpiryState {
-        if let Some(state) = &self.state {
-            match state.check_expiry(self.config.as_ref()) {
+        match self.state {
+            Some(ref state) => match state.check_expiry(self.config.as_ref()) {
                 Expiry::Updated => ExpiryState::Updated(state.clone()),
                 Expiry::Stale => ExpiryState::Stale(state.clone()),
                 Expiry::Expired => ExpiryState::Expired,
-            }
-        } else {
-            ExpiryState::Expired
+            },
+            None => ExpiryState::Expired,
         }
     }
 
@@ -606,6 +611,20 @@ impl Project {
         }
     }
 
+    /// Ensures the project state gets updated, and returns it once valid.
+    ///
+    /// First, this checks if the state needs to be updated. This is the case if the project state
+    /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
+    /// update is already running in the background.
+    ///
+    /// Independent of updating, _stale_ states can still be returned immediately as long as they
+    /// are in the [grace period](Config::project_grace_period). This function returns:
+    ///
+    ///  - [`Response::Reply(Ok)`](Response::Reply) if the state is updated or stale, and `no_cache`
+    ///    was not specified. This case is infallible.
+    ///  - [`Response::Future`] if the state was expired or `no_cache` was specified. This future
+    ///    may fail if the state repeatedly cannot be fetched. The future does not have to be
+    ///    awaited for the update to pass.
     pub fn get_or_fetch_state(
         &mut self,
         mut no_cache: bool,
@@ -623,23 +642,15 @@ impl Project {
             }
         }
 
-        let state = self.state.as_ref();
-        let expiry = state
-            .map(|s| s.check_expiry(&self.config))
-            .unwrap_or(Expiry::Expired);
-
-        let cached_state = match (state, expiry) {
+        let cached_state = match self.expiry_state() {
             // Never use the cached state if `no_cache` is set.
             _ if no_cache => None,
-
             // There is no project state that can be used, fetch a state and return it.
-            (None, _) | (_, Expiry::Expired) => None,
-
+            ExpiryState::Expired => None,
             // The project is semi-outdated, fetch new state but return old one.
-            (Some(state), Expiry::Stale) => Some(state.clone()),
-
+            ExpiryState::Stale(state) => Some(state),
             // The project is not outdated, return early here to jump over fetching logic below.
-            (Some(state), Expiry::Updated) => return Response::ok(state.clone()),
+            ExpiryState::Updated(state) => return Response::ok(state),
         };
 
         let receiver = match self.state_channel {
@@ -676,7 +687,83 @@ impl Project {
         Response::future(future)
     }
 
-    pub fn update_state(&mut self, state_result: Option<ProjectStateResponse>, no_cache: bool) {
+    /// Validates the envelope and submits the envelope to the next stage.
+    ///
+    /// If this project is disabled or rate limited, corresponding items are dropped from the
+    /// envelope. Remaining items in the Envelope are forwarded:
+    ///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the
+    ///    [`ProjectCache`] to add the required project state.
+    ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
+    fn flush_validation(
+        &mut self,
+        envelope: Envelope,
+        envelope_context: EnvelopeContext,
+        project_state: Arc<ProjectState>,
+    ) {
+        if let Ok(checked) = self.check_envelope(envelope, envelope_context).result {
+            if let Some((envelope, envelope_context)) = checked.envelope {
+                let process = ProcessEnvelope {
+                    envelope,
+                    envelope_context,
+                    project_state,
+                    sampling_project_state: None,
+                };
+
+                if let Some(sampling_key) = utils::get_sampling_key(&process.envelope) {
+                    ProjectCache::from_registry()
+                        .do_send(AddSamplingState::new(sampling_key, process));
+                } else {
+                    EnvelopeProcessor::from_registry().do_send(process);
+                }
+            }
+        }
+        // TODO(ja): Else trace log?
+    }
+
+    /// Enqueues an envelope for validation.
+    ///
+    /// If the project state is up to date, the message will be immediately to the next stage.
+    /// Otherwise, this queues the envelope and flushes it when the project has been updated.
+    ///
+    /// This method will trigger an update of the project state internally if the state is stale or
+    /// outdated.
+    pub fn enqueue_validation(&mut self, envelope: Envelope, context: EnvelopeContext) {
+        match self.get_or_fetch_state(envelope.meta().no_cache()) {
+            Response::Reply(Ok(state)) => self.flush_validation(envelope, context, state),
+            _ => self.pending_validations.push_back((envelope, context)),
+        }
+    }
+
+    /// Adds the project state for dynamic sampling and submits the Envelope for processing.
+    fn flush_sampling(&self, mut message: ProcessEnvelope) {
+        // Intentionally ignore all errors and leave the envelope unsampled.
+        message.sampling_project_state = self.valid_state();
+        EnvelopeProcessor::from_registry().do_send(message);
+    }
+
+    /// Enqueues an envelope for adding a dynamic sampling project state.
+    ///
+    /// If the project state is up to date, the message will be immediately submitted for
+    /// processing. Otherwise, this queues the envelope and flushes it when the project has been
+    /// updated.
+    ///
+    /// This method will trigger an update of the project state internally if the state is stale or
+    /// outdated.
+    pub fn enqueue_sampling(&mut self, message: ProcessEnvelope) {
+        match self.get_or_fetch_state(message.envelope.meta().no_cache()) {
+            Response::Reply(_) => self.flush_sampling(message),
+            Response::Future(_) => self.pending_sampling.push_back(message),
+        }
+    }
+
+    /// Replaces the internal project state with a new one and triggers pending actions.
+    ///
+    /// This flushes pending envelopes from [`ValidateEnvelope`] and [`AddSamplingState`] and
+    /// notifies all pending receivers from [`get_or_fetch_state`](Self::get_or_fetch_state).
+    ///
+    /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
+    /// take precedence.
+    pub fn update_state(&mut self, state: Arc<ProjectState>, no_cache: bool) {
         let channel = match self.state_channel.take() {
             Some(channel) => channel,
             None => return,
@@ -690,12 +777,21 @@ impl Project {
         }
 
         self.state_channel = None;
-        self.state = state_result.map(|resp| resp.state);
+        self.state = Some(state.clone());
 
-        if let Some(ref state) = self.state {
-            relay_log::debug!("project state {} updated", self.project_key);
-            channel.send(state.clone());
+        // Flush all queued `ValidateEnvelope` messages
+        while let Some((envelope, context)) = self.pending_validations.pop_front() {
+            self.flush_validation(envelope, context, state.clone());
         }
+
+        // Flush all queued `AddSamplingState` messages
+        while let Some(message) = self.pending_sampling.pop_front() {
+            self.flush_sampling(message);
+        }
+
+        // Flush all waiting recipients.
+        relay_log::debug!("project state {} updated", self.project_key);
+        channel.send(state);
     }
 
     fn fetch_state(&mut self, no_cache: bool) {

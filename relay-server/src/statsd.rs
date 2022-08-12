@@ -15,20 +15,6 @@ impl GaugeMetric for RelayGauges {
     }
 }
 
-/// Set metrics used by Relay
-pub enum RelaySets {
-    /// Represents the number of active projects in the current slice of time
-    UniqueProjects,
-}
-
-impl SetMetric for RelaySets {
-    fn name(&self) -> &'static str {
-        match self {
-            RelaySets::UniqueProjects => "unique_projects",
-        }
-    }
-}
-
 /// Histogram metrics used by Relay.
 pub enum RelayHistograms {
     /// The number of envelopes in the queue as a percentage of the maximum number of envelopes that
@@ -206,9 +192,11 @@ pub enum RelayTimers {
     EventProcessingPii,
     /// Time spent converting the event from its in-memory reprsentation into a JSON string.
     EventProcessingSerialization,
-    /// Time spent between receiving a request in Relay (that is, beginning of request handling) and
-    /// the start of synchronous processing in the EnvelopeProcessor. This metric primarily
-    /// indicates backlog in event processing.
+    /// Time spent between the start of request handling and processing of the envelope.
+    ///
+    /// This includes streaming the request body, scheduling overheads, project config fetching,
+    /// batched requests and congestions in the internal processor. This does not include delays in
+    /// the incoming request (body upload) and skips all envelopes that are fast-rejected.
     EnvelopeWaitTime,
     /// Time in milliseconds spent in synchronous processing of envelopes.
     ///

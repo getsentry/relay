@@ -148,8 +148,8 @@ impl ServiceState {
         };
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-        let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
-        let envelope_manager = EnvelopeManager::create(config.clone(), processor, buffer.clone())?;
+        EnvelopeProcessor::start(config.clone(), redis_pool.clone())?; // TODO(tobias): Registry
+        let envelope_manager = EnvelopeManager::create(config.clone(), buffer.clone())?;
         registry.set(Arbiter::start(|_| envelope_manager));
 
         let project_cache = ProjectCache::new(config.clone(), redis_pool);

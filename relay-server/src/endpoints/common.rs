@@ -326,11 +326,7 @@ where
         }))
         .and_then(move |(envelope, envelope_context)| {
             ProjectCache::from_registry()
-                .send(CheckEnvelope::cached(
-                    project_key,
-                    envelope,
-                    envelope_context,
-                ))
+                .send(CheckEnvelope::new(project_key, envelope, envelope_context))
                 .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
         })
