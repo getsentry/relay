@@ -2068,4 +2068,57 @@ cache:
             Err(_)
         ));
     }
+
+    #[test]
+    fn test_redis_single_opts() {
+        let yaml = r###"
+processing:
+    enabled: true
+    kafka_config:
+    - { name: "bootstrap.servers", value: "127.0.0.1:9092" }
+
+    redis:
+        server: "redis://127.0.0.1:6379"
+        max_connections: 42
+"###;
+
+        let config: ConfigValues = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis config: single with options");
+        let redis = config.processing.redis.expect("Redis config: single");
+
+        match redis {
+            RedisConfig::SingleOpts {
+                server,
+                max_connections,
+            } => {
+                assert_eq!(max_connections, 42);
+                assert_eq!(server, "redis://127.0.0.1:6379");
+            }
+            e => panic!("Expected RedisConfig::SingleOpts but got {:?}", e),
+        }
+    }
+
+    // To make sure that backwards compatibility is working
+    #[test]
+    fn test_redis_single() {
+        let yaml = r###"
+processing:
+    enabled: true
+    kafka_config:
+    - { name: "bootstrap.servers", value: "127.0.0.1:9092" }
+
+    redis: "redis://127.0.0.1:6379"
+"###;
+
+        let config: ConfigValues = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis config: single with options");
+        let redis = config.processing.redis.expect("Redis config: single");
+
+        match redis {
+            RedisConfig::Single(server) => {
+                assert_eq!(server, "redis://127.0.0.1:6379");
+            }
+            e => panic!("Expected RedisConfig::Single but got {:?}", e),
+        }
+    }
 }

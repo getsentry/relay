@@ -261,7 +261,7 @@ mod tests {
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
         RedisRateLimiter {
-            pool: RedisPool::single(&url).unwrap(),
+            pool: RedisPool::single(&url, 24).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: None,
         }
