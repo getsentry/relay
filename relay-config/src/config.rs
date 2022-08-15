@@ -2087,18 +2087,43 @@ processing:
         let redis = config.processing.redis.expect("Redis config: single");
 
         match redis {
-            RedisConfig::SingleOpts {
-                server,
-                max_connections,
-            } => {
-                assert_eq!(max_connections, 42);
+            RedisConfig::SingleWithOpts { server, options } => {
+                assert_eq!(options.max_connections, 42);
+                assert_eq!(options.test_on_check_out, false);
                 assert_eq!(server, "redis://127.0.0.1:6379");
             }
-            e => panic!("Expected RedisConfig::SingleOpts but got {:?}", e),
+            e => panic!("Expected RedisConfig::SingleWithOpts but got {:?}", e),
         }
     }
 
-    // To make sure that backwards compatibility is working
+    #[test]
+    fn test_redis_single_opts_default() {
+        let yaml = r###"
+processing:
+    enabled: true
+    kafka_config:
+    - { name: "bootstrap.servers", value: "127.0.0.1:9092" }
+
+    redis:
+        server: "redis://127.0.0.1:6379"
+"###;
+
+        let config: ConfigValues = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis config: single with options");
+        let redis = config.processing.redis.expect("Redis config: single");
+
+        match redis {
+            RedisConfig::SingleWithOpts { options, .. } => {
+                // check if all the defaults are correctly set
+                assert_eq!(options.max_connections, 24);
+                assert_eq!(options.test_on_check_out, false);
+            }
+            e => panic!("Expected RedisConfig::SingleWithOpts but got {:?}", e),
+        }
+    }
+
+    // To make sure that we have backwards compatibility and still support the redis configuration
+    // when the single `redis://...` address is provided
     #[test]
     fn test_redis_single() {
         let yaml = r###"

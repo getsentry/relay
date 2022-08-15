@@ -249,7 +249,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use relay_common::{ProjectId, ProjectKey};
-    use relay_redis::redis::Commands;
+    use relay_redis::{redis::Commands, RedisConfigOptions};
 
     use crate::quota::{DataCategories, DataCategory, ReasonCode, Scoping};
     use crate::rate_limit::RateLimitScope;
@@ -261,7 +261,7 @@ mod tests {
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
         RedisRateLimiter {
-            pool: RedisPool::single(&url, 24).unwrap(),
+            pool: RedisPool::single(&url, &RedisConfigOptions::default()).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: None,
         }

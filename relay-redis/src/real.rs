@@ -2,7 +2,7 @@ use failure::Fail;
 use r2d2::{Pool, PooledConnection};
 use redis::ConnectionLike;
 
-use crate::config::{self, RedisConfig};
+use crate::config::{RedisConfig, RedisConfigOptions};
 
 pub use redis;
 
@@ -117,26 +117,24 @@ impl RedisPool {
         match config {
             RedisConfig::Cluster {
                 ref cluster_nodes,
-                ref max_connections,
+                ref options,
             } => {
                 let servers = cluster_nodes.iter().map(String::as_str).collect();
-                Self::cluster(servers, *max_connections)
+                Self::cluster(servers, options)
             }
-            RedisConfig::Single(ref server) => {
-                Self::single(server, config::default_max_connections())
-            }
-            RedisConfig::SingleOpts {
+            RedisConfig::Single(ref server) => Self::single(server, &RedisConfigOptions::default()),
+            RedisConfig::SingleWithOpts {
                 ref server,
-                ref max_connections,
-            } => Self::single(server, *max_connections),
+                ref options,
+            } => Self::single(server, options),
         }
     }
 
     /// Creates a `RedisPool` in cluster configuration.
-    pub fn cluster(servers: Vec<&str>, max_connections: u32) -> Result<Self, RedisError> {
+    pub fn cluster(servers: Vec<&str>, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
         let pool = Pool::builder()
-            .max_size(max_connections)
-            .test_on_check_out(false)
+            .max_size(opts.max_connections)
+            .test_on_check_out(opts.test_on_check_out)
             .build(redis::cluster::ClusterClient::open(servers).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 
@@ -145,10 +143,10 @@ impl RedisPool {
     }
 
     /// Creates a `RedisPool` in single-node configuration.
-    pub fn single(server: &str, max_connections: u32) -> Result<Self, RedisError> {
+    pub fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
         let pool = Pool::builder()
-            .max_size(max_connections)
-            .test_on_check_out(false)
+            .max_size(opts.max_connections)
+            .test_on_check_out(opts.test_on_check_out)
             .build(redis::Client::open(server).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 
