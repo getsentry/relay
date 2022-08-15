@@ -2089,7 +2089,7 @@ processing:
         match redis {
             RedisConfig::SingleWithOpts { server, options } => {
                 assert_eq!(options.max_connections, 42);
-                assert_eq!(options.test_on_check_out, false);
+                assert!(!options.test_on_check_out);
                 assert_eq!(server, "redis://127.0.0.1:6379");
             }
             e => panic!("Expected RedisConfig::SingleWithOpts but got {:?}", e),
@@ -2116,7 +2116,7 @@ processing:
             RedisConfig::SingleWithOpts { options, .. } => {
                 // check if all the defaults are correctly set
                 assert_eq!(options.max_connections, 24);
-                assert_eq!(options.test_on_check_out, false);
+                assert!(!options.test_on_check_out);
             }
             e => panic!("Expected RedisConfig::SingleWithOpts but got {:?}", e),
         }
