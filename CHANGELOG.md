@@ -15,6 +15,7 @@
 - Filter events in external Relays, before extracting metrics. ([#1379](https://github.com/getsentry/relay/pull/1379))
 - Add `privatekey` and `private_key` as secret key name to datascrubbers. ([#1376](https://github.com/getsentry/relay/pull/1376))
 - Explain why we responded with 429. ([#1389](https://github.com/getsentry/relay/pull/1389))
+- Make Redis connection pool configurable ([#1413](https://github.com/getsentry/relay/pull/1413))
 
 **Bug Fixes**:
 
