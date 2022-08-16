@@ -61,6 +61,8 @@ development:
   also performed in CI.
 - `make clean`: Removes all build artifacts, the virtualenv and cached files.
 
+For more avalibale make targets, please, run `make help`.
+
 Integration tests require Redis and Kafka running in their default
 configuration. The most convenient way to get all required services is via
 [`sentry devservices`](https://develop.sentry.dev/services/devservices/), which
