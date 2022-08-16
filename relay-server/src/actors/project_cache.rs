@@ -16,12 +16,14 @@ use relay_statsd::metric;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::DiscardReason;
-use crate::actors::project::{Expiry, Project, ProjectState};
+use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{ActorResponse, EnvelopeContext, Response};
+
+use super::project::ExpiryState;
 
 #[cfg(feature = "processing")]
 use {crate::actors::project_redis::RedisProjectSource, relay_common::clone};
@@ -72,6 +74,12 @@ impl ProjectCache {
         }
     }
 
+    /// Evict projects that are over its expiry date.
+    ///
+    /// Ideally, we would use `check_expiry` to determine expiry here.
+    /// However, for eviction, we want to add an additional delay, such that we do not delete
+    /// a project that has expired recently and for which a fetch is already underway in
+    /// [`super::project_upstream`].
     fn evict_stale_project_caches(&mut self) {
         metric!(counter(RelayCounters::EvictingStaleProjectCaches) += 1);
         let eviction_start = Instant::now();
@@ -365,7 +373,7 @@ impl Handler<GetCachedProjectState> for ProjectCache {
     ) -> Self::Result {
         let project = self.get_or_create_project(message.project_key);
         project.get_or_fetch_state(false);
-        project.state_clone()
+        project.valid_state()
     }
 }
 
@@ -563,30 +571,31 @@ impl Handler<FlushBuckets> for ProjectCache {
         let config = self.config.clone();
         let project_key = message.project_key();
         let project = self.get_or_create_project(project_key);
-        let expiry = match project.state() {
-            Some(state) => state.check_expiry(config.as_ref()),
-            None => Expiry::Expired,
-        };
+        let expiry_state = project.expiry_state();
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
         // metrics can be forwarded or not. We never wait for this update.
-        if expiry != Expiry::Updated {
+        if !matches!(expiry_state, ExpiryState::Updated(_)) {
             project.get_or_fetch_state(false);
         }
 
-        // If the state is outdated, we need to wait for an updated state. Put them back into the
-        // aggregator and wait for the next flush cycle.
-        if expiry == Expiry::Expired {
-            return Box::new(future::err(message.into_buckets()));
-        }
+        let project_state = match expiry_state {
+            ExpiryState::Updated(state) => state,
+            ExpiryState::Stale(state) => state,
+            ExpiryState::Expired => {
+                // If the state is outdated, we need to wait for an updated state. Put them back into the
+                // aggregator and wait for the next flush cycle.
+                return Box::new(future::err(message.into_buckets()));
+            }
+        };
 
-        let (state, scoping) = match (project.state(), project.scoping()) {
-            (Some(state), Some(scoping)) => (state, scoping),
+        let scoping = match project.scoping() {
+            Some(scoping) => scoping,
             _ => return Box::new(future::err(message.into_buckets())),
         };
 
         // Only send if the project state is valid, otherwise drop this bucket.
-        if state.check_disabled(config.as_ref()).is_err() {
+        if project_state.check_disabled(config.as_ref()).is_err() {
             return Box::new(future::ok(()));
         }
 
