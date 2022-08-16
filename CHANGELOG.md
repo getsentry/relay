@@ -8,7 +8,7 @@
 
 **Features**:
 
-- Make Redis connection pool configurable. ([#1413](https://github.com/getsentry/relay/pull/1413))
+- Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
 
 ## 22.8.0
 
