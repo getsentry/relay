@@ -4,21 +4,6 @@ use serde_json::Error;
 use std::collections::HashMap;
 use std::fmt::Write;
 
-/* Parse a replay event.
-
-    TODO:
-        - Parse a subset of the replay request.
-        - Insert contexts dict.
-            {
-                "contexts": {
-                    "os": {},
-                    "browser": {},
-                    "device": {}
-                }
-            }
-        - Return serialized output without modifying the original payload (beyond contexts insert).
-*/
-
 pub fn parse_replay_event(replay_bytes: &[u8]) -> Result<Vec<u8>, Error> {
     let replay_input: Result<ReplayInput, Error> = serde_json::from_slice(&replay_bytes);
     match replay_input {
