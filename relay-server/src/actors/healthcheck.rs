@@ -16,10 +16,8 @@ use relay_system::{compat, Controller};
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::RelayGauges;
 
-lazy_static::lazy_static! {
-    /// Singleton of the `Healthcheck` service.
-    static ref ADDRESS: RwLock<Option<Addr<Healthcheck>>> = RwLock::new(None);
-}
+/// Singleton of the `Healthcheck` service.
+static ADDRESS: RwLock<Option<Addr<HealthcheckMessage>>> = RwLock::new(None);
 
 /// Our definition of a service.
 ///

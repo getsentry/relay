@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Refactor tokio-based Addr from healthcheck to be generic. ([#1405](https://github.com/relay/pull/1405))
+
+## 22.8.0
+
 **Features**:
 
 - Remove timeout-based expiry of envelopes in Relay's internal buffers. The `cache.envelope_expiry` is now inactive. To control the size of the envelope buffer, use `cache.envelope_buffer_size` exclusively, instead. ([#1398](https://github.com/getsentry/relay/pull/1398))
@@ -34,7 +40,6 @@
 - Add missing fields to GPUContext ([#1391](https://github.com/getsentry/relay/pull/1391))
 - Store actor now uses Tokio for message handling instead of Actix. ([#1397](https://github.com/getsentry/relay/pull/1397))
 - Add app_memory to AppContext struct. ([#1403](https://github.com/getsentry/relay/pull/1403))
-- Refactor tokio-based Addr from healthcheck to be generic. ([#1405](https://github.com/relay/pull/1405))
 
 ## 22.7.0
 
