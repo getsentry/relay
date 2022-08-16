@@ -1,4 +1,4 @@
-//! TODO
+//! Our definition of a service.
 
 use std::fmt;
 use std::future::Future;
@@ -26,10 +26,11 @@ pub trait Service {
 /// Messages have an associated `Response` type and can be unconditionally converted into
 /// the envelope type of their [`Service`].
 pub trait ServiceMessage<S: Service> {
-    /// The type of the `Response`
+    /// The type of the `Response`.
     type Response: Send + 'static;
 
-    /// TODO
+    /// Creates and returns an envelope for the message and the receiver to the transmitter
+    ///  contained in the Envelope.
     fn into_envelope(self) -> (S::Envelope, oneshot::Receiver<Self::Response>);
 }
 

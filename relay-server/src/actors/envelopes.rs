@@ -37,7 +37,7 @@ use crate::utils::{self, EnvelopeContext, FutureExt as _, Semaphore};
 use {
     crate::actors::store::{StoreError, StoreForwarder, StoreMessage},
     futures::{FutureExt, TryFutureExt},
-    relay_system::service::Addr as ServiceAddr, // TODO think if there is a better way to fix this
+    relay_system::service::Addr as ServiceAddr,
     tokio::runtime::Runtime,
 };
 
