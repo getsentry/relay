@@ -549,25 +549,6 @@ impl Project {
         self.rate_limits.merge(rate_limits);
     }
 
-    // /// Helper function for `state` and `state_clone`.
-    // fn valid_state_ref(&self) -> Option<&Arc<ProjectState>> {
-    //     let state = self.state.as_ref()?;
-    //     match state.check_expiry(&self.config) {
-    //         Expiry::Expired => None,
-    //         _ => Some(state),
-    //     }
-    // }
-
-    // /// Returns a reference to the project state if not yet expired.
-    // pub fn state(&self) -> Option<&ProjectState> {
-    //     self.valid_state_ref().map(|arc| arc.as_ref())
-    // }
-
-    // /// Returns a reference to the project state if not yet expired.
-    // pub fn state_clone(&self) -> Option<Arc<ProjectState>> {
-    //     self.valid_state_ref().map(Arc::clone)
-    // }
-
     /// Returns the current [`ExpiryState`] for this project.
     /// If the project state's [`Expiry`] is [`Expired`], do not return it.
     pub fn get_expiry_state(&self) -> ExpiryState {
