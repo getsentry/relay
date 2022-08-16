@@ -18,22 +18,15 @@ use std::fmt::Write;
             }
         - Return serialized output without modifying the original payload (beyond contexts insert).
 */
-pub fn parse_replay_event(replay_str: String) -> String {
-    let replay_input: Result<ReplayInput, Error> = serde_json::from_str(&replay_str);
+
+pub fn parse_replay_event(replay_bytes: &[u8]) -> Result<Vec<u8>, Error> {
+    let replay_input: Result<ReplayInput, Error> = serde_json::from_slice(&replay_bytes);
     match replay_input {
         Ok(mut replay_in) => {
-            println!("replay parsed");
             replay_in.set_user_agent_meta();
-            let replay_output = serde_json::to_string(&replay_in);
-            match replay_output {
-                Ok(replay_out) => {
-                    println!("replay serialized");
-                    replay_out
-                }
-                Err(_) => replay_str,
-            }
+            return serde_json::to_vec(&replay_in);
         }
-        Err(_) => replay_str,
+        Err(e) => Err(e),
     }
 }
 
@@ -185,7 +178,7 @@ fn test_deserialize_replay() {
     }
 }"#;
     // Convert the JSON string back to a Point.
-    let parsed_replay = parse_replay_event(json.to_string());
+    let parsed_replay = parse_replay_event(json.bytes());
     println!("serialized = {:?}", parsed_replay);
     assert_eq!(false, true);
     // let output: serde_json::Value = serde_json::from_str(&parsed_replay).unwrap();

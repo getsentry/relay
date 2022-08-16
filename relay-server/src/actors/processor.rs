@@ -13,7 +13,7 @@ use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use lazy_static::lazy_static;
-use serde_json::Value as SerdeValue;
+use serde_json::{Error as SerdeError, Value as SerdeValue};
 
 use relay_auth::RelayVersion;
 use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
@@ -32,6 +32,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, ReasonCode};
 use relay_redis::RedisPool;
+use relay_replays::parse_replay_event;
 use relay_sampling::RuleId;
 use relay_statsd::metric;
 
@@ -911,9 +912,24 @@ impl EnvelopeProcessor {
 
     /// Remove replays if the feature flag is not enabled
     fn process_replays(&self, state: &mut ProcessEnvelopeState) {
-        let replays_enabled = state.project_state.has_feature(Feature::Replays);
+        let replays_enabled: bool = state.project_state.has_feature(Feature::Replays);
         state.envelope.retain_items(|item| match item.ty() {
-            ItemType::ReplayEvent | ItemType::ReplayRecording => replays_enabled,
+            ItemType::ReplayEvent => {
+                if !replays_enabled {
+                    return false;
+                }
+
+                let parsed_replay: Result<Vec<u8>, SerdeError> =
+                    parse_replay_event(&item.payload());
+                match parsed_replay {
+                    Ok(replay) => {
+                        item.set_payload(ContentType::Json, &replay[..]);
+                        replays_enabled
+                    }
+                    Err(e) => replays_enabled,
+                }
+            }
+            ItemType::ReplayRecording => replays_enabled,
             _ => true,
         });
     }
