@@ -373,7 +373,7 @@ impl Handler<GetCachedProjectState> for ProjectCache {
     ) -> Self::Result {
         let project = self.get_or_create_project(message.project_key);
         project.get_or_fetch_state(false);
-        project.get_valid_state()
+        project.valid_state()
     }
 }
 
@@ -571,7 +571,7 @@ impl Handler<FlushBuckets> for ProjectCache {
         let config = self.config.clone();
         let project_key = message.project_key();
         let project = self.get_or_create_project(project_key);
-        let expiry_state = project.get_expiry_state();
+        let expiry_state = project.expiry_state();
 
         // Schedule an update to the project state if it is outdated, regardless of whether the
         // metrics can be forwarded or not. We never wait for this update.

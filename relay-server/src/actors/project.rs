@@ -537,7 +537,7 @@ impl Project {
 
     /// If we know that a project is disabled, disallow metrics, too.
     fn metrics_allowed(&self) -> bool {
-        if let Some(state) = self.get_valid_state() {
+        if let Some(state) = self.valid_state() {
             state.check_disabled(&self.config).is_ok()
         } else {
             // Projects without state go back to the original state of allowing metrics.
@@ -551,7 +551,7 @@ impl Project {
 
     /// Returns the current [`ExpiryState`] for this project.
     /// If the project state's [`Expiry`] is `Expired`, do not return it.
-    pub fn get_expiry_state(&self) -> ExpiryState {
+    pub fn expiry_state(&self) -> ExpiryState {
         if let Some(state) = &self.state {
             match state.check_expiry(self.config.as_ref()) {
                 Expiry::Updated => ExpiryState::Updated(state.clone()),
@@ -563,10 +563,11 @@ impl Project {
         }
     }
 
-    /// Returns self.state if it is not expired.
-    /// Convenience wrapper around `check_expiry`.
-    pub fn get_valid_state(&self) -> Option<Arc<ProjectState>> {
-        match self.get_expiry_state() {
+    /// Returns the project state if it is not expired.
+    ///
+    /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
+    pub fn valid_state(&self) -> Option<Arc<ProjectState>> {
+        match self.expiry_state() {
             ExpiryState::Updated(state) => Some(state),
             ExpiryState::Stale(state) => Some(state),
             ExpiryState::Expired => None,
@@ -726,7 +727,7 @@ impl Project {
     /// request's scoping. Otherwise, this function returns partial scoping from the `request_meta`.
     /// See [`RequestMeta::get_partial_scoping`] for more information.
     fn scope_request(&self, meta: &RequestMeta) -> Scoping {
-        match self.get_valid_state() {
+        match self.valid_state() {
             Some(state) => state.scope_request(meta),
             None => meta.get_partial_scoping(),
         }
@@ -737,7 +738,7 @@ impl Project {
         mut envelope: Envelope,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let state = self.get_valid_state();
+        let state = self.valid_state();
         if let Some(state) = state.as_deref() {
             if let Err(reason) = state.check_request(envelope.meta(), &self.config) {
                 envelope_context.reject(Outcome::Invalid(reason));
@@ -820,10 +821,10 @@ mod tests {
 
             if expiry > 0 {
                 // With long expiry, should get a state
-                assert!(project.get_valid_state().is_some());
+                assert!(project.valid_state().is_some());
             } else {
                 // With 0 expiry, project should expire immediately. No state can be set.
-                assert!(project.get_valid_state().is_none());
+                assert!(project.valid_state().is_none());
             }
         }
     }
