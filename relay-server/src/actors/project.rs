@@ -537,12 +537,12 @@ impl Project {
 
     /// If we know that a project is disabled, disallow metrics, too.
     fn metrics_allowed(&self) -> bool {
-        return if let Some(state) = self.get_valid_state() {
+        if let Some(state) = self.get_valid_state() {
             state.check_disabled(&self.config).is_ok()
         } else {
             // Projects without state go back to the original state of allowing metrics.
             true
-        };
+        }
     }
 
     pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {
