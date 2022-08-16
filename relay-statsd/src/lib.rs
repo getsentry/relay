@@ -65,7 +65,6 @@ use std::sync::Arc;
 use cadence::{
     BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient, UdpMetricSink,
 };
-use lazy_static::lazy_static;
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 
@@ -140,9 +139,7 @@ impl MetricsClient {
     }
 }
 
-lazy_static! {
-    static ref METRICS_CLIENT: RwLock<Option<Arc<MetricsClient>>> = RwLock::new(None);
-}
+static METRICS_CLIENT: RwLock<Option<Arc<MetricsClient>>> = RwLock::new(None);
 
 thread_local! {
     static CURRENT_CLIENT: Option<Arc<MetricsClient>> = METRICS_CLIENT.read().clone();
