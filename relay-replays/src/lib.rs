@@ -125,13 +125,11 @@ struct Headers {
     #[serde(rename = "User-Agent")]
     user_agent: String,
 }
-
 #[test]
 fn test_deserialize_replay() {
-    let json = r#"{
-    "type": "replay-event",
+    let json = br#"{
+    "type": "replay_event",
     "replay_id": "123",
-    "event_id": "123",
     "segment_id": 1,
     "timestamp": 1.23,
     "replay_start_timestamp": 1.20,
@@ -163,7 +161,7 @@ fn test_deserialize_replay() {
     }
 }"#;
     // Convert the JSON string back to a Point.
-    let parsed_replay = parse_replay_event(json.bytes());
+    let parsed_replay = parse_replay_event(&json.to_vec());
     println!("serialized = {:?}", parsed_replay);
     assert_eq!(false, true);
     // let output: serde_json::Value = serde_json::from_str(&parsed_replay).unwrap();
