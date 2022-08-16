@@ -32,7 +32,6 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, ReasonCode};
 use relay_redis::RedisPool;
-use relay_replays::parse_replay_event;
 use relay_sampling::RuleId;
 use relay_statsd::metric;
 
@@ -919,14 +918,13 @@ impl EnvelopeProcessor {
                     return false;
                 }
 
-                let parsed_replay: Result<Vec<u8>, SerdeError> =
-                    parse_replay_event(&item.payload());
+                let parsed_replay = relay_replays::parse_replay_event(&item.payload());
                 match parsed_replay {
                     Ok(replay) => {
                         item.set_payload(ContentType::Json, &replay[..]);
                         replays_enabled
                     }
-                    Err(e) => replays_enabled,
+                    Err(_) => replays_enabled,
                 }
             }
             ItemType::ReplayRecording => replays_enabled,

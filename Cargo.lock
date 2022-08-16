@@ -3557,6 +3557,7 @@ dependencies = [
  "relay-profiling",
  "relay-quotas",
  "relay-redis",
+ "relay-replays",
  "relay-sampling",
  "relay-statsd",
  "relay-system",
