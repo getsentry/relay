@@ -24,7 +24,7 @@ pub struct Healthcheck {
 }
 
 impl Service for Healthcheck {
-    type Envelope = HealthcheckEnvelope;
+    type Envelope = HealthCheckMessageEnvelope;
 }
 
 impl Healthcheck {
@@ -85,7 +85,7 @@ impl Healthcheck {
 
     /// Start this service, returning an [`Addr`] for communication.
     pub fn start(self) -> Addr<Self> {
-        let (tx, mut rx) = mpsc::unbounded_channel::<HealthcheckEnvelope>();
+        let (tx, mut rx) = mpsc::unbounded_channel::<HealthCheckMessageEnvelope>();
 
         let addr = Addr { tx };
         *ADDRESS.write() = Some(addr.clone());
@@ -98,7 +98,7 @@ impl Healthcheck {
 
                 tokio::spawn(async move {
                     match message {
-                        HealthcheckEnvelope::IsHealthy(msg, response_tx) => {
+                        HealthCheckMessageEnvelope::IsHealthy(msg, response_tx) => {
                             let response = service.handle_is_healthy(msg).await;
                             response_tx.send(response).ok()
                         }
@@ -134,14 +134,19 @@ pub enum IsHealthy {
 impl ServiceMessage<Healthcheck> for IsHealthy {
     type Response = bool;
 
-    fn into_envelope(self) -> (HealthcheckEnvelope, oneshot::Receiver<Self::Response>) {
+    fn into_envelope(
+        self,
+    ) -> (
+        HealthCheckMessageEnvelope,
+        oneshot::Receiver<Self::Response>,
+    ) {
         let (tx, rx) = oneshot::channel();
-        (HealthcheckEnvelope::IsHealthy(self, tx), rx)
+        (HealthCheckMessageEnvelope::IsHealthy(self, tx), rx)
     }
 }
 
 /// All the message types which can be sent to the [`Healthcheck`] actor.
 #[derive(Debug)]
-pub enum HealthcheckEnvelope {
+pub enum HealthCheckMessageEnvelope {
     IsHealthy(IsHealthy, oneshot::Sender<bool>),
 }

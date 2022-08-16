@@ -94,7 +94,7 @@ pub struct StoreForwarder {
 }
 
 impl Service for StoreForwarder {
-    type Envelope = StoreEnvelope;
+    type Envelope = StoreMessageEnvelope;
 }
 
 fn make_distinct_id(s: &str) -> Uuid {
@@ -138,12 +138,12 @@ impl StoreForwarder {
     pub fn start(self) -> Addr<Self> {
         relay_log::info!("store forwarder started");
 
-        let (tx, mut rx) = mpsc::unbounded_channel::<StoreEnvelope>();
+        let (tx, mut rx) = mpsc::unbounded_channel::<StoreMessageEnvelope>();
 
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 match message {
-                    StoreEnvelope::StoreMessage(msg, responder_tx) => {
+                    StoreMessageEnvelope::StoreEnvelope(msg, responder_tx) => {
                         let response = self.handle_store_evelope(msg);
                         responder_tx.send(response).ok();
                     }
@@ -189,8 +189,8 @@ impl StoreForwarder {
         Ok(Self { config, producers })
     }
 
-    fn handle_store_evelope(&self, message: StoreMessage) -> Result<(), StoreError> {
-        let StoreMessage {
+    fn handle_store_evelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
+        let StoreEnvelope {
             envelope,
             start_time,
             scoping,
@@ -990,23 +990,23 @@ impl KafkaMessage {
 
 /// Message sent to the StoreForwarder containing an event
 #[derive(Clone, Debug)]
-pub struct StoreMessage {
+pub struct StoreEnvelope {
     pub envelope: Envelope,
     pub start_time: Instant,
     pub scoping: Scoping,
 }
 
 // Envelope for the possible Messages that can be sent to the StoreForwarder
-pub enum StoreEnvelope {
-    StoreMessage(StoreMessage, oneshot::Sender<Result<(), StoreError>>),
+pub enum StoreMessageEnvelope {
+    StoreEnvelope(StoreEnvelope, oneshot::Sender<Result<(), StoreError>>),
 }
 
-impl ServiceMessage<StoreForwarder> for StoreMessage {
+impl ServiceMessage<StoreForwarder> for StoreEnvelope {
     type Response = Result<(), StoreError>;
 
-    fn into_envelope(self) -> (StoreEnvelope, oneshot::Receiver<Self::Response>) {
+    fn into_envelope(self) -> (StoreMessageEnvelope, oneshot::Receiver<Self::Response>) {
         let (tx, rx) = oneshot::channel();
-        (StoreEnvelope::StoreMessage(self, tx), rx)
+        (StoreMessageEnvelope::StoreEnvelope(self, tx), rx)
     }
 }
 

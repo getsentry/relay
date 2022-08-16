@@ -35,7 +35,7 @@ use crate::utils::{self, EnvelopeContext, FutureExt as _, Semaphore};
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{StoreError, StoreForwarder, StoreMessage},
+    crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     futures::{FutureExt, TryFutureExt},
     relay_system::service::Addr as ServiceAddr,
     tokio::runtime::Runtime,
@@ -263,7 +263,7 @@ impl EnvelopeManager {
                 relay_log::trace!("sending envelope to kafka");
                 let fut = async move {
                     let addr = store_forwarder.clone();
-                    addr.send(StoreMessage {
+                    addr.send(StoreEnvelope {
                         envelope,
                         start_time,
                         scoping,
