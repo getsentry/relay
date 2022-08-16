@@ -93,12 +93,10 @@ impl<S: Service> Addr<S> {
         M: ServiceMessage<S>,
     {
         let (envelope, response_rx) = message.into_envelope();
-        let res = self.tx.send(envelope).map_err(|_| SendError);
+        let res = self.tx.send(envelope);
         async move {
-            match res {
-                Ok(_) => response_rx.await.map_err(|_| SendError),
-                Err(_) => Err(SendError),
-            }
+            res.map_err(|_| SendError)?;
+            response_rx.await.map_err(|_| SendError)
         }
     }
 }
