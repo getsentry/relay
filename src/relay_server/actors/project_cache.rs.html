@@ -616,6 +616,15 @@
 <span id="608">608</span>
 <span id="609">609</span>
 <span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
@@ -634,12 +643,14 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendMetrics</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome::DiscardReason</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project</span>::{<span class="ident">Expiry</span>, <span class="ident">Project</span>, <span class="ident">ProjectState</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project</span>::{<span class="ident">Project</span>, <span class="ident">ProjectState</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_local::LocalProjectSource</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_upstream::UpstreamProjectSource</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">Response</span>};
+
+<span class="kw">use</span> <span class="ident"><span class="kw">super</span>::project::ExpiryState</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">use</span> {<span class="ident"><span class="kw">crate</span>::actors::project_redis::RedisProjectSource</span>, <span class="ident">relay_common::clone</span>};
@@ -690,6 +701,12 @@
         }
     }
 
+    <span class="doccomment">/// Evict projects that are over its expiry date.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Ideally, we would use `check_expiry` to determine expiry here.</span>
+    <span class="doccomment">/// However, for eviction, we want to add an additional delay, such that we do not delete</span>
+    <span class="doccomment">/// a project that has expired recently and for which a fetch is already underway in</span>
+    <span class="doccomment">/// [`super::project_upstream`].</span>
     <span class="kw">fn</span> <span class="ident">evict_stale_project_caches</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
         <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::EvictingStaleProjectCaches</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);
         <span class="kw">let</span> <span class="ident">eviction_start</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
@@ -983,7 +1000,7 @@
     ) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
         <span class="ident">project</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>);
-        <span class="ident">project</span>.<span class="ident">state_clone</span>()
+        <span class="ident">project</span>.<span class="ident">valid_state</span>()
     }
 }
 
@@ -1181,30 +1198,31 @@
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">clone</span>();
         <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">project_key</span>();
         <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>);
-        <span class="kw">let</span> <span class="ident">expiry</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project</span>.<span class="ident">state</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">state</span>) =&gt; <span class="ident">state</span>.<span class="ident">check_expiry</span>(<span class="ident">config</span>.<span class="ident">as_ref</span>()),
-            <span class="prelude-val">None</span> =&gt; <span class="ident">Expiry::Expired</span>,
-        };
+        <span class="kw">let</span> <span class="ident">expiry_state</span> <span class="op">=</span> <span class="ident">project</span>.<span class="ident">expiry_state</span>();
 
         <span class="comment">// Schedule an update to the project state if it is outdated, regardless of whether the</span>
         <span class="comment">// metrics can be forwarded or not. We never wait for this update.</span>
-        <span class="kw">if</span> <span class="ident">expiry</span> <span class="op">!</span><span class="op">=</span> <span class="ident">Expiry::Updated</span> {
+        <span class="kw">if</span> <span class="op">!</span><span class="macro">matches!</span>(<span class="ident">expiry_state</span>, <span class="ident">ExpiryState::Updated</span>(<span class="kw">_</span>)) {
             <span class="ident">project</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>);
         }
 
-        <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into the</span>
-        <span class="comment">// aggregator and wait for the next flush cycle.</span>
-        <span class="kw">if</span> <span class="ident">expiry</span> <span class="op">==</span> <span class="ident">Expiry::Expired</span> {
-            <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">message</span>.<span class="ident">into_buckets</span>()));
-        }
+        <span class="kw">let</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">expiry_state</span> {
+            <span class="ident">ExpiryState::Updated</span>(<span class="ident">state</span>) =&gt; <span class="ident">state</span>,
+            <span class="ident">ExpiryState::Stale</span>(<span class="ident">state</span>) =&gt; <span class="ident">state</span>,
+            <span class="ident">ExpiryState::Expired</span> =&gt; {
+                <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into the</span>
+                <span class="comment">// aggregator and wait for the next flush cycle.</span>
+                <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">message</span>.<span class="ident">into_buckets</span>()));
+            }
+        };
 
-        <span class="kw">let</span> (<span class="ident">state</span>, <span class="ident">scoping</span>) <span class="op">=</span> <span class="kw">match</span> (<span class="ident">project</span>.<span class="ident">state</span>(), <span class="ident">project</span>.<span class="ident">scoping</span>()) {
-            (<span class="prelude-val">Some</span>(<span class="ident">state</span>), <span class="prelude-val">Some</span>(<span class="ident">scoping</span>)) =&gt; (<span class="ident">state</span>, <span class="ident">scoping</span>),
+        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project</span>.<span class="ident">scoping</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">scoping</span>) =&gt; <span class="ident">scoping</span>,
             <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">message</span>.<span class="ident">into_buckets</span>())),
         };
 
         <span class="comment">// Only send if the project state is valid, otherwise drop this bucket.</span>
-        <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">check_disabled</span>(<span class="ident">config</span>.<span class="ident">as_ref</span>()).<span class="ident">is_err</span>() {
+        <span class="kw">if</span> <span class="ident">project_state</span>.<span class="ident">check_disabled</span>(<span class="ident">config</span>.<span class="ident">as_ref</span>()).<span class="ident">is_err</span>() {
             <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::ok</span>(()));
         }
 
