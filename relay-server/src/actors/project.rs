@@ -49,7 +49,7 @@ enum Expiry {
 }
 
 /// The expiry status of a project state, together with the state itself if it has not expired.
-/// Return value of [`Project::check_expiry`].
+/// Return value of [`Project::get_expiry_state`].
 pub enum ExpiryState {
     /// An up-to-date project state. See [`Expiry::Updated`].
     Updated(Arc<ProjectState>),
@@ -550,7 +550,7 @@ impl Project {
     }
 
     /// Returns the current [`ExpiryState`] for this project.
-    /// If the project state's [`Expiry`] is [`Expired`], do not return it.
+    /// If the project state's [`Expiry`] is `Expired`, do not return it.
     pub fn get_expiry_state(&self) -> ExpiryState {
         if let Some(state) = &self.state {
             match state.check_expiry(self.config.as_ref()) {
