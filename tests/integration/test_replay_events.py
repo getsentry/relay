@@ -4,6 +4,7 @@ import json
 def generate_replay_event():
     return {
         "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "event_id": "123",
         "type": "replay_event",
         "transaction": "/organizations/:orgId/performance/:eventSlug/",
         "start_timestamp": 1597976392.6542819,
