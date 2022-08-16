@@ -134,7 +134,7 @@ impl RedisPool {
     pub fn cluster(servers: Vec<&str>, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
-            .test_on_check_out(opts.test_on_check_out)
+            .test_on_check_out(false)
             .build(redis::cluster::ClusterClient::open(servers).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 
@@ -146,7 +146,7 @@ impl RedisPool {
     pub fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
-            .test_on_check_out(opts.test_on_check_out)
+            .test_on_check_out(false)
             .build(redis::Client::open(server).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 
