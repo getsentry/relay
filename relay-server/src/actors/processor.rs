@@ -13,7 +13,7 @@ use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use lazy_static::lazy_static;
-use serde_json::{Error as SerdeError, Value as SerdeValue};
+use serde_json::Value as SerdeValue;
 
 use relay_auth::RelayVersion;
 use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
