@@ -37,7 +37,7 @@ use crate::utils::{EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum Expiry {
+enum Expiry {
     /// The project state is perfectly up to date.
     Updated,
     /// The project state is outdated but events depending on this project state can still be
@@ -45,6 +45,17 @@ pub enum Expiry {
     Stale,
     /// The project state is completely outdated and events need to be buffered up until the new
     /// state has been fetched.
+    Expired,
+}
+
+/// The expiry status of a project state, together with the state itself if it has not expired.
+/// Return value of [`Project::check_expiry`].
+pub enum ExpiryState {
+    /// An up-to-date project state. See [`Expiry::Updated`].
+    Updated(Arc<ProjectState>),
+    /// A stale project state that can still be used. See [`Expiry::Stale`].
+    Stale(Arc<ProjectState>),
+    /// An expired project state that should not be used. See [`Expiry::Expired`].
     Expired,
 }
 
@@ -271,7 +282,7 @@ impl ProjectState {
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
-    pub fn check_expiry(&self, config: &Config) -> Expiry {
+    fn check_expiry(&self, config: &Config) -> Expiry {
         let expiry = match self.project_id {
             None => config.cache_miss_expiry(),
             Some(_) => config.project_cache_expiry(),
@@ -526,7 +537,7 @@ impl Project {
 
     /// If we know that a project is disabled, disallow metrics, too.
     fn metrics_allowed(&self) -> bool {
-        return if let Some(state) = self.state() {
+        return if let Some(state) = self.get_valid_state() {
             state.check_disabled(&self.config).is_ok()
         } else {
             // Projects without state go back to the original state of allowing metrics.
@@ -538,23 +549,47 @@ impl Project {
         self.rate_limits.merge(rate_limits);
     }
 
-    /// Helper function for `state` and `state_clone`.
-    fn valid_state_ref(&self) -> Option<&Arc<ProjectState>> {
-        let state = self.state.as_ref()?;
-        match state.check_expiry(&self.config) {
-            Expiry::Expired => None,
-            _ => Some(state),
+    // /// Helper function for `state` and `state_clone`.
+    // fn valid_state_ref(&self) -> Option<&Arc<ProjectState>> {
+    //     let state = self.state.as_ref()?;
+    //     match state.check_expiry(&self.config) {
+    //         Expiry::Expired => None,
+    //         _ => Some(state),
+    //     }
+    // }
+
+    // /// Returns a reference to the project state if not yet expired.
+    // pub fn state(&self) -> Option<&ProjectState> {
+    //     self.valid_state_ref().map(|arc| arc.as_ref())
+    // }
+
+    // /// Returns a reference to the project state if not yet expired.
+    // pub fn state_clone(&self) -> Option<Arc<ProjectState>> {
+    //     self.valid_state_ref().map(Arc::clone)
+    // }
+
+    /// Returns the current [`ExpiryState`] for this project.
+    /// If the project state's [`Expiry`] is [`Expired`], do not return it.
+    pub fn get_expiry_state(&self) -> ExpiryState {
+        if let Some(state) = &self.state {
+            match state.check_expiry(self.config.as_ref()) {
+                Expiry::Updated => ExpiryState::Updated(state.clone()),
+                Expiry::Stale => ExpiryState::Stale(state.clone()),
+                Expiry::Expired => ExpiryState::Expired,
+            }
+        } else {
+            ExpiryState::Expired
         }
     }
 
-    /// Returns a reference to the project state if not yet expired.
-    pub fn state(&self) -> Option<&ProjectState> {
-        self.valid_state_ref().map(|arc| arc.as_ref())
-    }
-
-    /// Returns a reference to the project state if not yet expired.
-    pub fn state_clone(&self) -> Option<Arc<ProjectState>> {
-        self.valid_state_ref().map(Arc::clone)
+    /// Returns self.state if it is not expired.
+    /// Convenience wrapper around `check_expiry`.
+    pub fn get_valid_state(&self) -> Option<Arc<ProjectState>> {
+        match self.get_expiry_state() {
+            ExpiryState::Updated(state) => Some(state),
+            ExpiryState::Stale(state) => Some(state),
+            ExpiryState::Expired => None,
+        }
     }
 
     /// The last time the project state was updated
@@ -690,8 +725,10 @@ impl Project {
     ///
     /// Returns `Some` if the project state has been fetched and contains a project identifier,
     /// otherwise `None`.
+    ///
+    /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
-        let state = self.state()?;
+        let state = self.state.as_deref()?;
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,
@@ -708,7 +745,7 @@ impl Project {
     /// request's scoping. Otherwise, this function returns partial scoping from the `request_meta`.
     /// See [`RequestMeta::get_partial_scoping`] for more information.
     fn scope_request(&self, meta: &RequestMeta) -> Scoping {
-        match self.state() {
+        match self.get_valid_state() {
             Some(state) => state.scope_request(meta),
             None => meta.get_partial_scoping(),
         }
@@ -719,7 +756,8 @@ impl Project {
         mut envelope: Envelope,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        if let Some(state) = self.state() {
+        let state = self.get_valid_state();
+        if let Some(state) = state.as_deref() {
             if let Err(reason) = state.check_request(envelope.meta(), &self.config) {
                 envelope_context.reject(Outcome::Invalid(reason));
                 return Err(reason);
@@ -728,7 +766,7 @@ impl Project {
 
         self.rate_limits.clean_expired();
 
-        let quotas = self.state().map(|s| s.get_quotas()).unwrap_or(&[]);
+        let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
@@ -801,12 +839,10 @@ mod tests {
 
             if expiry > 0 {
                 // With long expiry, should get a state
-                assert!(project.state().is_some());
-                assert!(project.state_clone().is_some());
+                assert!(project.get_valid_state().is_some());
             } else {
                 // With 0 expiry, project should expire immediately. No state can be set.
-                assert!(project.state().is_none());
-                assert!(project.state_clone().is_none());
+                assert!(project.get_valid_state().is_none());
             }
         }
     }
