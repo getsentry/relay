@@ -127,7 +127,7 @@ init-submodules:
 setup-git: .git/hooks/pre-commit init-submodules ## make sure all git configured and all the submodules are fetched
 .PHONY: setup-git
 
-setup-venv: .venv/bin/python .venv/python-requirements-stamp ## create a Python virtual environment
+setup-venv: .venv/bin/python .venv/python-requirements-stamp ## create a Python virtual environment with development requirements installed
 .PHONY: setup-venv
 
 devserver: ## run the development server
