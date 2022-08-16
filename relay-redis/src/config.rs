@@ -6,6 +6,7 @@ const fn default_max_connections() -> u32 {
 
 /// Additional configuration options for a redis client.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[serde(default)]
 pub struct RedisConfigOptions {
     /// Maximum number of connections managed by the pool.
     #[serde(default = "default_max_connections")]
