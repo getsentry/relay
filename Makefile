@@ -8,18 +8,18 @@ all: check test ## run all checks and tests
 check: style lint ## run the lints and check the code style for rust and python code
 .PHONY: check
 
-clean: ## remove python virtual environment and delete cached rust files together with .target folder
+clean: ## remove python virtual environment and delete cached rust files together with target folder
 	cargo clean
 	rm -rf .venv
 .PHONY: clean
 
 # Builds
 
-build: setup-git ## build relay with all features enabled with debug info
+build: setup-git ## build relay with all features enabled without debug info
 	cargo +stable build --all-features
 .PHONY: build
 
-release: setup-git ## build production release of the relay with
+release: setup-git ## build production binary of the relay with debug info
 	@cd relay && cargo +stable build --release --locked --features ${RELAY_FEATURES}
 .PHONY: release
 
@@ -30,15 +30,15 @@ build-linux-release: setup-git ## build linux release of the relay
 	objcopy --add-gnu-debuglink target/${TARGET}/release/relay{.debug,}
 .PHONY: build-linux-release
 
-sdist: setup-git setup-venv ## create a sdist of the Python code
+sdist: setup-git setup-venv ## create a sdist of the Python library
 	cd py && ../.venv/bin/python setup.py sdist --format=zip
 .PHONY: sdist
 
-wheel: setup-git setup-venv ## create a wheel of the Python code
+wheel: setup-git setup-venv ## build a wheel of the Python library
 	cd py && ../.venv/bin/python setup.py bdist_wheel
 .PHONY: wheel
 
-wheel-manylinux: setup-git ## create wheels for linux
+wheel-manylinux: setup-git ## build manylinux 2010 compatible wheels
 	@scripts/docker-manylinux.sh
 .PHONY: wheel-manylinux
 
@@ -66,7 +66,7 @@ test-integration: build setup-venv ## run integration tests
 
 # Documentation
 
-doc: doc-api ## generate API docs for Rust code
+doc: doc-api ## generate all API docs
 .PHONY: doc-api
 
 doc-api: setup-git ## generate API docs for Rust code
