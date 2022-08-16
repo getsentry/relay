@@ -922,9 +922,9 @@ impl EnvelopeProcessor {
                 match parsed_replay {
                     Ok(replay) => {
                         item.set_payload(ContentType::Json, &replay[..]);
-                        replays_enabled
+                        true
                     }
-                    Err(_) => replays_enabled,
+                    Err(_) => false,
                 }
             }
             ItemType::ReplayRecording => replays_enabled,
