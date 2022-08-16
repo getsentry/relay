@@ -2472,16 +2472,6 @@ dependencies = [
 
 [[package]]
 name = "parking_lot"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3a704eb390aafdc107b0e392f56a82b668e3a71366993b5340f5833fd62505e"
-dependencies = [
- "lock_api 0.3.4",
- "parking_lot_core 0.7.2",
-]
-
-[[package]]
-name = "parking_lot"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
@@ -2526,20 +2516,6 @@ dependencies = [
  "redox_syscall 0.1.57",
  "rustc_version 0.2.3",
  "smallvec 0.6.14",
- "winapi 0.3.9",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d58c7c768d4ba344e3e8d72518ac13e259d7c7ade24167003b8488e10b6740a3"
-dependencies = [
- "cfg-if 0.1.10",
- "cloudabi",
- "libc",
- "redox_syscall 0.1.57",
- "smallvec 1.8.0",
  "winapi 0.3.9",
 ]
 
@@ -3314,7 +3290,7 @@ dependencies = [
  "lazy_static",
  "lazycell",
  "lru",
- "parking_lot 0.10.2",
+ "parking_lot 0.12.1",
  "regex",
  "relay-log",
  "schemars",
@@ -3550,7 +3526,7 @@ dependencies = [
  "listenfd",
  "minidump",
  "native-tls",
- "parking_lot 0.10.2",
+ "parking_lot 0.12.1",
  "rdkafka",
  "rdkafka-sys",
  "regex",
@@ -3590,8 +3566,7 @@ name = "relay-statsd"
 version = "22.8.0"
 dependencies = [
  "cadence",
- "lazy_static",
- "parking_lot 0.10.2",
+ "parking_lot 0.12.1",
  "rand 0.7.3",
  "relay-log",
 ]
