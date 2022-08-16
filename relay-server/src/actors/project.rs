@@ -49,7 +49,7 @@ enum Expiry {
 }
 
 /// The expiry status of a project state, together with the state itself if it has not expired.
-/// Return value of [`Project::get_expiry_state`].
+/// Return value of [`Project::expiry_state`].
 pub enum ExpiryState {
     /// An up-to-date project state. See [`Expiry::Updated`].
     Updated(Arc<ProjectState>),
