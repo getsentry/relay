@@ -17,7 +17,7 @@ use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::RelayGauges;
 
 /// Singleton of the `Healthcheck` service.
-static ADDRESS: RwLock<Option<Addr<HealthcheckMessage>>> = RwLock::new(None);
+static ADDRESS: RwLock<Option<Addr<Healthcheck>>> = RwLock::new(None);
 
 /// Our definition of a service.
 ///
