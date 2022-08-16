@@ -1,6 +1,7 @@
 // Clippy throws errors in situations where a closure is clearly the better way. An example is
 // `Annotated::as_str`, which can't be used directly because it's part of two impl blocks.
 #![allow(clippy::redundant_closure)]
+#![allow(clippy::derive_partial_eq_without_eq)]
 #![deny(unused_must_use)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
