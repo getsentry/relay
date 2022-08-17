@@ -1,5 +1,3 @@
-//! Our definition of a service.
-
 use std::fmt;
 use std::future::Future;
 

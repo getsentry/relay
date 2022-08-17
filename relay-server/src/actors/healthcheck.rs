@@ -12,7 +12,7 @@ use relay_system::{compat, Controller};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::RelayGauges;
-use relay_system::service::{Addr, Service, ServiceMessage};
+use relay_system::{Addr, Service, ServiceMessage};
 
 /// Singleton of the `Healthcheck` service.
 static ADDRESS: RwLock<Option<Addr<Healthcheck>>> = RwLock::new(None);

@@ -21,7 +21,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::service::{Addr, Service, ServiceMessage};
+use relay_system::{Addr, Service, ServiceMessage};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
@@ -988,7 +988,7 @@ impl KafkaMessage {
     }
 }
 
-/// Message sent to the [`StoreForwarder`] containing an event.
+/// Message sent to the [`StoreForwarder`] containing an [`Envelope`].
 #[derive(Clone, Debug)]
 pub struct StoreEnvelope {
     pub envelope: Envelope,

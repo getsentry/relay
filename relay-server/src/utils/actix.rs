@@ -142,11 +142,13 @@ impl<T: 'static, E: 'static> Response<T, E> {
 
 /// Constructs a single threaded tokio [`Runtime`] containing a clone of the actix [`System`].
 ///
-/// Can only be called in a thread where actix is enabled.
+/// This is required if you need to send messages from the tokio runtime to actix
+/// actors.
 ///
 /// # Panics
 ///
-/// Panics if this is invoked in a thread where actix is not enabled.
+/// The calling thread must have the actix system enabled, panics if this is invoked
+/// in a thread where actix is not enabled.
 pub fn tokio_runtime_with_actix() -> Runtime {
     let system = System::current();
     tokio::runtime::Builder::new_multi_thread()
