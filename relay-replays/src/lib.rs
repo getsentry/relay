@@ -8,7 +8,7 @@ pub fn parse_replay_event(replay_bytes: &[u8]) -> Result<Vec<u8>, Error> {
     let replay_input: Result<ReplayInput, Error> = serde_json::from_slice(replay_bytes);
     match replay_input {
         Ok(mut replay_in) => {
-            replay_in.set_user_agent_meta(); // breaks because of UA parsing :O
+            replay_in.set_user_agent_meta();
             serde_json::to_vec(&replay_in)
         }
         Err(e) => Err(e),
