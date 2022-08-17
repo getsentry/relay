@@ -1,13 +1,15 @@
-use std::sync::mpsc;
-use std::thread::JoinHandle;
+use std::{sync::mpsc, thread::JoinHandle};
 
+/// Garbage disposal agent.
+/// Spawns a background thread which drops items sent to it via [`GarbageDisposal::dispose`].
 pub struct GarbageDisposal<T> {
-    tx: Option<mpsc::Sender<T>>,
-    join_handle: Option<JoinHandle<()>>,
+    tx: mpsc::Sender<T>,
 }
 
 impl<T: Send + 'static> GarbageDisposal<T> {
-    pub fn new() -> Self {
+    /// Returns a new instance plus a handle to join on the background thread.
+    /// Currently only used in tests.
+    fn new_joinable() -> (Self, JoinHandle<()>) {
         let (tx, rx) = mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
@@ -24,33 +26,27 @@ impl<T: Send + 'static> GarbageDisposal<T> {
             relay_log::debug!("Stop garbage collection thread");
         });
 
-        Self {
-            tx: Some(tx),
-            join_handle: Some(join_handle),
-        }
+        (Self { tx }, join_handle)
     }
 
+    /// Spawns a new garbage disposal instance.
+    /// Every instance has its own background thread that received items to be dropped via
+    /// [`Self::dispose`].
+    /// When the instance is dropped, the background thread stops automatically.
+    pub fn new() -> Self {
+        let (instance, _) = Self::new_joinable();
+        instance
+    }
+
+    /// Defers dropping an object by sending it to the background thread.
     pub fn dispose(&self, object: T) {
-        let tx = self.tx.as_ref().expect("Join handle not initialized");
-        tx.send(object)
+        self.tx
+            .send(object)
             .map_err(|e| {
                 relay_log::error!("Failed to send object to garbage disposal thread, drop here");
                 drop(e.0);
             })
             .ok();
-    }
-}
-
-impl<T> Drop for GarbageDisposal<T> {
-    fn drop(&mut self) {
-        // Cut off the sender:
-        drop(self.tx.take());
-        // Wait for receiver to empty its queue:
-        if let Some(join_handle) = self.join_handle.take() {
-            if join_handle.join().is_err() {
-                relay_log::error!("Failed to join on garbage disposal thread");
-            }
-        }
     }
 }
 
@@ -89,9 +85,10 @@ mod tests {
             thread_ids: thread_ids.clone(),
         };
 
-        let garbage = GarbageDisposal::new();
+        let (garbage, join_handle) = GarbageDisposal::new_joinable();
         garbage.dispose(x2);
-        drop(garbage); // Join garbage disposal thread
+        drop(garbage); // breaks the while loop by dropping rx
+        join_handle.join().ok(); // wait for thread to finish its work
 
         let thread_ids = thread_ids.lock().unwrap();
         assert_eq!(thread_ids.len(), 2);
