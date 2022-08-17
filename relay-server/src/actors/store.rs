@@ -180,7 +180,7 @@ impl StoreForwarder {
             while let Some(message) = rx.recv().await {
                 match message {
                     StoreMessages::StoreEnvelope(msg, responder_tx) => {
-                        let response = self.handle_store_evelope(msg);
+                        let response = self.handle_store_envelope(msg);
                         responder_tx.send(response).ok();
                     }
                 }
@@ -198,7 +198,7 @@ impl StoreForwarder {
         Ok(Self { config, producers })
     }
 
-    fn handle_store_evelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
+    fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
         let StoreEnvelope {
             envelope,
             start_time,
