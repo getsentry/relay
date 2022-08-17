@@ -10,6 +10,10 @@
 
 - Refactor tokio-based Addr from healthcheck to be generic. ([#1405](https://github.com/relay/pull/1405))
 
+**Features**:
+
+- Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
+
 ## 22.8.0
 
 **Features**:

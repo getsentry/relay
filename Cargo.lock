@@ -3484,6 +3484,7 @@ dependencies = [
  "r2d2",
  "redis",
  "serde",
+ "serde_yaml",
 ]
 
 [[package]]
