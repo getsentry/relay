@@ -24,11 +24,11 @@ pub struct Healthcheck {
 }
 
 impl Service for Healthcheck {
-    type Envelope = HealthCheckMessageEnvelope;
+    type Messages = HealthcheckMessages;
 }
 
 impl Healthcheck {
-    /// Returns the [`Addr`] of the [`Healthcheck`] actor.
+    /// Returns the [`Addr`] of the [`Healthcheck`] service.
     ///
     /// Prior to using this, the service must be started using [`Healthcheck::start`].
     ///
@@ -85,7 +85,7 @@ impl Healthcheck {
 
     /// Start this service, returning an [`Addr`] for communication.
     pub fn start(self) -> Addr<Self> {
-        let (tx, mut rx) = mpsc::unbounded_channel::<HealthCheckMessageEnvelope>();
+        let (tx, mut rx) = mpsc::unbounded_channel::<HealthcheckMessages>();
 
         let addr = Addr { tx };
         *ADDRESS.write() = Some(addr.clone());
@@ -98,7 +98,7 @@ impl Healthcheck {
 
                 tokio::spawn(async move {
                     match message {
-                        HealthCheckMessageEnvelope::IsHealthy(msg, response_tx) => {
+                        HealthcheckMessages::IsHealthy(msg, response_tx) => {
                             let response = service.handle_is_healthy(msg).await;
                             response_tx.send(response).ok()
                         }
@@ -134,19 +134,14 @@ pub enum IsHealthy {
 impl ServiceMessage<Healthcheck> for IsHealthy {
     type Response = bool;
 
-    fn into_envelope(
-        self,
-    ) -> (
-        HealthCheckMessageEnvelope,
-        oneshot::Receiver<Self::Response>,
-    ) {
+    fn into_messages(self) -> (HealthcheckMessages, oneshot::Receiver<Self::Response>) {
         let (tx, rx) = oneshot::channel();
-        (HealthCheckMessageEnvelope::IsHealthy(self, tx), rx)
+        (HealthcheckMessages::IsHealthy(self, tx), rx)
     }
 }
 
-/// All the message types which can be sent to the [`Healthcheck`] actor.
+/// All the message types which can be sent to the [`Healthcheck`] service.
 #[derive(Debug)]
-pub enum HealthCheckMessageEnvelope {
+pub enum HealthcheckMessages {
     IsHealthy(IsHealthy, oneshot::Sender<bool>),
 }

@@ -1,5 +1,5 @@
-//! This module contains the actor that forwards events and attachments to the Sentry store.
-//! The actor uses kafka topics to forward data to Sentry
+//! This module contains the service that forwards events and attachments to the Sentry store.
+//! The service uses kafka topics to forward data to Sentry
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -123,14 +123,14 @@ impl Producers {
     }
 }
 
-/// Actor for publishing events to Sentry through kafka topics.
+/// Service for publishing events to Sentry through kafka topics.
 pub struct StoreForwarder {
     config: Arc<Config>,
     producers: Producers,
 }
 
 impl Service for StoreForwarder {
-    type Envelope = StoreMessageEnvelope;
+    type Messages = StoreMessages;
 }
 
 fn make_distinct_id(s: &str) -> Uuid {
@@ -174,12 +174,12 @@ impl StoreForwarder {
     pub fn start(self) -> Addr<Self> {
         relay_log::info!("store forwarder started");
 
-        let (tx, mut rx) = mpsc::unbounded_channel::<StoreMessageEnvelope>();
+        let (tx, mut rx) = mpsc::unbounded_channel::<StoreMessages>();
 
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 match message {
-                    StoreMessageEnvelope::StoreEnvelope(msg, responder_tx) => {
+                    StoreMessages::StoreEnvelope(msg, responder_tx) => {
                         let response = self.handle_store_evelope(msg);
                         responder_tx.send(response).ok();
                     }
@@ -1005,17 +1005,18 @@ pub struct StoreEnvelope {
     pub scoping: Scoping,
 }
 
-/// Envelope for the possible Messages that can be sent to the [`StoreForwarder`].
-pub enum StoreMessageEnvelope {
+/// All the message types which can be sent to the [`StoreForwarder`].
+#[derive(Debug)]
+pub enum StoreMessages {
     StoreEnvelope(StoreEnvelope, oneshot::Sender<Result<(), StoreError>>),
 }
 
 impl ServiceMessage<StoreForwarder> for StoreEnvelope {
     type Response = Result<(), StoreError>;
 
-    fn into_envelope(self) -> (StoreMessageEnvelope, oneshot::Receiver<Self::Response>) {
+    fn into_messages(self) -> (StoreMessages, oneshot::Receiver<Self::Response>) {
         let (tx, rx) = oneshot::channel();
-        (StoreMessageEnvelope::StoreEnvelope(self, tx), rx)
+        (StoreMessages::StoreEnvelope(self, tx), rx)
     }
 }
 

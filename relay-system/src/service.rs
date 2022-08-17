@@ -12,24 +12,24 @@ use tokio::sync::{mpsc, oneshot};
 /// Messages always have a response which will be sent once the message is handled by the
 /// service.
 pub trait Service {
-    /// The envelope is what is sent to the inbox of this service.
+    /// The messages is what is sent to the inbox of this service.
     ///
     /// It is an enum of all the message types that can be handled by this service together
     /// with the response [sender](oneshot::Sender) for each message.
-    type Envelope: Send + 'static;
+    type Messages: Send + 'static;
 }
 
 /// A message which can be sent to a service.
 ///
 /// Messages have an associated `Response` type and can be unconditionally converted into
-/// the envelope type of their [`Service`].
+/// the messages type of their [`Service`].
 pub trait ServiceMessage<S: Service> {
     /// The type of the `Response`.
     type Response: Send + 'static;
 
-    /// Creates and returns an envelope for the message and the receiver to the transmitter
-    ///  contained in the Envelope.
-    fn into_envelope(self) -> (S::Envelope, oneshot::Receiver<Self::Response>);
+    /// Creates and returns a wrapper containing the message and a Transmitter, also returns the
+    ///  corresponding Receiver.
+    fn into_messages(self) -> (S::Messages, oneshot::Receiver<Self::Response>);
 }
 
 /// An error when [sending](Addr::send) a message to a service fails.
@@ -51,7 +51,7 @@ impl std::error::Error for SendError {}
 #[derive(Debug)]
 pub struct Addr<S: Service> {
     /// The transmitter of the channel used to communicate with the Service
-    pub tx: mpsc::UnboundedSender<S::Envelope>,
+    pub tx: mpsc::UnboundedSender<S::Messages>,
 }
 
 // Manually derive clone since we do not require `S: Clone` and the Clone derive adds this
@@ -78,8 +78,8 @@ impl<S: Service> Addr<S> {
     where
         M: ServiceMessage<S>,
     {
-        let (envelope, response_rx) = message.into_envelope();
-        let res = self.tx.send(envelope);
+        let (messages, response_rx) = message.into_messages();
+        let res = self.tx.send(messages);
         async move {
             res.map_err(|_| SendError)?;
             response_rx.await.map_err(|_| SendError)
