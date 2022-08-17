@@ -42,20 +42,20 @@ impl ReplayInput {
     pub fn set_user_agent_meta(&mut self) {
         let user_agent = &self.requests.headers.user_agent;
 
-        let device = parse_device(&user_agent);
+        let device = parse_device(user_agent);
         let device_struct = Device {
             family: device.family,
             brand: device.brand,
             model: device.model,
         };
 
-        let ua = parse_user_agent(&user_agent);
+        let ua = parse_user_agent(user_agent);
         let browser_struct = VersionedMeta {
             name: ua.family,
             version: get_version(&ua.major, &ua.minor, &ua.patch),
         };
 
-        let os = parse_os(&user_agent);
+        let os = parse_os(user_agent);
         let os_struct = VersionedMeta {
             name: os.family,
             version: get_version(&os.major, &os.minor, &os.patch),
