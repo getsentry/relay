@@ -18,14 +18,14 @@ use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 
-use crate::actors::envelopes::{EnvelopeManager, QueueEnvelope, QueueEnvelopeError};
+use crate::actors::envelopes::{Capture, EnvelopeManager, QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
 use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ApiErrorResponse, EnvelopeContext, FormDataIter, MultipartError};
+use crate::utils::{self, ApiErrorResponse, FormDataIter, MultipartError};
 
 #[derive(Fail, Debug)]
 pub enum BadStoreRequest {
@@ -311,7 +311,12 @@ where
             // queueing, that still results in a `200 OK` response.
             utils::remove_unknown_items(&config, &mut envelope);
 
-            let mut envelope_context = EnvelopeContext::from_envelope(&envelope);
+            let mut envelope_context = request
+                .state()
+                .buffer_guard()
+                .enter(&envelope)
+                .map_err(BadStoreRequest::QueueFailed)?;
+
             if envelope.is_empty() {
                 envelope_context.reject(Outcome::Invalid(DiscardReason::EmptyEnvelope));
                 Err(BadStoreRequest::EmptyEnvelope)
@@ -329,7 +334,7 @@ where
                 .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
         })
-        .and_then(move |response| {
+        .and_then(clone!(config, |response| {
             // Skip over queuing and issue a rate limit right away
             let checked = response.result.map_err(BadStoreRequest::EventRejected)?;
             let (envelope, mut envelope_context) = match checked.envelope {
@@ -343,7 +348,7 @@ where
                 envelope_context.reject(Outcome::Invalid(DiscardReason::TooLarge));
                 Err(BadStoreRequest::PayloadError(PayloadError::Overflow))
             }
-        })
+        }))
         .and_then(move |(envelope, envelope_context, rate_limits)| {
             let message = QueueEnvelope {
                 envelope,
@@ -368,6 +373,10 @@ where
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
             let event_id = *event_id.borrow();
+
+            if Capture::should_capture(&config) {
+                EnvelopeManager::from_registry().do_send(Capture::rejected(event_id, &error));
+            }
 
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
                 return Ok(create_response(event_id));

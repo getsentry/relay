@@ -2481,16 +2481,6 @@ dependencies = [
 
 [[package]]
 name = "parking_lot"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3a704eb390aafdc107b0e392f56a82b668e3a71366993b5340f5833fd62505e"
-dependencies = [
- "lock_api 0.3.4",
- "parking_lot_core 0.7.2",
-]
-
-[[package]]
-name = "parking_lot"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
@@ -2535,20 +2525,6 @@ dependencies = [
  "redox_syscall 0.1.57",
  "rustc_version 0.2.3",
  "smallvec 0.6.14",
- "winapi 0.3.9",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d58c7c768d4ba344e3e8d72518ac13e259d7c7ade24167003b8488e10b6740a3"
-dependencies = [
- "cfg-if 0.1.10",
- "cloudabi",
- "libc",
- "redox_syscall 0.1.57",
- "smallvec 1.8.0",
  "winapi 0.3.9",
 ]
 
@@ -3247,7 +3223,7 @@ checksum = "49b3de9ec5dc0a3417da371aab17d729997c15010e7fd24ff707773a33bddb64"
 
 [[package]]
 name = "relay"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "clap",
  "console 0.10.3",
@@ -3265,7 +3241,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -3281,7 +3257,7 @@ dependencies = [
 
 [[package]]
 name = "relay-aws-extension"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "actix",
  "failure",
@@ -3314,7 +3290,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "backoff",
  "chrono",
@@ -3323,7 +3299,7 @@ dependencies = [
  "lazy_static",
  "lazycell",
  "lru",
- "parking_lot 0.10.2",
+ "parking_lot 0.12.1",
  "regex",
  "relay-log",
  "schemars",
@@ -3334,7 +3310,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "failure",
  "human-size",
@@ -3352,7 +3328,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3360,7 +3336,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "failure",
  "relay-ffi-macros",
@@ -3368,7 +3344,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "quote 1.0.18",
  "syn 1.0.96",
@@ -3376,7 +3352,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "globset",
  "insta",
@@ -3392,7 +3368,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3433,7 +3409,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "proc-macro2 1.0.39",
  "quote 1.0.18",
@@ -3443,7 +3419,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "chrono",
  "console 0.10.3",
@@ -3460,7 +3436,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "actix",
  "crc32fast",
@@ -3482,7 +3458,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "22.6.0"
+version = "22.8.0"
 dependencies = [
  "android_trace_log",
  "base64 0.10.1",
@@ -3496,7 +3472,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "failure",
  "insta",
@@ -3511,17 +3487,18 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "failure",
  "r2d2",
  "redis",
  "serde",
+ "serde_yaml",
 ]
 
 [[package]]
 name = "relay-sampling"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "insta",
  "rand 0.6.5",
@@ -3537,7 +3514,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -3560,7 +3537,7 @@ dependencies = [
  "listenfd",
  "minidump",
  "native-tls",
- "parking_lot 0.10.2",
+ "parking_lot 0.12.1",
  "rdkafka",
  "rdkafka-sys",
  "regex",
@@ -3597,18 +3574,17 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "cadence",
- "lazy_static",
- "parking_lot 0.10.2",
+ "parking_lot 0.12.1",
  "rand 0.7.3",
  "relay-log",
 ]
 
 [[package]]
 name = "relay-system"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "actix",
  "failure",
@@ -3622,7 +3598,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "22.7.0"
+version = "22.8.0"
 dependencies = [
  "actix",
  "actix-web",

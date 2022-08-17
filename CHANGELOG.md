@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Do not apply rate limits or reject data based on expired project configs. ([#1404](https://github.com/getsentry/relay/pull/1404))
+
+**Internal**:
+
+- Refactor tokio-based Addr from healthcheck to be generic. ([#1405](https://github.com/relay/pull/1405))
+
+**Features**:
+
+- Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
+
+## 22.8.0
+
 **Features**:
 
 - Remove timeout-based expiry of envelopes in Relay's internal buffers. The `cache.envelope_expiry` is now inactive. To control the size of the envelope buffer, use `cache.envelope_buffer_size` exclusively, instead. ([#1398](https://github.com/getsentry/relay/pull/1398))
