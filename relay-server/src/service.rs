@@ -119,7 +119,7 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
-        let runtime = utils::construct_runtime();
+        let runtime = utils::tokio_runtime_with_actix();
 
         // Enter the tokio runtime so we can start spawning tasks from the outside.
         let _guard = runtime.enter();

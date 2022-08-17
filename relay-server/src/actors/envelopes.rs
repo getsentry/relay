@@ -223,7 +223,7 @@ impl EnvelopeManager {
     ) -> Result<Self, ServerError> {
         // Enter the tokio runtime so we can start spawning tasks from the outside.
         #[cfg(feature = "processing")]
-        let runtime = utils::construct_runtime();
+        let runtime = utils::tokio_runtime_with_actix();
 
         #[cfg(feature = "processing")]
         let _guard = runtime.enter();

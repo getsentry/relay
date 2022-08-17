@@ -988,7 +988,7 @@ impl KafkaMessage {
     }
 }
 
-/// Message sent to the StoreForwarder containing an event
+/// Message sent to the [`StoreForwarder`] containing an event.
 #[derive(Clone, Debug)]
 pub struct StoreEnvelope {
     pub envelope: Envelope,
@@ -996,7 +996,7 @@ pub struct StoreEnvelope {
     pub scoping: Scoping,
 }
 
-// Envelope for the possible Messages that can be sent to the StoreForwarder
+/// Envelope for the possible Messages that can be sent to the [`StoreForwarder`].
 pub enum StoreMessageEnvelope {
     StoreEnvelope(StoreEnvelope, oneshot::Sender<Result<(), StoreError>>),
 }

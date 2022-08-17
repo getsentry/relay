@@ -140,8 +140,14 @@ impl<T: 'static, E: 'static> Response<T, E> {
     }
 }
 
-/// Constructs a single threaded tokio [`Runtime`] containing a clone of the actix [`System`]
-pub fn construct_runtime() -> Runtime {
+/// Constructs a single threaded tokio [`Runtime`] containing a clone of the actix [`System`].
+///
+/// Can only be called in a thread where actix is enabled.
+///
+/// # Panics
+///
+/// Panics if this is invoked in a thread where actix is not enabled.
+pub fn tokio_runtime_with_actix() -> Runtime {
     let system = System::current();
     tokio::runtime::Builder::new_multi_thread()
         .worker_threads(1)
