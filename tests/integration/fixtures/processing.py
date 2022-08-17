@@ -289,7 +289,9 @@ def replay_recordings_consumer(kafka_consumer):
 
 @pytest.fixture
 def replay_events_consumer(kafka_consumer):
-    return lambda: ReplayEventsConsumer(*kafka_consumer("replay_events"))
+    return lambda timeout=None: ReplayEventsConsumer(
+        timeout=timeout, *kafka_consumer("replay_events")
+    )
 
 
 class MetricsConsumer(ConsumerBase):
