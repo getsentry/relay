@@ -29,7 +29,7 @@
 //!     },
 //! }
 //! ```
-use relay_general::user_agent::{parse_device, parse_os, parse_user_agent};
+use relay_general::user_agent::{parse_device, parse_os, parse_user_agent, Device};
 use serde::{Deserialize, Serialize};
 use serde_json::Error;
 use std::collections::HashMap;
@@ -69,11 +69,6 @@ impl ReplayInput {
         let user_agent = &self.requests.headers.user_agent;
 
         let device = parse_device(user_agent);
-        let device_struct = Device {
-            family: device.family,
-            brand: device.brand,
-            model: device.model,
-        };
 
         let ua = parse_user_agent(user_agent);
         let browser_struct = VersionedMeta {
@@ -88,7 +83,7 @@ impl ReplayInput {
         };
 
         self.contexts = Some(Contexts {
-            device: Some(device_struct),
+            device: Some(device),
             browser: Some(browser_struct),
             os: Some(os_struct),
         })
@@ -123,13 +118,6 @@ struct Contexts {
 struct VersionedMeta {
     name: String,
     version: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Device {
-    brand: Option<String>,
-    model: Option<String>,
-    family: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
