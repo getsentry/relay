@@ -18,7 +18,7 @@ use relay_log::LogError;
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 
-use crate::actors::envelopes::{Capture, EnvelopeManager, QueueEnvelope, QueueEnvelopeError};
+use crate::actors::envelopes::{EnvelopeManager, QueueEnvelope, QueueEnvelopeError};
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::project_cache::{CheckEnvelope, ProjectCache, ProjectError};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, ItemType, Items};
@@ -326,11 +326,7 @@ where
         }))
         .and_then(move |(envelope, envelope_context)| {
             ProjectCache::from_registry()
-                .send(CheckEnvelope::cached(
-                    project_key,
-                    envelope,
-                    envelope_context,
-                ))
+                .send(CheckEnvelope::new(project_key, envelope, envelope_context))
                 .map_err(|_| BadStoreRequest::ScheduleFailed)
                 .and_then(|result| result.map_err(BadStoreRequest::ProjectFailed))
         })
@@ -373,10 +369,6 @@ where
         .or_else(move |error: BadStoreRequest| {
             metric!(counter(RelayCounters::EnvelopeRejected) += 1);
             let event_id = *event_id.borrow();
-
-            if Capture::should_capture(&config) {
-                EnvelopeManager::from_registry().do_send(Capture::rejected(event_id, &error));
-            }
 
             if !emit_rate_limit && matches!(error, BadStoreRequest::RateLimited(_)) {
                 return Ok(create_response(event_id));

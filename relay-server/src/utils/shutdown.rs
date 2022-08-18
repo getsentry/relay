@@ -1,4 +1,3 @@
-use actix::prelude::*;
 use futures01::prelude::*;
 
 pub struct DropGuardedFuture<F: Sized> {
@@ -43,25 +42,6 @@ where
     }
 }
 
-impl<F> ActorFuture for DropGuardedFuture<F>
-where
-    F: ActorFuture,
-{
-    type Item = F::Item;
-    type Error = F::Error;
-    type Actor = F::Actor;
-
-    fn poll(
-        &mut self,
-        srv: &mut Self::Actor,
-        ctx: &mut <Self::Actor as Actor>::Context,
-    ) -> Poll<Self::Item, Self::Error> {
-        let rv = self.future.poll(srv, ctx);
-        self.done = !matches!(rv, Ok(Async::NotReady));
-        rv
-    }
-}
-
 pub trait FutureExt: Sized {
     fn drop_guard(self, name: &'static str) -> DropGuardedFuture<Self> {
         DropGuardedFuture::new(name, self)
@@ -73,6 +53,7 @@ impl<F> FutureExt for F where F: Sized {}
 #[test]
 #[should_panic(expected = "Dropped unfinished future during shutdown: bye")]
 fn test_drop_guard() {
+    use actix::System;
     use std::time::Duration;
 
     System::run(|| {
@@ -88,6 +69,7 @@ fn test_drop_guard() {
 
 #[test]
 fn test_no_drop() {
+    use actix::System;
     use std::time::Duration;
 
     System::run(|| {
