@@ -38,6 +38,7 @@ flate2 = "1.0.19"
 fragile = { version = "1.2.1", features = ["slab"] } # used for vendoring sentry-actix
 futures01 = { version = "0.1.28", package = "futures" }
 futures = { version = "0.3", package = "futures", features = ["compat"] }
+hashbrown = "0.12.3"
 itertools = "0.8.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
 lazy_static = "1.4.0"
