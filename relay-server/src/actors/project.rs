@@ -610,9 +610,9 @@ impl Project {
         }
     }
 
-    /// Ensures the project state gets updated, and returns it once valid.
+    /// Ensures the project state gets updated and returns it once valid.
     ///
-    /// First, this checks if the state needs to be updated. This is the case if the project state
+    /// This first checks if the state needs to be updated. This is the case if the project state
     /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
     /// update is already running in the background.
     ///
