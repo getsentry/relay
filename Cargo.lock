@@ -3497,6 +3497,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-replays"
+version = "22.7.0"
+dependencies = [
+ "insta",
+ "rand 0.6.5",
+ "rand_pcg 0.1.2",
+ "relay-common",
+ "relay-filter",
+ "relay-general",
+ "relay-log",
+ "serde",
+ "serde_json",
+ "unicase",
+]
+
+[[package]]
 name = "relay-sampling"
 version = "22.8.0"
 dependencies = [
@@ -3553,6 +3569,7 @@ dependencies = [
  "relay-profiling",
  "relay-quotas",
  "relay-redis",
+ "relay-replays",
  "relay-sampling",
  "relay-statsd",
  "relay-system",
