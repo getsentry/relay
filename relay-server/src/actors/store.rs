@@ -86,7 +86,7 @@ impl Producers {
         }
     }
 
-    pub fn create(config: &Arc<Config>) -> Result<Producers, ServerError> {
+    pub fn create(config: &Arc<Config>) -> Result<Self, ServerError> {
         let mut reused_producers = BTreeMap::new();
         let producers = Producers {
             attachments: make_producer(&**config, &mut reused_producers, KafkaTopic::Attachments)?,

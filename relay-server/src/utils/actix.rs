@@ -2,8 +2,9 @@ use ::actix::dev::{MessageResponse, ResponseChannel};
 use ::actix::fut::IntoActorFuture;
 use ::actix::prelude::*;
 use futures01::prelude::*;
-use relay_common::clone;
 use tokio::runtime::Runtime;
+
+use relay_common::clone;
 
 pub enum Response<T, E> {
     Reply(Result<T, E>),
