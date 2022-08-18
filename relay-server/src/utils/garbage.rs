@@ -1,9 +1,13 @@
-use std::{sync::mpsc, thread::JoinHandle};
+use crate::statsd::RelayGauges;
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{mpsc, Arc};
+use std::thread::JoinHandle;
 
 /// Garbage disposal agent.
 /// Spawns a background thread which drops items sent to it via [`GarbageDisposal::dispose`].
 pub struct GarbageDisposal<T> {
     tx: mpsc::Sender<T>,
+    queue_size: Arc<AtomicI64>,
 }
 
 impl<T: Send + 'static> GarbageDisposal<T> {
@@ -12,21 +16,30 @@ impl<T: Send + 'static> GarbageDisposal<T> {
     fn new_joinable() -> (Self, JoinHandle<()>) {
         let (tx, rx) = mpsc::channel();
 
+        let queue_size = Arc::new(AtomicI64::new(0));
+        let queue_size_clone = queue_size.clone();
         let join_handle = std::thread::spawn(move || {
             relay_log::debug!("Start garbage collection thread");
+            let mut i = 0;
             while let Ok(object) = rx.recv() {
-                // TODO: Log size of channel queue as a gauge here
-                relay_log::trace!(
-                    "Dropping object {:?} of type {}",
-                    &object as *const T,
-                    std::any::type_name::<T>()
-                );
+                let size = queue_size_clone.fetch_sub(-1, Ordering::Relaxed);
+                if i == 0 {
+                    // Only emit every 100th to not overwhelm statsd
+                    relay_statsd::metric!(
+                        gauge(RelayGauges::GarbageDisposalQueueSize) = size as f64,
+                        instance =
+                            format!("{:?}", queue_size_clone.as_ref() as *const AtomicI64).as_str(),
+                    );
+                }
+
                 drop(object);
+
+                i = (i + 1) % 100;
             }
             relay_log::debug!("Stop garbage collection thread");
         });
 
-        (Self { tx }, join_handle)
+        (Self { tx, queue_size }, join_handle)
     }
 
     /// Spawns a new garbage disposal instance.
@@ -47,6 +60,8 @@ impl<T: Send + 'static> GarbageDisposal<T> {
                 drop(e.0);
             })
             .ok();
+
+        self.queue_size.fetch_add(1, Ordering::Relaxed);
     }
 }
 
