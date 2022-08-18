@@ -1,16 +1,14 @@
 import json
 
 
-def generate_replay_event():
+def generate_replay_sdk_event():
     return {
+        "type": "replay_event",
         "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "event_id": "123",
-        "type": "replay_event",
-        "transaction": "/organizations/:orgId/performance/:eventSlug/",
-        "start_timestamp": 1597976392.6542819,
         "segment_id": 0,
-        "replay_start_timestamp": 1597976392.6542819,
         "timestamp": 1597977777.6189718,
+        "replay_start_timestamp": 1597976392.6542819,
         "urls": ["sentry.io"],
         "error_ids": ["1", "2"],
         "trace_ids": ["3", "4"],
@@ -51,7 +49,7 @@ def test_replay_event_with_processing(
     )
 
     replay_events_consumer = replay_events_consumer(timeout=10)
-    replay = generate_replay_event()
+    replay = generate_replay_sdk_event()
 
     relay.send_replay_event(42, replay)
 
@@ -109,7 +107,7 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
         project_id, extra={"config": {"features": ["organizations:session-replay"]}}
     )
 
-    replay_item = generate_replay_event()
+    replay_item = generate_replay_sdk_event()
 
     relay.send_replay_event(42, replay_item)
 
