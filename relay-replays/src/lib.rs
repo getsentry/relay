@@ -1,3 +1,34 @@
+//! Relay processing and normalization module.
+//!
+//! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
+//! They are ingested incrementally and are available for viewing after the first two segments
+//! (segment 0 and 1) have completed ingestion.
+//!
+//! # Protocol
+//!
+//! Relay is expecting a JSON object with some mandatory metadata.  However, environment and user
+//! metadata is usually sent in addition to the minimal payload.
+//!
+//! ```json
+//! {
+//!     "type": "replay_event",
+//!     "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+//!     "event_id": "63c5b0f895441a94340183c5f1e74cd4",
+//!     "segment_id": 0,
+//!     "timestamp": 1597976392.6542819,
+//!     "replay_start_timestamp": 1597976392.6542819,
+//!     "urls": [],
+//!     "error_ids": [],
+//!     "trace_ids": [],
+//!     "sdk": {
+//!         "name": "SDK Name",
+//!         "version": null
+//!     },
+//!     "requests": {
+//!         "headers": {"User-Agent": "Mozilla/5.0..."}
+//!     },
+//! }
+//! ```
 use relay_general::user_agent::{parse_device, parse_os, parse_user_agent};
 use serde::{Deserialize, Serialize};
 use serde_json::Error;
