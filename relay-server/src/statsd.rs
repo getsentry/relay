@@ -5,12 +5,16 @@ pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
+
+    /// The number of items currently in the garbage disposal queue.
+    ProjectCacheGarbageQueueSize,
 }
 
 impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
+            RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
         }
     }
 }

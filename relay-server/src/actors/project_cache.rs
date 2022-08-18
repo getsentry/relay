@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -21,8 +20,8 @@ use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, EnvelopeContext, Response};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
+use crate::utils::{self, EnvelopeContext, GarbageDisposal, Response};
 
 use super::project::ExpiryState;
 
@@ -42,11 +41,12 @@ impl ResponseError for ProjectError {}
 
 pub struct ProjectCache {
     config: Arc<Config>,
-    projects: HashMap<ProjectKey, Project>,
+    projects: hashbrown::HashMap<ProjectKey, Project>, // need hashbrown because drain_filter is not stable in std yet
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
     redis_source: Option<Addr<RedisProjectSource>>,
+    garbage_disposal: GarbageDisposal<Project>,
 }
 
 impl ProjectCache {
@@ -67,11 +67,12 @@ impl ProjectCache {
 
         ProjectCache {
             config,
-            projects: HashMap::new(),
+            projects: hashbrown::HashMap::new(),
             local_source,
             upstream_source,
             #[cfg(feature = "processing")]
             redis_source,
+            garbage_disposal: GarbageDisposal::new(),
         }
     }
 
@@ -86,8 +87,18 @@ impl ProjectCache {
         let eviction_start = Instant::now();
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
 
-        self.projects
-            .retain(|_, entry| entry.last_updated_at() + delta > eviction_start);
+        let expired = self
+            .projects
+            .drain_filter(|_, entry| entry.last_updated_at() + delta <= eviction_start);
+
+        // Defer dropping the projects to a dedicated thread:
+        for (_, project) in expired {
+            self.garbage_disposal.dispose(project);
+        }
+
+        // Log garbage queue size:
+        let queue_size = self.garbage_disposal.queue_size() as f64;
+        relay_statsd::metric!(gauge(RelayGauges::ProjectCacheGarbageQueueSize) = queue_size);
 
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }
