@@ -53,6 +53,7 @@ use crate::utils::{
 
 #[cfg(feature = "processing")]
 use {
+    crate::actors::project_cache::UpdateRateLimits,
     crate::service::ServerErrorKind,
     crate::utils::EnvelopeLimiter,
     failure::ResultExt,
@@ -1511,8 +1512,6 @@ impl EnvelopeProcessor {
 
     #[cfg(feature = "processing")]
     fn enforce_quotas(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        use crate::actors::project_cache::UpdateRateLimits;
-
         let rate_limiter = match self.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
             None => return Ok(()),

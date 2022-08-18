@@ -200,7 +200,7 @@ def test_query_retry_maxed_out(
             )
 
         _, last_error = mini_sentry.test_failures[-1]
-        assert "failed to resolve project information" in str(last_error)
+        assert "deadline exceeded" in str(last_error)
     finally:
         mini_sentry.test_failures.clear()
 
