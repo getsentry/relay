@@ -17,11 +17,11 @@
 //!     "segment_id": 0,
 //!     "timestamp": 1597976392.6542819,
 //!     "replay_start_timestamp": 1597976392.6542819,
-//!     "urls": [],
-//!     "error_ids": [],
-//!     "trace_ids": [],
+//!     "urls": ["https://sentry.io"],
+//!     "error_ids": ["d2132d31b39445f1938d7e21b6bf0ec4"],
+//!     "trace_ids": ["63c5b0f895441a94340183c5f1e74cd4"],
 //!     "sdk": {
-//!         "name": "SDK Name",
+//!         "name": "sdk-name",
 //!         "version": null
 //!     },
 //!     "requests": {
