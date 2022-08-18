@@ -9,7 +9,7 @@
 **Internal**:
 
 - Refactor tokio-based Addr from healthcheck to be generic. ([#1405](https://github.com/relay/pull/1405))
-- Defer dropping of projects to a background thread to speed up cache eviction. ([#1410](https://github.com/getsentry/relay/pull/1410))
+- Defer dropping of projects to a background thread to speed up project cache eviction. ([#1410](https://github.com/getsentry/relay/pull/1410))
 
 **Features**:
 
