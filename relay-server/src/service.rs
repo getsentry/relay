@@ -110,7 +110,7 @@ impl From<Context<ServerErrorKind>> for ServerError {
 }
 
 #[derive(Clone, Debug)]
-struct Registry {
+pub struct Registry {
     pub healthcheck: Addr<Healthcheck>,
 }
 
