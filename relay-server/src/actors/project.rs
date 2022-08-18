@@ -518,7 +518,6 @@ pub struct Project {
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
-    // TODO(ja): Log dropped envelopes
     pending_validations: VecDeque<(Envelope, EnvelopeContext)>,
     pending_sampling: VecDeque<ProcessEnvelope>,
     rate_limits: RateLimits,
@@ -717,7 +716,6 @@ impl Project {
                 }
             }
         }
-        // TODO(ja): Else trace log?
     }
 
     /// Enqueues an envelope for validation.
@@ -878,6 +876,16 @@ impl Project {
 
         let result = self.check_envelope_scoped(envelope, envelope_context);
         CheckEnvelopeResponse { result, scoping }
+    }
+}
+
+impl Drop for Project {
+    fn drop(&mut self) {
+        let count = self.pending_validations.len() + self.pending_sampling.len();
+        relay_log::with_scope(
+            |scope| scope.set_tag("project_key", self.project_key),
+            || relay_log::error!("dropped project with {} envelopes", count),
+        );
     }
 }
 

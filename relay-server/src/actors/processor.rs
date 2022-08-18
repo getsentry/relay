@@ -36,9 +36,7 @@ use relay_redis::RedisPool;
 use relay_sampling::RuleId;
 use relay_statsd::metric;
 
-use crate::actors::envelopes::{
-    Capture, EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope,
-};
+use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
@@ -115,21 +113,6 @@ pub enum ProcessingError {
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
 
-    // #[fail(display = "could not build envelope for upstream")]
-    // EnvelopeBuildFailed(#[cause] EnvelopeError),
-
-    // #[fail(display = "could not encode request body")]
-    // BodyEncodingFailed(#[cause] std::io::Error),
-
-    // #[fail(display = "could not send request to upstream")]
-    // UpstreamRequestFailed(#[cause] UpstreamRequestError),
-
-    // #[cfg(feature = "processing")]
-    // #[fail(display = "could not store envelope")]
-    // StoreFailed(#[cause] StoreError),
-
-    // #[fail(display = "envelope items were rate limited")]
-    // RateLimited,
     #[cfg(feature = "processing")]
     #[fail(display = "failed to apply quotas")]
     QuotasFailed(#[cause] RateLimitingError),
@@ -1964,13 +1947,10 @@ impl Message for ProcessEnvelope {
     type Result = ();
 }
 
-// TODO(ja): Log dropped envelopes
-
 impl Handler<ProcessEnvelope> for EnvelopeProcessor {
     type Result = ();
 
     fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
-        let event_id = message.envelope.event_id();
         let project_key = message.envelope.meta().public_key();
         let wait_time = message.envelope_context.start_time().elapsed();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
@@ -1989,10 +1969,6 @@ impl Handler<ProcessEnvelope> for EnvelopeProcessor {
                 };
             }
             Err(error) => {
-                if Capture::should_capture(&self.config) {
-                    EnvelopeManager::from_registry().do_send(Capture::rejected(event_id, &error));
-                }
-
                 // Errors are only logged for what we consider infrastructure or implementation
                 // bugs. In other cases, we "expect" errors and log them as debug level.
                 if error.is_internal() {
@@ -2000,8 +1976,6 @@ impl Handler<ProcessEnvelope> for EnvelopeProcessor {
                         |scope| scope.set_tag("project_key", project_key),
                         || relay_log::error!("error processing envelope: {}", LogError(&error)),
                     );
-                } else {
-                    relay_log::debug!("dropped envelope: {}", LogError(&error));
                 }
             }
         }

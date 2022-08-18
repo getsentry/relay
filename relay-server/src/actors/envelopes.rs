@@ -7,7 +7,7 @@ use std::time::Instant;
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::Utc;
-use failure::{AsFail, Fail};
+use failure::Fail;
 use futures01::{future, prelude::*, sync::oneshot};
 
 use relay_common::ProjectKey;
@@ -97,15 +97,20 @@ impl BufferGuard {
 }
 
 /// Error created while handling [`SendEnvelope`].
-#[derive(Debug)]
+#[derive(Debug, failure::Fail)]
 #[allow(clippy::enum_variant_names)]
 pub enum SendEnvelopeError {
     #[cfg(feature = "processing")]
+    #[fail(display = "TODO")]
     ScheduleFailed,
     #[cfg(feature = "processing")]
+    #[fail(display = "TODO")]
     StoreFailed(StoreError),
+    #[fail(display = "TODO")]
     EnvelopeBuildFailed(EnvelopeError),
+    #[fail(display = "TODO")]
     BodyEncodingFailed(std::io::Error),
+    #[fail(display = "TODO")]
     UpstreamRequestFailed(UpstreamRequestError),
 }
 
@@ -474,27 +479,21 @@ impl Handler<SubmitEnvelope> for EnvelopeManager {
                     envelope_context.accept();
                     Ok(())
                 }
+                Err(SendEnvelopeError::UpstreamRequestFailed(e)) if e.is_received() => {
+                    envelope_context.accept();
+                    Ok(())
+                }
                 Err(error) => {
-                    match error {
-                        SendEnvelopeError::UpstreamRequestFailed(e) if e.is_received() => {
-                            envelope_context.accept()
-                        }
-                        _ => envelope_context.reject(Outcome::Invalid(DiscardReason::Internal)),
-                    }
-
-                    // TODO(ja): Error handling?
-                    // // Errors are only logged for what we consider an internal discard reason. These
-                    // // indicate errors in the infrastructure or implementation bugs. In other cases,
-                    // // we "expect" errors and log them as debug level.
-                    // relay_log::with_scope(
-                    //     |scope| scope.set_tag("project_key", project_key),
-                    //     || relay_log::error!("error sending envelope: {}", LogError(&error)),
-                    // );
-
+                    // Errors are only logged for what we consider an internal discard reason. These
+                    // indicate errors in the infrastructure or implementation bugs.
+                    relay_log::with_scope(
+                        |scope| scope.set_tag("project_key", project_key),
+                        || relay_log::error!("error sending envelope: {}", LogError(&error)),
+                    );
+                    envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
                     Err(())
                 }
             })
-            // TODO(ja): Capture errors
             .drop_guard("submit_envelope")
             .into_actor(self)
             .spawn(context);
@@ -657,10 +656,10 @@ impl Capture {
     }
 
     /// Captures the error that lead to envelope rejection.
-    pub fn rejected<E: AsFail + ?Sized>(event_id: Option<EventId>, error: &E) -> Self {
+    pub fn rejected(event_id: Option<EventId>, outcome: &Outcome) -> Self {
         Self {
             event_id,
-            capture: Err(LogError(error).to_string()),
+            capture: Err(outcome.to_string()),
         }
     }
 }
