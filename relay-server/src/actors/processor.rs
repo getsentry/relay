@@ -918,7 +918,7 @@ impl EnvelopeProcessor {
                     return false;
                 }
 
-                let parsed_replay = relay_replays::parse_replay_event(&item.payload());
+                let parsed_replay = relay_replays::normalize_replay_event(&item.payload());
                 match parsed_replay {
                     Ok(replay) => {
                         item.set_payload(ContentType::Json, &replay[..]);

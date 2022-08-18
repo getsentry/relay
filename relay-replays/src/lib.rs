@@ -35,15 +35,10 @@ use serde_json::Error;
 use std::collections::HashMap;
 use std::fmt::Write;
 
-pub fn parse_replay_event(replay_bytes: &[u8]) -> Result<Vec<u8>, Error> {
-    let replay_input: Result<ReplayInput, Error> = serde_json::from_slice(replay_bytes);
-    match replay_input {
-        Ok(mut replay_in) => {
-            replay_in.set_user_agent_meta();
-            serde_json::to_vec(&replay_in)
-        }
-        Err(e) => Err(e),
-    }
+pub fn normalize_replay_event(replay_bytes: &[u8]) -> Result<Vec<u8>, Error> {
+    let mut replay_input: ReplayInput = serde_json::from_slice(replay_bytes)?;
+    replay_input.set_user_agent_meta();
+    serde_json::to_vec(&replay_input)
 }
 
 #[derive(Debug, Deserialize, Serialize)]
