@@ -83,7 +83,6 @@ impl ProjectCache {
     /// a project that has expired recently and for which a fetch is already underway in
     /// [`super::project_upstream`].
     fn evict_stale_project_caches(&mut self) {
-        metric!(counter(RelayCounters::EvictingStaleProjectCaches) += 1);
         let eviction_start = Instant::now();
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
 
@@ -92,9 +91,12 @@ impl ProjectCache {
             .drain_filter(|_, entry| entry.last_updated_at() + delta <= eviction_start);
 
         // Defer dropping the projects to a dedicated thread:
+        let mut count = 0;
         for (_, project) in expired {
             self.garbage_disposal.dispose(project);
+            count += 1;
         }
+        metric!(counter(RelayCounters::EvictingStaleProjectCaches) += count);
 
         // Log garbage queue size:
         let queue_size = self.garbage_disposal.queue_size() as f64;
