@@ -317,6 +317,17 @@
 <span id="309">309</span>
 <span id="310">310</span>
 <span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
@@ -325,11 +336,13 @@
 <span class="kw">use</span> <span class="ident">failure::ResultExt</span>;
 <span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Backtrace</span>, <span class="ident">Context</span>, <span class="ident">Fail</span>};
 <span class="kw">use</span> <span class="ident">listenfd::ListenFd</span>;
+<span class="kw">use</span> <span class="ident">once_cell::race::OnceBox</span>;
 
 <span class="kw">use</span> <span class="ident">relay_aws_extension::AwsExtension</span>;
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics::Aggregator</span>;
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
+<span class="kw">use</span> <span class="ident">relay_system::Addr</span>;
 <span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Configure</span>, <span class="ident">Controller</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">BufferGuard</span>, <span class="ident">EnvelopeManager</span>};
@@ -344,6 +357,8 @@
     <span class="ident">AddCommonHeaders</span>, <span class="ident">ErrorHandlers</span>, <span class="ident">Metrics</span>, <span class="ident">ReadRequestMiddleware</span>, <span class="ident">SentryMiddleware</span>,
 };
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">endpoints</span>, <span class="ident">utils</span>};
+
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">REGISTRY</span>: <span class="ident">OnceBox</span><span class="op">&lt;</span><span class="ident">Registry</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceBox::new</span>();
 
 <span class="doccomment">/// Common error type for the relay server.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
@@ -424,6 +439,11 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Registry</span> {
+    <span class="kw">pub</span> <span class="ident">healthcheck</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Healthcheck</span><span class="op">&gt;</span>,
+}
+
 <span class="doccomment">/// Server state.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ServiceState</span> {
@@ -469,7 +489,7 @@
         <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">project_cache</span>);
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">project_cache</span>.<span class="ident">clone</span>());
 
-        <span class="ident">Healthcheck::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>(); <span class="comment">// TODO(tobias): Registry is implicit</span>
+        <span class="kw">let</span> <span class="ident">healthcheck</span> <span class="op">=</span> <span class="ident">Healthcheck::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">RelayCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>());
 
         <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>.<span class="ident">aggregator_config</span>(), <span class="ident">project_cache</span>.<span class="ident">recipient</span>());
@@ -480,6 +500,8 @@
                 <span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">aws_extension</span>);
             }
         }
+
+        <span class="ident">REGISTRY</span>.<span class="ident">set</span>(<span class="ident">Box::new</span>(<span class="ident">Registry</span> { <span class="ident">healthcheck</span> })).<span class="ident">unwrap</span>();
 
         <span class="prelude-val">Ok</span>(<span class="ident">ServiceState</span> {
             <span class="ident">buffer_guard</span>: <span class="ident">buffer</span>,
