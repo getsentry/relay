@@ -357,13 +357,13 @@ impl Default for EnvelopeManager {
 ///
 /// Depending on the items in the envelope, there are multiple outcomes:
 ///
-/// - Events and event related items, such as attachments, are always queued together. See
-///   [`HandleEnvelope`] for a full description of how queued envelopes are processed by the
-///   `EnvelopeManager`.
+/// - Events and event related items, such as attachments, are always queued together. See the
+///   [crate-level documentation](crate) for a full description of how envelopes are
+///   queued and processed.
 /// - Sessions and Session batches are always queued separately. If they occur in the same envelope
-///   as an event, they are split off.
-/// - Metrics are directly sent to the `EnvelopeProcessor`, bypassing the manager's queue and going
-///   straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
+///   as an event, they are split off. Their path is the same as other Envelopes.
+/// - Metrics are directly sent to the [`EnvelopeProcessor`], bypassing the manager's queue and
+///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
 ///
 /// Queueing can fail if the queue exceeds [`Config::envelope_buffer_size`]. In this case, `Err` is
 /// returned and the envelope is not queued. Otherwise, this message responds with `Ok`. If it

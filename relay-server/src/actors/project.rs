@@ -761,6 +761,8 @@ impl Project {
     ///
     /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
     /// take precedence.
+    ///
+    /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
     pub fn update_state(&mut self, state: Arc<ProjectState>, no_cache: bool) {
         let channel = match self.state_channel.take() {
             Some(channel) => channel,

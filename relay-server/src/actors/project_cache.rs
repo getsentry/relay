@@ -470,6 +470,8 @@ impl Handler<CheckEnvelope> for ProjectCache {
 ///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the
 ///    [`ProjectCache`] to add the required project state.
 ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
+///
+/// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
 pub struct ValidateEnvelope {
     project_key: ProjectKey,
     envelope: Envelope,
