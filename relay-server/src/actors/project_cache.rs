@@ -19,7 +19,7 @@ use crate::actors::project::{Project, ProjectState};
 use crate::actors::project_local::LocalProjectSource;
 use crate::actors::project_upstream::UpstreamProjectSource;
 use crate::envelope::Envelope;
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{ActorResponse, EnvelopeContext, GarbageDisposal, Response};
 
 use super::project::ExpiryState;
@@ -94,6 +94,10 @@ impl ProjectCache {
         for (_, project) in expired {
             self.garbage_disposal.dispose(project);
         }
+
+        // Log garbage queue size:
+        let queue_size = self.garbage_disposal.queue_size() as f64;
+        relay_statsd::metric!(gauge(RelayGauges::ProjectCacheGarbageQueueSize) = queue_size);
 
         metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
     }

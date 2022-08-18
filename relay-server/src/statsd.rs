@@ -7,18 +7,14 @@ pub enum RelayGauges {
     NetworkOutage,
 
     /// The number of items currently in the garbage disposal queue.
-    ///
-    /// This metric is tagged with:
-    ///   - `instance`: The memory address of the queue. Not particularly useful, but prevents different
-    ///     GargbageDisposal objects from writing to the same bucket.
-    GarbageDisposalQueueSize,
+    ProjectCacheGarbageQueueSize,
 }
 
 impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
-            RelayGauges::GarbageDisposalQueueSize => "garbage.queue_size",
+            RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
         }
     }
 }
