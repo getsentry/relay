@@ -27,7 +27,7 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
 use crate::statsd::RelayHistograms;
-use crate::utils::{self, EnvelopeContext, FutureExt as _, Semaphore};
+use crate::utils::{EnvelopeContext, FutureExt as _, Semaphore};
 
 #[cfg(feature = "processing")]
 use {
@@ -222,7 +222,7 @@ impl EnvelopeManager {
     ) -> Result<Self, ServerError> {
         // Enter the tokio runtime so we can start spawning tasks from the outside.
         #[cfg(feature = "processing")]
-        let runtime = utils::tokio_runtime_with_actix();
+        let runtime = crate::utils::tokio_runtime_with_actix();
 
         #[cfg(feature = "processing")]
         let _guard = runtime.enter();
