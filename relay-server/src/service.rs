@@ -109,17 +109,17 @@ impl From<Context<ServerErrorKind>> for ServerError {
     }
 }
 
+#[derive(Clone, Debug)]
+struct Registry {
+    pub healthcheck: Addr<Healthcheck>,
+}
+
 /// Server state.
 #[derive(Clone)]
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
     _runtime: Arc<tokio::runtime::Runtime>,
-}
-
-#[derive(Clone, Debug)]
-pub struct Registry {
-    pub healthcheck: Addr<Healthcheck>,
 }
 
 impl ServiceState {
