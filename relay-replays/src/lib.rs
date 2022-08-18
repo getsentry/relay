@@ -18,7 +18,7 @@ pub fn parse_replay_event(replay_bytes: &[u8]) -> Result<Vec<u8>, Error> {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ReplayInput {
     #[serde(rename = "type")]
-    type_: String,
+    ty: String,
     replay_id: String,
     event_id: String,
     segment_id: u8,
@@ -28,12 +28,12 @@ pub struct ReplayInput {
     error_ids: Vec<String>,
     trace_ids: Vec<String>,
     contexts: Option<Contexts>,
-    dist: String,
-    platform: String,
-    environment: String,
-    release: String,
-    tags: HashMap<String, String>,
-    user: User,
+    dist: Option<String>,
+    platform: Option<String>,
+    environment: Option<String>,
+    release: Option<String>,
+    tags: Option<HashMap<String, String>>,
+    user: Option<User>,
     sdk: VersionedMeta,
     requests: Requests,
 }
@@ -108,10 +108,10 @@ struct Device {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct User {
-    id: String,
-    username: String,
-    email: String,
-    ip_address: String,
+    id: Option<String>,
+    username: Option<String>,
+    email: Option<String>,
+    ip_address: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
