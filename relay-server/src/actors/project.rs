@@ -884,10 +884,12 @@ impl Project {
 impl Drop for Project {
     fn drop(&mut self) {
         let count = self.pending_validations.len() + self.pending_sampling.len();
-        relay_log::with_scope(
-            |scope| scope.set_tag("project_key", self.project_key),
-            || relay_log::error!("dropped project with {} envelopes", count),
-        );
+        if count > 0 {
+            relay_log::with_scope(
+                |scope| scope.set_tag("project_key", self.project_key),
+                || relay_log::error!("dropped project with {} envelopes", count),
+            );
+        }
     }
 }
 
