@@ -96,14 +96,7 @@ impl Healthcheck {
             while let Some(message) = rx.recv().await {
                 let service = main_service.clone();
 
-                tokio::spawn(async move {
-                    match message {
-                        HealthcheckMessages::IsHealthy(msg, response_tx) => {
-                            let response = service.handle_is_healthy(msg).await;
-                            response_tx.send(response).ok()
-                        }
-                    };
-                });
+                tokio::spawn(async move { service.handle_message(message).await });
             }
         });
 
@@ -119,6 +112,15 @@ impl Healthcheck {
         });
 
         addr
+    }
+
+    async fn handle_message(&self, message: HealthcheckMessages) {
+        match message {
+            HealthcheckMessages::IsHealthy(msg, response_tx) => {
+                let response = self.handle_is_healthy(msg).await;
+                response_tx.send(response).ok()
+            }
+        };
     }
 }
 

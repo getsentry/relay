@@ -178,12 +178,7 @@ impl StoreForwarder {
 
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
-                match message {
-                    StoreMessages::StoreEnvelope(msg, responder_tx) => {
-                        let response = self.handle_store_envelope(msg);
-                        responder_tx.send(response).ok();
-                    }
-                }
+                self.handle_message(message);
             }
 
             relay_log::info!("store forwarder stopped");
@@ -196,6 +191,15 @@ impl StoreForwarder {
         let producers = Producers::create(&config)?;
 
         Ok(Self { config, producers })
+    }
+
+    fn handle_message(&self, message: StoreMessages) {
+        match message {
+            StoreMessages::StoreEnvelope(msg, responder_tx) => {
+                let response = self.handle_store_envelope(msg);
+                responder_tx.send(response).ok();
+            }
+        }
     }
 
     fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
