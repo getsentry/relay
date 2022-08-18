@@ -94,13 +94,11 @@ def test_replay_event_with_processing(
     assert int(parsed_replay["timestamp"]) == int(replay["timestamp"])
 
     # Assert contexts object was pulled out.
-    assert parsed_replay["contexts"]["browser"]["name"] == "Safari"
-    assert parsed_replay["contexts"]["browser"]["version"] == "15.5"
-    assert parsed_replay["contexts"]["device"]["brand"] == "Apple"
-    assert parsed_replay["contexts"]["device"]["family"] == "Mac"
-    assert parsed_replay["contexts"]["device"]["model"] == "Mac"
-    assert parsed_replay["contexts"]["os"]["name"] == "Mac OS X"
-    assert parsed_replay["contexts"]["os"]["version"] == "10.15.7"
+    assert parsed_replay["contexts"] == {
+        "browser": {"name": "Safari", "version": "15.5",},
+        "device": {"brand": "Apple", "family": "Mac", "model": "Mac",},
+        "os": {"name": "Mac OS X", "version": "10.15.7",},
+    }
 
 
 def test_replay_events_without_processing(mini_sentry, relay_chain):
