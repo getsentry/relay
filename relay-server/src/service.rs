@@ -8,7 +8,6 @@ use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
 
 use relay_aws_extension::AwsExtension;
-use relay_common::clone;
 use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
@@ -22,10 +21,10 @@ use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
 use crate::actors::upstream::UpstreamRelay;
-use crate::endpoints;
 use crate::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
+use crate::{endpoints, utils};
 
 /// Common error type for the relay server.
 #[derive(Debug)]
@@ -120,12 +119,7 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .on_thread_start(clone!(system, || System::set_current(system.clone())))
-            .build()
-            .unwrap();
+        let runtime = utils::tokio_runtime_with_actix();
 
         // Enter the tokio runtime so we can start spawning tasks from the outside.
         let _guard = runtime.enter();
