@@ -37,7 +37,7 @@ use crate::utils::{EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum Expiry {
+enum Expiry {
     /// The project state is perfectly up to date.
     Updated,
     /// The project state is outdated but events depending on this project state can still be
@@ -45,6 +45,17 @@ pub enum Expiry {
     Stale,
     /// The project state is completely outdated and events need to be buffered up until the new
     /// state has been fetched.
+    Expired,
+}
+
+/// The expiry status of a project state, together with the state itself if it has not expired.
+/// Return value of [`Project::expiry_state`].
+pub enum ExpiryState {
+    /// An up-to-date project state. See [`Expiry::Updated`].
+    Updated(Arc<ProjectState>),
+    /// A stale project state that can still be used. See [`Expiry::Stale`].
+    Stale(Arc<ProjectState>),
+    /// An expired project state that should not be used. See [`Expiry::Expired`].
     Expired,
 }
 
@@ -271,7 +282,7 @@ impl ProjectState {
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
-    pub fn check_expiry(&self, config: &Config) -> Expiry {
+    fn check_expiry(&self, config: &Config) -> Expiry {
         let expiry = match self.project_id {
             None => config.cache_miss_expiry(),
             Some(_) => config.project_cache_expiry(),
@@ -508,7 +519,6 @@ pub struct Project {
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
-    metrics_allowed: bool,
 }
 
 impl Project {
@@ -522,14 +532,16 @@ impl Project {
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
-            metrics_allowed: true,
         }
     }
 
     /// If we know that a project is disabled, disallow metrics, too.
-    fn update_metrics_allowed(&mut self) {
-        if let Some(state) = self.state() {
-            self.metrics_allowed = state.check_disabled(&self.config).is_ok();
+    fn metrics_allowed(&self) -> bool {
+        if let Some(state) = self.valid_state() {
+            state.check_disabled(&self.config).is_ok()
+        } else {
+            // Projects without state go back to the original state of allowing metrics.
+            true
         }
     }
 
@@ -537,14 +549,29 @@ impl Project {
         self.rate_limits.merge(rate_limits);
     }
 
-    /// Returns a reference to the project state if available.
-    pub fn state(&self) -> Option<&ProjectState> {
-        self.state.as_deref()
+    /// Returns the current [`ExpiryState`] for this project.
+    /// If the project state's [`Expiry`] is `Expired`, do not return it.
+    pub fn expiry_state(&self) -> ExpiryState {
+        if let Some(state) = &self.state {
+            match state.check_expiry(self.config.as_ref()) {
+                Expiry::Updated => ExpiryState::Updated(state.clone()),
+                Expiry::Stale => ExpiryState::Stale(state.clone()),
+                Expiry::Expired => ExpiryState::Expired,
+            }
+        } else {
+            ExpiryState::Expired
+        }
     }
 
-    /// Returns a reference to the project state if available.
-    pub fn state_clone(&self) -> Option<Arc<ProjectState>> {
-        self.state.clone()
+    /// Returns the project state if it is not expired.
+    ///
+    /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
+    pub fn valid_state(&self) -> Option<Arc<ProjectState>> {
+        match self.expiry_state() {
+            ExpiryState::Updated(state) => Some(state),
+            ExpiryState::Stale(state) => Some(state),
+            ExpiryState::Expired => None,
+        }
     }
 
     /// The last time the project state was updated
@@ -563,7 +590,7 @@ impl Project {
     ///
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
-        if self.metrics_allowed {
+        if self.metrics_allowed() {
             Aggregator::from_registry()
                 .do_send(relay_metrics::MergeBuckets::new(self.project_key, buckets));
         }
@@ -573,7 +600,7 @@ impl Project {
     ///
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
-        if self.metrics_allowed {
+        if self.metrics_allowed() {
             Aggregator::from_registry()
                 .do_send(relay_metrics::InsertMetrics::new(self.project_key, metrics));
         }
@@ -664,7 +691,6 @@ impl Project {
 
         self.state_channel = None;
         self.state = state_result.map(|resp| resp.state);
-        self.update_metrics_allowed();
 
         if let Some(ref state) = self.state {
             relay_log::debug!("project state {} updated", self.project_key);
@@ -681,8 +707,10 @@ impl Project {
     ///
     /// Returns `Some` if the project state has been fetched and contains a project identifier,
     /// otherwise `None`.
+    ///
+    /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
-        let state = self.state()?;
+        let state = self.state.as_deref()?;
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,
@@ -699,7 +727,7 @@ impl Project {
     /// request's scoping. Otherwise, this function returns partial scoping from the `request_meta`.
     /// See [`RequestMeta::get_partial_scoping`] for more information.
     fn scope_request(&self, meta: &RequestMeta) -> Scoping {
-        match self.state() {
+        match self.valid_state() {
             Some(state) => state.scope_request(meta),
             None => meta.get_partial_scoping(),
         }
@@ -710,7 +738,8 @@ impl Project {
         mut envelope: Envelope,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        if let Some(state) = self.state() {
+        let state = self.valid_state();
+        if let Some(state) = state.as_deref() {
             if let Err(reason) = state.check_request(envelope.meta(), &self.config) {
                 envelope_context.reject(Outcome::Invalid(reason));
                 return Err(reason);
@@ -719,7 +748,7 @@ impl Project {
 
         self.rate_limits.clean_expired();
 
-        let quotas = self.state().map(|s| s.get_quotas()).unwrap_or(&[]);
+        let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
@@ -753,5 +782,50 @@ impl Project {
 
         let result = self.check_envelope_scoped(envelope, envelope_context);
         CheckEnvelopeResponse { result, scoping }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use relay_common::{ProjectId, ProjectKey};
+
+    use super::{Config, Project, ProjectState};
+
+    #[test]
+    fn get_state_expired() {
+        for expiry in [9999, 0] {
+            let config = Arc::new(
+                Config::from_json_value(serde_json::json!(
+                    {
+                        "cache": {
+                            "project_expiry": expiry,
+                            "project_grace_period": 0,
+                            "eviction_interval": 9999 // do not evict
+                        }
+                    }
+                ))
+                .unwrap(),
+            );
+
+            // Initialize project with a state
+            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+            let mut project_state = ProjectState::allowed();
+            project_state.project_id = Some(ProjectId::new(123));
+            let mut project = Project::new(project_key, config.clone());
+            project.state = Some(Arc::new(project_state));
+
+            // Direct access should always yield a state:
+            assert!(project.state.is_some());
+
+            if expiry > 0 {
+                // With long expiry, should get a state
+                assert!(project.valid_state().is_some());
+            } else {
+                // With 0 expiry, project should expire immediately. No state can be set.
+                assert!(project.valid_state().is_none());
+            }
+        }
     }
 }
