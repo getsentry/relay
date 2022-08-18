@@ -20,10 +20,6 @@
 //!     "urls": ["https://sentry.io"],
 //!     "error_ids": ["d2132d31b39445f1938d7e21b6bf0ec4"],
 //!     "trace_ids": ["63c5b0f895441a94340183c5f1e74cd4"],
-//!     "sdk": {
-//!         "name": "sdk-name",
-//!         "version": null
-//!     },
 //!     "requests": {
 //!         "headers": {"User-Agent": "Mozilla/5.0..."}
 //!     },
@@ -60,7 +56,7 @@ pub struct ReplayInput {
     release: Option<String>,
     tags: Option<HashMap<String, String>>,
     user: Option<User>,
-    sdk: VersionedMeta,
+    sdk: Option<VersionedMeta>,
     requests: Requests,
 }
 
