@@ -638,6 +638,68 @@
 <span id="630">630</span>
 <span id="631">631</span>
 <span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
 
@@ -655,12 +717,13 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendMetrics</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome::DiscardReason</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::processor::ProcessEnvelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project</span>::{<span class="ident">Project</span>, <span class="ident">ProjectState</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_local::LocalProjectSource</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_upstream::UpstreamProjectSource</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayGauges</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">GarbageDisposal</span>, <span class="ident">Response</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="self">self</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">GarbageDisposal</span>, <span class="ident">Response</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::project::ExpiryState</span>;
 
@@ -950,8 +1013,14 @@
             })
             .<span class="ident">into_actor</span>(<span class="self">self</span>)
             .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">state_result</span>, <span class="ident">slf</span>, <span class="ident">_context</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>);
-                <span class="ident">project</span>.<span class="ident">update_state</span>(<span class="ident">state_result</span>.<span class="ident">ok</span>(), <span class="ident">no_cache</span>);
+                <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">state_result</span> {
+                    <span class="prelude-val">Ok</span>(<span class="ident">response</span>) =&gt; <span class="ident">response</span>.<span class="ident">state</span>,
+                    <span class="prelude-val">Err</span>(()) =&gt; <span class="ident">Arc::new</span>(<span class="ident">ProjectState::err</span>()),
+                };
+
+                <span class="ident">slf</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>)
+                    .<span class="ident">update_state</span>(<span class="ident">state</span>, <span class="ident">no_cache</span>);
+
                 <span class="ident">fut::ok</span>(())
             })
             .<span class="ident">spawn</span>(<span class="ident">context</span>);
@@ -1044,27 +1113,15 @@
     <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
     <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
     <span class="ident">context</span>: <span class="ident">EnvelopeContext</span>,
-    <span class="ident">fetch</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">CheckEnvelope</span> {
-    <span class="doccomment">/// Fetches the project state and checks the envelope.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fetched</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">envelope</span>: <span class="ident">Envelope</span>, <span class="ident">context</span>: <span class="ident">EnvelopeContext</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">project_key</span>,
-            <span class="ident">envelope</span>,
-            <span class="ident">context</span>,
-            <span class="ident">fetch</span>: <span class="bool-val">true</span>,
-        }
-    }
-
     <span class="doccomment">/// Uses a cached project state and checks the envelope.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cached</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">envelope</span>: <span class="ident">Envelope</span>, <span class="ident">context</span>: <span class="ident">EnvelopeContext</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">envelope</span>: <span class="ident">Envelope</span>, <span class="ident">context</span>: <span class="ident">EnvelopeContext</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">project_key</span>,
             <span class="ident">envelope</span>,
             <span class="ident">context</span>,
-            <span class="ident">fetch</span>: <span class="bool-val">false</span>,
         }
     }
 }
@@ -1091,32 +1148,101 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">CheckEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ActorResponse</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">CheckEnvelopeResponse</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span>;
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CheckEnvelopeResponse</span>, <span class="ident">ProjectError</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">CheckEnvelope</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">CheckEnvelope</span>, <span class="kw">_</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
         <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
-        <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">fetch</span> {
-            <span class="comment">// Project state fetching is allowed, so ensure the state is fetched and up-to-date.</span>
-            <span class="comment">// This will return synchronously if the state is still cached.</span>
-            <span class="ident">project</span>
-                .<span class="ident">get_or_fetch_state</span>(<span class="ident">message</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">no_cache</span>())
-                .<span class="ident">into_actor</span>()
-                .<span class="ident">map</span>(<span class="self">self</span>, <span class="ident">context</span>, <span class="kw">move</span> <span class="op">|</span><span class="kw">_</span>, <span class="ident">slf</span>, <span class="ident">_context</span><span class="op">|</span> {
-                    <span class="comment">// TODO RaduW can we do better that this ????</span>
-                    <span class="comment">// (need to retrieve project again to get around borrowing problems)</span>
-                    <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="ident">slf</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>);
-                    <span class="ident">project</span>.<span class="ident">check_envelope</span>(<span class="ident">message</span>.<span class="ident">envelope</span>, <span class="ident">message</span>.<span class="ident">context</span>)
-                })
-        } <span class="kw">else</span> {
-            <span class="comment">// Preload the project cache so that it arrives a little earlier in processing. However,</span>
-            <span class="comment">// do not pass `no_cache`. In case the project is rate limited, we do not want to force</span>
-            <span class="comment">// a full reload.</span>
-            <span class="ident">project</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>);
 
-            <span class="comment">// message.fetch == false: Fetching must not block the store request. The</span>
-            <span class="comment">// EnvelopeManager will later fetch the project state.</span>
-            <span class="ident">ActorResponse::ok</span>(<span class="ident">project</span>.<span class="ident">check_envelope</span>(<span class="ident">message</span>.<span class="ident">envelope</span>, <span class="ident">message</span>.<span class="ident">context</span>))
+        <span class="comment">// Preload the project cache so that it arrives a little earlier in processing. However,</span>
+        <span class="comment">// do not pass `no_cache`. In case the project is rate limited, we do not want to force</span>
+        <span class="comment">// a full reload. Fetching must not block the store request.</span>
+        <span class="ident">project</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>);
+
+        <span class="prelude-val">Ok</span>(<span class="ident">project</span>.<span class="ident">check_envelope</span>(<span class="ident">message</span>.<span class="ident">envelope</span>, <span class="ident">message</span>.<span class="ident">context</span>))
+    }
+}
+
+<span class="doccomment">/// Validates the envelope against project configuration and rate limits.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This ensures internally that the project state is up to date and then runs the same checks as</span>
+<span class="doccomment">/// [`CheckEnvelope`]. Once the envelope has been validated, remaining items are forwarded to the</span>
+<span class="doccomment">/// next stage:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the</span>
+<span class="doccomment">///    [`ProjectCache`] to add the required project state.</span>
+<span class="doccomment">///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ValidateEnvelope</span> {
+    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
+    <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
+    <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">ValidateEnvelope</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
+        <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
+        <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
+        <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
+    ) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">project_key</span>,
+            <span class="ident">envelope</span>,
+            <span class="ident">envelope_context</span>,
         }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">ValidateEnvelope</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+}
+
+<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">ValidateEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ValidateEnvelope</span>, <span class="kw">_</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+        <span class="comment">// Preload the project cache for dynamic sampling in parallel to the main one.</span>
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">sampling_key</span>) <span class="op">=</span> <span class="ident">utils::get_sampling_key</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">envelope</span>) {
+            <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">sampling_key</span>)
+                .<span class="ident">get_or_fetch_state</span>(<span class="ident">message</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">no_cache</span>());
+        }
+
+        <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>)
+            .<span class="ident">enqueue_validation</span>(<span class="ident">message</span>.<span class="ident">envelope</span>, <span class="ident">message</span>.<span class="ident">envelope_context</span>);
+    }
+}
+
+<span class="doccomment">/// Adds the project state for dynamic sampling and sends the envelope to processing.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If the project state is up to date, the envelope will be immediately submitted for processing.</span>
+<span class="doccomment">/// Otherwise, this queues the envelope and flushes it when the project has been updated.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This message will trigger an update of the project state internally if the state is stale or</span>
+<span class="doccomment">/// outdated.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AddSamplingState</span> {
+    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
+    <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">AddSamplingState</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">project_key</span>,
+            <span class="ident">message</span>,
+        }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">AddSamplingState</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+}
+
+<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">AddSamplingState</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ProjectCache</span> {
+    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
+
+    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">AddSamplingState</span>, <span class="kw">_</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+        <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">message</span>.<span class="ident">project_key</span>)
+            .<span class="ident">enqueue_sampling</span>(<span class="ident">message</span>.<span class="ident">message</span>);
     }
 }
 
@@ -1150,6 +1276,7 @@
         <span class="ident">project</span>.<span class="ident">merge_rate_limits</span>(<span class="ident">rate_limits</span>);
     }
 }
+
 <span class="doccomment">/// A message containing a list of [`Metric`]s to be inserted into the aggregator.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InsertMetrics</span> {
@@ -1228,13 +1355,10 @@
 
         <span class="comment">// Schedule an update to the project state if it is outdated, regardless of whether the</span>
         <span class="comment">// metrics can be forwarded or not. We never wait for this update.</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="macro">matches!</span>(<span class="ident">expiry_state</span>, <span class="ident">ExpiryState::Updated</span>(<span class="kw">_</span>)) {
-            <span class="ident">project</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>);
-        }
+        <span class="ident">project</span>.<span class="ident">get_or_fetch_state</span>(<span class="bool-val">false</span>);
 
         <span class="kw">let</span> <span class="ident">project_state</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">expiry_state</span> {
-            <span class="ident">ExpiryState::Updated</span>(<span class="ident">state</span>) =&gt; <span class="ident">state</span>,
-            <span class="ident">ExpiryState::Stale</span>(<span class="ident">state</span>) =&gt; <span class="ident">state</span>,
+            <span class="ident">ExpiryState::Updated</span>(<span class="ident">state</span>) <span class="op">|</span> <span class="ident">ExpiryState::Stale</span>(<span class="ident">state</span>) =&gt; <span class="ident">state</span>,
             <span class="ident">ExpiryState::Expired</span> =&gt; {
                 <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into the</span>
                 <span class="comment">// aggregator and wait for the next flush cycle.</span>

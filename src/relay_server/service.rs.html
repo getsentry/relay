@@ -328,6 +328,21 @@
 <span id="320">320</span>
 <span id="321">321</span>
 <span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
@@ -439,9 +454,19 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Registry</span> {
     <span class="kw">pub</span> <span class="ident">healthcheck</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Healthcheck</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">processor</span>: <span class="ident">actix::Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeProcessor</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">fmt::Debug</span> <span class="kw">for</span> <span class="ident">Registry</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Registry&quot;</span>)
+            .<span class="ident">field</span>(<span class="string">&quot;healthcheck&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">healthcheck</span>)
+            .<span class="ident">field</span>(<span class="string">&quot;processor&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">&quot;Addr&lt;Processor&gt;&quot;</span>))
+            .<span class="ident">finish</span>()
+    }
 }
 
 <span class="doccomment">/// Server state.</span>
@@ -482,7 +507,7 @@
 
         <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="ident">BufferGuard::new</span>(<span class="ident">config</span>.<span class="ident">envelope_buffer_size</span>()));
         <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::start</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManager::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">processor</span>, <span class="ident">buffer</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManager::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">buffer</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">envelope_manager</span>));
 
         <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">ProjectCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>);
@@ -501,7 +526,12 @@
             }
         }
 
-        <span class="ident">REGISTRY</span>.<span class="ident">set</span>(<span class="ident">Box::new</span>(<span class="ident">Registry</span> { <span class="ident">healthcheck</span> })).<span class="ident">unwrap</span>();
+        <span class="ident">REGISTRY</span>
+            .<span class="ident">set</span>(<span class="ident">Box::new</span>(<span class="ident">Registry</span> {
+                <span class="ident">processor</span>,
+                <span class="ident">healthcheck</span>,
+            }))
+            .<span class="ident">unwrap</span>();
 
         <span class="prelude-val">Ok</span>(<span class="ident">ServiceState</span> {
             <span class="ident">buffer_guard</span>: <span class="ident">buffer</span>,

@@ -541,19 +541,7 @@
 <span id="533">533</span>
 <span id="534">534</span>
 <span id="535">535</span>
-<span id="536">536</span>
-<span id="537">537</span>
-<span id="538">538</span>
-<span id="539">539</span>
-<span id="540">540</span>
-<span id="541">541</span>
-<span id="542">542</span>
-<span id="543">543</span>
-<span id="544">544</span>
-<span id="545">545</span>
-<span id="546">546</span>
-<span id="547">547</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RelayGauges</span> {
@@ -570,20 +558,6 @@
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">RelayGauges::NetworkOutage</span> =&gt; <span class="string">&quot;upstream.network_outage&quot;</span>,
             <span class="ident">RelayGauges::ProjectCacheGarbageQueueSize</span> =&gt; <span class="string">&quot;project_cache.garbage.queue_size&quot;</span>,
-        }
-    }
-}
-
-<span class="doccomment">/// Set metrics used by Relay</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">RelaySets</span> {
-    <span class="doccomment">/// Represents the number of active projects in the current slice of time</span>
-    <span class="ident">UniqueProjects</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">SetMetric</span> <span class="kw">for</span> <span class="ident">RelaySets</span> {
-    <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">RelaySets::UniqueProjects</span> =&gt; <span class="string">&quot;unique_projects&quot;</span>,
         }
     }
 }
@@ -765,9 +739,11 @@
     <span class="ident">EventProcessingPii</span>,
     <span class="doccomment">/// Time spent converting the event from its in-memory reprsentation into a JSON string.</span>
     <span class="ident">EventProcessingSerialization</span>,
-    <span class="doccomment">/// Time spent between receiving a request in Relay (that is, beginning of request handling) and</span>
-    <span class="doccomment">/// the start of synchronous processing in the EnvelopeProcessor. This metric primarily</span>
-    <span class="doccomment">/// indicates backlog in event processing.</span>
+    <span class="doccomment">/// Time spent between the start of request handling and processing of the envelope.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This includes streaming the request body, scheduling overheads, project config fetching,</span>
+    <span class="doccomment">/// batched requests and congestions in the internal processor. This does not include delays in</span>
+    <span class="doccomment">/// the incoming request (body upload) and skips all envelopes that are fast-rejected.</span>
     <span class="ident">EnvelopeWaitTime</span>,
     <span class="doccomment">/// Time in milliseconds spent in synchronous processing of envelopes.</span>
     <span class="doccomment">///</span>

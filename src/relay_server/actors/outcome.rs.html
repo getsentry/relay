@@ -842,6 +842,28 @@
 <span id="834">834</span>
 <span id="835">835</span>
 <span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Outcomes describe the final &quot;fate&quot; of an event. As such, for every event exactly one outcome</span>
@@ -851,6 +873,7 @@
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
+<span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::mem</span>;
 <span class="kw">use</span> <span class="ident">std::net::IpAddr</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
@@ -1041,6 +1064,21 @@
     }
 }
 
+<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">Outcome</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident">Outcome::Filtered</span>(<span class="ident">key</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;filtered by {}&quot;</span>, <span class="ident">key</span>),
+            <span class="ident">Outcome::FilteredSampling</span>(<span class="ident">rule</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;sampling rule {}&quot;</span>, <span class="ident">rule</span>),
+            <span class="ident">Outcome::RateLimited</span>(<span class="prelude-val">None</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;rate limited&quot;</span>),
+            <span class="ident">Outcome::RateLimited</span>(<span class="prelude-val">Some</span>(<span class="ident">reason</span>)) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;rate limited with reason {}&quot;</span>, <span class="ident">reason</span>),
+            <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;internal error&quot;</span>),
+            <span class="ident">Outcome::Invalid</span>(<span class="ident">reason</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid data ({})&quot;</span>, <span class="ident">reason</span>),
+            <span class="ident">Outcome::Abuse</span> =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;abuse limit reached&quot;</span>),
+            <span class="ident">Outcome::ClientDiscard</span>(<span class="ident">reason</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;discarded by client ({})&quot;</span>, <span class="ident">reason</span>),
+        }
+    }
+}
+
 <span class="doccomment">/// Reason for a discarded invalid event.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Used in `Outcome::Invalid`. Synchronize overlap with Sentry.</span>
@@ -1192,6 +1230,12 @@
             <span class="ident">DiscardReason::EmptyEnvelope</span> =&gt; <span class="string">&quot;empty_envelope&quot;</span>,
             <span class="ident">DiscardReason::InvalidProfile</span> =&gt; <span class="string">&quot;invalid_profile&quot;</span>,
         }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">DiscardReason</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">name</span>())
     }
 }
 
