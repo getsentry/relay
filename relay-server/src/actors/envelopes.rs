@@ -35,8 +35,9 @@ use crate::utils::{self, EnvelopeContext, FutureExt as _, Semaphore};
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{StoreAddr, StoreEnvelope, StoreError, StoreForwarder},
+    crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     futures::{FutureExt, TryFutureExt},
+    relay_system::Addr as ServiceAddr,
     tokio::runtime::Runtime,
 };
 
@@ -209,7 +210,7 @@ pub struct EnvelopeManager {
     captures: BTreeMap<EventId, CapturedEnvelope>,
     processor: Addr<EnvelopeProcessor>,
     #[cfg(feature = "processing")]
-    store_forwarder: Option<StoreAddr<StoreEnvelope>>,
+    store_forwarder: Option<ServiceAddr<StoreForwarder>>,
     #[cfg(feature = "processing")]
     _runtime: Runtime,
 }
@@ -222,11 +223,7 @@ impl EnvelopeManager {
     ) -> Result<Self, ServerError> {
         // Enter the tokio runtime so we can start spawning tasks from the outside.
         #[cfg(feature = "processing")]
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .build()
-            .unwrap();
+        let runtime = utils::tokio_runtime_with_actix();
 
         #[cfg(feature = "processing")]
         let _guard = runtime.enter();
