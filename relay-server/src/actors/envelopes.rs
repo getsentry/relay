@@ -102,17 +102,17 @@ impl BufferGuard {
 #[allow(clippy::enum_variant_names)]
 pub enum SendEnvelopeError {
     #[cfg(feature = "processing")]
-    #[fail(display = "TODO")]
+    #[fail(display = "could not schedule submission of envelope")]
     ScheduleFailed,
     #[cfg(feature = "processing")]
-    #[fail(display = "TODO")]
-    StoreFailed(StoreError),
-    #[fail(display = "TODO")]
-    EnvelopeBuildFailed(EnvelopeError),
-    #[fail(display = "TODO")]
-    BodyEncodingFailed(std::io::Error),
-    #[fail(display = "TODO")]
-    UpstreamRequestFailed(UpstreamRequestError),
+    #[fail(display = "could not store envelope")]
+    StoreFailed(#[cause] StoreError),
+    #[fail(display = "could not build envelope for upstream")]
+    EnvelopeBuildFailed(#[cause] EnvelopeError),
+    #[fail(display = "could not encode request body")]
+    BodyEncodingFailed(#[cause] std::io::Error),
+    #[fail(display = "could not send request to upstream")]
+    UpstreamRequestFailed(#[cause] UpstreamRequestError),
 }
 
 /// Either a captured envelope or an error that occured during processing.
