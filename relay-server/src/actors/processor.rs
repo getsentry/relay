@@ -13,7 +13,6 @@ use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use lazy_static::lazy_static;
-use parking_lot::RwLock;
 use serde_json::Value as SerdeValue;
 
 use relay_auth::RelayVersion;
@@ -45,7 +44,7 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
-use crate::service::ServerError;
+use crate::service::{ServerError, REGISTRY};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
@@ -64,12 +63,6 @@ use {
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
-
-/// Singleton of the `EnvelopeProcessor` service.
-///
-/// Since `EnvelopeProcessor` runs in a SyncArbiter, it cannot implement `SystemService` and cannot
-/// be put in the actix `SystemRegistry`.
-static ADDRESS: RwLock<Option<Addr<EnvelopeProcessor>>> = RwLock::new(None);
 
 /// An error returned when handling [`ProcessEnvelope`].
 #[derive(Debug, Fail)]
@@ -362,16 +355,19 @@ pub struct EnvelopeProcessor {
 
 impl EnvelopeProcessor {
     pub fn from_registry() -> Addr<Self> {
-        ADDRESS.read().clone().unwrap()
+        REGISTRY.get().unwrap().processor.clone()
     }
 
     /// Starts a multi-threaded envelope processor.
-    pub fn start(config: Arc<Config>, _redis: Option<RedisPool>) -> Result<(), ServerError> {
+    pub fn start(
+        config: Arc<Config>,
+        _redis: Option<RedisPool>,
+    ) -> Result<Addr<Self>, ServerError> {
         let thread_count = config.cpu_concurrency();
         relay_log::info!("starting {} envelope processing workers", thread_count);
 
         #[cfg(feature = "processing")]
-        let addr = {
+        {
             let geoip_lookup = match config.geoip_path() {
                 Some(p) => Some(Arc::new(
                     GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
@@ -382,24 +378,21 @@ impl EnvelopeProcessor {
             let rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
-            SyncArbiter::start(
+            Ok(SyncArbiter::start(
                 thread_count,
                 clone!(config, || {
                     EnvelopeProcessor::new(config.clone())
                         .with_rate_limiter(rate_limiter.clone())
                         .with_geoip_lookup(geoip_lookup.clone())
                 }),
-            )
-        };
+            ))
+        }
 
         #[cfg(not(feature = "processing"))]
-        let addr = SyncArbiter::start(
+        Ok(SyncArbiter::start(
             thread_count,
             clone!(config, || EnvelopeProcessor::new(config.clone())),
-        );
-
-        *ADDRESS.write() = Some(addr);
-        Ok(())
+        ))
     }
 
     #[inline]

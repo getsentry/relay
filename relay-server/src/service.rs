@@ -109,9 +109,19 @@ impl From<Context<ServerErrorKind>> for ServerError {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Registry {
     pub healthcheck: Addr<Healthcheck>,
+    pub processor: actix::Addr<EnvelopeProcessor>,
+}
+
+impl fmt::Debug for Registry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Registry")
+            .field("healthcheck", &self.healthcheck)
+            .field("processor", &format_args!("Addr<Processor>"))
+            .finish()
+    }
 }
 
 /// Server state.
@@ -151,7 +161,7 @@ impl ServiceState {
         };
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-        EnvelopeProcessor::start(config.clone(), redis_pool.clone())?; // TODO(tobias): Registry
+        let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
         let envelope_manager = EnvelopeManager::create(config.clone(), buffer.clone())?;
         registry.set(Arbiter::start(|_| envelope_manager));
 
@@ -171,7 +181,12 @@ impl ServiceState {
             }
         }
 
-        REGISTRY.set(Box::new(Registry { healthcheck })).unwrap();
+        REGISTRY
+            .set(Box::new(Registry {
+                processor,
+                healthcheck,
+            }))
+            .unwrap();
 
         Ok(ServiceState {
             buffer_guard: buffer,
