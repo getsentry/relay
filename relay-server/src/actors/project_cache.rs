@@ -311,10 +311,7 @@ impl Handler<UpdateProjectState> for ProjectCache {
             .then(move |state_result, slf, _context| {
                 let state = match state_result {
                     Ok(response) => response.state,
-                    Err(()) => {
-                        relay_log::error!("unexpected error during project fetch");
-                        Arc::new(ProjectState::err())
-                    }
+                    Err(()) => Arc::new(ProjectState::err()),
                 };
 
                 slf.get_or_create_project(project_key)

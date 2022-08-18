@@ -169,6 +169,7 @@ impl UpstreamProjectSource {
                         counter(RelayCounters::ProjectUpstreamCompleted) += 1,
                         result = "timeout",
                     );
+                    relay_log::error!("failed to resolve project information: reached deadline");
                 }
                 !channel.expired()
             });
