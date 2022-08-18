@@ -220,7 +220,7 @@ pub struct ProjectState {
     #[serde(skip, default = "Instant::now")]
     pub last_fetch: Instant,
 
-    /// True if this project state was fetched but incompatible with this Relay.
+    /// True if this project state failed fetching or was incompatible with this Relay.
     #[serde(skip, default)]
     pub invalid: bool,
 }
@@ -768,7 +768,7 @@ impl Project {
     /// take precedence.
     ///
     /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
-    pub fn update_state(&mut self, state: Arc<ProjectState>, no_cache: bool) {
+    pub fn update_state(&mut self, mut state: Arc<ProjectState>, no_cache: bool) {
         let channel = match self.state_channel.take() {
             Some(channel) => channel,
             None => return,
@@ -781,8 +781,12 @@ impl Project {
             return;
         }
 
-        self.state_channel = None;
-        self.state = Some(state.clone());
+        match self.expiry_state() {
+            // If the new state is invalid but the old one still usable, keep the old one.
+            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
+            // If the new state is valid or the old one is expired, always use the new one.
+            _ => self.state = Some(state.clone()),
+        }
 
         // Flush all queued `ValidateEnvelope` messages
         while let Some((envelope, context)) = self.pending_validations.pop_front() {
