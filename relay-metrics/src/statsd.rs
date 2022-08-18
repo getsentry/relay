@@ -115,6 +115,7 @@ impl HistogramMetric for MetricHistograms {
             Self::BucketsFlushed => "metrics.buckets.flushed",
             Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
             Self::BucketsDelay => "metrics.buckets.delay",
+            Self::BucketsPerBatch => "metrics.buckets.per_batch",
         }
     }
 }
