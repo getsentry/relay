@@ -625,8 +625,18 @@
 <span id="617">617</span>
 <span id="618">618</span>
 <span id="619">619</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
-<span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
 
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
@@ -647,8 +657,8 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_local::LocalProjectSource</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_upstream::UpstreamProjectSource</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">Response</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayGauges</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">ActorResponse</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">GarbageDisposal</span>, <span class="ident">Response</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::project::ExpiryState</span>;
 
@@ -668,11 +678,12 @@
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProjectCache</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="ident">projects</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Project</span><span class="op">&gt;</span>,
+    <span class="ident">projects</span>: <span class="ident">hashbrown::HashMap</span><span class="op">&lt;</span><span class="ident">ProjectKey</span>, <span class="ident">Project</span><span class="op">&gt;</span>, <span class="comment">// need hashbrown because drain_filter is not stable in std yet</span>
     <span class="ident">local_source</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">LocalProjectSource</span><span class="op">&gt;</span>,
     <span class="ident">upstream_source</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">UpstreamProjectSource</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">redis_source</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">RedisProjectSource</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">garbage_disposal</span>: <span class="ident">GarbageDisposal</span><span class="op">&lt;</span><span class="ident">Project</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ProjectCache</span> {
@@ -693,11 +704,12 @@
 
         <span class="ident">ProjectCache</span> {
             <span class="ident">config</span>,
-            <span class="ident">projects</span>: <span class="ident">HashMap::new</span>(),
+            <span class="ident">projects</span>: <span class="ident">hashbrown::HashMap::new</span>(),
             <span class="ident">local_source</span>,
             <span class="ident">upstream_source</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">redis_source</span>,
+            <span class="ident">garbage_disposal</span>: <span class="ident">GarbageDisposal::new</span>(),
         }
     }
 
@@ -712,8 +724,18 @@
         <span class="kw">let</span> <span class="ident">eviction_start</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
         <span class="kw">let</span> <span class="ident">delta</span> <span class="op">=</span> <span class="number">2</span> <span class="op">*</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">project_cache_expiry</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">project_grace_period</span>();
 
-        <span class="self">self</span>.<span class="ident">projects</span>
-            .<span class="ident">retain</span>(<span class="op">|</span><span class="kw">_</span>, <span class="ident">entry</span><span class="op">|</span> <span class="ident">entry</span>.<span class="ident">last_updated_at</span>() <span class="op">+</span> <span class="ident">delta</span> <span class="op">&gt;</span> <span class="ident">eviction_start</span>);
+        <span class="kw">let</span> <span class="ident">expired</span> <span class="op">=</span> <span class="self">self</span>
+            .<span class="ident">projects</span>
+            .<span class="ident">drain_filter</span>(<span class="op">|</span><span class="kw">_</span>, <span class="ident">entry</span><span class="op">|</span> <span class="ident">entry</span>.<span class="ident">last_updated_at</span>() <span class="op">+</span> <span class="ident">delta</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">eviction_start</span>);
+
+        <span class="comment">// Defer dropping the projects to a dedicated thread:</span>
+        <span class="kw">for</span> (<span class="kw">_</span>, <span class="ident">project</span>) <span class="kw">in</span> <span class="ident">expired</span> {
+            <span class="self">self</span>.<span class="ident">garbage_disposal</span>.<span class="ident">dispose</span>(<span class="ident">project</span>);
+        }
+
+        <span class="comment">// Log garbage queue size:</span>
+        <span class="kw">let</span> <span class="ident">queue_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">garbage_disposal</span>.<span class="ident">queue_size</span>() <span class="kw">as</span> <span class="ident">f64</span>;
+        <span class="macro">relay_statsd::metric!</span>(<span class="ident">gauge</span>(<span class="ident">RelayGauges::ProjectCacheGarbageQueueSize</span>) <span class="op">=</span> <span class="ident">queue_size</span>);
 
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::ProjectStateEvictionDuration</span>) <span class="op">=</span> <span class="ident">eviction_start</span>.<span class="ident">elapsed</span>());
     }

@@ -549,6 +549,10 @@
 <span id="541">541</span>
 <span id="542">542</span>
 <span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -556,12 +560,16 @@
     <span class="doccomment">/// The state of Relay with respect to the upstream connection.</span>
     <span class="doccomment">/// Possible values are `0` for normal operations and `1` for a network outage.</span>
     <span class="ident">NetworkOutage</span>,
+
+    <span class="doccomment">/// The number of items currently in the garbage disposal queue.</span>
+    <span class="ident">ProjectCacheGarbageQueueSize</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">GaugeMetric</span> <span class="kw">for</span> <span class="ident">RelayGauges</span> {
     <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">RelayGauges::NetworkOutage</span> =&gt; <span class="string">&quot;upstream.network_outage&quot;</span>,
+            <span class="ident">RelayGauges::ProjectCacheGarbageQueueSize</span> =&gt; <span class="string">&quot;project_cache.garbage.queue_size&quot;</span>,
         }
     }
 }
