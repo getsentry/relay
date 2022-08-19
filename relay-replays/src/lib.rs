@@ -53,7 +53,7 @@ pub fn normalize_replay_event(
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ReplayInput {
+struct ReplayInput {
     #[serde(rename = "type")]
     ty: String,
     replay_id: String,
