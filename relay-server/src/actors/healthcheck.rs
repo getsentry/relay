@@ -2,7 +2,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use actix::SystemService;
-use parking_lot::RwLock;
 use tokio::sync::{mpsc, oneshot};
 
 use relay_config::{Config, RelayMode};
@@ -11,11 +10,9 @@ use relay_statsd::metric;
 use relay_system::{compat, Controller};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
+use crate::service::REGISTRY;
 use crate::statsd::RelayGauges;
 use relay_system::{Addr, Service, ServiceMessage};
-
-/// Singleton of the `Healthcheck` service.
-static ADDRESS: RwLock<Option<Addr<Healthcheck>>> = RwLock::new(None);
 
 #[derive(Debug)]
 pub struct Healthcheck {
@@ -36,7 +33,7 @@ impl Healthcheck {
     ///
     /// Panics if the service was not started using [`Healthcheck::start`] prior to this being used.
     pub fn from_registry() -> Addr<Self> {
-        ADDRESS.read().as_ref().unwrap().clone()
+        REGISTRY.get().unwrap().healthcheck.clone()
     }
 
     /// Creates a new instance of the Healthcheck service.
@@ -88,7 +85,6 @@ impl Healthcheck {
         let (tx, mut rx) = mpsc::unbounded_channel::<HealthcheckMessages>();
 
         let addr = Addr { tx };
-        *ADDRESS.write() = Some(addr.clone());
 
         let service = Arc::new(self);
         let main_service = service.clone();

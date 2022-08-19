@@ -6,11 +6,13 @@ use actix_web::{server, App};
 use failure::ResultExt;
 use failure::{Backtrace, Context, Fail};
 use listenfd::ListenFd;
+use once_cell::race::OnceBox;
 
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
+use relay_system::Addr;
 use relay_system::{Configure, Controller};
 
 use crate::actors::envelopes::{BufferGuard, EnvelopeManager};
@@ -25,6 +27,8 @@ use crate::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
 use crate::{endpoints, utils};
+
+pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
 
 /// Common error type for the relay server.
 #[derive(Debug)]
@@ -105,6 +109,21 @@ impl From<Context<ServerErrorKind>> for ServerError {
     }
 }
 
+#[derive(Clone)]
+pub struct Registry {
+    pub healthcheck: Addr<Healthcheck>,
+    pub processor: actix::Addr<EnvelopeProcessor>,
+}
+
+impl fmt::Debug for Registry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Registry")
+            .field("healthcheck", &self.healthcheck)
+            .field("processor", &format_args!("Addr<Processor>"))
+            .finish()
+    }
+}
+
 /// Server state.
 #[derive(Clone)]
 pub struct ServiceState {
@@ -143,14 +162,14 @@ impl ServiceState {
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
-        let envelope_manager = EnvelopeManager::create(config.clone(), processor, buffer.clone())?;
+        let envelope_manager = EnvelopeManager::create(config.clone(), buffer.clone())?;
         registry.set(Arbiter::start(|_| envelope_manager));
 
         let project_cache = ProjectCache::new(config.clone(), redis_pool);
         let project_cache = Arbiter::start(|_| project_cache);
         registry.set(project_cache.clone());
 
-        Healthcheck::new(config.clone()).start(); // TODO(tobias): Registry is implicit
+        let healthcheck = Healthcheck::new(config.clone()).start();
         registry.set(RelayCache::new(config.clone()).start());
 
         let aggregator = Aggregator::new(config.aggregator_config(), project_cache.recipient());
@@ -161,6 +180,13 @@ impl ServiceState {
                 Arbiter::start(|_| aws_extension);
             }
         }
+
+        REGISTRY
+            .set(Box::new(Registry {
+                processor,
+                healthcheck,
+            }))
+            .unwrap();
 
         Ok(ServiceState {
             buffer_guard: buffer,

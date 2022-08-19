@@ -187,7 +187,8 @@ def test_query_retry_maxed_out(
         relay.send_event(42)
         time.sleep(query_timeout)
 
-        outcomes_consumer.assert_dropped_internal()
+        outcome = outcomes_consumer.get_outcome()
+        assert (outcome["outcome"], outcome["reason"]) == (3, "project_state")
         assert request_count == 1 + RETRIES
 
         for (_, error) in mini_sentry.test_failures[:-1]:
@@ -199,7 +200,7 @@ def test_query_retry_maxed_out(
             )
 
         _, last_error = mini_sentry.test_failures[-1]
-        assert "failed to resolve project information" in str(last_error)
+        assert "deadline exceeded" in str(last_error)
     finally:
         mini_sentry.test_failures.clear()
 
@@ -226,7 +227,8 @@ def test_processing_redis_query(
     relay.send_event(project_id)
 
     if disabled:
-        outcomes_consumer.assert_dropped_unknown_project()
+        outcome = outcomes_consumer.get_outcome()
+        assert (outcome["outcome"], outcome["reason"]) == (3, "project_id")
     else:
         event, v = events_consumer.get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}

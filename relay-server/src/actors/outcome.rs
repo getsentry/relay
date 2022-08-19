@@ -7,6 +7,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
+use std::fmt;
 use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -197,6 +198,21 @@ impl Outcome {
     }
 }
 
+impl fmt::Display for Outcome {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Outcome::Filtered(key) => write!(f, "filtered by {}", key),
+            Outcome::FilteredSampling(rule) => write!(f, "sampling rule {}", rule),
+            Outcome::RateLimited(None) => write!(f, "rate limited"),
+            Outcome::RateLimited(Some(reason)) => write!(f, "rate limited with reason {}", reason),
+            Outcome::Invalid(DiscardReason::Internal) => write!(f, "internal error"),
+            Outcome::Invalid(reason) => write!(f, "invalid data ({})", reason),
+            Outcome::Abuse => write!(f, "abuse limit reached"),
+            Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({})", reason),
+        }
+    }
+}
+
 /// Reason for a discarded invalid event.
 ///
 /// Used in `Outcome::Invalid`. Synchronize overlap with Sentry.
@@ -348,6 +364,12 @@ impl DiscardReason {
             DiscardReason::EmptyEnvelope => "empty_envelope",
             DiscardReason::InvalidProfile => "invalid_profile",
         }
+    }
+}
+
+impl fmt::Display for DiscardReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
     }
 }
 
