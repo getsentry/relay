@@ -60,11 +60,10 @@ use std::collections::BTreeMap;
 use std::net::{ToSocketAddrs, UdpSocket};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-#[cfg(test)]
-use std::sync::Mutex;
 
 use cadence::{
-    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient, UdpMetricSink,
+    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, SpyMetricSink, StatsdClient,
+    UdpMetricSink,
 };
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
@@ -83,9 +82,12 @@ pub struct MetricsClient {
     pub default_tags: BTreeMap<String, String>,
     /// Global sample rate.
     pub sample_rate: f32,
-    /// Capture mode. Only use in tests. Stores all the metric strings sent.
-    #[cfg(test)]
-    pub capture: Option<Arc<Mutex<Vec<String>>>>,
+}
+
+impl Drop for MetricsClient {
+    fn drop(&mut self) {
+        dbg!("DROPPING METRICS CLIENT");
+    }
 }
 
 impl Deref for MetricsClient {
@@ -117,25 +119,13 @@ impl MetricsClient {
             metric = metric.with_tag(k, v);
         }
 
-        match metric.try_send() {
-            Err(error) => {
-                relay_log::error!(
-                    "Error sending a metric: {}, maximum capacity: {}",
-                    LogError(&error),
-                    METRICS_MAX_QUEUE_SIZE
-                );
-            }
-            #[cfg(test)]
-            Ok(metric) => {
-                if let Some(capture) = self.capture.as_ref() {
-                    let mut guard = capture.lock().unwrap();
-                    let mutable_captures = guard.deref_mut();
-                    mutable_captures.push(metric.as_metric_str().to_owned());
-                }
-            }
-            #[cfg(not(test))]
-            _ => {}
-        };
+        if let Err(error) = metric.try_send() {
+            relay_log::error!(
+                "Error sending a metric: {}, maximum capacity: {}",
+                LogError(&error),
+                METRICS_MAX_QUEUE_SIZE
+            );
+        }
     }
 
     fn _should_send(&self) -> bool {
@@ -180,30 +170,28 @@ pub fn set_client(client: MetricsClient) {
 
 /// Set a test client for the period of the called function.
 /// Note: This also changes the METRICS_CLIENT for other threads.
-#[cfg(test)]
 pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
-    use cadence::NopMetricSink;
-
     let old_client = METRICS_CLIENT.read().clone();
 
+    let (rx, sink) = SpyMetricSink::new();
     let test_client = MetricsClient {
-        statsd_client: StatsdClient::from_sink("", NopMetricSink),
+        statsd_client: StatsdClient::from_sink("", sink),
         default_tags: Default::default(),
         sample_rate: 1.0,
-        capture: Some(Arc::new(Mutex::new(Vec::new()))),
     };
     set_client(test_client);
 
     f();
 
-    // TODO: This is a mess of clones.
-    let opt = METRICS_CLIENT.read().clone();
-    let member = opt.as_ref().and_then(|x| x.capture.as_ref());
-    let captured = member.unwrap().lock().unwrap().deref().clone();
-
     *METRICS_CLIENT.write() = old_client;
 
-    captured
+    rx.iter()
+        .map(|x| {
+            let s = String::from_utf8(x).unwrap();
+            dbg!(&s);
+            s
+        })
+        .collect()
 }
 
 /// Disable the client again.
@@ -256,8 +244,6 @@ pub fn init<A: ToSocketAddrs>(
         statsd_client,
         default_tags,
         sample_rate,
-        #[cfg(test)]
-        capture: None,
     });
 }
 

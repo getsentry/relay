@@ -3084,11 +3084,11 @@ mod tests {
         let mut aggregator = Aggregator::new(config, receiver);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        relay_statsd::with_capturing_test_client(|&captured| {
+        let captures = relay_statsd::with_capturing_test_client(|| {
             aggregator.insert(project_key, metric1.clone()).unwrap();
             aggregator.insert(project_key, metric2.clone()).unwrap();
-
-            dbg!(captured);
         });
+
+        dbg!(captures);
     }
 }
