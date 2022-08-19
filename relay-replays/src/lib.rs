@@ -25,12 +25,14 @@
 //!     },
 //! }
 //! ```
-use relay_general::user_agent::{parse_device, parse_os, parse_user_agent, Device};
-use serde::{Deserialize, Serialize};
-use serde_json::Error;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::net::IpAddr;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Error;
+
+use relay_general::user_agent::{parse_device, parse_os, parse_user_agent, Device};
 
 pub fn normalize_replay_event(
     replay_bytes: &[u8],
