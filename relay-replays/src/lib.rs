@@ -40,7 +40,7 @@ pub fn normalize_replay_event(
 ) -> Result<Vec<u8>, Error> {
     let mut replay_input: ReplayInput = serde_json::from_slice(replay_bytes)?;
 
-    // Set user-agent metadata.
+    // Set user-agent metadata from requests object.
     replay_input.set_user_agent_meta();
 
     // Set user ip-address if needed.
@@ -52,7 +52,7 @@ pub fn normalize_replay_event(
     serde_json::to_vec(&replay_input)
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 struct ReplayInput {
     #[serde(rename = "type")]
     ty: String,
@@ -61,12 +61,6 @@ struct ReplayInput {
     segment_id: u8,
     timestamp: f64,
     replay_start_timestamp: Option<f64>,
-    #[serde(default)]
-    urls: Vec<String>,
-    #[serde(default)]
-    error_ids: Vec<String>,
-    #[serde(default)]
-    trace_ids: Vec<String>,
     contexts: Option<Contexts>,
     dist: Option<String>,
     platform: Option<String>,
@@ -75,6 +69,13 @@ struct ReplayInput {
     tags: Option<HashMap<String, String>>,
     user: Option<User>,
     sdk: Option<VersionedMeta>,
+    #[serde(default)]
+    urls: Vec<String>,
+    #[serde(default)]
+    error_ids: Vec<String>,
+    #[serde(default)]
+    trace_ids: Vec<String>,
+    #[serde(default)]
     requests: Requests,
 }
 
@@ -167,13 +168,15 @@ struct User {
     ip_address: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
 struct Requests {
     url: Option<String>,
     headers: Headers,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
 struct Headers {
     #[serde(rename = "User-Agent")]
     user_agent: String,
@@ -194,12 +197,22 @@ mod tests {
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_ip_address(ip_address);
         assert!("192.168.11.12".to_string() == replay_input.user.unwrap().ip_address.unwrap());
+    }
+
+    #[test]
+    fn test_set_ip_address_missing_user() {
+        let ip_address = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
         // IP-Address set.
         let payload = include_bytes!("../tests/fixtures/replay_missing_user.json");
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_ip_address(ip_address);
         assert!("127.0.0.1".to_string() == replay_input.user.unwrap().ip_address.unwrap());
+    }
+
+    #[test]
+    fn test_set_ip_address_missing_user_ip_address() {
+        let ip_address = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
         // IP-Address set.
         let payload = include_bytes!("../tests/fixtures/replay_missing_user_ip_address.json");
@@ -235,6 +248,41 @@ mod tests {
                         assert!(device.family == "Mac".to_string());
                         assert!(device.brand.unwrap() == "Apple".to_string());
                         assert!(device.model.unwrap() == "Mac".to_string());
+                    }
+                    None => assert!(false),
+                }
+            }
+            None => assert!(false),
+        }
+    }
+
+    #[test]
+    fn test_set_user_agent_meta_no_requests() {
+        let payload = include_bytes!("../tests/fixtures/replay_no_requests.json");
+        let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
+        replay_input.set_user_agent_meta();
+
+        match replay_input.contexts {
+            Some(contexts) => {
+                match contexts.browser {
+                    Some(browser) => {
+                        assert!(browser.name == "Other".to_string());
+                        assert!(browser.version.is_none());
+                    }
+                    None => assert!(false),
+                }
+                match contexts.os {
+                    Some(os) => {
+                        assert!(os.name == "Other".to_string());
+                        assert!(os.version.is_none());
+                    }
+                    None => assert!(false),
+                }
+                match contexts.device {
+                    Some(device) => {
+                        assert!(device.family == "Other".to_string());
+                        assert!(device.brand.is_none());
+                        assert!(device.model.is_none());
                     }
                     None => assert!(false),
                 }
