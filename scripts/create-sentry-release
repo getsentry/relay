@@ -10,11 +10,11 @@
 #   SENTRY_PROJECT: Project slug
 set -eu
 
-VERSION="${1:-}"
+REVISION="${1:-}"
 GITHUB_PROJECT="getsentry/relay"
-DOCKER_IMAGE="us.gcr.io/sentryio/relay:${VERSION}"
+DOCKER_IMAGE="us.gcr.io/sentryio/relay:${REVISION}"
 
-if [ -z "${VERSION}" ]; then
+if [ -z "${REVISION}" ]; then
   echo 'No version specified' && exit 1
 fi
 
@@ -40,9 +40,13 @@ sentry-cli upload-dif ./relay-debug.zip ./relay.src.zip
 echo 'Uploading system symbols...'
 sentry-cli upload-dif lib/x86_64-linux-gnu
 
-echo 'Creating a new deploy in Sentry...'
-sentry-cli releases new "${VERSION}"
-sentry-cli releases set-commits "${VERSION}" --commit "${GITHUB_PROJECT}@${VERSION}"
-sentry-cli releases deploys "${VERSION}" new -e release
-sentry-cli releases finalize "${VERSION}"
+echo 'Obtaining version information...'
+VERSION="$(docker run --rm "${DOCKER_IMAGE}" --version | cut -d' ' -f2)"
+RELEASE="relay@${VERSION}+${REVISION}"  # match RELEASE in relay_log::setup
+
+echo "Creating a new release and deploy for ${RELEASE} in Sentry..."
+sentry-cli releases new "${RELEASE}"
+sentry-cli releases set-commits "${RELEASE}" --commit "${GITHUB_PROJECT}@${REVISION}"
+sentry-cli releases deploys "${RELEASE}" new -e release
+sentry-cli releases finalize "${RELEASE}"
 echo 'Deploy created.'
