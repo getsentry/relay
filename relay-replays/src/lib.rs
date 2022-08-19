@@ -58,7 +58,7 @@ pub struct ReplayInput {
     event_id: String,
     segment_id: u8,
     timestamp: f64,
-    replay_start_timestamp: f64,
+    replay_start_timestamp: Option<f64>,
     urls: Vec<String>,
     error_ids: Vec<String>,
     trace_ids: Vec<String>,
