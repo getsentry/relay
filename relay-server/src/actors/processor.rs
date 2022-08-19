@@ -30,7 +30,7 @@ use relay_general::store::{ClockDriftProcessor, LightNormalizationConfig};
 use relay_general::types::{Annotated, Array, FromValue, Object, ProcessingAction, Value};
 use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
-use relay_quotas::{DataCategory, RateLimits, ReasonCode};
+use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::RuleId;
 use relay_statsd::metric;
@@ -221,14 +221,6 @@ struct ProcessEnvelopeState {
     /// This element is obtained from the event or transaction item and re-serialized into the
     /// resulting item.
     sample_rates: Option<Value>,
-
-    /// Rate limits returned in processing mode.
-    ///
-    /// The rate limiter is invoked in processing mode, after which the resulting limits are stored
-    /// in this field. Note that there can be rate limits even if the envelope still carries items.
-    ///
-    /// These are always empty in non-processing mode, since the rate limiter is not invoked.
-    rate_limits: RateLimits,
 
     /// Metrics extracted from items in the envelope.
     ///
@@ -940,7 +932,6 @@ impl EnvelopeProcessor {
             transaction_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            rate_limits: RateLimits::new(),
             extracted_metrics: Vec::new(),
             project_state,
             sampling_project_state,
@@ -1542,10 +1533,9 @@ impl EnvelopeProcessor {
 
         if limits.is_limited() {
             ProjectCache::from_registry()
-                .do_send(UpdateRateLimits::new(scoping.project_key, limits.clone()));
+                .do_send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
-        state.rate_limits = limits;
         enforcement.track_outcomes(&state.envelope, &state.envelope_context.scoping());
 
         if remove_event {
@@ -1803,69 +1793,57 @@ impl EnvelopeProcessor {
         Ok(())
     }
 
-    fn process(
-        &self,
-        message: ProcessEnvelope,
-    ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
+    fn process(&self, message: ProcessEnvelope) -> Result<(), ProcessingError> {
+        // Prepare the scope before creating the processing state. Preparing the state may fail, and
+        // we need tags for these errors.
+        let project_key = message.envelope.meta().public_key();
+        relay_log::configure_scope(|scope| {
+            scope.set_tag("project_key", project_key);
+            if let Some(client) = message.envelope.meta().client().map(str::to_owned) {
+                scope.set_tag("sdk", client);
+            }
+            if let Some(user_agent) = message.envelope.meta().user_agent().map(str::to_owned) {
+                scope.set_extra("user_agent", user_agent.into());
+            }
+        });
+
         let mut state = self.prepare_state(message)?;
+        relay_log::configure_scope(|scope| scope.set_tag("project", state.project_id));
+        let result = self.process_state(&mut state);
 
-        let project_id = state.project_id;
-        let client = state.envelope.meta().client().map(str::to_owned);
-        let user_agent = state.envelope.meta().user_agent().map(str::to_owned);
-        let project_key = state.envelope.meta().public_key();
+        match result {
+            Ok(()) => {
+                // The envelope could be modified or even emptied during processing, which
+                // requires recomputation of the context.
+                state.envelope_context.update(&state.envelope);
 
-        relay_log::with_scope(
-            |scope| {
-                scope.set_tag("project", project_id);
-                if let Some(client) = client {
-                    scope.set_tag("sdk", client);
+                if state.envelope.is_empty() {
+                    // Individual rate limits have already been issued
+                    state.envelope_context.reject(Outcome::RateLimited(None));
+                } else {
+                    EnvelopeManager::from_registry().do_send(SubmitEnvelope {
+                        envelope: state.envelope,
+                        envelope_context: state.envelope_context,
+                    });
                 }
-                if let Some(user_agent) = user_agent {
-                    scope.set_extra("user_agent", user_agent.into());
+            }
+            Err(ref err) => {
+                if let Some(outcome) = err.to_outcome() {
+                    state.envelope_context.reject(outcome);
                 }
-            },
-            || {
-                match self.process_state(&mut state) {
-                    Ok(()) => {
-                        if !state.extracted_metrics.is_empty() {
-                            let project_cache = ProjectCache::from_registry();
-                            project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
-                        }
 
-                        // The envelope could be modified or even emptied during processing, which
-                        // requires recomputation of the context.
-                        state.envelope_context.update(&state.envelope);
-
-                        let envelope_response = if state.envelope.is_empty() {
-                            // Individual rate limits have already been issued
-                            state.envelope_context.reject(Outcome::RateLimited(None));
-                            None
-                        } else {
-                            Some((state.envelope, state.envelope_context))
-                        };
-
-                        Ok(ProcessEnvelopeResponse {
-                            envelope: envelope_response,
-                            rate_limits: state.rate_limits,
-                        })
-                    }
-                    Err(err) => {
-                        if let Some(outcome) = err.to_outcome() {
-                            state.envelope_context.reject(outcome);
-                        }
-
-                        if !state.extracted_metrics.is_empty() && err.should_keep_metrics() {
-                            let project_cache = ProjectCache::from_registry();
-                            project_cache
-                                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
-                        }
-
-                        Err(err)
-                    }
+                if !err.should_keep_metrics() {
+                    state.extracted_metrics.clear();
                 }
-            },
-        )
+            }
+        };
+
+        if !state.extracted_metrics.is_empty() {
+            ProjectCache::from_registry()
+                .do_send(InsertMetrics::new(project_key, state.extracted_metrics));
+        }
+
+        result
     }
 
     fn encode_envelope_body(
@@ -1904,20 +1882,6 @@ impl Default for EnvelopeProcessor {
     }
 }
 
-/// Response of the [`ProcessEnvelope`] message.
-#[cfg_attr(not(feature = "processing"), allow(dead_code))]
-pub struct ProcessEnvelopeResponse {
-    /// The processed envelope.
-    ///
-    /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
-    /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
-    /// to be dropped, this is `None`.
-    pub envelope: Option<(Envelope, EnvelopeContext)>,
-
-    /// All rate limits that have been applied on the envelope.
-    pub rate_limits: RateLimits,
-}
-
 /// Applies processing to all contents of the given envelope.
 ///
 /// Depending on the contents of the envelope and Relay's mode, this includes:
@@ -1943,7 +1907,8 @@ impl Handler<ProcessEnvelope> for EnvelopeProcessor {
     type Result = ();
 
     fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
-        let project_key = message.envelope.meta().public_key();
+        // TODO(ja): Push scope?
+
         let wait_time = message.envelope_context.start_time().elapsed();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
@@ -1951,24 +1916,11 @@ impl Handler<ProcessEnvelope> for EnvelopeProcessor {
             self.process(message)
         });
 
-        match result {
-            Ok(response) => {
-                if let Some((envelope, envelope_context)) = response.envelope {
-                    EnvelopeManager::from_registry().do_send(SubmitEnvelope {
-                        envelope,
-                        envelope_context,
-                    })
-                };
-            }
-            Err(error) => {
-                // Errors are only logged for what we consider infrastructure or implementation
-                // bugs. In other cases, we "expect" errors and log them as debug level.
-                if error.is_internal() {
-                    relay_log::with_scope(
-                        |scope| scope.set_tag("project_key", project_key),
-                        || relay_log::error!("error processing envelope: {}", LogError(&error)),
-                    );
-                }
+        if let Err(error) = result {
+            // Errors are only logged for what we consider infrastructure or implementation
+            // bugs. In other cases, we "expect" errors and log them as debug level.
+            if error.is_internal() {
+                relay_log::error!("error processing envelope: {}", LogError(&error));
             }
         }
     }
@@ -2256,6 +2208,7 @@ mod tests {
         result.expect("event_from_attachments");
     }
 
+    /* TODO(ja): Make these unit tests
     #[test]
     fn test_user_report_invalid() {
         let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
@@ -2454,6 +2407,7 @@ mod tests {
 
         assert!(envelope_response.envelope.is_none());
     }
+    */
 
     #[test]
     #[cfg(feature = "processing")]
