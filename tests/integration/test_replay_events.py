@@ -22,7 +22,7 @@ def generate_replay_sdk_event():
             "id": "123",
             "username": "user",
             "email": "user@site.com",
-            "ip_address": "127.0.0.1",
+            "ip_address": "192.168.11.12",
         },
         "requests": {
             "url": None,
