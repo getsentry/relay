@@ -15,7 +15,7 @@ use relay_redis::RedisPool;
 use relay_system::Addr;
 use relay_system::{Configure, Controller};
 
-use crate::actors::envelopes::{BufferGuard, EnvelopeManager};
+use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::healthcheck::Healthcheck;
 use crate::actors::outcome::OutcomeProducer;
 use crate::actors::outcome_aggregator::OutcomeAggregator;
@@ -26,6 +26,7 @@ use crate::actors::upstream::UpstreamRelay;
 use crate::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
+use crate::utils::BufferGuard;
 use crate::{endpoints, utils};
 
 pub static REGISTRY: OnceBox<Registry> = OnceBox::new();
@@ -162,7 +163,7 @@ impl ServiceState {
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
-        let envelope_manager = EnvelopeManager::create(config.clone(), buffer.clone())?;
+        let envelope_manager = EnvelopeManager::create(config.clone())?;
         registry.set(Arbiter::start(|_| envelope_manager));
 
         let project_cache = ProjectCache::new(config.clone(), redis_pool);
@@ -204,8 +205,8 @@ impl ServiceState {
     ///
     /// This can be used to enter new envelopes into the processing queue and reserve a slot in the
     /// buffer. See [`BufferGuard`] for more information.
-    pub fn buffer_guard(&self) -> &BufferGuard {
-        &self.buffer_guard
+    pub fn buffer_guard(&self) -> Arc<BufferGuard> {
+        self.buffer_guard.clone()
     }
 }
 
