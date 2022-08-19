@@ -80,7 +80,7 @@ struct ReplayInput {
 }
 
 impl ReplayInput {
-    pub fn set_user_agent_meta(&mut self) {
+    fn set_user_agent_meta(&mut self) {
         let user_agent = &self.requests.headers.user_agent;
 
         let device = parse_device(user_agent);
@@ -104,7 +104,7 @@ impl ReplayInput {
         })
     }
 
-    pub fn set_user_ip_address(&mut self, ip_address: IpAddr) {
+    fn set_user_ip_address(&mut self, ip_address: IpAddr) {
         match &self.user {
             Some(user) => {
                 // User was found but no ip-address exists on the object.
