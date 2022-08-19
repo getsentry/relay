@@ -490,6 +490,55 @@
 <span id="482">482</span>
 <span id="483">483</span>
 <span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.</span>
 
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
@@ -510,14 +559,16 @@
 <span class="kw">use</span> <span class="ident">relay_quotas::RateLimits</span>;
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">QueueEnvelope</span>, <span class="ident">QueueEnvelopeError</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache</span>::{<span class="ident">CheckEnvelope</span>, <span class="ident">ProjectCache</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">Envelope</span>, <span class="ident">EnvelopeError</span>, <span class="ident">ItemType</span>, <span class="ident">Items</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::processor</span>::{<span class="ident">EnvelopeProcessor</span>, <span class="ident">ProcessMetrics</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache</span>::{<span class="ident">CheckEnvelope</span>, <span class="ident">ProjectCache</span>, <span class="ident">ValidateEnvelope</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">Envelope</span>, <span class="ident">EnvelopeError</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>, <span class="ident">Items</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::RequestMeta</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">ServiceApp</span>, <span class="ident">ServiceState</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="self">self</span>, <span class="ident">ApiErrorResponse</span>, <span class="ident">FormDataIter</span>, <span class="ident">MultipartError</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{
+    <span class="self">self</span>, <span class="ident">ApiErrorResponse</span>, <span class="ident">BufferError</span>, <span class="ident">BufferGuard</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">FormDataIter</span>, <span class="ident">MultipartError</span>,
+};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Fail</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">BadStoreRequest</span> {
@@ -555,7 +606,7 @@
     <span class="ident">InvalidEventId</span>,
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to queue envelope&quot;</span>)]</span>
-    <span class="ident">QueueFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">QueueEnvelopeError</span>),
+    <span class="ident">QueueFailed</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">BufferError</span>),
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;failed to read request body&quot;</span>)]</span>
     <span class="ident">PayloadError</span>(<span class="attribute">#[<span class="ident">cause</span>]</span> <span class="ident">PayloadError</span>),
@@ -744,6 +795,71 @@
     <span class="ident">builder</span>
 }
 
+<span class="doccomment">/// Queues an envelope for processing.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Depending on the items in the envelope, there are multiple outcomes:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// - Events and event related items, such as attachments, are always queued together. See the</span>
+<span class="doccomment">///   [crate-level documentation](crate) for a full description of how envelopes are</span>
+<span class="doccomment">///   queued and processed.</span>
+<span class="doccomment">/// - Sessions and Session batches are always queued separately. If they occur in the same envelope</span>
+<span class="doccomment">///   as an event, they are split off. Their path is the same as other Envelopes.</span>
+<span class="doccomment">/// - Metrics are directly sent to the [`EnvelopeProcessor`], bypassing the manager&#39;s queue and</span>
+<span class="doccomment">///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is</span>
+<span class="doccomment">/// returned and the envelope is not queued.</span>
+<span class="kw">fn</span> <span class="ident">queue_envelope</span>(
+    <span class="kw-2">mut</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
+    <span class="kw-2">mut</span> <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
+    <span class="ident">buffer_guard</span>: <span class="kw-2">&amp;</span><span class="ident">BufferGuard</span>,
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">BadStoreRequest</span><span class="op">&gt;</span> {
+    <span class="comment">// Remove metrics from the envelope and queue them directly on the project&#39;s `Aggregator`.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metric_items</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+    <span class="kw">let</span> <span class="ident">is_metric</span> <span class="op">=</span> <span class="op">|</span><span class="ident">i</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span><span class="op">|</span> <span class="macro">matches!</span>(<span class="ident">i</span>.<span class="ident">ty</span>(), <span class="ident">ItemType::Metrics</span> <span class="op">|</span> <span class="ident">ItemType::MetricBuckets</span>);
+    <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">take_item_by</span>(<span class="ident">is_metric</span>) {
+        <span class="ident">metric_items</span>.<span class="ident">push</span>(<span class="ident">item</span>);
+    }
+
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">metric_items</span>.<span class="ident">is_empty</span>() {
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;sending metrics into processing queue&quot;</span>);
+        <span class="ident">EnvelopeProcessor::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">ProcessMetrics</span> {
+            <span class="ident">items</span>: <span class="ident">metric_items</span>,
+            <span class="ident">project_key</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">public_key</span>(),
+            <span class="ident">start_time</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">start_time</span>(),
+            <span class="ident">sent_at</span>: <span class="ident">envelope</span>.<span class="ident">sent_at</span>(),
+        });
+    }
+
+    <span class="comment">// Split the envelope into event-related items and other items. This allows to fast-track:</span>
+    <span class="comment">//  1. Envelopes with only session items. They only require rate limiting.</span>
+    <span class="comment">//  2. Event envelope processing can bail out if the event is filtered or rate limited,</span>
+    <span class="comment">//     since all items depend on this event.</span>
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">event_envelope</span>) <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">split_by</span>(<span class="ident">Item::requires_event</span>) {
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;queueing separate envelope for non-event items&quot;</span>);
+
+        <span class="comment">// The envelope has been split, so we need to fork the context.</span>
+        <span class="kw">let</span> <span class="ident">event_context</span> <span class="op">=</span> <span class="ident">buffer_guard</span>
+            .<span class="ident">enter</span>(<span class="kw-2">&amp;</span><span class="ident">event_envelope</span>)
+            .<span class="ident">map_err</span>(<span class="ident">BadStoreRequest::QueueFailed</span>)<span class="question-mark">?</span>;
+
+        <span class="comment">// Update the old context after successful forking.</span>
+        <span class="ident">envelope_context</span>.<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
+        <span class="ident">ProjectCache::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">ValidateEnvelope::new</span>(<span class="ident">event_envelope</span>, <span class="ident">event_context</span>));
+    }
+
+    <span class="kw">if</span> <span class="ident">envelope</span>.<span class="ident">is_empty</span>() {
+        <span class="comment">// The envelope can be empty here if it contained only metrics items which were removed</span>
+        <span class="comment">// above. In this case, the envelope was accepted and needs no further queueing.</span>
+        <span class="ident">envelope_context</span>.<span class="ident">accept</span>();
+    } <span class="kw">else</span> {
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;queueing envelope&quot;</span>);
+        <span class="ident">ProjectCache::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">ValidateEnvelope::new</span>(<span class="ident">envelope</span>, <span class="ident">envelope_context</span>));
+    }
+
+    <span class="prelude-val">Ok</span>(())
+}
+
 <span class="doccomment">/// Handles Sentry events.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Sentry events may come either directly from a http request ( the store endpoint calls this</span>
@@ -776,8 +892,7 @@
         <span class="ident">version</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">version</span>)
     );
 
-    <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">public_key</span>();
-    <span class="kw">let</span> <span class="ident">start_time</span> <span class="op">=</span> <span class="ident">meta</span>.<span class="ident">start_time</span>();
+    <span class="kw">let</span> <span class="ident">buffer_guard</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">buffer_guard</span>();
     <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">state</span>().<span class="ident">config</span>();
     <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="prelude-val">None</span>));
 
@@ -806,44 +921,27 @@
         }))
         .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">envelope_context</span>)<span class="op">|</span> {
             <span class="ident">ProjectCache::from_registry</span>()
-                .<span class="ident">send</span>(<span class="ident">CheckEnvelope::new</span>(<span class="ident">project_key</span>, <span class="ident">envelope</span>, <span class="ident">envelope_context</span>))
+                .<span class="ident">send</span>(<span class="ident">CheckEnvelope::new</span>(<span class="ident">envelope</span>, <span class="ident">envelope_context</span>))
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">BadStoreRequest::ScheduleFailed</span>)
         })
-        .<span class="ident">and_then</span>(<span class="macro">clone!</span>(<span class="ident">config</span>, <span class="op">|</span><span class="ident">response</span><span class="op">|</span> {
-            <span class="comment">// Skip over queuing and issue a rate limit right away</span>
+        .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">response</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">checked</span> <span class="op">=</span> <span class="ident">response</span>.<span class="ident">map_err</span>(<span class="ident">BadStoreRequest::EventRejected</span>)<span class="question-mark">?</span>;
-            <span class="kw">let</span> (<span class="ident">envelope</span>, <span class="kw-2">mut</span> <span class="ident">envelope_context</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">checked</span>.<span class="ident">envelope</span> {
-                <span class="prelude-val">Some</span>(<span class="ident">tuple</span>) =&gt; <span class="ident">tuple</span>,
-                <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest::RateLimited</span>(<span class="ident">checked</span>.<span class="ident">rate_limits</span>)),
-            };
 
-            <span class="kw">if</span> <span class="ident">utils::check_envelope_size_limits</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span><span class="ident">envelope</span>) {
-                <span class="prelude-val">Ok</span>((<span class="ident">envelope</span>, <span class="ident">envelope_context</span>, <span class="ident">checked</span>.<span class="ident">rate_limits</span>))
-            } <span class="kw">else</span> {
-                <span class="ident">envelope_context</span>.<span class="ident">reject</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::TooLarge</span>));
-                <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest::PayloadError</span>(<span class="ident">PayloadError::Overflow</span>))
-            }
-        }))
-        .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">envelope</span>, <span class="ident">envelope_context</span>, <span class="ident">rate_limits</span>)<span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">QueueEnvelope</span> {
-                <span class="ident">envelope</span>,
-                <span class="ident">envelope_context</span>,
-                <span class="ident">project_key</span>,
-                <span class="ident">start_time</span>,
-            };
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">envelope</span>, <span class="kw-2">mut</span> <span class="ident">envelope_context</span>)) <span class="op">=</span> <span class="ident">checked</span>.<span class="ident">envelope</span> {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">utils::check_envelope_size_limits</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="kw-2">&amp;</span><span class="ident">envelope</span>) {
+                    <span class="ident">envelope_context</span>.<span class="ident">reject</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::TooLarge</span>));
+                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest::PayloadError</span>(<span class="ident">PayloadError::Overflow</span>));
+                }
 
-            <span class="ident">EnvelopeManager::from_registry</span>()
-                .<span class="ident">send</span>(<span class="ident">message</span>)
-                .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">BadStoreRequest::ScheduleFailed</span>)
-                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">result</span><span class="op">|</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="ident">BadStoreRequest::QueueFailed</span>))
-                .<span class="ident">map</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">event_id</span><span class="op">|</span> (<span class="ident">event_id</span>, <span class="ident">rate_limits</span>))
-        })
-        .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span>(<span class="ident">event_id</span>, <span class="ident">rate_limits</span>)<span class="op">|</span> {
-            <span class="kw">if</span> <span class="ident">rate_limits</span>.<span class="ident">is_limited</span>() {
-                <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest::RateLimited</span>(<span class="ident">rate_limits</span>))
-            } <span class="kw">else</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">create_response</span>(<span class="ident">event_id</span>))
+                <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
+                <span class="ident">queue_envelope</span>(<span class="ident">envelope</span>, <span class="ident">envelope_context</span>, <span class="kw-2">&amp;</span><span class="ident">buffer_guard</span>)<span class="question-mark">?</span>;
+
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">checked</span>.<span class="ident">rate_limits</span>.<span class="ident">is_limited</span>() {
+                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">create_response</span>(<span class="ident">event_id</span>));
+                }
             }
+
+            <span class="prelude-val">Err</span>(<span class="ident">BadStoreRequest::RateLimited</span>(<span class="ident">checked</span>.<span class="ident">rate_limits</span>))
         })
         .<span class="ident">or_else</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">error</span>: <span class="ident">BadStoreRequest</span><span class="op">|</span> {
             <span class="macro">metric!</span>(<span class="ident">counter</span>(<span class="ident">RelayCounters::EnvelopeRejected</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>);

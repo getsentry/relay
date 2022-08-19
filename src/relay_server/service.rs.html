@@ -343,6 +343,7 @@
 <span id="335">335</span>
 <span id="336">336</span>
 <span id="337">337</span>
+<span id="338">338</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
@@ -360,7 +361,7 @@
 <span class="kw">use</span> <span class="ident">relay_system::Addr</span>;
 <span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Configure</span>, <span class="ident">Controller</span>};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">BufferGuard</span>, <span class="ident">EnvelopeManager</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes::EnvelopeManager</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::healthcheck::Healthcheck</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome::OutcomeProducer</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator</span>;
@@ -371,6 +372,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::middlewares</span>::{
     <span class="ident">AddCommonHeaders</span>, <span class="ident">ErrorHandlers</span>, <span class="ident">Metrics</span>, <span class="ident">ReadRequestMiddleware</span>, <span class="ident">SentryMiddleware</span>,
 };
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::BufferGuard</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">endpoints</span>, <span class="ident">utils</span>};
 
 <span class="kw">pub</span> <span class="kw">static</span> <span class="ident">REGISTRY</span>: <span class="ident">OnceBox</span><span class="op">&lt;</span><span class="ident">Registry</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceBox::new</span>();
@@ -507,7 +509,7 @@
 
         <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="ident">BufferGuard::new</span>(<span class="ident">config</span>.<span class="ident">envelope_buffer_size</span>()));
         <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::start</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManager::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">buffer</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManager::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">envelope_manager</span>));
 
         <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">ProjectCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">redis_pool</span>);
@@ -549,8 +551,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This can be used to enter new envelopes into the processing queue and reserve a slot in the</span>
     <span class="doccomment">/// buffer. See [`BufferGuard`] for more information.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">buffer_guard</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">BufferGuard</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">buffer_guard</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">buffer_guard</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">BufferGuard</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">buffer_guard</span>.<span class="ident">clone</span>()
     }
 }
 
