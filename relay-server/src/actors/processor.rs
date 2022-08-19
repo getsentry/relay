@@ -911,7 +911,7 @@ impl EnvelopeProcessor {
 
     /// Remove replays if the feature flag is not enabled
     fn process_replays(&self, state: &mut ProcessEnvelopeState) {
-        let replays_enabled: bool = state.project_state.has_feature(Feature::Replays);
+        let replays_enabled = state.project_state.has_feature(Feature::Replays);
         let envelope = &mut state.envelope;
         let client_addr = envelope.meta().client_addr();
 
