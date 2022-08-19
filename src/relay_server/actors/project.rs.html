@@ -924,27 +924,6 @@
 <span id="916">916</span>
 <span id="917">917</span>
 <span id="918">918</span>
-<span id="919">919</span>
-<span id="920">920</span>
-<span id="921">921</span>
-<span id="922">922</span>
-<span id="923">923</span>
-<span id="924">924</span>
-<span id="925">925</span>
-<span id="926">926</span>
-<span id="927">927</span>
-<span id="928">928</span>
-<span id="929">929</span>
-<span id="930">930</span>
-<span id="931">931</span>
-<span id="932">932</span>
-<span id="933">933</span>
-<span id="934">934</span>
-<span id="935">935</span>
-<span id="936">936</span>
-<span id="937">937</span>
-<span id="938">938</span>
-<span id="939">939</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeSet</span>, <span class="ident">VecDeque</span>};
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
@@ -972,8 +951,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::processor</span>::{<span class="ident">EnvelopeProcessor</span>, <span class="ident">ProcessEnvelope</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache</span>::{
-    <span class="ident">AddSamplingState</span>, <span class="ident">CheckEnvelopeResponse</span>, <span class="ident">CheckedEnvelope</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>,
-    <span class="ident">UpdateProjectState</span>,
+    <span class="ident">AddSamplingState</span>, <span class="ident">CheckedEnvelope</span>, <span class="ident">ProjectCache</span>, <span class="ident">ProjectError</span>, <span class="ident">UpdateProjectState</span>,
 };
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors::RequestMeta</span>;
@@ -1646,7 +1624,7 @@
         <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
         <span class="ident">project_state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>,
     ) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">checked</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">check_envelope</span>(<span class="ident">envelope</span>, <span class="ident">envelope_context</span>).<span class="ident">result</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">checked</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">check_envelope</span>(<span class="ident">envelope</span>, <span class="ident">envelope_context</span>) {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">envelope</span>, <span class="ident">envelope_context</span>)) <span class="op">=</span> <span class="ident">checked</span>.<span class="ident">envelope</span> {
                 <span class="kw">let</span> <span class="ident">process</span> <span class="op">=</span> <span class="ident">ProcessEnvelope</span> {
                     <span class="ident">envelope</span>,
@@ -1764,25 +1742,18 @@
         })
     }
 
-    <span class="doccomment">/// Amends request `Scoping` with information from this project state.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// If the project state is loaded, information from the project state is merged into the</span>
-    <span class="doccomment">/// request&#39;s scoping. Otherwise, this function returns partial scoping from the `request_meta`.</span>
-    <span class="doccomment">/// See [`RequestMeta::get_partial_scoping`] for more information.</span>
-    <span class="kw">fn</span> <span class="ident">scope_request</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">meta</span>: <span class="kw-2">&amp;</span><span class="ident">RequestMeta</span>) -&gt; <span class="ident">Scoping</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">valid_state</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">state</span>) =&gt; <span class="ident">state</span>.<span class="ident">scope_request</span>(<span class="ident">meta</span>),
-            <span class="prelude-val">None</span> =&gt; <span class="ident">meta</span>.<span class="ident">get_partial_scoping</span>(),
-        }
-    }
-
-    <span class="kw">fn</span> <span class="ident">check_envelope_scoped</span>(
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_envelope</span>(
         <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
         <span class="kw-2">mut</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
         <span class="kw-2">mut</span> <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CheckedEnvelope</span>, <span class="ident">DiscardReason</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">valid_state</span>();
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">state</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">as_deref</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">envelope_context</span>.<span class="ident">scoping</span>();
+
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">state</span>) <span class="op">=</span> <span class="ident">state</span> {
+            <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">scope_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>());
+            <span class="ident">envelope_context</span>.<span class="ident">scope</span>(<span class="ident">scoping</span>);
+
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">reason</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">check_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>(), <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>) {
                 <span class="ident">envelope_context</span>.<span class="ident">reject</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">reason</span>));
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">reason</span>);
@@ -1796,7 +1767,6 @@
             <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">rate_limits</span>.<span class="ident">check_with_quotas</span>(<span class="ident">quotas</span>, <span class="ident">item_scoping</span>))
         });
 
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="ident">envelope_context</span>.<span class="ident">scoping</span>();
         <span class="kw">let</span> (<span class="ident">enforcement</span>, <span class="ident">rate_limits</span>) <span class="op">=</span> <span class="ident">envelope_limiter</span>.<span class="ident">enforce</span>(<span class="kw-2">&amp;mut</span> <span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="ident">scoping</span>)<span class="question-mark">?</span>;
         <span class="ident">enforcement</span>.<span class="ident">track_outcomes</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>, <span class="kw-2">&amp;</span><span class="ident">scoping</span>);
         <span class="ident">envelope_context</span>.<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="ident">envelope</span>);
@@ -1813,18 +1783,6 @@
             <span class="ident">envelope</span>,
             <span class="ident">rate_limits</span>,
         })
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">check_envelope</span>(
-        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-        <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
-        <span class="kw-2">mut</span> <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
-    ) -&gt; <span class="ident">CheckEnvelopeResponse</span> {
-        <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">scope_request</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>());
-        <span class="ident">envelope_context</span>.<span class="ident">scope</span>(<span class="ident">scoping</span>);
-
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">check_envelope_scoped</span>(<span class="ident">envelope</span>, <span class="ident">envelope_context</span>);
-        <span class="ident">CheckEnvelopeResponse</span> { <span class="ident">result</span>, <span class="ident">scoping</span> }
     }
 }
 
