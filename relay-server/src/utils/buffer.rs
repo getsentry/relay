@@ -20,7 +20,7 @@ impl std::error::Error for BufferError {}
 /// Access control for envelope processing.
 ///
 /// The buffer guard is basically a semaphore that ensures the buffer does not outgrow the maximum
-/// number of envelopes configured through [`Config::envelope_buffer_size`]. To enter a new envelope
+/// number of envelopes configured through `envelope_buffer_size`. To enter a new envelope
 /// into the processing pipeline, use [`BufferGuard::enter`].
 #[derive(Debug)]
 pub struct BufferGuard {
