@@ -572,6 +572,8 @@ macro_rules! metric {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use cadence::{NopMetricSink, StatsdClient};
 
     use crate::{set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient};

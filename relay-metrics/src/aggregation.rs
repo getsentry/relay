@@ -1657,6 +1657,7 @@ impl Aggregator {
         project_key: ProjectKey,
         metric: Metric,
     ) -> Result<(), AggregateMetricsError> {
+        dbg!("Inserting metric");
         relay_statsd::metric!(
             counter(MetricCounters::InsertMetric) += 1,
             metric_type = metric.value.ty().as_str(),
@@ -1789,6 +1790,7 @@ impl Aggregator {
             None => "none".to_owned(),
         };
         for (i, batch) in capped_batches.enumerate() {
+            dbg!(i);
             relay_statsd::metric!(
                 histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
                 partition_key = partition_tag.as_str(),
@@ -1802,7 +1804,8 @@ impl Aggregator {
     ///
     /// If the receiver returns buckets, they are merged back into the cache.
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
+    fn try_flush(&mut self, mut context: Option<&mut <Self as Actor>::Context>) {
+        dbg!("TRY FLUSH");
         let flush_buckets = self.pop_flush_buckets();
 
         if flush_buckets.is_empty() {
@@ -1813,6 +1816,7 @@ impl Aggregator {
 
         let mut total_bucket_count = 0u64;
         for (project_key, project_buckets) in flush_buckets.into_iter() {
+            dbg!(project_key);
             let bucket_count = project_buckets.len() as u64;
             relay_statsd::metric!(
                 histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count
@@ -1826,6 +1830,7 @@ impl Aggregator {
                 let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
                 let mut all_project_batches = Vec::<Vec<Bucket>>::new();
                 for (partition_key, buckets) in partitioned_buckets {
+                    dbg!(partition_key);
                     self.process_batches(buckets, Some(partition_key), |batch| {
                         // This is just a dry run. Put the buckets back into the vector
                         all_project_batches.push(batch);
@@ -1839,7 +1844,8 @@ impl Aggregator {
 
             // Actually flush buckets:
             self.process_batches(project_buckets, None, |batch| {
-                self.receiver
+                let fut = self
+                    .receiver
                     .send(FlushBuckets::new(project_key, batch))
                     .into_actor(self)
                     .and_then(move |result, slf, _ctx| {
@@ -1852,8 +1858,11 @@ impl Aggregator {
                         }
                         fut::ok(())
                     })
-                    .drop_err()
-                    .spawn(context);
+                    .drop_err();
+
+                if let Some(context) = context.as_deref_mut() {
+                    fut.spawn(context);
+                }
             });
         }
 
@@ -1882,7 +1891,7 @@ impl Actor for Aggregator {
 
         // TODO: Consider a better approach than busy polling
         ctx.run_interval(FLUSH_INTERVAL, |slf, context| {
-            slf.try_flush(context);
+            slf.try_flush(Some(context));
         });
     }
 
@@ -1953,6 +1962,7 @@ impl Handler<InsertMetrics> for Aggregator {
     type Result = Result<(), AggregateMetricsError>;
 
     fn handle(&mut self, msg: InsertMetrics, _ctx: &mut Self::Context) -> Self::Result {
+        dbg!(&msg);
         for metric in msg.metrics {
             self.insert(msg.project_key, metric)?;
         }
@@ -1992,7 +2002,7 @@ impl Handler<MergeBuckets> for Aggregator {
 
 #[cfg(test)]
 mod tests {
-    use futures01::future::Future;
+    use futures01::future::{self, Future};
     use std::sync::{Arc, RwLock};
 
     use super::*;
@@ -3088,12 +3098,11 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let captures = relay_statsd::with_capturing_test_client(|| {
-            aggregator.insert(project_key, metric1.clone()).unwrap();
-            aggregator.insert(project_key, metric2.clone()).unwrap();
-
-            // Sleep for 2x the flush interval to make sure that buckets are flushed.
-            std::thread::sleep(Duration::from_millis(200));
+            aggregator.insert(project_key, metric1).ok();
+            aggregator.insert(project_key, metric2).ok();
         });
+
+        aggregator.try_flush(None);
 
         dbg!(captures);
     }
