@@ -178,7 +178,8 @@ pub fn set_client(client: MetricsClient) {
     *METRICS_CLIENT.write() = Some(Arc::new(client));
 }
 
-/// Set a test client
+/// Set a test client for the period of the called function.
+/// Note: This also changes the METRICS_CLIENT for other threads.
 #[cfg(test)]
 pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
     use cadence::NopMetricSink;
@@ -193,12 +194,12 @@ pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
     };
     set_client(test_client);
 
+    f();
+
     // TODO: This is a mess of clones.
     let opt = METRICS_CLIENT.read().clone();
     let member = opt.as_ref().and_then(|x| x.capture.as_ref());
     let captured = member.unwrap().lock().unwrap().deref().clone();
-
-    f();
 
     *METRICS_CLIENT.write() = old_client;
 
@@ -630,6 +631,12 @@ mod tests {
             );
         });
 
-        assert_eq!(captures.as_slice(), ["asdf", "asdf",])
+        assert_eq!(
+            captures.as_slice(),
+            [
+                "foo:123|g|#server:server1,host:host1",
+                "bar:456|g|#server:server2,host:host2"
+            ]
+        )
     }
 }
