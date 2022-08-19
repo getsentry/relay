@@ -178,13 +178,7 @@ pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
 
     *METRICS_CLIENT.write() = old_client;
 
-    rx.iter()
-        .map(|x| {
-            let s = String::from_utf8(x).unwrap();
-            dbg!(&s);
-            s
-        })
-        .collect()
+    rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
 }
 
 /// Disable the client again.
