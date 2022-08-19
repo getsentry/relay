@@ -1032,8 +1032,6 @@ mod tests {
         )
         .unwrap();
 
-        dbg!(event.value().map(|e| &e.client_sdk));
-
         process_value(
             &mut event,
             &mut TransactionsProcessor,
