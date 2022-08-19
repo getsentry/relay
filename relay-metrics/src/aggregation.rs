@@ -893,6 +893,9 @@ impl BucketKey {
     fn as_integer_lossy(&self) -> u32 {
         // XXX: The way this hasher is used may be platform-dependent. If we want to produce the
         // same hash across platforms, the `deterministic_hash` crate may be useful.
+
+        // TODO(jjbayer): Use FnvHasher here
+
         let mut hasher = crc32fast::Hasher::new();
         std::hash::Hash::hash(self, &mut hasher);
         hasher.finalize()
@@ -1990,7 +1993,6 @@ impl Handler<MergeBuckets> for Aggregator {
 #[cfg(test)]
 mod tests {
     use futures01::future::Future;
-    use relay_statsd::MetricsClient;
     use std::sync::{Arc, RwLock};
 
     use super::*;
@@ -3063,6 +3065,7 @@ mod tests {
     fn test_bucket_partitioning() {
         let config = AggregatorConfig {
             max_flush_bytes: 1,
+            flush_partitions: Some(5),
             ..test_config()
         };
 
@@ -3087,6 +3090,9 @@ mod tests {
         let captures = relay_statsd::with_capturing_test_client(|| {
             aggregator.insert(project_key, metric1.clone()).unwrap();
             aggregator.insert(project_key, metric2.clone()).unwrap();
+
+            // Sleep for 2x the flush interval to make sure that buckets are flushed.
+            std::thread::sleep(Duration::from_millis(200));
         });
 
         dbg!(captures);
