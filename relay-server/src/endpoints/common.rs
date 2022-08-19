@@ -266,7 +266,7 @@ pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
 /// - Metrics are directly sent to the [`EnvelopeProcessor`], bypassing the manager's queue and
 ///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
 ///
-/// Queueing can fail if the queue exceeds [`Config::envelope_buffer_size`]. In this case, `Err` is
+/// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
 /// returned and the envelope is not queued.
 fn queue_envelope(
     mut envelope: Envelope,
