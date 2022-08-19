@@ -267,9 +267,7 @@ pub fn cors(app: ServiceApp) -> CorsBuilder<ServiceState> {
 ///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
 ///
 /// Queueing can fail if the queue exceeds [`Config::envelope_buffer_size`]. In this case, `Err` is
-/// returned and the envelope is not queued. Otherwise, this message responds with `Ok`. If it
-/// contained an event-related item, such as an event payload or an attachment, this contains
-/// `Some(EventId)`.
+/// returned and the envelope is not queued.
 fn queue_envelope(
     mut envelope: Envelope,
     mut envelope_context: EnvelopeContext,
