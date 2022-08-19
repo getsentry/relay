@@ -84,12 +84,6 @@ pub struct MetricsClient {
     pub sample_rate: f32,
 }
 
-impl Drop for MetricsClient {
-    fn drop(&mut self) {
-        dbg!("DROPPING METRICS CLIENT");
-    }
-}
-
 impl Deref for MetricsClient {
     type Target = StatsdClient;
 
@@ -148,7 +142,6 @@ impl MetricsClient {
 static METRICS_CLIENT: RwLock<Option<Arc<MetricsClient>>> = RwLock::new(None);
 
 thread_local! {
-    static CURRENT_CLIENT: Option<Arc<MetricsClient>> = METRICS_CLIENT.read().clone();
     static RNG_UNIFORM_DISTRIBUTION: Uniform<f32> = Uniform::new(0.0, 1.0);
 }
 
@@ -257,13 +250,12 @@ where
     F: FnOnce(&MetricsClient) -> R,
     R: Default,
 {
-    CURRENT_CLIENT.with(|client| {
-        if let Some(client) = client {
-            f(client)
-        } else {
-            R::default()
-        }
-    })
+    let guard = METRICS_CLIENT.read();
+    if let Some(client) = guard.deref() {
+        f(client)
+    } else {
+        R::default()
+    }
 }
 
 /// A metric for capturing timings.
@@ -586,7 +578,9 @@ macro_rules! metric {
 
 #[cfg(test)]
 mod tests {
-    use crate::{with_capturing_test_client, GaugeMetric};
+    use cadence::{NopMetricSink, StatsdClient};
+
+    use crate::{set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient};
 
     enum TestGauges {
         Foo,
@@ -624,5 +618,19 @@ mod tests {
                 "bar:456|g|#server:server2,host:host2"
             ]
         )
+    }
+
+    #[test]
+    fn current_client_is_global_client() {
+        let client1 = with_client(|c| format!("{:?}", c));
+        set_client(MetricsClient {
+            statsd_client: StatsdClient::from_sink("", NopMetricSink),
+            default_tags: Default::default(),
+            sample_rate: 1.0,
+        });
+        let client2 = with_client(|c| format!("{:?}", c));
+
+        // After setting the global client,the current client must change:
+        assert_ne!(client1, client2);
     }
 }
