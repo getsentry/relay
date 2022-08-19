@@ -1314,15 +1314,14 @@ impl fmt::Debug for CostTracker {
 /// Since this uses an approximate function to estimate the size of buckets, the actual serialized
 /// payload may exceed the size. The estimation function is built in a way to guarantee the same
 /// order of magnitude.
-struct CappedBucketIter {
-    buckets: std::vec::IntoIter<Bucket>,
+struct CappedBucketIter<T: Iterator<Item = Bucket>> {
+    buckets: T,
     next_bucket: Option<Bucket>,
     max_flush_bytes: usize,
 }
 
-impl CappedBucketIter {
-    pub fn new(buckets: Vec<Bucket>, max_flush_bytes: usize) -> Self {
-        let mut buckets = buckets.into_iter();
+impl<T: Iterator<Item = Bucket>> CappedBucketIter<T> {
+    pub fn new(mut buckets: T, max_flush_bytes: usize) -> Self {
         let next_bucket = buckets.next();
 
         Self {
@@ -1333,7 +1332,7 @@ impl CappedBucketIter {
     }
 }
 
-impl Iterator for CappedBucketIter {
+impl<T: Iterator<Item = Bucket>> Iterator for CappedBucketIter<T> {
     type Item = Vec<Bucket>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1372,7 +1371,7 @@ impl Iterator for CappedBucketIter {
     }
 }
 
-impl FusedIterator for CappedBucketIter {}
+impl<T: Iterator<Item = Bucket>> FusedIterator for CappedBucketIter<T> {}
 
 /// A collector of [`Metric`] submissions.
 ///
@@ -1771,11 +1770,17 @@ impl Aggregator {
     /// Split the provided buckets into batches and process each batch with the given function.
     ///
     /// For each batch, log a histogram metric.
-    fn process_batches<F>(&self, buckets: Vec<Bucket>, partition_key: Option<u32>, mut process: F)
-    where
+    /// NOTE: This function can be inlined again once we are done with the dry run.
+    fn process_batches<F>(
+        &self,
+        buckets: impl IntoIterator<Item = Bucket>,
+        partition_key: Option<u32>,
+        mut process: F,
+    ) where
         F: FnMut(Vec<Bucket>),
     {
-        let capped_batches = CappedBucketIter::new(buckets, self.config.max_flush_bytes);
+        let capped_batches =
+            CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
         let partition_tag = match partition_key {
             Some(partition_key) => format!("{partition_key}"),
             None => "none".to_owned(),
@@ -1812,21 +1817,21 @@ impl Aggregator {
             total_bucket_count += bucket_count;
 
             // Simulate the behavior of partitioning buckets by logical key:
-            let project_buckets = if let Some(num_partitions) = self.config.flush_partitions {
+            let project_buckets: Box<dyn Iterator<Item = Bucket>> = if let Some(num_partitions) =
+                self.config.flush_partitions
+            {
                 let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
-                let mut restored_project_buckets = Vec::new();
+                let mut all_project_batches = Vec::<Vec<Bucket>>::new();
                 for (partition_key, buckets) in partitioned_buckets {
                     self.process_batches(buckets, Some(partition_key), |batch| {
                         // This is just a dry run. Put the buckets back into the vector
-                        restored_project_buckets.extend(batch);
+                        all_project_batches.push(batch);
                     });
                 }
-                restored_project_buckets
+                Box::new(all_project_batches.into_iter().flatten())
             } else {
                 // Simply send buckets as before.
-                // TODO: Make process_batches and CappedIterator accepted an Iterator as input,
-                // to make this allocation unnecessary.
-                project_buckets.into_iter().map(|x| x.bucket).collect()
+                Box::new(project_buckets.into_iter().map(|x| x.bucket))
             };
 
             // Actually flush buckets:
@@ -2667,7 +2672,7 @@ mod tests {
     fn test_capped_iter_empty() {
         let buckets = vec![];
 
-        let mut iter = CappedBucketIter::new(buckets, 200);
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), 200);
         assert!(iter.next().is_none());
     }
 
@@ -2689,7 +2694,7 @@ mod tests {
 
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
 
-        let mut iter = CappedBucketIter::new(buckets, 200);
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), 200);
         let batch = iter.next().unwrap();
         assert_eq!(batch.len(), 1);
 
@@ -2715,7 +2720,7 @@ mod tests {
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
 
         // 58 is a magic number obtained by experimentation that happens to split this bucket
-        let mut iter = CappedBucketIter::new(buckets, 108);
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), 108);
         let batch1 = iter.next().unwrap();
         assert_eq!(batch1.len(), 1);
 
