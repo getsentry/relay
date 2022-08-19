@@ -1990,6 +1990,7 @@ impl Handler<MergeBuckets> for Aggregator {
 #[cfg(test)]
 mod tests {
     use futures01::future::Future;
+    use relay_statsd::MetricsClient;
     use std::sync::{Arc, RwLock};
 
     use super::*;
@@ -3056,5 +3057,38 @@ mod tests {
             aggregator.insert(project_key, metric).unwrap_err().kind,
             AggregateMetricsErrorKind::ProjectLimitExceeded
         );
+    }
+
+    #[test]
+    fn test_bucket_partitioning() {
+        let config = AggregatorConfig {
+            max_flush_bytes: 1,
+            ..test_config()
+        };
+
+        let metric1 = Metric {
+            name: "c:transactions/foo".to_owned(),
+            value: MetricValue::Counter(42.),
+            timestamp: UnixTimestamp::from_secs(999994711),
+            tags: BTreeMap::new(),
+        };
+
+        let metric2 = Metric {
+            name: "c:transactions/bar".to_owned(),
+            value: MetricValue::Counter(43.),
+            timestamp: UnixTimestamp::from_secs(999994711),
+            tags: BTreeMap::new(),
+        };
+
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        relay_statsd::with_capturing_test_client(|&captured| {
+            aggregator.insert(project_key, metric1.clone()).unwrap();
+            aggregator.insert(project_key, metric2.clone()).unwrap();
+
+            dbg!(captured);
+        });
     }
 }
