@@ -500,6 +500,18 @@ pub enum RelayCounters {
     MetricBucketsParsingFailed,
     /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     MetricsTransactionNameExtracted,
+    /// Counts how many times a root transaction (initiating transaction of a trace) has been
+    /// found.
+    ///
+    /// Tags:
+    /// - `is_unstable_transaction_name`: The transaction name in the sampling context differs from
+    /// the transaction name in the event (bool).
+    /// - `dsc_has_transaction_name`: The sampling context has a transaction name (bool).
+    /// - `event_has_transaction_name`: The event has a transaction name (bool).
+    ///
+    /// Note: the transaction name is naturally different between event and sampling context if the
+    /// transaction event is not the root transaction. For that case, no counter metric is emitted.
+    DynamicSamplingRootTransaction,
 }
 
 impl CounterMetric for RelayCounters {
@@ -530,6 +542,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
+            RelayCounters::DynamicSamplingRootTransaction => "dynamic_sampling.root_transaction",
         }
     }
 }
