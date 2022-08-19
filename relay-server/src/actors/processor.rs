@@ -928,7 +928,10 @@ impl EnvelopeProcessor {
                         item.set_payload(ContentType::Json, &replay[..]);
                         true
                     }
-                    Err(_) => relay_log::debug!("Replay item could not be parsed."),
+                    Err(_) => {
+                        relay_log::debug!("Replay item could not be parsed.");
+                        false
+                    }
                 }
             }
             ItemType::ReplayRecording => replays_enabled,
