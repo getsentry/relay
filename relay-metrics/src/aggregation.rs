@@ -3066,11 +3066,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_bucket_partitioning() {
+    fn run_test_bucket_partitioning(flush_partitions: Option<u32>, expected: Vec<String>) {
         let config = AggregatorConfig {
             max_flush_bytes: 1000,
-            flush_partitions: Some(5),
+            flush_partitions,
             ..test_config()
         };
 
@@ -3102,13 +3101,31 @@ mod tests {
             captures
                 .into_iter()
                 .filter(|x| x.contains("per_batch"))
-                .collect::<Vec<_>>()
-                .as_slice(),
-            [
-                "metrics.buckets.per_batch:1|h|#partition_key:0,batch_index:0",
-                "metrics.buckets.per_batch:1|h|#partition_key:2,batch_index:0",
-                "metrics.buckets.per_batch:2|h|#partition_key:none,batch_index:0",
-            ]
+                .collect::<Vec<_>>(),
+            expected
         );
+    }
+
+    #[test]
+    fn test_bucket_partitioning() {
+        // TODO: Also test with different `max_flush_bytes`.
+        // It currently looks like setting a small max_flush_bytes leads to no buckets being
+        // flushed at all.
+        for (flush_partitions, expected) in [
+            (
+                None,
+                vec!["metrics.buckets.per_batch:2|h|#partition_key:none,batch_index:0".to_owned()],
+            ),
+            (
+                Some(5),
+                vec![
+                    "metrics.buckets.per_batch:1|h|#partition_key:0,batch_index:0".to_owned(),
+                    "metrics.buckets.per_batch:1|h|#partition_key:2,batch_index:0".to_owned(),
+                    "metrics.buckets.per_batch:2|h|#partition_key:none,batch_index:0".to_owned(),
+                ],
+            ),
+        ] {
+            run_test_bucket_partitioning(flush_partitions, expected)
+        }
     }
 }
