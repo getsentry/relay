@@ -1,4 +1,4 @@
-//! Relay processing and normalization module.
+//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
 //! They are ingested incrementally and are available for viewing after the first two segments
