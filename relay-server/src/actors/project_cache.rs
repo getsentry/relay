@@ -9,7 +9,7 @@ use futures01::{future, Future};
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
 use relay_metrics::{self, AggregateMetricsError, Bucket, FlushBuckets, Metric};
-use relay_quotas::{RateLimits, Scoping};
+use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 
@@ -434,19 +434,12 @@ pub struct CheckedEnvelope {
     pub rate_limits: RateLimits,
 }
 
-/// Scoping information along with a checked envelope.
-#[derive(Debug)]
-pub struct CheckEnvelopeResponse {
-    pub result: Result<CheckedEnvelope, DiscardReason>,
-    pub scoping: Scoping,
-}
-
 impl Message for CheckEnvelope {
-    type Result = Result<CheckEnvelopeResponse, ProjectError>;
+    type Result = Result<CheckedEnvelope, DiscardReason>;
 }
 
 impl Handler<CheckEnvelope> for ProjectCache {
-    type Result = Result<CheckEnvelopeResponse, ProjectError>;
+    type Result = Result<CheckedEnvelope, DiscardReason>;
 
     fn handle(&mut self, message: CheckEnvelope, _: &mut Self::Context) -> Self::Result {
         let project = self.get_or_create_project(message.project_key);
@@ -456,7 +449,7 @@ impl Handler<CheckEnvelope> for ProjectCache {
         // a full reload. Fetching must not block the store request.
         project.get_or_fetch_state(false);
 
-        Ok(project.check_envelope(message.envelope, message.context))
+        project.check_envelope(message.envelope, message.context)
     }
 }
 
