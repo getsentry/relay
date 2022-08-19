@@ -72,7 +72,6 @@ struct ReplayInput {
     environment: Option<String>,
     release: Option<String>,
     tags: Option<HashMap<String, String>>,
-    user: Option<User>,
     sdk: Option<VersionedMeta>,
     #[serde(default)]
     urls: Vec<String>,
@@ -80,6 +79,8 @@ struct ReplayInput {
     error_ids: Vec<String>,
     #[serde(default)]
     trace_ids: Vec<String>,
+    #[serde(default)]
+    user: User,
     #[serde(default)]
     requests: Requests,
 }
@@ -110,28 +111,9 @@ impl ReplayInput {
     }
 
     fn set_user_ip_address(&mut self, ip_address: IpAddr) {
-        match &self.user {
-            Some(user) => {
-                // User was found but no ip-address exists on the object.
-                if user.ip_address.is_none() {
-                    self.user = Some(User {
-                        id: user.id.to_owned(),
-                        username: user.username.to_owned(),
-                        email: user.email.to_owned(),
-                        ip_address: Some(ip_address.to_string()),
-                    });
-                }
-            }
-            None => {
-                // Anonymous user-data provided.
-                self.user = Some(User {
-                    id: None,
-                    username: None,
-                    email: None,
-                    ip_address: Some(ip_address.to_string()),
-                });
-            }
-        }
+        self.user
+            .ip_address
+            .get_or_insert_with(|| ip_address.to_string());
     }
 }
 
@@ -165,7 +147,7 @@ struct VersionedMeta {
     version: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 struct User {
     id: Option<String>,
     username: Option<String>,
@@ -201,7 +183,7 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/replay.json");
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_ip_address(ip_address);
-        assert!("192.168.11.12".to_string() == replay_input.user.unwrap().ip_address.unwrap());
+        assert!("192.168.11.12".to_string() == replay_input.user.ip_address.unwrap());
     }
 
     #[test]
@@ -212,7 +194,7 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/replay_missing_user.json");
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_ip_address(ip_address);
-        assert!("127.0.0.1".to_string() == replay_input.user.unwrap().ip_address.unwrap());
+        assert!("127.0.0.1".to_string() == replay_input.user.ip_address.unwrap());
     }
 
     #[test]
@@ -223,7 +205,7 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/replay_missing_user_ip_address.json");
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_ip_address(ip_address);
-        assert!("127.0.0.1".to_string() == replay_input.user.unwrap().ip_address.unwrap());
+        assert!("127.0.0.1".to_string() == replay_input.user.ip_address.unwrap());
     }
 
     #[test]
