@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
+
 **Bug Fixes**:
 
 - Do not apply rate limits or reject data based on expired project configs. ([#1404](https://github.com/getsentry/relay/pull/1404))
@@ -17,6 +21,7 @@
 
 - Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
 - Add user-agent parsing to replays processor. ([#1420](https://github.com/getsentry/relay/pull/1420))
+- Improve the release name used when reporting data to Sentry to include both the version and exact build. ([#1428](https://github.com/getsentry/relay/pull/1428))
 
 ## 22.8.0
 

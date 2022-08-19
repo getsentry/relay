@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::sentry_failure::FailureIntegration;
 
+/// The full release name including the Relay version and SHA.
+const RELEASE: &str = std::env!("RELAY_RELEASE");
+
 /// Controls the log format.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -231,13 +234,12 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
     let log = sentry::integrations::log::SentryLogger::with_dest(dest_log);
     log::set_boxed_logger(Box::new(log)).ok();
 
-    let release = sentry::release_name!();
     #[cfg(feature = "relay-crash")]
     {
         if let Some(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
             if let Some(db) = sentry._crash_db.as_deref() {
                 relay_crash::CrashHandler::new(dsn.as_ref(), db)
-                    .release(release.as_deref())
+                    .release(Some(RELEASE))
                     .install();
             }
         }
@@ -258,7 +260,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
                 "relay::",
             ],
             integrations: vec![Arc::new(FailureIntegration::new())],
-            release,
+            release: Some(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             ..Default::default()
         });

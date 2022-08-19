@@ -8,6 +8,7 @@ version = "22.8.0"
 edition = "2018"
 license-file = "../LICENSE"
 publish = false
+build = "build.rs"
 
 [dependencies]
 chrono = { version = "0.4.19", optional = true }
