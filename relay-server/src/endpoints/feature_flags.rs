@@ -5,15 +5,35 @@ use crate::endpoints::common::{self, BadStoreRequest};
 use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 
-use relay_feature_flags::FeatureDump;
+use relay_feature_flags::{EvaluationRule, EvaluationType, FeatureDump, FeatureFlag};
 
 fn fetch_feature_flags(
-    meta: RequestMeta,
-    request: HttpRequest<ServiceState>,
+    _meta: RequestMeta,
+    _request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let fut = async {
         Ok(HttpResponse::Ok().json(FeatureDump {
-            feature_flags: Default::default(),
+            feature_flags: [(
+                "accessToProfiling".into(),
+                FeatureFlag {
+                    tags: Default::default(),
+                    evaluation: vec![
+                        EvaluationRule {
+                            ty: EvaluationType::Rollout,
+                            percentage: Some(0.5),
+                            result: Some(true.into()),
+                            tags: Default::default(),
+                        },
+                        EvaluationRule {
+                            ty: EvaluationType::Match,
+                            percentage: None,
+                            result: Some(true.into()),
+                            tags: [("isSentryDev".into(), "true".into())].into(),
+                        },
+                    ],
+                },
+            )]
+            .into(),
         }))
     };
     Box::new(fut.boxed_local().compat())

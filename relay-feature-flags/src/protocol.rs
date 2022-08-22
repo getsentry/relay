@@ -28,6 +28,30 @@ pub enum FlagValue {
     F32(f32),
 }
 
+impl From<f32> for FlagValue {
+    fn from(v: f32) -> Self {
+        Self::F32(v)
+    }
+}
+
+impl From<i64> for FlagValue {
+    fn from(v: i64) -> Self {
+        Self::I64(v)
+    }
+}
+
+impl From<bool> for FlagValue {
+    fn from(v: bool) -> Self {
+        Self::Bool(v)
+    }
+}
+
+impl From<String> for FlagValue {
+    fn from(v: String) -> Self {
+        Self::String(v)
+    }
+}
+
 /// The type of evaluation.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
