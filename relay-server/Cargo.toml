@@ -83,5 +83,5 @@ zstd = { version = "0.11.2"}
 libc = "0.2.71"
 
 [dev-dependencies]
-insta = "1.1.0"
+insta = "1.19.0"
 relay-test = { path = "../relay-test" }

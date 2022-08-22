@@ -24,7 +24,7 @@ contexts:
     model: Android SDK built for x86
     model_id: NYC
     arch: x86
-    battery_level: 100.0
+    battery_level: 100
     orientation: portrait
     manufacturer: Google
     brand: google
@@ -519,3 +519,4 @@ _meta:
           rem:
             - - "@anything:remove"
               - x
+
