@@ -13,7 +13,7 @@ pub struct FeatureDump {
 /// A single feature flag.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FeatureFlag {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "TagMap::is_empty")]
     pub tags: TagMap,
     pub evaluation: Vec<EvaluationRule>,
 }
@@ -74,6 +74,6 @@ pub struct EvaluationRule {
     /// The result value.
     pub result: Option<FlagValue>,
     /// The tags that need to match for this evaluation rule.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "TagMap::is_empty")]
     pub tags: TagMap,
 }
