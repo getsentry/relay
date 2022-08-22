@@ -13,26 +13,48 @@ fn fetch_feature_flags(
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
     let fut = async {
         Ok(HttpResponse::Ok().json(FeatureDump {
-            feature_flags: [(
-                "accessToProfiling".into(),
-                FeatureFlag {
-                    tags: Default::default(),
-                    evaluation: vec![
-                        EvaluationRule {
-                            ty: EvaluationType::Rollout,
-                            percentage: Some(0.5),
-                            result: Some(true.into()),
-                            tags: Default::default(),
-                        },
-                        EvaluationRule {
-                            ty: EvaluationType::Match,
-                            percentage: None,
-                            result: Some(true.into()),
-                            tags: [("isSentryDev".into(), "true".into())].into(),
-                        },
-                    ],
-                },
-            )]
+            feature_flags: [
+                (
+                    "accessToProfiling".into(),
+                    FeatureFlag {
+                        tags: Default::default(),
+                        evaluation: vec![
+                            EvaluationRule {
+                                ty: EvaluationType::Match,
+                                percentage: None,
+                                result: Some(true.into()),
+                                tags: [("isSentryDev".into(), "true".into())].into(),
+                            },
+                            EvaluationRule {
+                                ty: EvaluationType::Rollout,
+                                percentage: Some(0.5),
+                                result: Some(true.into()),
+                                tags: Default::default(),
+                            },
+                        ],
+                    },
+                ),
+                (
+                    "profilingEnabled".into(),
+                    FeatureFlag {
+                        tags: Default::default(),
+                        evaluation: vec![
+                            EvaluationRule {
+                                ty: EvaluationType::Match,
+                                percentage: None,
+                                result: Some(true.into()),
+                                tags: [("isSentryDev".into(), "true".into())].into(),
+                            },
+                            EvaluationRule {
+                                ty: EvaluationType::Rollout,
+                                percentage: Some(0.05),
+                                result: Some(true.into()),
+                                tags: Default::default(),
+                            },
+                        ],
+                    },
+                ),
+            ]
             .into(),
         }))
     };
