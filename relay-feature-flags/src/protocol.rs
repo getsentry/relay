@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 type TagMap = BTreeMap<String, String>;
 
+pub use serde_json::Value as PayloadType;
+
 /// Represents all feature flags of a project.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FeatureDump {
@@ -73,6 +75,8 @@ pub struct EvaluationRule {
     pub percentage: Option<f32>,
     /// The result value.
     pub result: Option<FlagValue>,
+    /// The optional payload to carry with the evaluation.
+    pub payload: Option<PayloadType>,
     /// The tags that need to match for this evaluation rule.
     #[serde(default, skip_serializing_if = "TagMap::is_empty")]
     pub tags: TagMap,
