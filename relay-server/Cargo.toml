@@ -59,6 +59,7 @@ relay-general = { path = "../relay-general" }
 relay-log = { path = "../relay-log" }
 relay-metrics = { path = "../relay-metrics" }
 relay-profiling = { path = "../relay-profiling" }
+relay-feature-flags = { path = "../relay-feature-flags" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
 relay-sampling = { path = "../relay-sampling" }

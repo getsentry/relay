@@ -3335,6 +3335,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-feature-flags"
+version = "22.8.0"
+dependencies = [
+ "insta",
+ "rand 0.6.5",
+ "rand_pcg 0.1.2",
+ "relay-common",
+ "relay-general",
+ "relay-log",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "relay-ffi"
 version = "22.8.0"
 dependencies = [
@@ -3546,6 +3560,7 @@ dependencies = [
  "relay-aws-extension",
  "relay-common",
  "relay-config",
+ "relay-feature-flags",
  "relay-filter",
  "relay-general",
  "relay-log",

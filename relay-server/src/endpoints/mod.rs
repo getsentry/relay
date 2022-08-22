@@ -9,6 +9,7 @@ mod attachments;
 mod common;
 mod envelope;
 mod events;
+mod feature_flags;
 mod forward;
 mod healthcheck;
 mod minidump;
@@ -37,6 +38,7 @@ pub fn configure_app(app: ServiceApp) -> ServiceApp {
         .configure(minidump::configure_app)
         .configure(attachments::configure_app)
         .configure(unreal::configure_app)
+        .configure(feature_flags::configure_app)
         // `forward` must be last as it creates a wildcard proxy
         .configure(forward::configure_app)
 }
