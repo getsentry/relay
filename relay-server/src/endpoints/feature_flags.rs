@@ -13,6 +13,8 @@ fn fetch_feature_flags(
     meta: RequestMeta,
     _request: HttpRequest<ServiceState>,
 ) -> ResponseFuture<HttpResponse, BadStoreRequest> {
+    // well this will block for `GetProjectState` to come back which is awful for fresh
+    // relays.  Gotta figure out somethig better here later.
     let fut = ProjectCache::from_registry()
         .send(GetProjectState::new(meta.public_key()))
         .map_err(|_| BadStoreRequest::ScheduleFailed)
@@ -21,6 +23,8 @@ fn fetch_feature_flags(
                 Ok(project_state) => project_state.config().feature_flags.clone(),
                 Err(_) => Default::default(),
             };
+
+            // feed some defaults in for now.
             feature_flags.insert(
                 "@@accessToProfiling".into(),
                 FeatureFlag {
