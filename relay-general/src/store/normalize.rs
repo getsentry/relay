@@ -1723,8 +1723,8 @@ fn test_future_timestamp() {
       "type": "default",
       "logger": "",
       "platform": "other",
-      "timestamp": 946857600,
-      "received": 946857600,
+      "timestamp": 946857600.0,
+      "received": 946857600.0,
       "_meta": {
         "timestamp": {
           "": Meta(Some(MetaInner(
@@ -1787,8 +1787,8 @@ fn test_past_timestamp() {
       "type": "default",
       "logger": "",
       "platform": "other",
-      "timestamp": 952041600,
-      "received": 952041600,
+      "timestamp": 952041600.0,
+      "received": 952041600.0,
       "_meta": {
         "timestamp": {
           "": Meta(Some(MetaInner(
@@ -1859,38 +1859,40 @@ fn test_computed_measurements() {
 
     normalize_measurements(&mut event);
 
-    assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"{
-  "type": "transaction",
-  "timestamp": 1619420405,
-  "start_timestamp": 1619420400,
-  "measurements": {
-    "frames_frozen": {
-      "value": 2,
-    },
-    "frames_frozen_rate": {
-      "value": 0.5,
-      "unit": "ratio",
-    },
-    "frames_slow": {
-      "value": 1,
-    },
-    "frames_slow_rate": {
-      "value": 0.25,
-      "unit": "ratio",
-    },
-    "frames_total": {
-      "value": 4,
-    },
-    "stall_percentage": {
-      "value": 0.8,
-      "unit": "ratio",
-    },
-    "stall_total_time": {
-      "value": 4000,
-      "unit": "millisecond",
-    },
-  },
-}"###);
+    assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+    {
+      "type": "transaction",
+      "timestamp": 1619420405.0,
+      "start_timestamp": 1619420400.0,
+      "measurements": {
+        "frames_frozen": {
+          "value": 2.0,
+        },
+        "frames_frozen_rate": {
+          "value": 0.5,
+          "unit": "ratio",
+        },
+        "frames_slow": {
+          "value": 1.0,
+        },
+        "frames_slow_rate": {
+          "value": 0.25,
+          "unit": "ratio",
+        },
+        "frames_total": {
+          "value": 4.0,
+        },
+        "stall_percentage": {
+          "value": 0.8,
+          "unit": "ratio",
+        },
+        "stall_total_time": {
+          "value": 4000.0,
+          "unit": "millisecond",
+        },
+      },
+    }
+    "###);
 }
 
 #[test]
