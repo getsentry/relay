@@ -1968,6 +1968,8 @@
 <span id="1960">1960</span>
 <span id="1961">1961</span>
 <span id="1962">1962</span>
+<span id="1963">1963</span>
+<span id="1964">1964</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::hash_map::DefaultHasher</span>;
 <span class="kw">use</span> <span class="ident">std::hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>};
 <span class="kw">use</span> <span class="ident">std::mem</span>;
@@ -3693,8 +3695,8 @@
       &quot;type&quot;: &quot;default&quot;,
       &quot;logger&quot;: &quot;&quot;,
       &quot;platform&quot;: &quot;other&quot;,
-      &quot;timestamp&quot;: 946857600,
-      &quot;received&quot;: 946857600,
+      &quot;timestamp&quot;: 946857600.0,
+      &quot;received&quot;: 946857600.0,
       &quot;_meta&quot;: {
         &quot;timestamp&quot;: {
           &quot;&quot;: Meta(Some(MetaInner(
@@ -3757,8 +3759,8 @@
       &quot;type&quot;: &quot;default&quot;,
       &quot;logger&quot;: &quot;&quot;,
       &quot;platform&quot;: &quot;other&quot;,
-      &quot;timestamp&quot;: 952041600,
-      &quot;received&quot;: 952041600,
+      &quot;timestamp&quot;: 952041600.0,
+      &quot;received&quot;: 952041600.0,
       &quot;_meta&quot;: {
         &quot;timestamp&quot;: {
           &quot;&quot;: Meta(Some(MetaInner(
@@ -3829,38 +3831,40 @@
 
     <span class="ident">normalize_measurements</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>);
 
-    <span class="macro">assert_ron_snapshot!</span>(<span class="ident">SerializableAnnotated</span>(<span class="kw-2">&amp;</span><span class="ident">Annotated::new</span>(<span class="ident">event</span>)), {}, @<span class="string">r###&quot;{
-  &quot;type&quot;: &quot;transaction&quot;,
-  &quot;timestamp&quot;: 1619420405,
-  &quot;start_timestamp&quot;: 1619420400,
-  &quot;measurements&quot;: {
-    &quot;frames_frozen&quot;: {
-      &quot;value&quot;: 2,
-    },
-    &quot;frames_frozen_rate&quot;: {
-      &quot;value&quot;: 0.5,
-      &quot;unit&quot;: &quot;ratio&quot;,
-    },
-    &quot;frames_slow&quot;: {
-      &quot;value&quot;: 1,
-    },
-    &quot;frames_slow_rate&quot;: {
-      &quot;value&quot;: 0.25,
-      &quot;unit&quot;: &quot;ratio&quot;,
-    },
-    &quot;frames_total&quot;: {
-      &quot;value&quot;: 4,
-    },
-    &quot;stall_percentage&quot;: {
-      &quot;value&quot;: 0.8,
-      &quot;unit&quot;: &quot;ratio&quot;,
-    },
-    &quot;stall_total_time&quot;: {
-      &quot;value&quot;: 4000,
-      &quot;unit&quot;: &quot;millisecond&quot;,
-    },
-  },
-}&quot;###</span>);
+    <span class="macro">assert_ron_snapshot!</span>(<span class="ident">SerializableAnnotated</span>(<span class="kw-2">&amp;</span><span class="ident">Annotated::new</span>(<span class="ident">event</span>)), {}, @<span class="string">r###&quot;
+    {
+      &quot;type&quot;: &quot;transaction&quot;,
+      &quot;timestamp&quot;: 1619420405.0,
+      &quot;start_timestamp&quot;: 1619420400.0,
+      &quot;measurements&quot;: {
+        &quot;frames_frozen&quot;: {
+          &quot;value&quot;: 2.0,
+        },
+        &quot;frames_frozen_rate&quot;: {
+          &quot;value&quot;: 0.5,
+          &quot;unit&quot;: &quot;ratio&quot;,
+        },
+        &quot;frames_slow&quot;: {
+          &quot;value&quot;: 1.0,
+        },
+        &quot;frames_slow_rate&quot;: {
+          &quot;value&quot;: 0.25,
+          &quot;unit&quot;: &quot;ratio&quot;,
+        },
+        &quot;frames_total&quot;: {
+          &quot;value&quot;: 4.0,
+        },
+        &quot;stall_percentage&quot;: {
+          &quot;value&quot;: 0.8,
+          &quot;unit&quot;: &quot;ratio&quot;,
+        },
+        &quot;stall_total_time&quot;: {
+          &quot;value&quot;: 4000.0,
+          &quot;unit&quot;: &quot;millisecond&quot;,
+        },
+      },
+    }
+    &quot;###</span>);
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
