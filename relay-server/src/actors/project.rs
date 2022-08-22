@@ -1,10 +1,11 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use chrono::{DateTime, Utc};
 use futures01::{future::Shared, sync::oneshot, Future};
+use relay_feature_flags::FeatureFlag;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smallvec::SmallVec;
@@ -108,6 +109,9 @@ pub struct ProjectConfig {
     /// Configuration for sampling traces, if not present there will be no sampling.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic_sampling: Option<SamplingConfig>,
+    /// Feature flag configs
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub feature_flags: BTreeMap<String, FeatureFlag>,
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
@@ -139,6 +143,7 @@ impl Default for ProjectConfig {
             event_retention: None,
             quotas: Vec::new(),
             dynamic_sampling: None,
+            feature_flags: BTreeMap::default(),
             breakdowns_v2: None,
             session_metrics: SessionMetricsConfig::default(),
             transaction_metrics: None,
