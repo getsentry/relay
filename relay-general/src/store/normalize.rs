@@ -821,7 +821,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
-    use insta::assert_ron_snapshot;
     use similar_asserts::assert_eq;
 
     use crate::processor::process_value;
@@ -1659,27 +1658,27 @@ mod tests {
         light_normalize_event(&mut event, &config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        assert_ron_snapshot!(SerializableAnnotated(&event), {
-        ".event_id" => "[event-id]",
-        ".received" => "[received]",
-        ".timestamp" => "[timestamp]"
-    }, @r###"
-    {
-      "event_id": "[event-id]",
-      "level": "error",
-      "type": "default",
-      "logentry": {
-        "formatted": "Hello World!",
-      },
-      "logger": "",
-      "platform": "other",
-      "timestamp": "[timestamp]",
-      "received": "[received]",
-      "grouping_config": {
-        "id": "legacy:1234-12-12",
-      },
-    }
-    "###);
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
+            ".event_id" => "[event-id]",
+            ".received" => "[received]",
+            ".timestamp" => "[timestamp]"
+        }, @r###"
+        {
+        "event_id": "[event-id]",
+        "level": "error",
+        "type": "default",
+        "logentry": {
+            "formatted": "Hello World!",
+        },
+        "logger": "",
+        "platform": "other",
+        "timestamp": "[timestamp]",
+        "received": "[received]",
+        "grouping_config": {
+            "id": "legacy:1234-12-12",
+        },
+        }
+        "###);
     }
 
     #[test]
@@ -1711,7 +1710,7 @@ mod tests {
         light_normalize_event(&mut event, &config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        assert_ron_snapshot!(SerializableAnnotated(&event), {
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
     }, @r###"
     {
@@ -1770,7 +1769,7 @@ mod tests {
         light_normalize_event(&mut event, &config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        assert_ron_snapshot!(SerializableAnnotated(&event), {
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
     }, @r###"
     {
@@ -1848,7 +1847,7 @@ mod tests {
 
         normalize_measurements(&mut event);
 
-        assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
     {
       "type": "transaction",
       "timestamp": 1619420405.0,

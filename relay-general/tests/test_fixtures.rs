@@ -8,11 +8,6 @@ use relay_general::store::{
 };
 use relay_general::types::{Annotated, SerializableAnnotated};
 
-use insta::assert_yaml_snapshot;
-
-#[cfg(feature = "jsonschema")]
-use {insta::assert_json_snapshot, relay_general::protocol::event_json_schema};
-
 macro_rules! event_snapshot {
     ($id:ident) => {
         mod $id {
@@ -83,7 +78,7 @@ macro_rules! event_snapshot {
                 let mut processor = PiiProcessor::new(&compiled);
 
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-                assert_yaml_snapshot!("pii_stripping", SerializableAnnotated(&event), {
+                insta::assert_yaml_snapshot!("pii_stripping", SerializableAnnotated(&event), {
                     ".received" => "[received]",
                     ".timestamp" => "[timestamp]"
                 });
@@ -107,5 +102,5 @@ event_snapshot!(unity_android);
 #[test]
 #[cfg(feature = "jsonschema")]
 fn test_event_schema_snapshot() {
-    assert_json_snapshot!("event_schema", event_json_schema());
+    insta::assert_json_snapshot!("event_schema", relay_general::protocol::event_json_schema());
 }

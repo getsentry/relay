@@ -655,7 +655,6 @@ pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) -
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_ron_snapshot;
     use similar_asserts::assert_eq;
 
     use crate::types::SerializableAnnotated;
@@ -998,7 +997,7 @@ mod tests {
         };
 
         normalize_mechanism(&mut good_mechanism, None).unwrap();
-        assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(good_mechanism)), @r###"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(good_mechanism)), @r###"
     {
       "type": "generic",
       "help_link": "https://example.com/",
@@ -1012,7 +1011,7 @@ mod tests {
         };
 
         normalize_mechanism(&mut bad_mechanism, None).unwrap();
-        assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(bad_mechanism)), @r###"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(bad_mechanism)), @r###"
     {
       "type": "generic",
       "help_link": (),

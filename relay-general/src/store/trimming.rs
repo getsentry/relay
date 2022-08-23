@@ -390,8 +390,6 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 
 #[cfg(test)]
 mod tests {
-
-    use insta::assert_ron_snapshot;
     use similar_asserts::assert_eq;
     use std::iter::repeat;
 
@@ -545,7 +543,7 @@ mod tests {
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
         let stripped_extra = SerializableAnnotated(&event.value().unwrap().extra);
 
-        assert_ron_snapshot!(stripped_extra);
+        insta::assert_ron_snapshot!(stripped_extra);
     }
 
     #[test]
