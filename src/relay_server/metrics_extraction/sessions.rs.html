@@ -562,9 +562,6 @@
 <span id="554">554</span>
 <span id="555">555</span>
 <span id="556">556</span>
-<span id="557">557</span>
-<span id="558">558</span>
-<span id="559">559</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
@@ -801,9 +798,6 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_extract_session_metrics</span>() {
-        <span class="kw">use</span> <span class="ident">relay_general::protocol::SessionUpdate</span>;
-        <span class="kw">use</span> <span class="ident">relay_metrics::MetricValue</span>;
-
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
 
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="string">&quot;sentry-test/1.0&quot;</span>;

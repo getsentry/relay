@@ -439,9 +439,9 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils</span>::{<span class="self">self</span>, <span class="ident">assert_annotated_snapshot</span>};
+
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::assert_annotated_snapshot</span>;
 
     <span class="kw">const</span> <span class="ident">GOOD_UA</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span>
             <span class="string">&quot;Mozilla/5.0 (Linux; Android 4.0.4; Galaxy Nexus Build/IMM76B) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.133 Mobile Safari/535.19&quot;</span>;

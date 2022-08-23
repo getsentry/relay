@@ -969,6 +969,12 @@
 <span id="961">961</span>
 <span id="962">962</span>
 <span id="963">963</span>
+<span id="964">964</span>
+<span id="965">965</span>
+<span id="966">966</span>
+<span id="967">967</span>
+<span id="968">968</span>
+<span id="969">969</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::iter::FusedIterator</span>;
 
@@ -1478,7 +1484,6 @@
     <span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
 
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii::PiiConfig</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::assert_eq_bytes_str</span>;
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
@@ -1505,7 +1510,7 @@
 
     <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">AttachmentBytesTestCase</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
         <span class="kw">fn</span> <span class="ident">run</span>(<span class="self">self</span>) {
-            <span class="kw">let</span> (<span class="ident">config</span>, <span class="ident">filename</span>, <span class="ident">value_type</span>, <span class="ident">input</span>, <span class="ident">output</span>, <span class="ident">changed</span>) <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span> {
+            <span class="kw">let</span> (<span class="ident">config</span>, <span class="ident">filename</span>, <span class="ident">value_type</span>, <span class="ident">input</span>, <span class="ident">expected</span>, <span class="ident">changed</span>) <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span> {
                 <span class="ident">AttachmentBytesTestCase::Builtin</span> {
                     <span class="ident">selector</span>,
                     <span class="ident">rule</span>,
@@ -1556,12 +1561,19 @@
             };
 
             <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">to_owned</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actual</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">to_owned</span>();
             <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiAttachmentsProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
             <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">processor</span>.<span class="ident">state</span>(<span class="ident">filename</span>, <span class="ident">value_type</span>);
-            <span class="kw">let</span> <span class="ident">has_changed</span> <span class="op">=</span> <span class="ident">processor</span>.<span class="ident">scrub_bytes</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings::All</span>);
+            <span class="kw">let</span> <span class="ident">has_changed</span> <span class="op">=</span> <span class="ident">processor</span>.<span class="ident">scrub_bytes</span>(<span class="kw-2">&amp;mut</span> <span class="ident">actual</span>, <span class="kw-2">&amp;</span><span class="ident">state</span>, <span class="ident">ScrubEncodings::All</span>);
 
-            <span class="macro">assert_eq_bytes_str!</span>(<span class="ident">data</span>, <span class="ident">output</span>);
+            <span class="macro">assert!</span>(
+                <span class="ident">actual</span> <span class="op">==</span> <span class="ident">expected</span>,
+                <span class="string">&quot;`actual == expected` in line {}:\n{}\n{}&quot;</span>,
+                <span class="macro">line!</span>(),
+                <span class="ident">pretty_hex::pretty_hex</span>(<span class="kw-2">&amp;</span><span class="ident">actual</span>),
+                <span class="ident">pretty_hex::pretty_hex</span>(<span class="kw-2">&amp;</span><span class="ident">expected</span>),
+            );
+
             <span class="macro">assert_eq!</span>(<span class="ident">changed</span>, <span class="ident">has_changed</span>);
         }
     }

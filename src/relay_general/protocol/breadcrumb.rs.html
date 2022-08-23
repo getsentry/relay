@@ -220,6 +220,10 @@
 <span id="212">212</span>
 <span id="213">213</span>
 <span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
 </pre><pre class="rust"><code><span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
 
@@ -344,13 +348,16 @@
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils</span>::{<span class="ident">assert_eq_dbg</span>, <span class="ident">assert_eq_str</span>};
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_breadcrumb_roundtrip</span>() {
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Map</span>;
 
-    <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_breadcrumb_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;timestamp&quot;: 946684800,
   &quot;type&quot;: &quot;mytype&quot;,
   &quot;category&quot;: &quot;mycategory&quot;,
@@ -363,7 +370,7 @@
   &quot;c&quot;: &quot;d&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{
+        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;timestamp&quot;: 946684800.0,
   &quot;type&quot;: &quot;mytype&quot;,
   &quot;category&quot;: &quot;mycategory&quot;,
@@ -376,63 +383,64 @@
   &quot;c&quot;: &quot;d&quot;
 }&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">breadcrumb</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
-        <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mytype&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">category</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mycategory&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">level</span>: <span class="ident">Annotated::new</span>(<span class="ident">Level::Fatal</span>),
-        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;my message&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">data</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>())),
-            );
-            <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
-        },
-        <span class="ident">event_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>())),
-            );
-            <span class="ident">map</span>
-        },
-    });
+        <span class="kw">let</span> <span class="ident">breadcrumb</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
+            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mytype&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">category</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;mycategory&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">level</span>: <span class="ident">Annotated::new</span>(<span class="ident">Level::Fatal</span>),
+            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;my message&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">data</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>())),
+                );
+                <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
+            },
+            <span class="ident">event_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+            <span class="ident">other</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>())),
+                );
+                <span class="ident">map</span>
+            },
+        });
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">breadcrumb</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">output</span>, <span class="ident">breadcrumb</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
-}
+        <span class="macro">assert_eq!</span>(<span class="ident">breadcrumb</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">output</span>, <span class="ident">breadcrumb</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_breadcrumb_default_values</span>() {
-    <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;timestamp&quot;:946684800}&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;timestamp&quot;:946684800.0}&quot;#</span>;
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_breadcrumb_default_values</span>() {
+        <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;timestamp&quot;:946684800}&quot;#</span>;
+        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;timestamp&quot;:946684800.0}&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">breadcrumb</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
-        <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-        ..<span class="ident">Default::default</span>()
-    });
+        <span class="kw">let</span> <span class="ident">breadcrumb</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
+            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
+            ..<span class="ident">Default::default</span>()
+        });
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">breadcrumb</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">output</span>, <span class="ident">breadcrumb</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
-}
+        <span class="macro">assert_eq!</span>(<span class="ident">breadcrumb</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">output</span>, <span class="ident">breadcrumb</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_python_ty_regression</span>() {
-    <span class="comment">// The Python SDK used to send &quot;ty&quot; instead of &quot;type&quot;. We&#39;re lenient to accept both.</span>
-    <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;timestamp&quot;:946684800,&quot;ty&quot;:&quot;http&quot;}&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;timestamp&quot;:946684800.0,&quot;type&quot;:&quot;http&quot;}&quot;#</span>;
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_python_ty_regression</span>() {
+        <span class="comment">// The Python SDK used to send &quot;ty&quot; instead of &quot;type&quot;. We&#39;re lenient to accept both.</span>
+        <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;timestamp&quot;:946684800,&quot;ty&quot;:&quot;http&quot;}&quot;#</span>;
+        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;timestamp&quot;:946684800.0,&quot;type&quot;:&quot;http&quot;}&quot;#</span>;
 
-    <span class="kw">let</span> <span class="ident">breadcrumb</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
-        <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http&quot;</span>.<span class="ident">into</span>()),
-        ..<span class="ident">Default::default</span>()
-    });
+        <span class="kw">let</span> <span class="ident">breadcrumb</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
+            <span class="ident">timestamp</span>: <span class="ident">Annotated::new</span>(<span class="ident">Utc</span>.<span class="ident">ymd</span>(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>).<span class="ident">and_hms</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).<span class="ident">into</span>()),
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http&quot;</span>.<span class="ident">into</span>()),
+            ..<span class="ident">Default::default</span>()
+        });
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">breadcrumb</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">output</span>, <span class="ident">breadcrumb</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">breadcrumb</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">input</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">output</span>, <span class="ident">breadcrumb</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>

@@ -194,6 +194,11 @@
 <span id="186">186</span>
 <span id="187">187</span>
 <span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::str</span>;
 
@@ -341,46 +346,51 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_glob</span>() {
-    <span class="kw">let</span> <span class="ident">g</span> <span class="op">=</span> <span class="ident">Glob::new</span>(<span class="string">&quot;foo/*/bar&quot;</span>);
-    <span class="macro">assert!</span>(<span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo/blah/bar&quot;</span>));
-    <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo/blah/bar/aha&quot;</span>));
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">let</span> <span class="ident">g</span> <span class="op">=</span> <span class="ident">Glob::new</span>(<span class="string">&quot;foo/???/bar&quot;</span>);
-    <span class="macro">assert!</span>(<span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo/aha/bar&quot;</span>));
-    <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo/ah/bar&quot;</span>));
-    <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo/ahah/bar&quot;</span>));
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_glob</span>() {
+        <span class="kw">let</span> <span class="ident">g</span> <span class="op">=</span> <span class="ident">Glob::new</span>(<span class="string">&quot;foo/*/bar&quot;</span>);
+        <span class="macro">assert!</span>(<span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo/blah/bar&quot;</span>));
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo/blah/bar/aha&quot;</span>));
 
-    <span class="kw">let</span> <span class="ident">g</span> <span class="op">=</span> <span class="ident">Glob::new</span>(<span class="string">&quot;*/foo.txt&quot;</span>);
-    <span class="macro">assert!</span>(<span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;prefix/foo.txt&quot;</span>));
-    <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;double/prefix/foo.txt&quot;</span>));
+        <span class="kw">let</span> <span class="ident">g</span> <span class="op">=</span> <span class="ident">Glob::new</span>(<span class="string">&quot;foo/???/bar&quot;</span>);
+        <span class="macro">assert!</span>(<span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo/aha/bar&quot;</span>));
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo/ah/bar&quot;</span>));
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;foo/ahah/bar&quot;</span>));
 
-    <span class="kw">let</span> <span class="ident">g</span> <span class="op">=</span> <span class="ident">Glob::new</span>(<span class="string">&quot;api/**/store/&quot;</span>);
-    <span class="macro">assert!</span>(<span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;api/some/stuff/here/store/&quot;</span>));
-    <span class="macro">assert!</span>(<span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;api/some/store/&quot;</span>));
-}
+        <span class="kw">let</span> <span class="ident">g</span> <span class="op">=</span> <span class="ident">Glob::new</span>(<span class="string">&quot;*/foo.txt&quot;</span>);
+        <span class="macro">assert!</span>(<span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;prefix/foo.txt&quot;</span>));
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;double/prefix/foo.txt&quot;</span>));
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_glob_matcher</span>() {
-    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>)]</span>
-    <span class="kw">enum</span> <span class="ident">Paths</span> {
-        <span class="ident">Root</span>,
-        <span class="ident">Store</span>,
+        <span class="kw">let</span> <span class="ident">g</span> <span class="op">=</span> <span class="ident">Glob::new</span>(<span class="string">&quot;api/**/store/&quot;</span>);
+        <span class="macro">assert!</span>(<span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;api/some/stuff/here/store/&quot;</span>));
+        <span class="macro">assert!</span>(<span class="ident">g</span>.<span class="ident">is_match</span>(<span class="string">&quot;api/some/store/&quot;</span>));
     }
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">matcher</span> <span class="op">=</span> <span class="ident">GlobMatcher::new</span>();
-    <span class="ident">matcher</span>.<span class="ident">add</span>(<span class="string">&quot;/api/*/store/&quot;</span>, <span class="ident">Paths::Store</span>);
-    <span class="ident">matcher</span>.<span class="ident">add</span>(<span class="string">&quot;/api/0/&quot;</span>, <span class="ident">Paths::Root</span>);
 
-    <span class="macro">assert_eq!</span>(<span class="ident">matcher</span>.<span class="ident">test</span>(<span class="string">&quot;/api/42/store/&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Paths::Store</span>));
-    <span class="macro">assert_eq!</span>(<span class="ident">matcher</span>.<span class="ident">test</span>(<span class="string">&quot;/api/0/&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Paths::Root</span>));
-    <span class="macro">assert_eq!</span>(<span class="ident">matcher</span>.<span class="ident">test</span>(<span class="string">&quot;/api/0/&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Paths::Root</span>));
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_glob_matcher</span>() {
+        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>)]</span>
+        <span class="kw">enum</span> <span class="ident">Paths</span> {
+            <span class="ident">Root</span>,
+            <span class="ident">Store</span>,
+        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">matcher</span> <span class="op">=</span> <span class="ident">GlobMatcher::new</span>();
+        <span class="ident">matcher</span>.<span class="ident">add</span>(<span class="string">&quot;/api/*/store/&quot;</span>, <span class="ident">Paths::Store</span>);
+        <span class="ident">matcher</span>.<span class="ident">add</span>(<span class="string">&quot;/api/0/&quot;</span>, <span class="ident">Paths::Root</span>);
 
-    <span class="macro">assert_eq!</span>(<span class="ident">matcher</span>.<span class="ident">matches</span>(<span class="string">&quot;/api/0/&quot;</span>), <span class="prelude-val">Some</span>((<span class="macro">vec!</span>[], <span class="ident">Paths::Root</span>)));
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">matcher</span>.<span class="ident">matches</span>(<span class="string">&quot;/api/42/store/&quot;</span>),
-        <span class="prelude-val">Some</span>((<span class="macro">vec!</span>[<span class="string">&quot;42&quot;</span>], <span class="ident">Paths::Store</span>))
-    );
+        <span class="macro">assert_eq!</span>(<span class="ident">matcher</span>.<span class="ident">test</span>(<span class="string">&quot;/api/42/store/&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Paths::Store</span>));
+        <span class="macro">assert_eq!</span>(<span class="ident">matcher</span>.<span class="ident">test</span>(<span class="string">&quot;/api/0/&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Paths::Root</span>));
+        <span class="macro">assert_eq!</span>(<span class="ident">matcher</span>.<span class="ident">test</span>(<span class="string">&quot;/api/0/&quot;</span>), <span class="prelude-val">Some</span>(<span class="ident">Paths::Root</span>));
+
+        <span class="macro">assert_eq!</span>(<span class="ident">matcher</span>.<span class="ident">matches</span>(<span class="string">&quot;/api/0/&quot;</span>), <span class="prelude-val">Some</span>((<span class="macro">vec!</span>[], <span class="ident">Paths::Root</span>)));
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">matcher</span>.<span class="ident">matches</span>(<span class="string">&quot;/api/42/store/&quot;</span>),
+            <span class="prelude-val">Some</span>((<span class="macro">vec!</span>[<span class="string">&quot;42&quot;</span>], <span class="ident">Paths::Store</span>))
+        );
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="relay_common" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>

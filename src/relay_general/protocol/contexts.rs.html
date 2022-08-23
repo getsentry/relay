@@ -1225,6 +1225,10 @@
 <span id="1217">1217</span>
 <span id="1218">1218</span>
 <span id="1219">1219</span>
+<span id="1220">1220</span>
+<span id="1221">1221</span>
+<span id="1222">1222</span>
+<span id="1223">1223</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">regex::Regex</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
@@ -2045,11 +2049,16 @@
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils</span>::{<span class="ident">assert_eq_dbg</span>, <span class="ident">assert_eq_str</span>};
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Event</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Map</span>, <span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>};
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_device_context_roundtrip</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_device_context_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;name&quot;: &quot;iphone&quot;,
   &quot;family&quot;: &quot;iphone&quot;,
   &quot;model&quot;: &quot;iphone7,3&quot;,
@@ -2089,60 +2098,62 @@
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;device&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Device</span>(<span class="ident">Box::new</span>(<span class="ident">DeviceContext</span> {
-        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">family</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">model</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone7,3&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">model_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;AH223&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">battery_level</span>: <span class="ident">Annotated::new</span>(<span class="number">58.5</span>),
-        <span class="ident">orientation</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;landscape&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">simulator</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">manufacturer</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Apple&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">brand</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">screen_resolution</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;800x600&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">screen_density</span>: <span class="ident">Annotated::new</span>(<span class="number">1.1</span>),
-        <span class="ident">screen_dpi</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
-        <span class="ident">online</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">charging</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">false</span>),
-        <span class="ident">low_memory</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">false</span>),
-        <span class="ident">memory_size</span>: <span class="ident">Annotated::new</span>(<span class="number">3_137_978_368</span>),
-        <span class="ident">free_memory</span>: <span class="ident">Annotated::new</span>(<span class="number">322_781_184</span>),
-        <span class="ident">usable_memory</span>: <span class="ident">Annotated::new</span>(<span class="number">2_843_525_120</span>),
-        <span class="ident">storage_size</span>: <span class="ident">Annotated::new</span>(<span class="number">63_989_469_184</span>),
-        <span class="ident">free_storage</span>: <span class="ident">Annotated::new</span>(<span class="number">31_994_734_592</span>),
-        <span class="ident">external_storage_size</span>: <span class="ident">Annotated::new</span>(<span class="number">2_097_152</span>),
-        <span class="ident">external_free_storage</span>: <span class="ident">Annotated::new</span>(<span class="number">2_097_152</span>),
-        <span class="ident">boot_time</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;2018-02-08T12:52:12Z&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">timezone</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Europe/Vienna&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">processor_count</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
-        <span class="ident">cpu_description</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">processor_frequency</span>: <span class="ident">Annotated::new</span>(<span class="number">2400</span>),
-        <span class="ident">device_type</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Handheld&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">battery_status</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Charging&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">device_unique_identifier</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;1234567&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">supports_vibration</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">supports_accelerometer</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">supports_gyroscope</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">supports_audio</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">supports_location_service</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-            );
-            <span class="ident">map</span>
-        },
-    })));
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Device</span>(<span class="ident">Box::new</span>(<span class="ident">DeviceContext</span> {
+            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">family</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">model</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone7,3&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">model_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;AH223&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">battery_level</span>: <span class="ident">Annotated::new</span>(<span class="number">58.5</span>),
+            <span class="ident">orientation</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;landscape&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">simulator</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+            <span class="ident">manufacturer</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Apple&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">brand</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iphone&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">screen_resolution</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;800x600&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">screen_density</span>: <span class="ident">Annotated::new</span>(<span class="number">1.1</span>),
+            <span class="ident">screen_dpi</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
+            <span class="ident">online</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+            <span class="ident">charging</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">false</span>),
+            <span class="ident">low_memory</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">false</span>),
+            <span class="ident">memory_size</span>: <span class="ident">Annotated::new</span>(<span class="number">3_137_978_368</span>),
+            <span class="ident">free_memory</span>: <span class="ident">Annotated::new</span>(<span class="number">322_781_184</span>),
+            <span class="ident">usable_memory</span>: <span class="ident">Annotated::new</span>(<span class="number">2_843_525_120</span>),
+            <span class="ident">storage_size</span>: <span class="ident">Annotated::new</span>(<span class="number">63_989_469_184</span>),
+            <span class="ident">free_storage</span>: <span class="ident">Annotated::new</span>(<span class="number">31_994_734_592</span>),
+            <span class="ident">external_storage_size</span>: <span class="ident">Annotated::new</span>(<span class="number">2_097_152</span>),
+            <span class="ident">external_free_storage</span>: <span class="ident">Annotated::new</span>(<span class="number">2_097_152</span>),
+            <span class="ident">boot_time</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;2018-02-08T12:52:12Z&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">timezone</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Europe/Vienna&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">processor_count</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
+            <span class="ident">cpu_description</span>: <span class="ident">Annotated::new</span>(
+                <span class="string">&quot;Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz&quot;</span>.<span class="ident">to_string</span>(),
+            ),
+            <span class="ident">processor_frequency</span>: <span class="ident">Annotated::new</span>(<span class="number">2400</span>),
+            <span class="ident">device_type</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Handheld&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">battery_status</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Charging&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">device_unique_identifier</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;1234567&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">supports_vibration</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+            <span class="ident">supports_accelerometer</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+            <span class="ident">supports_gyroscope</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+            <span class="ident">supports_audio</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+            <span class="ident">supports_location_service</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+            <span class="ident">other</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                );
+                <span class="ident">map</span>
+            },
+        })));
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
-}
+        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_os_context_roundtrip</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_os_context_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;name&quot;: &quot;iOS&quot;,
   &quot;version&quot;: &quot;11.4.2&quot;,
   &quot;build&quot;: &quot;FEEDFACE&quot;,
@@ -2152,30 +2163,30 @@
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;os&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
-        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iOS&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;11.4.2&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">build</span>: <span class="ident">Annotated::new</span>(<span class="ident">LenientString</span>(<span class="string">&quot;FEEDFACE&quot;</span>.<span class="ident">to_string</span>())),
-        <span class="ident">kernel_version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;17.4.0&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">rooted</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
-        <span class="ident">raw_description</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iOS 11.4.2 FEEDFACE (17.4.0)&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-            );
-            <span class="ident">map</span>
-        },
-    })));
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
+            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iOS&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;11.4.2&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">build</span>: <span class="ident">Annotated::new</span>(<span class="ident">LenientString</span>(<span class="string">&quot;FEEDFACE&quot;</span>.<span class="ident">to_string</span>())),
+            <span class="ident">kernel_version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;17.4.0&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">rooted</span>: <span class="ident">Annotated::new</span>(<span class="bool-val">true</span>),
+            <span class="ident">raw_description</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;iOS 11.4.2 FEEDFACE (17.4.0)&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">other</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                );
+                <span class="ident">map</span>
+            },
+        })));
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
-}
+        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_runtime_context_roundtrip</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_runtime_context_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;name&quot;: &quot;rustc&quot;,
   &quot;version&quot;: &quot;1.27.0&quot;,
   &quot;build&quot;: &quot;stable&quot;,
@@ -2183,28 +2194,28 @@
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;runtime&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Runtime</span>(<span class="ident">Box::new</span>(<span class="ident">RuntimeContext</span> {
-        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;rustc&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;1.27.0&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">build</span>: <span class="ident">Annotated::new</span>(<span class="ident">LenientString</span>(<span class="string">&quot;stable&quot;</span>.<span class="ident">to_string</span>())),
-        <span class="ident">raw_description</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;rustc 1.27.0 stable&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-            );
-            <span class="ident">map</span>
-        },
-    })));
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Runtime</span>(<span class="ident">Box::new</span>(<span class="ident">RuntimeContext</span> {
+            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;rustc&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;1.27.0&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">build</span>: <span class="ident">Annotated::new</span>(<span class="ident">LenientString</span>(<span class="string">&quot;stable&quot;</span>.<span class="ident">to_string</span>())),
+            <span class="ident">raw_description</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;rustc 1.27.0 stable&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">other</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                );
+                <span class="ident">map</span>
+            },
+        })));
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
-}
+        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_app_context_roundtrip</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_app_context_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;app_start_time&quot;: &quot;2018-02-08T22:21:57Z&quot;,
   &quot;device_app_hash&quot;: &quot;4c793e3776474877ae30618378e9662a&quot;,
   &quot;build_type&quot;: &quot;testflight&quot;,
@@ -2216,57 +2227,57 @@
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;app&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::App</span>(<span class="ident">Box::new</span>(<span class="ident">AppContext</span> {
-        <span class="ident">app_start_time</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;2018-02-08T22:21:57Z&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">device_app_hash</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;4c793e3776474877ae30618378e9662a&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">build_type</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;testflight&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">app_identifier</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;foo.bar.baz&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">app_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Baz App&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">app_version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;1.0&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">app_build</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;100001&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">app_memory</span>: <span class="ident">Annotated::new</span>(<span class="number">22883948</span>),
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-            );
-            <span class="ident">map</span>
-        },
-    })));
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::App</span>(<span class="ident">Box::new</span>(<span class="ident">AppContext</span> {
+            <span class="ident">app_start_time</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;2018-02-08T22:21:57Z&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">device_app_hash</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;4c793e3776474877ae30618378e9662a&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">build_type</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;testflight&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">app_identifier</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;foo.bar.baz&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">app_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Baz App&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">app_version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;1.0&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">app_build</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;100001&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            <span class="ident">app_memory</span>: <span class="ident">Annotated::new</span>(<span class="number">22883948</span>),
+            <span class="ident">other</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                );
+                <span class="ident">map</span>
+            },
+        })));
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
-}
+        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_browser_context_roundtrip</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_browser_context_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;name&quot;: &quot;Google Chrome&quot;,
   &quot;version&quot;: &quot;67.0.3396.99&quot;,
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;browser&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Browser</span>(<span class="ident">Box::new</span>(<span class="ident">BrowserContext</span> {
-        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Google Chrome&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;67.0.3396.99&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-            );
-            <span class="ident">map</span>
-        },
-    })));
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Browser</span>(<span class="ident">Box::new</span>(<span class="ident">BrowserContext</span> {
+            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Google Chrome&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;67.0.3396.99&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">other</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                );
+                <span class="ident">map</span>
+            },
+        })));
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
-}
+        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_trace_context_roundtrip</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_trace_context_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
   &quot;span_id&quot;: &quot;fa90fdead5f74052&quot;,
   &quot;parent_span_id&quot;: &quot;fa90fdead5f74053&quot;,
@@ -2277,172 +2288,169 @@
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;trace&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),
-        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74052&quot;</span>.<span class="ident">into</span>())),
-        <span class="ident">parent_span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
-        <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http&quot;</span>.<span class="ident">into</span>()),
-        <span class="ident">status</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanStatus::Ok</span>),
-        <span class="ident">exclusive_time</span>: <span class="ident">Annotated::new</span>(<span class="number">0.0</span>),
-        <span class="ident">client_sample_rate</span>: <span class="ident">Annotated::new</span>(<span class="number">0.5</span>),
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-            );
-            <span class="ident">map</span>
-        },
-    })));
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
+            <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),
+            <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74052&quot;</span>.<span class="ident">into</span>())),
+            <span class="ident">parent_span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74053&quot;</span>.<span class="ident">into</span>())),
+            <span class="ident">op</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;http&quot;</span>.<span class="ident">into</span>()),
+            <span class="ident">status</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanStatus::Ok</span>),
+            <span class="ident">exclusive_time</span>: <span class="ident">Annotated::new</span>(<span class="number">0.0</span>),
+            <span class="ident">client_sample_rate</span>: <span class="ident">Annotated::new</span>(<span class="number">0.5</span>),
+            <span class="ident">other</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                );
+                <span class="ident">map</span>
+            },
+        })));
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
-}
+        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_trace_context_normalization</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_trace_context_normalization</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;trace_id&quot;: &quot;4C79F60C11214EB38604F4AE0781BFB2&quot;,
   &quot;span_id&quot;: &quot;FA90FDEAD5F74052&quot;,
   &quot;type&quot;: &quot;trace&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
-        <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),
-        <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74052&quot;</span>.<span class="ident">into</span>())),
-        ..<span class="ident">Default::default</span>()
-    })));
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Trace</span>(<span class="ident">Box::new</span>(<span class="ident">TraceContext</span> {
+            <span class="ident">trace_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">TraceId</span>(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.<span class="ident">into</span>())),
+            <span class="ident">span_id</span>: <span class="ident">Annotated::new</span>(<span class="ident">SpanId</span>(<span class="string">&quot;fa90fdead5f74052&quot;</span>.<span class="ident">into</span>())),
+            ..<span class="ident">Default::default</span>()
+        })));
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-}
+        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_other_context_roundtrip</span>() {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Map</span>;
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_other_context_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;other&quot;:&quot;value&quot;,&quot;type&quot;:&quot;mytype&quot;}&quot;#</span>;
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Other</span>({
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
+            <span class="ident">map</span>.<span class="ident">insert</span>(
+                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+            );
+            <span class="ident">map</span>.<span class="ident">insert</span>(
+                <span class="string">&quot;type&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;mytype&quot;</span>.<span class="ident">to_string</span>())),
+            );
+            <span class="ident">map</span>
+        }));
 
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;other&quot;:&quot;value&quot;,&quot;type&quot;:&quot;mytype&quot;}&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Other</span>({
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Map::new</span>();
-        <span class="ident">map</span>.<span class="ident">insert</span>(
-            <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-        );
-        <span class="ident">map</span>.<span class="ident">insert</span>(
-            <span class="string">&quot;type&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;mytype&quot;</span>.<span class="ident">to_string</span>())),
-        );
-        <span class="ident">map</span>
-    }));
+        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
+    }
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
-}
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_untagged_context_deserialize</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;os&quot;: {&quot;name&quot;: &quot;Linux&quot;}}&quot;#</span>;
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_untagged_context_deserialize</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;os&quot;: {&quot;name&quot;: &quot;Linux&quot;}}&quot;#</span>;
+        <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
+            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Linux&quot;</span>.<span class="ident">to_string</span>()),
+            ..<span class="ident">Default::default</span>()
+        }))));
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+        <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;os&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">os_context</span>);
+        <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>(<span class="ident">map</span>));
 
-    <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
-        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Linux&quot;</span>.<span class="ident">to_string</span>()),
-        ..<span class="ident">Default::default</span>()
-    }))));
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-    <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;os&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">os_context</span>);
-    <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>(<span class="ident">map</span>));
+        <span class="macro">assert_eq!</span>(<span class="ident">contexts</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+    }
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">contexts</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-}
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_multiple_contexts_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span>
+            <span class="string">r#&quot;{&quot;os&quot;:{&quot;name&quot;:&quot;Linux&quot;,&quot;type&quot;:&quot;os&quot;},&quot;runtime&quot;:{&quot;name&quot;:&quot;rustc&quot;,&quot;type&quot;:&quot;runtime&quot;}}&quot;#</span>;
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_multiple_contexts_roundtrip</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;os&quot;:{&quot;name&quot;:&quot;Linux&quot;,&quot;type&quot;:&quot;os&quot;},&quot;runtime&quot;:{&quot;name&quot;:&quot;rustc&quot;,&quot;type&quot;:&quot;runtime&quot;}}&quot;#</span>;
-
-    <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
-        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Linux&quot;</span>.<span class="ident">to_string</span>()),
-        ..<span class="ident">Default::default</span>()
-    }))));
-
-    <span class="kw">let</span> <span class="ident">runtime_context</span> <span class="op">=</span>
-        <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Runtime</span>(<span class="ident">Box::new</span>(<span class="ident">RuntimeContext</span> {
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;rustc&quot;</span>.<span class="ident">to_string</span>()),
+        <span class="kw">let</span> <span class="ident">os_context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">OsContext</span> {
+            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Linux&quot;</span>.<span class="ident">to_string</span>()),
             ..<span class="ident">Default::default</span>()
         }))));
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-    <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;os&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">os_context</span>);
-    <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;runtime&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">runtime_context</span>);
-    <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>(<span class="ident">map</span>));
+        <span class="kw">let</span> <span class="ident">runtime_context</span> <span class="op">=</span>
+            <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Runtime</span>(<span class="ident">Box::new</span>(<span class="ident">RuntimeContext</span> {
+                <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;rustc&quot;</span>.<span class="ident">to_string</span>()),
+                ..<span class="ident">Default::default</span>()
+            }))));
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">contexts</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">contexts</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
-}
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+        <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;os&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">os_context</span>);
+        <span class="ident">map</span>.<span class="ident">insert</span>(<span class="string">&quot;runtime&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">runtime_context</span>);
+        <span class="kw">let</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>(<span class="ident">map</span>));
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_context_processing</span>() {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Event</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Meta</span>, <span class="ident">ProcessingResult</span>};
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">contexts</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;runtime&quot;</span>.<span class="ident">to_owned</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Runtime</span>(<span class="ident">Box::new</span>(<span class="ident">RuntimeContext</span> {
-                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;php&quot;</span>.<span class="ident">to_owned</span>()),
-                    <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;7.1.20-1+ubuntu16.04.1+deb.sury.org+1&quot;</span>.<span class="ident">to_owned</span>()),
-                    ..<span class="ident">Default::default</span>()
-                })))),
-            );
-            <span class="ident">contexts</span>
-        })),
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">struct</span> <span class="ident">FooProcessor</span> {
-        <span class="ident">called</span>: <span class="ident">bool</span>,
+        <span class="macro">assert_eq!</span>(<span class="ident">contexts</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">contexts</span>.<span class="ident">to_json</span>().<span class="ident">unwrap</span>());
     }
 
-    <span class="kw">impl</span> <span class="ident">Processor</span> <span class="kw">for</span> <span class="ident">FooProcessor</span> {
-        <span class="attribute">#[<span class="ident">inline</span>]</span>
-        <span class="kw">fn</span> <span class="ident">process_context</span>(
-            <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
-            <span class="ident">_value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span>,
-            <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
-            <span class="ident">_state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
-        ) -&gt; <span class="ident">ProcessingResult</span> {
-            <span class="self">self</span>.<span class="ident">called</span> <span class="op">=</span> <span class="bool-val">true</span>;
-            <span class="prelude-val">Ok</span>(())
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_context_processing</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">contexts</span>: <span class="ident">Annotated::new</span>(<span class="ident">Contexts</span>({
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">contexts</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;runtime&quot;</span>.<span class="ident">to_owned</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Runtime</span>(<span class="ident">Box::new</span>(<span class="ident">RuntimeContext</span> {
+                        <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;php&quot;</span>.<span class="ident">to_owned</span>()),
+                        <span class="ident">version</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;7.1.20-1+ubuntu16.04.1+deb.sury.org+1&quot;</span>.<span class="ident">to_owned</span>()),
+                        ..<span class="ident">Default::default</span>()
+                    })))),
+                );
+                <span class="ident">contexts</span>
+            })),
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">struct</span> <span class="ident">FooProcessor</span> {
+            <span class="ident">called</span>: <span class="ident">bool</span>,
         }
+
+        <span class="kw">impl</span> <span class="ident">Processor</span> <span class="kw">for</span> <span class="ident">FooProcessor</span> {
+            <span class="attribute">#[<span class="ident">inline</span>]</span>
+            <span class="kw">fn</span> <span class="ident">process_context</span>(
+                <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
+                <span class="ident">_value</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Context</span>,
+                <span class="ident">_meta</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Meta</span>,
+                <span class="ident">_state</span>: <span class="kw-2">&amp;</span><span class="ident">ProcessingState</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>,
+            ) -&gt; <span class="ident">ProcessingResult</span> {
+                <span class="self">self</span>.<span class="ident">called</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                <span class="prelude-val">Ok</span>(())
+            }
+        }
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">FooProcessor</span> { <span class="ident">called</span>: <span class="bool-val">false</span> };
+        <span class="ident"><span class="kw">crate</span>::processor::process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>())
+            .<span class="ident">unwrap</span>();
+        <span class="macro">assert!</span>(<span class="ident">processor</span>.<span class="ident">called</span>);
     }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">FooProcessor</span> { <span class="ident">called</span>: <span class="bool-val">false</span> };
-    <span class="ident"><span class="kw">crate</span>::processor::process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert!</span>(<span class="ident">processor</span>.<span class="ident">called</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_reprocessing_context_roundtrip</span>() {
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_reprocessing_context_roundtrip</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{
   &quot;original_issue_id&quot;: 123,
   &quot;original_primary_hash&quot;: &quot;9f3ee8ff49e6ca0a2bee80d76fee8f0c&quot;,
   &quot;random&quot;: &quot;stuff&quot;,
   &quot;type&quot;: &quot;reprocessing&quot;
 }&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Reprocessing</span>(<span class="ident">Box::new</span>(<span class="ident">ReprocessingContext</span> {
-        <span class="ident">original_issue_id</span>: <span class="ident">Annotated::new</span>(<span class="number">123</span>),
-        <span class="ident">original_primary_hash</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;9f3ee8ff49e6ca0a2bee80d76fee8f0c&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;random&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;stuff&quot;</span>.<span class="ident">to_string</span>())),
-            );
-            <span class="ident">map</span>
-        },
-    })));
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Context::Reprocessing</span>(<span class="ident">Box::new</span>(<span class="ident">ReprocessingContext</span> {
+            <span class="ident">original_issue_id</span>: <span class="ident">Annotated::new</span>(<span class="number">123</span>),
+            <span class="ident">original_primary_hash</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;9f3ee8ff49e6ca0a2bee80d76fee8f0c&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">other</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;random&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;stuff&quot;</span>.<span class="ident">to_string</span>())),
+                );
+                <span class="ident">map</span>
+            },
+        })));
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
-    <span class="macro">assert_eq_str!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">context</span>, <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">json</span>, <span class="ident">context</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>());
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>

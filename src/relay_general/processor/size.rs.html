@@ -449,6 +449,12 @@
 <span id="441">441</span>
 <span id="442">442</span>
 <span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde::de::value::Error</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">ser</span>, <span class="ident">Serialize</span>};
 <span class="kw">use</span> <span class="ident">smallvec::SmallVec</span>;
@@ -885,12 +891,18 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_estimate_size</span>() {
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;a&quot;:[&quot;Hello&quot;,&quot;World&quot;,&quot;aha&quot;,&quot;hmm&quot;,false,{&quot;blub&quot;:42,&quot;x&quot;:true},null]}&quot;#</span>;
-    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq!</span>(<span class="ident">estimate_size</span>(<span class="ident">value</span>.<span class="ident">value</span>()), <span class="ident">json</span>.<span class="ident">len</span>());
+
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_estimate_size</span>() {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;{&quot;a&quot;:[&quot;Hello&quot;,&quot;World&quot;,&quot;aha&quot;,&quot;hmm&quot;,false,{&quot;blub&quot;:42,&quot;x&quot;:true},null]}&quot;#</span>;
+        <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Object</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(<span class="ident">estimate_size</span>(<span class="ident">value</span>.<span class="ident">value</span>()), <span class="ident">json</span>.<span class="ident">len</span>());
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>

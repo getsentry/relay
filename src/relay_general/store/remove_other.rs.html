@@ -241,8 +241,6 @@
 <span id="233">233</span>
 <span id="234">234</span>
 <span id="235">235</span>
-<span id="236">236</span>
-<span id="237">237</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">ProcessValue</span>, <span class="ident">ProcessingState</span>, <span class="ident">Processor</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Breadcrumb</span>, <span class="ident">Event</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">ErrorKind</span>, <span class="ident">Meta</span>, <span class="ident">Object</span>, <span class="ident">ProcessingResult</span>, <span class="ident">Value</span>};
@@ -318,72 +316,42 @@
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">use</span> {
-    <span class="ident"><span class="kw">crate</span>::processor::process_value</span>,
-    <span class="ident"><span class="kw">crate</span>::protocol::ContextInner</span>,
-    <span class="ident"><span class="kw">crate</span>::testutils</span>::{<span class="ident">assert_eq_dbg</span>, <span class="ident">get_value</span>},
-};
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_remove_legacy_attributes</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;applecrashreport&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-            <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;device&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-            <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;repos&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-            <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;query&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-            <span class="ident">other</span>
-        },
-        ..<span class="ident">Default::default</span>()
-    });
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::process_value</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">OsContext</span>, <span class="ident">User</span>, <span class="ident">Values</span>};
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::get_value</span>;
 
-    <span class="ident">process_value</span>(
-        <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
-        <span class="ident">ProcessingState::root</span>(),
-    )
-    .<span class="ident">unwrap</span>();
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="macro">assert!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">other</span>.<span class="ident">is_empty</span>());
-}
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_remove_legacy_attributes</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">other</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;applecrashreport&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
+                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;device&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
+                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;repos&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
+                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;query&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
+                <span class="ident">other</span>
+            },
+            ..<span class="ident">Default::default</span>()
+        });
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_remove_unknown_attributes</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">other</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-            <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-            <span class="ident">other</span>
-        },
-        ..<span class="ident">Default::default</span>()
-    });
+        <span class="ident">process_value</span>(
+            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
+            <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
+            <span class="ident">ProcessingState::root</span>(),
+        )
+        .<span class="ident">unwrap</span>();
 
-    <span class="ident">process_value</span>(
-        <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
-        <span class="ident">ProcessingState::root</span>(),
-    )
-    .<span class="ident">unwrap</span>();
+        <span class="macro">assert!</span>(<span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">other</span>.<span class="ident">is_empty</span>());
+    }
 
-    <span class="kw">let</span> <span class="ident">other</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">other</span>;
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;foo&quot;</span>).<span class="ident">unwrap</span>(),
-        <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
-    );
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;bar&quot;</span>).<span class="ident">unwrap</span>(),
-        <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_remove_nested_other</span>() {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::User</span>;
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">user</span>: <span class="ident">Annotated::from</span>(<span class="ident">User</span> {
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_remove_unknown_attributes</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
             <span class="ident">other</span>: {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
                 <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
@@ -391,94 +359,122 @@
                 <span class="ident">other</span>
             },
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    });
+        });
 
-    <span class="ident">process_value</span>(
-        <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
-        <span class="ident">ProcessingState::root</span>(),
-    )
-    .<span class="ident">unwrap</span>();
+        <span class="ident">process_value</span>(
+            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
+            <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
+            <span class="ident">ProcessingState::root</span>(),
+        )
+        .<span class="ident">unwrap</span>();
 
-    <span class="macro">assert!</span>(<span class="macro">get_value!</span>(<span class="ident">event</span>.<span class="macro">user!</span>).<span class="ident">other</span>.<span class="ident">is_empty</span>());
-}
+        <span class="kw">let</span> <span class="ident">other</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">other</span>;
+        <span class="macro">assert_eq!</span>(
+            <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;foo&quot;</span>).<span class="ident">unwrap</span>(),
+            <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;bar&quot;</span>).<span class="ident">unwrap</span>(),
+            <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
+        );
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_retain_context_other</span>() {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">Contexts</span>, <span class="ident">OsContext</span>};
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_remove_nested_other</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">user</span>: <span class="ident">Annotated::from</span>(<span class="ident">User</span> {
+                <span class="ident">other</span>: {
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                    <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
+                    <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
+                    <span class="ident">other</span>
+                },
+                ..<span class="ident">Default::default</span>()
+            }),
+            ..<span class="ident">Default::default</span>()
+        });
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext::default</span>();
-    <span class="ident">os</span>.<span class="ident">other</span>
-        .<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::from</span>(<span class="ident">Value::U64</span>(<span class="number">42</span>)));
+        <span class="ident">process_value</span>(
+            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
+            <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
+            <span class="ident">ProcessingState::root</span>(),
+        )
+        .<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-    <span class="ident">contexts</span>.<span class="ident">insert</span>(
-        <span class="string">&quot;renamed&quot;</span>.<span class="ident">to_string</span>(),
-        <span class="ident">Annotated::from</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">os</span>)))),
-    );
+        <span class="macro">assert!</span>(<span class="macro">get_value!</span>(<span class="ident">event</span>.<span class="macro">user!</span>).<span class="ident">other</span>.<span class="ident">is_empty</span>());
+    }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">contexts</span>: <span class="ident">Annotated::from</span>(<span class="ident">Contexts</span>(<span class="ident">contexts</span>.<span class="ident">clone</span>())),
-        ..<span class="ident">Default::default</span>()
-    });
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_retain_context_other</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os</span> <span class="op">=</span> <span class="ident">OsContext::default</span>();
+        <span class="ident">os</span>.<span class="ident">other</span>
+            .<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Annotated::from</span>(<span class="ident">Value::U64</span>(<span class="number">42</span>)));
 
-    <span class="ident">process_value</span>(
-        <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
-        <span class="ident">ProcessingState::root</span>(),
-    )
-    .<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contexts</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+        <span class="ident">contexts</span>.<span class="ident">insert</span>(
+            <span class="string">&quot;renamed&quot;</span>.<span class="ident">to_string</span>(),
+            <span class="ident">Annotated::from</span>(<span class="ident">ContextInner</span>(<span class="ident">Context::Os</span>(<span class="ident">Box::new</span>(<span class="ident">os</span>)))),
+        );
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="macro">get_value!</span>(<span class="ident">event</span>.<span class="macro">contexts!</span>).<span class="number">0</span>, <span class="ident">contexts</span>);
-}
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">contexts</span>: <span class="ident">Annotated::from</span>(<span class="ident">Contexts</span>(<span class="ident">contexts</span>.<span class="ident">clone</span>())),
+            ..<span class="ident">Default::default</span>()
+        });
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_breadcrumb_errors</span>() {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Values</span>;
+        <span class="ident">process_value</span>(
+            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
+            <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
+            <span class="ident">ProcessingState::root</span>(),
+        )
+        .<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">breadcrumbs</span>: <span class="ident">Annotated::new</span>(<span class="ident">Values::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
-            <span class="ident">other</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
-                <span class="ident">other</span>
-            },
-            ..<span class="ident">Breadcrumb::default</span>()
-        })])),
-        ..<span class="ident">Default::default</span>()
-    });
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(<span class="ident">event</span>.<span class="macro">contexts!</span>).<span class="number">0</span>, <span class="ident">contexts</span>);
+    }
 
-    <span class="ident">process_value</span>(
-        <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
-        <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
-        <span class="ident">ProcessingState::root</span>(),
-    )
-    .<span class="ident">unwrap</span>();
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_breadcrumb_errors</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">breadcrumbs</span>: <span class="ident">Annotated::new</span>(<span class="ident">Values::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Breadcrumb</span> {
+                <span class="ident">other</span>: {
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                    <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
+                    <span class="ident">other</span>.<span class="ident">insert</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Value::U64</span>(<span class="number">42</span>).<span class="ident">into</span>());
+                    <span class="ident">other</span>
+                },
+                ..<span class="ident">Breadcrumb::default</span>()
+            })])),
+            ..<span class="ident">Default::default</span>()
+        });
 
-    <span class="kw">let</span> <span class="ident">other</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>()
-        .<span class="ident">breadcrumbs</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>()
-        .<span class="ident">values</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>()[<span class="number">0</span>]
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>()
-        .<span class="ident">other</span>;
+        <span class="ident">process_value</span>(
+            <span class="kw-2">&amp;mut</span> <span class="ident">event</span>,
+            <span class="kw-2">&amp;mut</span> <span class="ident">RemoveOtherProcessor</span>,
+            <span class="ident">ProcessingState::root</span>(),
+        )
+        .<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;foo&quot;</span>).<span class="ident">unwrap</span>(),
-        <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
-    );
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;bar&quot;</span>).<span class="ident">unwrap</span>(),
-        <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
-    );
+        <span class="kw">let</span> <span class="ident">other</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event</span>
+            .<span class="ident">value</span>()
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">breadcrumbs</span>
+            .<span class="ident">value</span>()
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">values</span>
+            .<span class="ident">value</span>()
+            .<span class="ident">unwrap</span>()[<span class="number">0</span>]
+            .<span class="ident">value</span>()
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">other</span>;
+
+        <span class="macro">assert_eq!</span>(
+            <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;foo&quot;</span>).<span class="ident">unwrap</span>(),
+            <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">get</span>(<span class="string">&quot;bar&quot;</span>).<span class="ident">unwrap</span>(),
+            <span class="ident">Annotated::from_error</span>(<span class="ident">ErrorKind::InvalidAttribute</span>, <span class="prelude-val">None</span>)
+        );
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>

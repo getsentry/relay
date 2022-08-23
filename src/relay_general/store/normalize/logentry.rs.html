@@ -211,6 +211,12 @@
 <span id="203">203</span>
 <span id="204">204</span>
 <span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
 </pre><pre class="rust"><code><span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">test</span>, <span class="ident">allow</span>(<span class="ident">unused_must_use</span>))]</span>
 
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
@@ -294,127 +300,133 @@
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">use</span> {<span class="ident"><span class="kw">crate</span>::testutils::assert_eq_dbg</span>, <span class="ident"><span class="kw">crate</span>::types::Object</span>};
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_format_python</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(
-            <span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>(),
-        ))])),
-        ..<span class="ident">LogEntry::default</span>()
-    };
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Object</span>;
 
-    <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
-}
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_format_python_named</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, %(name)s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Object</span>({
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">object</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;name&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>())),
-            );
-            <span class="ident">object</span>
-        })),
-        ..<span class="ident">LogEntry::default</span>()
-    };
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_format_python</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
+            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(
+                <span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>(),
+            ))])),
+            ..<span class="ident">LogEntry::default</span>()
+        };
 
-    <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
-}
+        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_format_java</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, {}!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(
-            <span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>(),
-        ))])),
-        ..<span class="ident">LogEntry::default</span>()
-    };
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_format_python_named</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
+            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, %(name)s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Object</span>({
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">object</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">object</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;name&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>())),
+                );
+                <span class="ident">object</span>
+            })),
+            ..<span class="ident">LogEntry::default</span>()
+        };
 
-    <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
-}
+        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_format_dotnet</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, {0}!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(
-            <span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>(),
-        ))])),
-        ..<span class="ident">LogEntry::default</span>()
-    };
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_format_java</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
+            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, {}!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(
+                <span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>(),
+            ))])),
+            ..<span class="ident">LogEntry::default</span>()
+        };
 
-    <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
-}
+        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_format_no_params</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        ..<span class="ident">LogEntry::default</span>()
-    };
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_format_dotnet</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
+            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, {0}!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            <span class="ident">params</span>: <span class="ident">Annotated::new</span>(<span class="ident">Value::Array</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(
+                <span class="string">&quot;world&quot;</span>.<span class="ident">to_string</span>(),
+            ))])),
+            ..<span class="ident">LogEntry::default</span>()
+        };
 
-    <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, %s!&quot;</span>));
-}
+        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_only_message</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        ..<span class="ident">LogEntry::default</span>()
-    };
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_format_no_params</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
+            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, %s!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            ..<span class="ident">LogEntry::default</span>()
+        };
 
-    <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">logentry</span>.<span class="ident">message</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
-}
+        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, %s!&quot;</span>));
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_message_formatted_equal</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-        <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        <span class="ident">formatted</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-        ..<span class="ident">LogEntry::default</span>()
-    };
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_only_message</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
+            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            ..<span class="ident">LogEntry::default</span>()
+        };
 
-    <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">logentry</span>.<span class="ident">message</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
-}
+        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">message</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_empty_missing_message</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
-        <span class="ident">params</span>: <span class="ident">Value::U64</span>(<span class="number">0</span>).<span class="ident">into</span>(), <span class="comment">// Ensure the logentry is not empty</span>
-        ..<span class="ident">LogEntry::default</span>()
-    };
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::default</span>();
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_message_formatted_equal</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
+            <span class="ident">message</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            <span class="ident">formatted</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;hello, world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+            ..<span class="ident">LogEntry::default</span>()
+        };
 
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">meta</span>),
-        <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueSoft</span>)
-    );
-    <span class="macro">assert!</span>(<span class="ident">meta</span>.<span class="ident">has_errors</span>());
-}
+        <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">Meta::default</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">message</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">logentry</span>.<span class="ident">formatted</span>.<span class="ident">as_str</span>(), <span class="prelude-val">Some</span>(<span class="string">&quot;hello, world!&quot;</span>));
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_empty_logentry</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry::default</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::default</span>();
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_empty_missing_message</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry</span> {
+            <span class="ident">params</span>: <span class="ident">Value::U64</span>(<span class="number">0</span>).<span class="ident">into</span>(), <span class="comment">// Ensure the logentry is not empty</span>
+            ..<span class="ident">LogEntry::default</span>()
+        };
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::default</span>();
 
-    <span class="macro">assert_eq_dbg!</span>(<span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">meta</span>), <span class="prelude-val">Ok</span>(()));
-    <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">meta</span>.<span class="ident">has_errors</span>());
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">meta</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">ProcessingAction::DeleteValueSoft</span>)
+        );
+        <span class="macro">assert!</span>(<span class="ident">meta</span>.<span class="ident">has_errors</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_empty_logentry</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logentry</span> <span class="op">=</span> <span class="ident">LogEntry::default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::default</span>();
+
+        <span class="macro">assert_eq!</span>(<span class="ident">normalize_logentry</span>(<span class="kw-2">&amp;mut</span> <span class="ident">logentry</span>, <span class="kw-2">&amp;mut</span> <span class="ident">meta</span>), <span class="prelude-val">Ok</span>(()));
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">meta</span>.<span class="ident">has_errors</span>());
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>

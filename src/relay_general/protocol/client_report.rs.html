@@ -158,9 +158,9 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils</span>::{<span class="ident">assert_eq_dbg</span>, <span class="ident">assert_eq_str</span>};
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_client_report_roundtrip</span>() {
@@ -222,8 +222,8 @@
         };
 
         <span class="kw">let</span> <span class="ident">parsed</span> <span class="op">=</span> <span class="ident">ClientReport::parse</span>(<span class="ident">json</span>.<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq_dbg!</span>(<span class="ident">update</span>, <span class="ident">parsed</span>);
-        <span class="macro">assert_eq_str!</span>(<span class="ident">output</span>, <span class="ident">serde_json::to_string_pretty</span>(<span class="kw-2">&amp;</span><span class="ident">update</span>).<span class="ident">unwrap</span>());
+        <span class="macro">assert_eq!</span>(<span class="ident">update</span>, <span class="ident">parsed</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">output</span>, <span class="ident">serde_json::to_string_pretty</span>(<span class="kw-2">&amp;</span><span class="ident">update</span>).<span class="ident">unwrap</span>());
     }
 }
 </code></pre></div>

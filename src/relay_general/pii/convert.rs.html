@@ -1401,7 +1401,6 @@
 <span id="1393">1393</span>
 <span id="1394">1394</span>
 <span id="1395">1395</span>
-<span id="1396">1396</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 
 <span class="kw">use</span> <span class="ident">regex::RegexBuilder</span>;
@@ -1527,12 +1526,15 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+
     <span class="doccomment">/// These tests are ported from Sentry&#39;s Python testsuite (test_data_scrubber). Each testcase</span>
     <span class="doccomment">/// has an equivalent testcase in Python.</span>
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii</span>::{<span class="ident">DataScrubbingConfig</span>, <span class="ident">PiiConfig</span>, <span class="ident">PiiProcessor</span>};
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::Event</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils</span>::{<span class="ident">assert_annotated_snapshot</span>, <span class="ident">assert_eq_dbg</span>};
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::store</span>::{<span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>};
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::assert_annotated_snapshot</span>;
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::FromValue</span>;
 
     <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::to_pii_config</span> <span class="kw">as</span> <span class="ident">to_pii_config_impl</span>;
@@ -1542,7 +1544,7 @@
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">config</span>) <span class="op">=</span> <span class="ident">rv</span> {
             <span class="kw">let</span> <span class="ident">roundtrip</span>: <span class="ident">PiiConfig</span> <span class="op">=</span>
                 <span class="ident">serde_json::from_value</span>(<span class="ident">serde_json::to_value</span>(<span class="ident">config</span>).<span class="ident">unwrap</span>()).<span class="ident">unwrap</span>();
-            <span class="macro">assert_eq_dbg!</span>(<span class="kw-2">&amp;</span><span class="ident">roundtrip</span>, <span class="ident">config</span>);
+            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span><span class="ident">roundtrip</span>, <span class="ident">config</span>);
         }
         <span class="ident">rv</span>
     }
@@ -2229,8 +2231,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     <span class="doccomment">/// then more granular/sophisticated because we now understand the structure.</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_http_body</span>() {
-        <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::store</span>::{<span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>};
-
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
             <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;request&quot;</span>: {
@@ -2256,8 +2256,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     <span class="doccomment">/// nevertheless.</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sanitize_http_body_string</span>() {
-        <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::store</span>::{<span class="ident">StoreConfig</span>, <span class="ident">StoreProcessor</span>};
-
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">Event::from_value</span>(
             <span class="macro">serde_json::json!</span>({
                 <span class="string">&quot;request&quot;</span>: {

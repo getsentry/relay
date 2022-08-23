@@ -745,6 +745,9 @@
 <span id="737">737</span>
 <span id="738">738</span>
 <span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 <span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 
@@ -888,13 +891,16 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
+    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
+
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{
         <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Span</span>, <span class="ident">SpanId</span>, <span class="ident">Timestamp</span>, <span class="ident">TraceContext</span>,
         <span class="ident">TraceId</span>,
     };
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Object</span>;
-    <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">TimeZone</span>, <span class="ident">Utc</span>};
+
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn</span> <span class="ident">make_event</span>(
         <span class="ident">start</span>: <span class="ident">Timestamp</span>,

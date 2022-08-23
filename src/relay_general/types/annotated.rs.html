@@ -543,6 +543,9 @@
 <span id="535">535</span>
 <span id="536">536</span>
 <span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
@@ -849,7 +852,6 @@
             <span class="ident">map_ser</span>.<span class="ident">serialize_key</span>(<span class="string">&quot;_meta&quot;</span>)<span class="question-mark">?</span>;
             <span class="ident">map_ser</span>.<span class="ident">serialize_value</span>(<span class="kw-2">&amp;</span><span class="ident">meta_tree</span>)<span class="question-mark">?</span>;
         }
-
         <span class="ident">map_ser</span>.<span class="ident">end</span>()
     }
 
@@ -984,21 +986,24 @@
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::assert_eq_str</span>;
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_annotated_deserialize_with_meta</span>() {
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::ErrorKind</span>;
 
-    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>)]</span>
-    <span class="kw">struct</span> <span class="ident">Foo</span> {
-        <span class="ident">id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-        <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
-        <span class="ident">ty</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    }
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">let</span> <span class="ident">annotated_value</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Foo</span><span class="op">&gt;</span><span class="ident">::from_json</span>(
-        <span class="string">r#&quot;
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_annotated_deserialize_with_meta</span>() {
+        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Empty</span>, <span class="ident">FromValue</span>, <span class="ident">IntoValue</span>)]</span>
+        <span class="kw">struct</span> <span class="ident">Foo</span> {
+            <span class="ident">id</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+            <span class="attribute">#[<span class="ident">metastructure</span>(<span class="ident">field</span> <span class="op">=</span> <span class="string">&quot;type&quot;</span>)]</span>
+            <span class="ident">ty</span>: <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+        }
+
+        <span class="kw">let</span> <span class="ident">annotated_value</span> <span class="op">=</span> <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Foo</span><span class="op">&gt;</span><span class="ident">::from_json</span>(
+            <span class="string">r#&quot;
         {
             &quot;id&quot;: &quot;blaflasel&quot;,
             &quot;type&quot;: &quot;testing&quot;,
@@ -1016,42 +1021,42 @@
             }
         }
     &quot;#</span>,
-    )
-    .<span class="ident">unwrap</span>();
+        )
+        .<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq!</span>(<span class="ident">annotated_value</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">id</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">annotated_value</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">id</span>
-            .<span class="ident">meta</span>()
-            .<span class="ident">iter_errors</span>()
-            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span>(),
-        <span class="macro">vec!</span>[
-            <span class="kw-2">&amp;</span><span class="ident">Error::new</span>(<span class="ident">ErrorKind::Unknown</span>(<span class="string">&quot;unknown_error&quot;</span>.<span class="ident">to_string</span>())),
-            <span class="kw-2">&amp;</span><span class="ident">Error::expected</span>(<span class="string">&quot;an unsigned integer&quot;</span>)
-        ],
-    );
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">annotated_value</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">ty</span>.<span class="ident">as_str</span>(),
-        <span class="prelude-val">Some</span>(<span class="string">&quot;testing&quot;</span>)
-    );
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">annotated_value</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">ty</span>
-            .<span class="ident">meta</span>()
-            .<span class="ident">iter_errors</span>()
-            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span>(),
-        <span class="macro">vec!</span>[<span class="kw-2">&amp;</span><span class="ident">Error::new</span>(<span class="ident">ErrorKind::InvalidData</span>)],
-    );
+        <span class="macro">assert_eq!</span>(<span class="ident">annotated_value</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">id</span>.<span class="ident">value</span>(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">annotated_value</span>
+                .<span class="ident">value</span>()
+                .<span class="ident">unwrap</span>()
+                .<span class="ident">id</span>
+                .<span class="ident">meta</span>()
+                .<span class="ident">iter_errors</span>()
+                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span>(),
+            <span class="macro">vec!</span>[
+                <span class="kw-2">&amp;</span><span class="ident">Error::new</span>(<span class="ident">ErrorKind::Unknown</span>(<span class="string">&quot;unknown_error&quot;</span>.<span class="ident">to_string</span>())),
+                <span class="kw-2">&amp;</span><span class="ident">Error::expected</span>(<span class="string">&quot;an unsigned integer&quot;</span>)
+            ],
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">annotated_value</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">ty</span>.<span class="ident">as_str</span>(),
+            <span class="prelude-val">Some</span>(<span class="string">&quot;testing&quot;</span>)
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">annotated_value</span>
+                .<span class="ident">value</span>()
+                .<span class="ident">unwrap</span>()
+                .<span class="ident">ty</span>
+                .<span class="ident">meta</span>()
+                .<span class="ident">iter_errors</span>()
+                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span>(),
+            <span class="macro">vec!</span>[<span class="kw-2">&amp;</span><span class="ident">Error::new</span>(<span class="ident">ErrorKind::InvalidData</span>)],
+        );
 
-    <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">annotated_value</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq_str!</span>(
-        <span class="ident">json</span>,
-        <span class="string">r#&quot;{
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="ident">annotated_value</span>.<span class="ident">to_json_pretty</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">json</span>,
+            <span class="string">r#&quot;{
   &quot;id&quot;: null,
   &quot;type&quot;: &quot;testing&quot;,
   &quot;_meta&quot;: {
@@ -1078,7 +1083,8 @@
     }
   }
 }&quot;#</span>
-    );
+        );
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>

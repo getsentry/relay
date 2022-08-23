@@ -219,6 +219,8 @@
 <span id="211">211</span>
 <span id="212">212</span>
 <span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::ProcessValue</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::LenientString</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{
@@ -336,101 +338,103 @@
 <span class="kw">impl</span> <span class="ident">ProcessValue</span> <span class="kw">for</span> <span class="ident">Fingerprint</span> {}
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::assert_eq_dbg</span>;
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_fingerprint_string</span>() {
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;fingerprint&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[\&quot;fingerprint\&quot;]&quot;</span>).<span class="ident">unwrap</span>()
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_fingerprint_bool</span>() {
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;True&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;False&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[true, false]&quot;</span>).<span class="ident">unwrap</span>()
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_fingerprint_number</span>() {
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;-22&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[-22]&quot;</span>).<span class="ident">unwrap</span>()
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_fingerprint_float</span>() {
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;3&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[3.0]&quot;</span>).<span class="ident">unwrap</span>()
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_fingerprint_float_trunc</span>() {
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;3&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[3.5]&quot;</span>).<span class="ident">unwrap</span>()
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_fingerprint_float_strip</span>() {
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Meta</span>;
 
-    <span class="kw">let</span> <span class="ident">bad_values</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::F64</span>(<span class="op">-</span><span class="number">1e100</span>))];
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::from_error</span>(<span class="ident">Error::with</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
-        <span class="ident">e</span>.<span class="ident">insert</span>(<span class="string">&quot;value&quot;</span>, <span class="ident">bad_values</span>);
-    }));
-    <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>));
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_fingerprint_string</span>() {
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;fingerprint&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
+            <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[\&quot;fingerprint\&quot;]&quot;</span>).<span class="ident">unwrap</span>()
+        );
+    }
 
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[-1e100]&quot;</span>).<span class="ident">unwrap</span>()
-    );
-}
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_fingerprint_bool</span>() {
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;True&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;False&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
+            <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[true, false]&quot;</span>).<span class="ident">unwrap</span>()
+        );
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_fingerprint_float_bounds</span>() {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Meta</span>;
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_fingerprint_number</span>() {
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;-22&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
+            <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[-22]&quot;</span>).<span class="ident">unwrap</span>()
+        );
+    }
 
-    <span class="kw">let</span> <span class="ident">bad_values</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::F64</span>(
-        <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::excessive_precision</span>)]</span>
-        <span class="number">1.797_693_134_862_315_7e+308</span>,
-    ))];
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_fingerprint_float</span>() {
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;3&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
+            <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[3.0]&quot;</span>).<span class="ident">unwrap</span>()
+        );
+    }
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::from_error</span>(<span class="ident">Error::with</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
-        <span class="ident">e</span>.<span class="ident">insert</span>(<span class="string">&quot;value&quot;</span>, <span class="ident">bad_values</span>);
-    }));
-    <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>));
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_fingerprint_float_trunc</span>() {
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="string">&quot;3&quot;</span>.<span class="ident">to_string</span>()].<span class="ident">into</span>()),
+            <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[3.5]&quot;</span>).<span class="ident">unwrap</span>()
+        );
+    }
 
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[1.7976931348623157e+308]&quot;</span>).<span class="ident">unwrap</span>()
-    );
-}
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_fingerprint_float_strip</span>() {
+        <span class="kw">let</span> <span class="ident">bad_values</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::F64</span>(<span class="op">-</span><span class="number">1e100</span>))];
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_fingerprint_invalid_fallback</span>() {
-    <span class="comment">// XXX: review, this was changed after refactor</span>
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="ident">Annotated::new</span>(<span class="ident">Fingerprint</span>(<span class="macro">vec!</span>[<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>()])),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[\&quot;a\&quot;, null, \&quot;d\&quot;]&quot;</span>).<span class="ident">unwrap</span>()
-    );
-}
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::from_error</span>(<span class="ident">Error::with</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
+            <span class="ident">e</span>.<span class="ident">insert</span>(<span class="string">&quot;value&quot;</span>, <span class="ident">bad_values</span>);
+        }));
+        <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>));
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_fingerprint_empty</span>() {
-    <span class="comment">// XXX: review, this was changed after refactor</span>
-    <span class="macro">assert_eq_dbg!</span>(
-        <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[].<span class="ident">into</span>()),
-        <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[]&quot;</span>).<span class="ident">unwrap</span>()
-    );
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
+            <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[-1e100]&quot;</span>).<span class="ident">unwrap</span>()
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_fingerprint_float_bounds</span>() {
+        <span class="kw">let</span> <span class="ident">bad_values</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">Value::F64</span>(
+            <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::excessive_precision</span>)]</span>
+            <span class="number">1.797_693_134_862_315_7e+308</span>,
+        ))];
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">meta</span> <span class="op">=</span> <span class="ident">Meta::from_error</span>(<span class="ident">Error::with</span>(<span class="ident">ErrorKind::InvalidData</span>, <span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
+            <span class="ident">e</span>.<span class="ident">insert</span>(<span class="string">&quot;value&quot;</span>, <span class="ident">bad_values</span>);
+        }));
+        <span class="ident">meta</span>.<span class="ident">set_original_length</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>));
+
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">Annotated</span>(<span class="prelude-val">None</span>, <span class="ident">meta</span>),
+            <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[1.7976931348623157e+308]&quot;</span>).<span class="ident">unwrap</span>()
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_fingerprint_invalid_fallback</span>() {
+        <span class="comment">// XXX: review, this was changed after refactor</span>
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">Annotated::new</span>(<span class="ident">Fingerprint</span>(<span class="macro">vec!</span>[<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>()])),
+            <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[\&quot;a\&quot;, null, \&quot;d\&quot;]&quot;</span>).<span class="ident">unwrap</span>()
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_fingerprint_empty</span>() {
+        <span class="comment">// XXX: review, this was changed after refactor</span>
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[].<span class="ident">into</span>()),
+            <span class="ident">Annotated</span>::<span class="op">&lt;</span><span class="ident">Fingerprint</span><span class="op">&gt;</span><span class="ident">::from_json</span>(<span class="string">&quot;[]&quot;</span>).<span class="ident">unwrap</span>()
+        );
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>

@@ -1036,6 +1036,12 @@
 <span id="1028">1028</span>
 <span id="1029">1029</span>
 <span id="1030">1030</span>
+<span id="1031">1031</span>
+<span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Event</span>, <span class="ident">Mechanism</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Error</span>, <span class="ident">ProcessingAction</span>, <span class="ident">ProcessingResult</span>};
 
@@ -1691,380 +1697,386 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_missing</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        ..<span class="ident">Default::default</span>()
-    };
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
 
-    <span class="kw">let</span> <span class="ident">old_mechanism</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">clone</span>();
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::SerializableAnnotated</span>;
 
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="macro">assert_eq!</span>(<span class="ident">mechanism</span>, <span class="ident">old_mechanism</span>);
-}
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_missing</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            ..<span class="ident">Default::default</span>()
+        };
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_errno</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-            <span class="ident">errno</span>: <span class="ident">Annotated::new</span>(<span class="ident">CError</span> {
-                <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
+        <span class="kw">let</span> <span class="ident">old_mechanism</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">clone</span>();
+
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
+
+        <span class="macro">assert_eq!</span>(<span class="ident">mechanism</span>, <span class="ident">old_mechanism</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_errno</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
+                <span class="ident">errno</span>: <span class="ident">Annotated::new</span>(<span class="ident">CError</span> {
+                    <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
+                    ..<span class="ident">Default::default</span>()
+                }),
                 ..<span class="ident">Default::default</span>()
             }),
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    };
+        };
 
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">Some</span>(<span class="ident">OsHint::Linux</span>)).<span class="ident">unwrap</span>();
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">Some</span>(<span class="ident">OsHint::Linux</span>)).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">errno</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errno</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">errno</span>,
-        <span class="kw-2">&amp;</span><span class="ident">CError</span> {
-            <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;ENOENT&quot;</span>.<span class="ident">to_string</span>()),
-        }
-    );
-}
+        <span class="kw">let</span> <span class="ident">errno</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errno</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">errno</span>,
+            <span class="kw-2">&amp;</span><span class="ident">CError</span> {
+                <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
+                <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;ENOENT&quot;</span>.<span class="ident">to_string</span>()),
+            }
+        );
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_errno_override</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-            <span class="ident">errno</span>: <span class="ident">Annotated::new</span>(<span class="ident">CError</span> {
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_errno_override</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
+                <span class="ident">errno</span>: <span class="ident">Annotated::new</span>(<span class="ident">CError</span> {
+                    <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
+                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDDEN&quot;</span>.<span class="ident">to_string</span>()),
+                }),
+                ..<span class="ident">Default::default</span>()
+            }),
+            ..<span class="ident">Default::default</span>()
+        };
+
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">Some</span>(<span class="ident">OsHint::Linux</span>)).<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="ident">errno</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errno</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">errno</span>,
+            <span class="kw-2">&amp;</span><span class="ident">CError</span> {
                 <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
                 <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDDEN&quot;</span>.<span class="ident">to_string</span>()),
+            }
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_errno_fail</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
+                <span class="ident">errno</span>: <span class="ident">Annotated::new</span>(<span class="ident">CError</span> {
+                    <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
+                    ..<span class="ident">Default::default</span>()
+                }),
+                ..<span class="ident">Default::default</span>()
             }),
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    };
+        };
 
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">Some</span>(<span class="ident">OsHint::Linux</span>)).<span class="ident">unwrap</span>();
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">errno</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errno</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">errno</span>,
-        <span class="kw-2">&amp;</span><span class="ident">CError</span> {
-            <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDDEN&quot;</span>.<span class="ident">to_string</span>()),
-        }
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_errno_fail</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-            <span class="ident">errno</span>: <span class="ident">Annotated::new</span>(<span class="ident">CError</span> {
+        <span class="kw">let</span> <span class="ident">errno</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errno</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">errno</span>,
+            <span class="kw-2">&amp;</span><span class="ident">CError</span> {
                 <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
                 ..<span class="ident">Default::default</span>()
+            }
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_signal</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
+                <span class="ident">signal</span>: <span class="ident">Annotated::new</span>(<span class="ident">PosixSignal</span> {
+                    <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
+                    <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
+                    ..<span class="ident">Default::default</span>()
+                }),
+                ..<span class="ident">Default::default</span>()
             }),
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    };
+        };
 
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">Some</span>(<span class="ident">OsHint::Darwin</span>)).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">errno</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">errno</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">errno</span>,
-        <span class="kw-2">&amp;</span><span class="ident">CError</span> {
-            <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">2</span>),
-            ..<span class="ident">Default::default</span>()
-        }
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_signal</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-            <span class="ident">signal</span>: <span class="ident">Annotated::new</span>(<span class="ident">PosixSignal</span> {
+        <span class="kw">let</span> <span class="ident">signal</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">signal</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">signal</span>,
+            <span class="kw-2">&amp;</span><span class="ident">PosixSignal</span> {
                 <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
                 <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
+                <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;SIGSEGV&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="ident">code_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;SEGV_NOOP&quot;</span>.<span class="ident">to_string</span>()),
+            }
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_partial_signal</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
+                <span class="ident">signal</span>: <span class="ident">Annotated::new</span>(<span class="ident">PosixSignal</span> {
+                    <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
+                    ..<span class="ident">Default::default</span>()
+                }),
                 ..<span class="ident">Default::default</span>()
             }),
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    };
+        };
 
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">Some</span>(<span class="ident">OsHint::Darwin</span>)).<span class="ident">unwrap</span>();
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">Some</span>(<span class="ident">OsHint::Linux</span>)).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">signal</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">signal</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">signal</span>,
-        <span class="kw-2">&amp;</span><span class="ident">PosixSignal</span> {
-            <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
-            <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;SIGSEGV&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">code_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;SEGV_NOOP&quot;</span>.<span class="ident">to_string</span>()),
-        }
-    );
-}
+        <span class="kw">let</span> <span class="ident">signal</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">signal</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_partial_signal</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-            <span class="ident">signal</span>: <span class="ident">Annotated::new</span>(<span class="ident">PosixSignal</span> {
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">signal</span>,
+            <span class="kw-2">&amp;</span><span class="ident">PosixSignal</span> {
                 <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
+                <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;SIGSEGV&quot;</span>.<span class="ident">to_string</span>()),
+                ..<span class="ident">Default::default</span>()
+            }
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_signal_override</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
+                <span class="ident">signal</span>: <span class="ident">Annotated::new</span>(<span class="ident">PosixSignal</span> {
+                    <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
+                    <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
+                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDDEN&quot;</span>.<span class="ident">to_string</span>()),
+                    <span class="ident">code_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDDEN&quot;</span>.<span class="ident">to_string</span>()),
+                }),
                 ..<span class="ident">Default::default</span>()
             }),
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    };
+        };
 
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">Some</span>(<span class="ident">OsHint::Linux</span>)).<span class="ident">unwrap</span>();
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">Some</span>(<span class="ident">OsHint::Linux</span>)).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">signal</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">signal</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">signal</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">signal</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">signal</span>,
-        <span class="kw-2">&amp;</span><span class="ident">PosixSignal</span> {
-            <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;SIGSEGV&quot;</span>.<span class="ident">to_string</span>()),
-            ..<span class="ident">Default::default</span>()
-        }
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_signal_override</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-            <span class="ident">signal</span>: <span class="ident">Annotated::new</span>(<span class="ident">PosixSignal</span> {
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">signal</span>,
+            <span class="kw-2">&amp;</span><span class="ident">PosixSignal</span> {
                 <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
                 <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
                 <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDDEN&quot;</span>.<span class="ident">to_string</span>()),
                 <span class="ident">code_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDDEN&quot;</span>.<span class="ident">to_string</span>()),
+            }
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_signal_fail</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
+                <span class="ident">signal</span>: <span class="ident">Annotated::new</span>(<span class="ident">PosixSignal</span> {
+                    <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
+                    <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
+                    ..<span class="ident">Default::default</span>()
+                }),
+                ..<span class="ident">Default::default</span>()
             }),
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    };
+        };
 
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">Some</span>(<span class="ident">OsHint::Linux</span>)).<span class="ident">unwrap</span>();
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">signal</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">signal</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">signal</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">signal</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">signal</span>,
-        <span class="kw-2">&amp;</span><span class="ident">PosixSignal</span> {
-            <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
-            <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDDEN&quot;</span>.<span class="ident">to_string</span>()),
-            <span class="ident">code_name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDDEN&quot;</span>.<span class="ident">to_string</span>()),
-        }
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_signal_fail</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-            <span class="ident">signal</span>: <span class="ident">Annotated::new</span>(<span class="ident">PosixSignal</span> {
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">signal</span>,
+            <span class="kw-2">&amp;</span><span class="ident">PosixSignal</span> {
                 <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
                 <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
                 ..<span class="ident">Default::default</span>()
-            }),
-            ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    };
+            }
+        );
+    }
 
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="ident">signal</span> <span class="op">=</span> <span class="ident">mechanism</span>.<span class="ident">meta</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">signal</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">signal</span>,
-        <span class="kw-2">&amp;</span><span class="ident">PosixSignal</span> {
-            <span class="ident">number</span>: <span class="ident">Annotated::new</span>(<span class="number">11</span>),
-            <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">0</span>),
-            ..<span class="ident">Default::default</span>()
-        }
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_mach</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-            <span class="ident">mach_exception</span>: <span class="ident">Annotated::new</span>(<span class="ident">MachException</span> {
-                <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
-                <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
-                <span class="ident">subcode</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_mach</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
+                <span class="ident">mach_exception</span>: <span class="ident">Annotated::new</span>(<span class="ident">MachException</span> {
+                    <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
+                    <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
+                    <span class="ident">subcode</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
+                    ..<span class="ident">Default::default</span>()
+                }),
                 ..<span class="ident">Default::default</span>()
             }),
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    };
+        };
 
-    <span class="comment">// We do not need SDK information here because mach exceptions only</span>
-    <span class="comment">// occur on Darwin</span>
+        <span class="comment">// We do not need SDK information here because mach exceptions only</span>
+        <span class="comment">// occur on Darwin</span>
 
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">mach_exception</span> <span class="op">=</span> <span class="ident">mechanism</span>
-        .<span class="ident">meta</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>()
-        .<span class="ident">mach_exception</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">mach_exception</span> <span class="op">=</span> <span class="ident">mechanism</span>
+            .<span class="ident">meta</span>
+            .<span class="ident">value</span>()
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">mach_exception</span>
+            .<span class="ident">value</span>()
+            .<span class="ident">unwrap</span>();
 
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">mach_exception</span>,
-        <span class="kw-2">&amp;</span><span class="ident">MachException</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
-            <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
-            <span class="ident">subcode</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;EXC_BAD_ACCESS&quot;</span>.<span class="ident">to_string</span>()),
-        }
-    );
-}
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">mach_exception</span>,
+            <span class="kw-2">&amp;</span><span class="ident">MachException</span> {
+                <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
+                <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
+                <span class="ident">subcode</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
+                <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;EXC_BAD_ACCESS&quot;</span>.<span class="ident">to_string</span>()),
+            }
+        );
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_mach_override</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-            <span class="ident">mach_exception</span>: <span class="ident">Annotated::new</span>(<span class="ident">MachException</span> {
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_mach_override</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
+                <span class="ident">mach_exception</span>: <span class="ident">Annotated::new</span>(<span class="ident">MachException</span> {
+                    <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
+                    <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
+                    <span class="ident">subcode</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
+                    <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDE&quot;</span>.<span class="ident">to_string</span>()),
+                }),
+                ..<span class="ident">Default::default</span>()
+            }),
+            ..<span class="ident">Default::default</span>()
+        };
+
+        <span class="comment">// We do not need SDK information here because mach exceptions only</span>
+        <span class="comment">// occur on Darwin</span>
+
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="ident">mach_exception</span> <span class="op">=</span> <span class="ident">mechanism</span>
+            .<span class="ident">meta</span>
+            .<span class="ident">value</span>()
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">mach_exception</span>
+            .<span class="ident">value</span>()
+            .<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">mach_exception</span>,
+            <span class="kw-2">&amp;</span><span class="ident">MachException</span> {
                 <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
                 <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
                 <span class="ident">subcode</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
                 <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDE&quot;</span>.<span class="ident">to_string</span>()),
+            }
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_mach_fail</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
+                <span class="ident">mach_exception</span>: <span class="ident">Annotated::new</span>(<span class="ident">MachException</span> {
+                    <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="number">99</span>),
+                    <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
+                    <span class="ident">subcode</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
+                    ..<span class="ident">Default::default</span>()
+                }),
+                ..<span class="ident">Default::default</span>()
             }),
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    };
+        };
 
-    <span class="comment">// We do not need SDK information here because mach exceptions only</span>
-    <span class="comment">// occur on Darwin</span>
+        <span class="comment">// We do not need SDK information here because mach exceptions only</span>
+        <span class="comment">// occur on Darwin</span>
 
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">mach_exception</span> <span class="op">=</span> <span class="ident">mechanism</span>
-        .<span class="ident">meta</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>()
-        .<span class="ident">mach_exception</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">mach_exception</span>,
-        <span class="kw-2">&amp;</span><span class="ident">MachException</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
-            <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
-            <span class="ident">subcode</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
-            <span class="ident">name</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;OVERRIDE&quot;</span>.<span class="ident">to_string</span>()),
-        }
-    );
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_mach_fail</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">MechanismMeta</span> {
-            <span class="ident">mach_exception</span>: <span class="ident">Annotated::new</span>(<span class="ident">MachException</span> {
+        <span class="kw">let</span> <span class="ident">mach_exception</span> <span class="op">=</span> <span class="ident">mechanism</span>
+            .<span class="ident">meta</span>
+            .<span class="ident">value</span>()
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">mach_exception</span>
+            .<span class="ident">value</span>()
+            .<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">mach_exception</span>,
+            <span class="kw-2">&amp;</span><span class="ident">MachException</span> {
                 <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="number">99</span>),
                 <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
                 <span class="ident">subcode</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
                 ..<span class="ident">Default::default</span>()
-            }),
+            }
+        );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_normalize_http_url</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">good_mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">help_link</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;https://example.com/&quot;</span>.<span class="ident">to_string</span>()),
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    };
+        };
 
-    <span class="comment">// We do not need SDK information here because mach exceptions only</span>
-    <span class="comment">// occur on Darwin</span>
-
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="ident">mach_exception</span> <span class="op">=</span> <span class="ident">mechanism</span>
-        .<span class="ident">meta</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>()
-        .<span class="ident">mach_exception</span>
-        .<span class="ident">value</span>()
-        .<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">mach_exception</span>,
-        <span class="kw-2">&amp;</span><span class="ident">MachException</span> {
-            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="number">99</span>),
-            <span class="ident">code</span>: <span class="ident">Annotated::new</span>(<span class="number">1</span>),
-            <span class="ident">subcode</span>: <span class="ident">Annotated::new</span>(<span class="number">8</span>),
-            ..<span class="ident">Default::default</span>()
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">good_mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
+        <span class="macro">insta::assert_ron_snapshot!</span>(<span class="ident">SerializableAnnotated</span>(<span class="kw-2">&amp;</span><span class="ident">Annotated::new</span>(<span class="ident">good_mechanism</span>)), @<span class="string">r###&quot;
+        {
+          &quot;type&quot;: &quot;generic&quot;,
+          &quot;help_link&quot;: &quot;https://example.com/&quot;,
         }
-    );
-}
+        &quot;###</span>);
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_normalize_http_url</span>() {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::SerializableAnnotated</span>;
-    <span class="kw">use</span> <span class="ident">insta::assert_ron_snapshot</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bad_mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
+            <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
+            <span class="ident">help_link</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;javascript:alert(document.cookie)&quot;</span>.<span class="ident">to_string</span>()),
+            ..<span class="ident">Default::default</span>()
+        };
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">good_mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">help_link</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;https://example.com/&quot;</span>.<span class="ident">to_string</span>()),
-        ..<span class="ident">Default::default</span>()
-    };
-
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">good_mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
-    <span class="macro">assert_ron_snapshot!</span>(<span class="ident">SerializableAnnotated</span>(<span class="kw-2">&amp;</span><span class="ident">Annotated::new</span>(<span class="ident">good_mechanism</span>)), @<span class="string">r###&quot;
-    {
-      &quot;type&quot;: &quot;generic&quot;,
-      &quot;help_link&quot;: &quot;https://example.com/&quot;,
+        <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">bad_mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
+        <span class="macro">insta::assert_ron_snapshot!</span>(<span class="ident">SerializableAnnotated</span>(<span class="kw-2">&amp;</span><span class="ident">Annotated::new</span>(<span class="ident">bad_mechanism</span>)), @<span class="string">r###&quot;
+        {
+          &quot;type&quot;: &quot;generic&quot;,
+          &quot;help_link&quot;: (),
+          &quot;_meta&quot;: {
+            &quot;help_link&quot;: {
+              &quot;&quot;: Meta(Some(MetaInner(
+                err: [
+                  [
+                    &quot;invalid_data&quot;,
+                    {
+                      &quot;reason&quot;: &quot;expected http URL&quot;,
+                    },
+                  ],
+                ],
+                val: Some(&quot;javascript:alert(document.cookie)&quot;),
+              ))),
+            },
+          },
+        }
+        &quot;###</span>);
     }
-    &quot;###</span>);
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bad_mechanism</span> <span class="op">=</span> <span class="ident">Mechanism</span> {
-        <span class="ident">ty</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;generic&quot;</span>.<span class="ident">to_string</span>()),
-        <span class="ident">help_link</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;javascript:alert(document.cookie)&quot;</span>.<span class="ident">to_string</span>()),
-        ..<span class="ident">Default::default</span>()
-    };
-
-    <span class="ident">normalize_mechanism</span>(<span class="kw-2">&amp;mut</span> <span class="ident">bad_mechanism</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
-    <span class="macro">assert_ron_snapshot!</span>(<span class="ident">SerializableAnnotated</span>(<span class="kw-2">&amp;</span><span class="ident">Annotated::new</span>(<span class="ident">bad_mechanism</span>)), @<span class="string">r###&quot;
-    {
-      &quot;type&quot;: &quot;generic&quot;,
-      &quot;help_link&quot;: (),
-      &quot;_meta&quot;: {
-        &quot;help_link&quot;: {
-          &quot;&quot;: Meta(Some(MetaInner(
-            err: [
-              [
-                &quot;invalid_data&quot;,
-                {
-                  &quot;reason&quot;: &quot;expected http URL&quot;,
-                },
-              ],
-            ],
-            val: Some(&quot;javascript:alert(document.cookie)&quot;),
-          ))),
-        },
-      },
-    }
-    &quot;###</span>);
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>

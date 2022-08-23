@@ -306,6 +306,7 @@
 <span id="298">298</span>
 <span id="299">299</span>
 <span id="300">300</span>
+<span id="301">301</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Duration</span> <span class="kw">as</span> <span class="ident">SignedDuration</span>, <span class="ident">Utc</span>};
@@ -457,15 +458,16 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-
     <span class="kw">use</span> <span class="ident">chrono::offset::TimeZone</span>;
+    <span class="kw">use</span> <span class="ident">similar_asserts::assert_eq</span>;
 
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::process_value</span>;
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{
         <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Contexts</span>, <span class="ident">EventType</span>, <span class="ident">SpanId</span>, <span class="ident">TraceContext</span>, <span class="ident">TraceId</span>,
     };
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>};
+
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn</span> <span class="ident">create_transaction</span>(<span class="ident">start</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>, <span class="ident">end</span>: <span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span>) -&gt; <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Event</span><span class="op">&gt;</span> {
         <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {

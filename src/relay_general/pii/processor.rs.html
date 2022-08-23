@@ -977,6 +977,7 @@
 <span id="969">969</span>
 <span id="970">970</span>
 <span id="971">971</span>
+<span id="972">972</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::mem</span>;
 
@@ -1333,505 +1334,542 @@
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">use</span> {
-    <span class="ident"><span class="kw">crate</span>::pii</span>::{<span class="ident">PiiConfig</span>, <span class="ident">ReplaceRedaction</span>},
-    <span class="ident"><span class="kw">crate</span>::processor::process_value</span>,
-    <span class="ident"><span class="kw">crate</span>::protocol</span>::{
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii</span>::{<span class="ident">PiiConfig</span>, <span class="ident">ReplaceRedaction</span>};
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor::process_value</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{
         <span class="ident">Addr</span>, <span class="ident">DebugImage</span>, <span class="ident">DebugMeta</span>, <span class="ident">Event</span>, <span class="ident">ExtraValue</span>, <span class="ident">Headers</span>, <span class="ident">LogEntry</span>, <span class="ident">NativeDebugImage</span>,
-        <span class="ident">Request</span>,
-    },
-    <span class="ident"><span class="kw">crate</span>::testutils::assert_annotated_snapshot</span>,
-    <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>},
-};
+        <span class="ident">Request</span>, <span class="ident">TagEntry</span>, <span class="ident">Tags</span>,
+    };
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::testutils::assert_annotated_snapshot</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types</span>::{<span class="ident">Annotated</span>, <span class="ident">Object</span>, <span class="ident">Value</span>};
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_basic_stripping</span>() {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">TagEntry</span>, <span class="ident">Tags</span>};
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;rules&quot;: {
-                &quot;remove_bad_headers&quot;: {
-                    &quot;type&quot;: &quot;redact_pair&quot;,
-                    &quot;keyPattern&quot;: &quot;(?i)cookie|secret[-_]?key&quot;
-                }
-            },
-            &quot;applications&quot;: {
-                &quot;$string&quot;: [&quot;@ip&quot;],
-                &quot;$object.**&quot;: [&quot;remove_bad_headers&quot;]
-            }
-        }
-    &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">logentry</span>: <span class="ident">Annotated::new</span>(<span class="ident">LogEntry</span> {
-            <span class="ident">formatted</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Hello world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            ..<span class="ident">Default::default</span>()
-        }),
-        <span class="ident">request</span>: <span class="ident">Annotated::new</span>(<span class="ident">Request</span> {
-            <span class="ident">env</span>: {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                <span class="ident">rv</span>.<span class="ident">insert</span>(
-                    <span class="string">&quot;SECRET_KEY&quot;</span>.<span class="ident">to_string</span>(),
-                    <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;134141231231231231231312&quot;</span>.<span class="ident">into</span>())),
-                );
-                <span class="ident">Annotated::new</span>(<span class="ident">rv</span>)
-            },
-            <span class="ident">headers</span>: {
-                <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="macro">vec!</span>[
-                    <span class="ident">Annotated::new</span>((
-                        <span class="ident">Annotated::new</span>(<span class="string">&quot;Cookie&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-                        <span class="ident">Annotated::new</span>(<span class="string">&quot;super secret&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-                    )),
-                    <span class="ident">Annotated::new</span>((
-                        <span class="ident">Annotated::new</span>(<span class="string">&quot;X-Forwarded-For&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-                        <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-                    )),
-                ];
-                <span class="ident">Annotated::new</span>(<span class="ident">Headers</span>(<span class="ident">PairList</span>(<span class="ident">rv</span>)))
-            },
-            ..<span class="ident">Default::default</span>()
-        }),
-        <span class="ident">tags</span>: <span class="ident">Annotated::new</span>(<span class="ident">Tags</span>(
-            <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;forwarded_for&quot;</span>.<span class="ident">to_string</span>()),
-                <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">to_string</span>()),
-            ))]
-            .<span class="ident">into</span>(),
-        )),
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_redact_containers</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;applications&quot;: {
-                &quot;$object&quot;: [&quot;@anything&quot;]
-            }
-        }
-    &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">extra</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>()))),
-            );
-            <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
-        },
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_redact_custom_pattern</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;applications&quot;: {
-                &quot;$string&quot;: [&quot;myrule&quot;]
-            },
-            &quot;rules&quot;: {
-                &quot;myrule&quot;: {
-                    &quot;type&quot;: &quot;pattern&quot;,
-                    &quot;pattern&quot;: &quot;foo&quot;,
-                    &quot;redaction&quot;: {
-                        &quot;method&quot;: &quot;replace&quot;,
-                        &quot;text&quot;: &quot;asd&quot;
-                    }
-                }
-            }
-        }
-    &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">extra</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;myvalue&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_string</span>()))),
-            );
-            <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
-        },
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_no_field_upsert</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;applications&quot;: {
-                &quot;**&quot;: [&quot;@anything:remove&quot;]
-            }
-        }
-    &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">extra</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;myvalue&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_string</span>()))),
-            );
-            <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
-        },
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_anything_hash_on_string</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;applications&quot;: {
-                &quot;$string&quot;: [&quot;@anything:hash&quot;]
-            }
-        }
-    &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">extra</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;myvalue&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_string</span>()))),
-            );
-            <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
-        },
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_anything_hash_on_container</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;applications&quot;: {
-                &quot;$object&quot;: [&quot;@anything:hash&quot;]
-            }
-        }
-    &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">extra</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;myvalue&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_string</span>()))),
-            );
-            <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
-        },
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_remove_debugmeta_path</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;applications&quot;: {
-                &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:remove&quot;],
-                &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:remove&quot;]
-            }
-        }
-        &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">debug_meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta</span> {
-            <span class="ident">images</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(
-                <span class="ident">NativeDebugImage</span> {
-                    <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-                    <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
-                    <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
-                        <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
-                    ),
-                    <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
-                    <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-                    <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-                    <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-                    <span class="ident">other</span>: {
-                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                        <span class="ident">map</span>.<span class="ident">insert</span>(
-                            <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-                        );
-                        <span class="ident">map</span>
-                    },
-                },
-            )))]),
-            ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_replace_debugmeta_path</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;applications&quot;: {
-                &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:replace&quot;],
-                &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:replace&quot;]
-            }
-        }
-        &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">debug_meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta</span> {
-            <span class="ident">images</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(
-                <span class="ident">NativeDebugImage</span> {
-                    <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-                    <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
-                    <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
-                        <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
-                    ),
-                    <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
-                    <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-                    <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-                    <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-                    <span class="ident">other</span>: {
-                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                        <span class="ident">map</span>.<span class="ident">insert</span>(
-                            <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-                        );
-                        <span class="ident">map</span>
-                    },
-                },
-            )))]),
-            ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_hash_debugmeta_path</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;applications&quot;: {
-                &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:hash&quot;],
-                &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:hash&quot;]
-            }
-        }
-        &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">debug_meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta</span> {
-            <span class="ident">images</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(
-                <span class="ident">NativeDebugImage</span> {
-                    <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-                    <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
-                    <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
-                        <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
-                    ),
-                    <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
-                    <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-                    <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-                    <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-                    <span class="ident">other</span>: {
-                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                        <span class="ident">map</span>.<span class="ident">insert</span>(
-                            <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-                        );
-                        <span class="ident">map</span>
-                    },
-                },
-            )))]),
-            ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_debugmeta_path_not_addressible_with_wildcard_selector</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;applications&quot;: {
-                &quot;$string&quot;: [&quot;@anything:remove&quot;],
-                &quot;**&quot;: [&quot;@anything:remove&quot;],
-                &quot;debug_meta.**&quot;: [&quot;@anything:remove&quot;],
-                &quot;(debug_meta.images.**.code_file &amp; $string)&quot;: [&quot;@anything:remove&quot;]
-            }
-        }
-        &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">debug_meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta</span> {
-            <span class="ident">images</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(
-                <span class="ident">NativeDebugImage</span> {
-                    <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
-                    <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
-                    <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
-                        <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
-                    ),
-                    <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
-                    <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
-                    <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
-                    <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
-                    <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
-                    <span class="ident">other</span>: {
-                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-                        <span class="ident">map</span>.<span class="ident">insert</span>(
-                            <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
-                            <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
-                        );
-                        <span class="ident">map</span>
-                    },
-                },
-            )))]),
-            ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_quoted_keys</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-        {
-            &quot;applications&quot;: {
-                &quot;extra.&#39;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;&#39;gärbage&#39;&#39;&#39;&quot;: [&quot;@anything:remove&quot;]
-            }
-        }
-        &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">extra</span>: {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;do not ,./&lt;&gt;?!@#$%^&amp;*())&#39;ßtrip&#39;&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()))),
-            );
-            <span class="ident">map</span>.<span class="ident">insert</span>(
-                <span class="string">&quot;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;gärbage&#39;&quot;</span>.<span class="ident">to_string</span>(),
-                <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>()))),
-            );
-            <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
-        },
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-    <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_logentry_value_types</span>() {
-    <span class="comment">// Assert that logentry.formatted is addressable as $string, $message and $logentry.formatted</span>
-    <span class="kw">for</span> <span class="ident">formatted_selector</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[
-        <span class="string">&quot;$logentry.formatted&quot;</span>,
-        <span class="string">&quot;$message&quot;</span>,
-        <span class="string">&quot;$logentry.formatted &amp;&amp; $message&quot;</span>,
-        <span class="string">&quot;$string&quot;</span>,
-    ] {
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_basic_stripping</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
             <span class="string">r##&quot;
-            {{
-                &quot;applications&quot;: {{
-                    &quot;{formatted_selector}&quot;: [&quot;@anything:remove&quot;]
-                }}
-            }}
+            {
+                &quot;rules&quot;: {
+                    &quot;remove_bad_headers&quot;: {
+                        &quot;type&quot;: &quot;redact_pair&quot;,
+                        &quot;keyPattern&quot;: &quot;(?i)cookie|secret[-_]?key&quot;
+                    }
+                },
+                &quot;applications&quot;: {
+                    &quot;$string&quot;: [&quot;@ip&quot;],
+                    &quot;$object.**&quot;: [&quot;remove_bad_headers&quot;]
+                }
+            }
             &quot;##</span>,
-            <span class="ident">formatted_selector</span> <span class="op">=</span> <span class="macro">dbg!</span>(<span class="ident">formatted_selector</span>),
-        ))
+        )
         .<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
             <span class="ident">logentry</span>: <span class="ident">Annotated::new</span>(<span class="ident">LogEntry</span> {
                 <span class="ident">formatted</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Hello world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+                ..<span class="ident">Default::default</span>()
+            }),
+            <span class="ident">request</span>: <span class="ident">Annotated::new</span>(<span class="ident">Request</span> {
+                <span class="ident">env</span>: {
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                    <span class="ident">rv</span>.<span class="ident">insert</span>(
+                        <span class="string">&quot;SECRET_KEY&quot;</span>.<span class="ident">to_string</span>(),
+                        <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;134141231231231231231312&quot;</span>.<span class="ident">into</span>())),
+                    );
+                    <span class="ident">Annotated::new</span>(<span class="ident">rv</span>)
+                },
+                <span class="ident">headers</span>: {
+                    <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="macro">vec!</span>[
+                        <span class="ident">Annotated::new</span>((
+                            <span class="ident">Annotated::new</span>(<span class="string">&quot;Cookie&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+                            <span class="ident">Annotated::new</span>(<span class="string">&quot;super secret&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+                        )),
+                        <span class="ident">Annotated::new</span>((
+                            <span class="ident">Annotated::new</span>(<span class="string">&quot;X-Forwarded-For&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+                            <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+                        )),
+                    ];
+                    <span class="ident">Annotated::new</span>(<span class="ident">Headers</span>(<span class="ident">PairList</span>(<span class="ident">rv</span>)))
+                },
+                ..<span class="ident">Default::default</span>()
+            }),
+            <span class="ident">tags</span>: <span class="ident">Annotated::new</span>(<span class="ident">Tags</span>(
+                <span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">TagEntry</span>(
+                    <span class="ident">Annotated::new</span>(<span class="string">&quot;forwarded_for&quot;</span>.<span class="ident">to_string</span>()),
+                    <span class="ident">Annotated::new</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">to_string</span>()),
+                ))]
+                .<span class="ident">into</span>(),
+            )),
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_redact_containers</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;$object&quot;: [&quot;@anything&quot;]
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">extra</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>()))),
+                );
+                <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
+            },
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_redact_custom_pattern</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;$string&quot;: [&quot;myrule&quot;]
+                },
+                &quot;rules&quot;: {
+                    &quot;myrule&quot;: {
+                        &quot;type&quot;: &quot;pattern&quot;,
+                        &quot;pattern&quot;: &quot;foo&quot;,
+                        &quot;redaction&quot;: {
+                            &quot;method&quot;: &quot;replace&quot;,
+                            &quot;text&quot;: &quot;asd&quot;
+                        }
+                    }
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">extra</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;myvalue&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_string</span>()))),
+                );
+                <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
+            },
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_no_field_upsert</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;**&quot;: [&quot;@anything:remove&quot;]
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">extra</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;myvalue&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_string</span>()))),
+                );
+                <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
+            },
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_anything_hash_on_string</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;$string&quot;: [&quot;@anything:hash&quot;]
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">extra</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;myvalue&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_string</span>()))),
+                );
+                <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
+            },
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_anything_hash_on_container</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;$object&quot;: [&quot;@anything:hash&quot;]
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">extra</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;myvalue&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;foobar&quot;</span>.<span class="ident">to_string</span>()))),
+                );
+                <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
+            },
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_remove_debugmeta_path</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:remove&quot;],
+                    &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:remove&quot;]
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">debug_meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta</span> {
+                <span class="ident">images</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(
+                    <span class="ident">NativeDebugImage</span> {
+                        <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+                        <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
+                        <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
+                            <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
+                        ),
+                        <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
+                        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+                        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+                        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+                        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
+                        <span class="ident">other</span>: {
+                            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                            <span class="ident">map</span>.<span class="ident">insert</span>(
+                                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                            );
+                            <span class="ident">map</span>
+                        },
+                    },
+                )))]),
+                ..<span class="ident">Default::default</span>()
+            }),
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_replace_debugmeta_path</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:replace&quot;],
+                    &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:replace&quot;]
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">debug_meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta</span> {
+                <span class="ident">images</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(
+                    <span class="ident">NativeDebugImage</span> {
+                        <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+                        <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
+                        <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
+                            <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
+                        ),
+                        <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
+                        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+                        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+                        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+                        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
+                        <span class="ident">other</span>: {
+                            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                            <span class="ident">map</span>.<span class="ident">insert</span>(
+                                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                            );
+                            <span class="ident">map</span>
+                        },
+                    },
+                )))]),
+                ..<span class="ident">Default::default</span>()
+            }),
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_hash_debugmeta_path</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:hash&quot;],
+                    &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:hash&quot;]
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">debug_meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta</span> {
+                <span class="ident">images</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(
+                    <span class="ident">NativeDebugImage</span> {
+                        <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+                        <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
+                        <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
+                            <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
+                        ),
+                        <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
+                        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+                        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+                        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+                        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
+                        <span class="ident">other</span>: {
+                            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                            <span class="ident">map</span>.<span class="ident">insert</span>(
+                                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                            );
+                            <span class="ident">map</span>
+                        },
+                    },
+                )))]),
+                ..<span class="ident">Default::default</span>()
+            }),
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_debugmeta_path_not_addressible_with_wildcard_selector</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;$string&quot;: [&quot;@anything:remove&quot;],
+                    &quot;**&quot;: [&quot;@anything:remove&quot;],
+                    &quot;debug_meta.**&quot;: [&quot;@anything:remove&quot;],
+                    &quot;(debug_meta.images.**.code_file &amp; $string)&quot;: [&quot;@anything:remove&quot;]
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">debug_meta</span>: <span class="ident">Annotated::new</span>(<span class="ident">DebugMeta</span> {
+                <span class="ident">images</span>: <span class="ident">Annotated::new</span>(<span class="macro">vec!</span>[<span class="ident">Annotated::new</span>(<span class="ident">DebugImage::Symbolic</span>(<span class="ident">Box::new</span>(
+                    <span class="ident">NativeDebugImage</span> {
+                        <span class="ident">code_id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;59b0d8f3183000&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>()),
+                        <span class="ident">code_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;C:\\Windows\\System32\\ntdll.dll&quot;</span>.<span class="ident">into</span>()),
+                        <span class="ident">debug_id</span>: <span class="ident">Annotated::new</span>(
+                            <span class="string">&quot;971f98e5-ce60-41ff-b2d7-235bbeb34578-1&quot;</span>.<span class="ident">parse</span>().<span class="ident">unwrap</span>(),
+                        ),
+                        <span class="ident">debug_file</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;wntdll.pdb&quot;</span>.<span class="ident">into</span>()),
+                        <span class="ident">arch</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;arm64&quot;</span>.<span class="ident">to_string</span>()),
+                        <span class="ident">image_addr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">0</span>)),
+                        <span class="ident">image_size</span>: <span class="ident">Annotated::new</span>(<span class="number">4096</span>),
+                        <span class="ident">image_vmaddr</span>: <span class="ident">Annotated::new</span>(<span class="ident">Addr</span>(<span class="number">32768</span>)),
+                        <span class="ident">other</span>: {
+                            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                            <span class="ident">map</span>.<span class="ident">insert</span>(
+                                <span class="string">&quot;other&quot;</span>.<span class="ident">to_string</span>(),
+                                <span class="ident">Annotated::new</span>(<span class="ident">Value::String</span>(<span class="string">&quot;value&quot;</span>.<span class="ident">to_string</span>())),
+                            );
+                            <span class="ident">map</span>
+                        },
+                    },
+                )))]),
+                ..<span class="ident">Default::default</span>()
+            }),
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_quoted_keys</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;extra.&#39;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;&#39;gärbage&#39;&#39;&#39;&quot;: [&quot;@anything:remove&quot;]
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">extra</span>: {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">Object::new</span>();
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;do not ,./&lt;&gt;?!@#$%^&amp;*())&#39;ßtrip&#39;&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()))),
+                );
+                <span class="ident">map</span>.<span class="ident">insert</span>(
+                    <span class="string">&quot;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;gärbage&#39;&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">Annotated::new</span>(<span class="ident">ExtraValue</span>(<span class="ident">Value::String</span>(<span class="string">&quot;bar&quot;</span>.<span class="ident">to_string</span>()))),
+                );
+                <span class="ident">Annotated::new</span>(<span class="ident">map</span>)
+            },
+            ..<span class="ident">Default::default</span>()
+        });
+
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="macro">assert_annotated_snapshot!</span>(<span class="ident">event</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_logentry_value_types</span>() {
+        <span class="comment">// Assert that logentry.formatted is addressable as $string, $message and $logentry.formatted</span>
+        <span class="kw">for</span> <span class="ident">formatted_selector</span> <span class="kw">in</span> <span class="kw-2">&amp;</span>[
+            <span class="string">&quot;$logentry.formatted&quot;</span>,
+            <span class="string">&quot;$message&quot;</span>,
+            <span class="string">&quot;$logentry.formatted &amp;&amp; $message&quot;</span>,
+            <span class="string">&quot;$string&quot;</span>,
+        ] {
+            <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                <span class="string">r##&quot;
+                {{
+                    &quot;applications&quot;: {{
+                        &quot;{formatted_selector}&quot;: [&quot;@anything:remove&quot;]
+                    }}
+                }}
+                &quot;##</span>,
+                <span class="ident">formatted_selector</span> <span class="op">=</span> <span class="macro">dbg!</span>(<span class="ident">formatted_selector</span>),
+            ))
+            .<span class="ident">unwrap</span>();
+
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+                <span class="ident">logentry</span>: <span class="ident">Annotated::new</span>(<span class="ident">LogEntry</span> {
+                    <span class="ident">formatted</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;Hello world!&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+                    ..<span class="ident">Default::default</span>()
+                }),
+                ..<span class="ident">Default::default</span>()
+            });
+
+            <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+            <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+
+            <span class="macro">assert!</span>(<span class="ident">event</span>
+                .<span class="ident">value</span>()
+                .<span class="ident">unwrap</span>()
+                .<span class="ident">logentry</span>
+                .<span class="ident">value</span>()
+                .<span class="ident">unwrap</span>()
+                .<span class="ident">formatted</span>
+                .<span class="ident">value</span>()
+                .<span class="ident">is_none</span>());
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_ip_address_hashing</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
+            {
+                &quot;applications&quot;: {
+                    &quot;$user.ip_address&quot;: [&quot;@ip:hash&quot;]
+                }
+            }
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">user</span>: <span class="ident">Annotated::new</span>(<span class="ident">User</span> {
+                <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="ident">IpAddr</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">to_string</span>())),
                 ..<span class="ident">Default::default</span>()
             }),
             ..<span class="ident">Default::default</span>()
@@ -1841,112 +1879,76 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
         <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
 
-        <span class="macro">assert!</span>(<span class="ident">event</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">logentry</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">unwrap</span>()
-            .<span class="ident">formatted</span>
-            .<span class="ident">value</span>()
-            .<span class="ident">is_none</span>());
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
+
+        <span class="macro">assert!</span>(<span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">value</span>().<span class="ident">is_none</span>());
+
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">as_str</span>(),
+            <span class="string">&quot;AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741&quot;</span>
+        );
     }
-}
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_ip_address_hashing</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_ip_address_hashing_does_not_overwrite_id</span>() {
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
+            <span class="string">r##&quot;
             {
                 &quot;applications&quot;: {
                     &quot;$user.ip_address&quot;: [&quot;@ip:hash&quot;]
                 }
             }
-        &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
+            &quot;##</span>,
+        )
+        .<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">user</span>: <span class="ident">Annotated::new</span>(<span class="ident">User</span> {
-            <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="ident">IpAddr</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">to_string</span>())),
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
+            <span class="ident">user</span>: <span class="ident">Annotated::new</span>(<span class="ident">User</span> {
+                <span class="ident">id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;123&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
+                <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="ident">IpAddr</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">to_string</span>())),
+                ..<span class="ident">Default::default</span>()
+            }),
             ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    });
+        });
 
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+        <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
 
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
 
-    <span class="macro">assert!</span>(<span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">value</span>().<span class="ident">is_none</span>());
+        <span class="comment">// This will get wiped out in renormalization though</span>
+        <span class="macro">assert_eq!</span>(
+            <span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">as_str</span>(),
+            <span class="string">&quot;AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741&quot;</span>
+        );
 
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">as_str</span>(),
-        <span class="string">&quot;AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741&quot;</span>
-    );
-}
+        <span class="macro">assert_eq!</span>(<span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">as_str</span>(), <span class="string">&quot;123&quot;</span>);
+    }
 
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_ip_address_hashing_does_not_overwrite_id</span>() {
-    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PiiConfig::from_json</span>(
-        <span class="string">r##&quot;
-            {
-                &quot;applications&quot;: {
-                    &quot;$user.ip_address&quot;: [&quot;@ip:hash&quot;]
-                }
-            }
-        &quot;##</span>,
-    )
-    .<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::new</span>(<span class="ident">Event</span> {
-        <span class="ident">user</span>: <span class="ident">Annotated::new</span>(<span class="ident">User</span> {
-            <span class="ident">id</span>: <span class="ident">Annotated::new</span>(<span class="string">&quot;123&quot;</span>.<span class="ident">to_string</span>().<span class="ident">into</span>()),
-            <span class="ident">ip_address</span>: <span class="ident">Annotated::new</span>(<span class="ident">IpAddr</span>(<span class="string">&quot;127.0.0.1&quot;</span>.<span class="ident">to_string</span>())),
-            ..<span class="ident">Default::default</span>()
-        }),
-        ..<span class="ident">Default::default</span>()
-    });
-
-    <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
-    <span class="ident">process_value</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>()).<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="ident">user</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">user</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>();
-
-    <span class="comment">// This will get wiped out in renormalization though</span>
-    <span class="macro">assert_eq!</span>(
-        <span class="ident">user</span>.<span class="ident">ip_address</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">as_str</span>(),
-        <span class="string">&quot;AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741&quot;</span>
-    );
-
-    <span class="macro">assert_eq!</span>(<span class="ident">user</span>.<span class="ident">id</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>().<span class="ident">as_str</span>(), <span class="string">&quot;123&quot;</span>);
-}
-
-<span class="attribute">#[<span class="ident">test</span>]</span>
-<span class="kw">fn</span> <span class="ident">test_replace_replaced_text</span>() {
-    <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Chunk::Redaction</span> {
-        <span class="ident">text</span>: <span class="string">&quot;[ip]&quot;</span>.<span class="ident">into</span>(),
-        <span class="ident">rule_id</span>: <span class="string">&quot;@ip&quot;</span>.<span class="ident">into</span>(),
-        <span class="ident">ty</span>: <span class="ident">RemarkType::Substituted</span>,
-    }];
-    <span class="kw">let</span> <span class="ident">rule</span> <span class="op">=</span> <span class="ident">RuleRef</span> {
-        <span class="ident">id</span>: <span class="string">&quot;@ip:replace&quot;</span>.<span class="ident">into</span>(),
-        <span class="ident">origin</span>: <span class="string">&quot;@ip&quot;</span>.<span class="ident">into</span>(),
-        <span class="ident">ty</span>: <span class="ident">RuleType::Ip</span>,
-        <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_replace_replaced_text</span>() {
+        <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Chunk::Redaction</span> {
             <span class="ident">text</span>: <span class="string">&quot;[ip]&quot;</span>.<span class="ident">into</span>(),
-        }),
-    };
-    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">apply_regex_to_chunks</span>(
-        <span class="ident">chunks</span>.<span class="ident">clone</span>(),
-        <span class="kw-2">&amp;</span><span class="ident">rule</span>,
-        <span class="kw-2">&amp;</span><span class="ident">Regex::new</span>(<span class="string">r#&quot;.*&quot;#</span>).<span class="ident">unwrap</span>(),
-        <span class="ident">ReplaceBehavior::Value</span>,
-    );
-    <span class="macro">assert_eq!</span>(<span class="ident">chunks</span>, <span class="ident">res</span>);
+            <span class="ident">rule_id</span>: <span class="string">&quot;@ip&quot;</span>.<span class="ident">into</span>(),
+            <span class="ident">ty</span>: <span class="ident">RemarkType::Substituted</span>,
+        }];
+        <span class="kw">let</span> <span class="ident">rule</span> <span class="op">=</span> <span class="ident">RuleRef</span> {
+            <span class="ident">id</span>: <span class="string">&quot;@ip:replace&quot;</span>.<span class="ident">into</span>(),
+            <span class="ident">origin</span>: <span class="string">&quot;@ip&quot;</span>.<span class="ident">into</span>(),
+            <span class="ident">ty</span>: <span class="ident">RuleType::Ip</span>,
+            <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="ident">ReplaceRedaction</span> {
+                <span class="ident">text</span>: <span class="string">&quot;[ip]&quot;</span>.<span class="ident">into</span>(),
+            }),
+        };
+        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">apply_regex_to_chunks</span>(
+            <span class="ident">chunks</span>.<span class="ident">clone</span>(),
+            <span class="kw-2">&amp;</span><span class="ident">rule</span>,
+            <span class="kw-2">&amp;</span><span class="ident">Regex::new</span>(<span class="string">r#&quot;.*&quot;#</span>).<span class="ident">unwrap</span>(),
+            <span class="ident">ReplaceBehavior::Value</span>,
+        );
+        <span class="macro">assert_eq!</span>(<span class="ident">chunks</span>, <span class="ident">res</span>);
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_general" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>
