@@ -12,12 +12,21 @@ pub struct FeatureDump {
     pub feature_flags: BTreeMap<String, FeatureFlag>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FlagKind {
+    Bool,
+    Number,
+    String,
+}
+
 /// A single feature flag.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FeatureFlag {
     #[serde(default, skip_serializing_if = "TagMap::is_empty")]
     pub tags: TagMap,
     pub evaluation: Vec<EvaluationRule>,
+    pub kind: FlagKind,
 }
 
 /// Potential values for a feature flag post evaluation.
@@ -76,6 +85,7 @@ pub struct EvaluationRule {
     /// The result value.
     pub result: Option<FlagValue>,
     /// The optional payload to carry with the evaluation.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<PayloadType>,
     /// The tags that need to match for this evaluation rule.
     #[serde(default, skip_serializing_if = "TagMap::is_empty")]

@@ -7,7 +7,7 @@ use crate::endpoints::common::{self, BadStoreRequest};
 use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
 
-use relay_feature_flags::{EvaluationRule, EvaluationType, FeatureDump, FeatureFlag};
+use relay_feature_flags::{EvaluationRule, EvaluationType, FeatureDump, FeatureFlag, FlagKind};
 
 fn fetch_feature_flags(
     meta: RequestMeta,
@@ -28,6 +28,7 @@ fn fetch_feature_flags(
             feature_flags.insert(
                 "@@accessToProfiling".into(),
                 FeatureFlag {
+                    kind: FlagKind::Bool,
                     tags: Default::default(),
                     evaluation: vec![
                         EvaluationRule {
@@ -50,6 +51,7 @@ fn fetch_feature_flags(
             feature_flags.insert(
                 "@@profilingEnabled".into(),
                 FeatureFlag {
+                    kind: FlagKind::Bool,
                     tags: Default::default(),
                     evaluation: vec![
                         EvaluationRule {
@@ -69,6 +71,35 @@ fn fetch_feature_flags(
                     ],
                 },
             );
+            feature_flags.insert(
+                "@@tracesSampleRate".into(),
+                FeatureFlag {
+                    kind: FlagKind::Number,
+                    tags: Default::default(),
+                    evaluation: vec![EvaluationRule {
+                        payload: None,
+                        percentage: None,
+                        result: Some(0.25.into()),
+                        tags: Default::default(),
+                        ty: EvaluationType::Match,
+                    }],
+                },
+            );
+            feature_flags.insert(
+                "@@errorsSampleRate".into(),
+                FeatureFlag {
+                    kind: FlagKind::Number,
+                    tags: Default::default(),
+                    evaluation: vec![EvaluationRule {
+                        payload: None,
+                        percentage: None,
+                        result: Some(0.75.into()),
+                        tags: Default::default(),
+                        ty: EvaluationType::Match,
+                    }],
+                },
+            );
+
             HttpResponse::Ok().json(FeatureDump { feature_flags })
         });
     Box::new(fut)
