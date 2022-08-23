@@ -78,8 +78,7 @@ impl Cli {
 
     pub fn run(self) -> Result<()> {
         let config = self.load_pii_config()?;
-        let compiled = config.compiled();
-        let processor = PiiAttachmentsProcessor::new(&compiled);
+        let processor = PiiAttachmentsProcessor::new(config.compiled());
 
         let mut data = self.load_minidump()?;
         let changed = processor

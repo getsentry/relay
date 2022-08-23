@@ -77,8 +77,7 @@ impl Cli {
         let mut event = self.load_event()?;
 
         if let Some(pii_config) = self.load_pii_config()? {
-            let compiled = pii_config.compiled();
-            let mut processor = PiiProcessor::new(&compiled);
+            let mut processor = PiiProcessor::new(pii_config.compiled());
             process_value(&mut event, &mut processor, ProcessingState::root())
                 .map_err(|e| format_err!("{}", e))?;
         }

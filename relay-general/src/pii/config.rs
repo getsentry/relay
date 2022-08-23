@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::Deref;
 
+use once_cell::sync::OnceCell;
 use regex::{Regex, RegexBuilder};
-use relay_common::{LazyCellRef, UpsertingLazyCell};
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::{CompiledPiiConfig, Redaction};
@@ -181,7 +181,7 @@ pub struct PiiConfig {
     ///
     /// Cached because the conversion process is expensive.
     #[serde(skip)]
-    pub(super) compiled: UpsertingLazyCell<CompiledPiiConfig>,
+    pub(super) compiled: OnceCell<CompiledPiiConfig>,
 }
 
 impl PartialEq for PiiConfig {
@@ -215,15 +215,15 @@ impl PiiConfig {
         serde_json::to_string_pretty(&self)
     }
 
-    /// Get a representation of the `PiiConfig` that is more (CPU-)efficient for processing. Result
-    /// is cached in lazycell and directly returned on second call.
-    pub fn compiled(&self) -> LazyCellRef<CompiledPiiConfig> {
-        self.compiled
-            .get_or_insert_with(|| self.compiled_uncached())
+    /// Get a representation of this `PiiConfig` that is more (CPU-)efficient for processing.
+    ///
+    /// This can be computationally expensive when called for the first time. The result is cached
+    /// internally and reused on the second call.
+    pub fn compiled(&self) -> &CompiledPiiConfig {
+        self.compiled.get_or_init(|| self.compiled_uncached())
     }
 
-    /// Like `self.compiled` but without internal caching. Useful for benchmarks but not much
-    /// else.
+    /// Like [`compiled`](Self::compiled) but without internal caching.
     #[inline]
     pub fn compiled_uncached(&self) -> CompiledPiiConfig {
         CompiledPiiConfig::new(self)

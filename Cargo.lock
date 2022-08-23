@@ -3213,7 +3213,6 @@ dependencies = [
  "chrono",
  "failure",
  "globset",
- "lazycell",
  "lru",
  "once_cell",
  "parking_lot 0.12.1",

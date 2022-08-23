@@ -142,8 +142,8 @@ pub unsafe extern "C" fn relay_validate_pii_config(value: *const RelayStr) -> Re
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_convert_datascrubbing_config(config: *const RelayStr) -> RelayStr {
     let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
-    match *config.pii_config() {
-        Some(ref config) => RelayStr::from_string(config.to_json()?),
+    match config.pii_config() {
+        Some(config) => RelayStr::from_string(config.to_json()?),
         None => RelayStr::new("{}"),
     }
 }
@@ -156,8 +156,7 @@ pub unsafe extern "C" fn relay_pii_strip_event(
     event: *const RelayStr,
 ) -> RelayStr {
     let config = serde_json::from_str::<PiiConfig>((*config).as_str())?;
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
+    let mut processor = PiiProcessor::new(config.compiled());
 
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
     process_value(&mut event, &mut processor, ProcessingState::root())?;

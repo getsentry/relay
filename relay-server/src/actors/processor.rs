@@ -1612,14 +1612,12 @@ impl EnvelopeProcessor {
 
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = config.pii_config {
-                let compiled = config.compiled();
-                let mut processor = PiiProcessor::new(&compiled);
+                let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
-            if let Some(ref config) = *config.datascrubbing_settings.pii_config() {
-                let compiled = config.compiled();
-                let mut processor = PiiProcessor::new(&compiled);
+            if let Some(config) = config.datascrubbing_settings.pii_config() {
+                let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
@@ -1643,8 +1641,7 @@ impl EnvelopeProcessor {
                 let filename = item.filename().unwrap_or_default();
                 let mut payload = item.payload().to_vec();
 
-                let compiled = config.compiled();
-                let processor = PiiAttachmentsProcessor::new(&compiled);
+                let processor = PiiAttachmentsProcessor::new(config.compiled());
 
                 // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
                 // must be conservative and treat it as a plain attachment. Under extreme
