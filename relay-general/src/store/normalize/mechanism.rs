@@ -998,11 +998,11 @@ mod tests {
 
         normalize_mechanism(&mut good_mechanism, None).unwrap();
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(good_mechanism)), @r###"
-    {
-      "type": "generic",
-      "help_link": "https://example.com/",
-    }
-    "###);
+        {
+          "type": "generic",
+          "help_link": "https://example.com/",
+        }
+        "###);
 
         let mut bad_mechanism = Mechanism {
             ty: Annotated::new("generic".to_string()),
@@ -1012,25 +1012,25 @@ mod tests {
 
         normalize_mechanism(&mut bad_mechanism, None).unwrap();
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(bad_mechanism)), @r###"
-    {
-      "type": "generic",
-      "help_link": (),
-      "_meta": {
-        "help_link": {
-          "": Meta(Some(MetaInner(
-            err: [
-              [
-                "invalid_data",
-                {
-                  "reason": "expected http URL",
-                },
-              ],
-            ],
-            val: Some("javascript:alert(document.cookie)"),
-          ))),
-        },
-      },
-    }
-    "###);
+        {
+          "type": "generic",
+          "help_link": (),
+          "_meta": {
+            "help_link": {
+              "": Meta(Some(MetaInner(
+                err: [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "expected http URL",
+                    },
+                  ],
+                ],
+                val: Some("javascript:alert(document.cookie)"),
+              ))),
+            },
+          },
+        }
+        "###);
     }
 }

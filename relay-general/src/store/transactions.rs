@@ -968,25 +968,25 @@ mod tests {
     fn test_default_transaction_source_unknown() {
         let mut event = Annotated::<Event>::from_json(
             r###"
-        {
-          "type": "transaction",
-          "transaction": "/",
-          "timestamp": 946684810.0,
-          "start_timestamp": 946684800.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "http.server",
-              "type": "trace"
+            {
+                "type": "transaction",
+                "transaction": "/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "http.server",
+                    "type": "trace"
+                    }
+                },
+                "sdk": {
+                    "name": "sentry.dart.flutter"
+                },
+                "spans": []
             }
-          },
-          "sdk": {
-            "name": "sentry.dart.flutter"
-          },
-          "spans": []
-        }
-        "###,
+            "###,
         )
         .unwrap();
 
@@ -1012,24 +1012,24 @@ mod tests {
     fn test_default_transaction_source_none() {
         let mut event = Annotated::<Event>::from_json(
             r###"
-        {
-          "type": "transaction",
-          "transaction": "/",
-          "timestamp": 946684810.0,
-          "start_timestamp": 946684800.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "http.server",
-              "type": "trace"
+            {
+                "type": "transaction",
+                "transaction": "/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "http.server",
+                    "type": "trace"
+                    }
+                },
+                "sdk": {
+                    "name": "sentry.javascript.browser"
+                },
+                "spans": []
             }
-          },
-          "sdk": {
-            "name": "sentry.javascript.browser"
-          },
-          "spans": []
-        }
         "###,
         )
         .unwrap();
