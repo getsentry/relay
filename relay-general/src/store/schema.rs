@@ -103,10 +103,16 @@ fn verify_value_characters(
 
 #[cfg(test)]
 mod tests {
-    use super::SchemaProcessor;
+    use similar_asserts::assert_eq;
+
     use crate::processor::{process_value, ProcessingState};
-    use crate::testutils::assert_eq_dbg;
-    use crate::types::{Annotated, Array, Error, Object};
+    use crate::protocol::{
+        CError, ClientSdkInfo, Event, MachException, Mechanism, MechanismMeta, PosixSignal,
+        RawStacktrace, User,
+    };
+    use crate::types::{Annotated, Array, Error, ErrorKind, Object};
+
+    use super::*;
 
     fn assert_nonempty_base<T>()
     where
@@ -125,7 +131,7 @@ mod tests {
         });
         process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
-        assert_eq_dbg!(
+        assert_eq!(
             wrapper,
             Annotated::new(Foo {
                 bar: Annotated::from_error(Error::expected("a non-empty value"), None),
@@ -151,8 +157,6 @@ mod tests {
 
     #[test]
     fn test_invalid_email() {
-        use crate::protocol::User;
-
         let mut user = Annotated::new(User {
             email: Annotated::new("bananabread".to_owned()),
             ..Default::default()
@@ -161,14 +165,11 @@ mod tests {
         let expected = user.clone();
         process_value(&mut user, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
-        assert_eq_dbg!(user, expected);
+        assert_eq!(user, expected);
     }
 
     #[test]
     fn test_client_sdk_missing_attribute() {
-        use crate::protocol::ClientSdkInfo;
-        use crate::types::ErrorKind;
-
         let mut info = Annotated::new(ClientSdkInfo {
             name: Annotated::new("sentry.rust".to_string()),
             ..Default::default()
@@ -182,13 +183,11 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(info, expected);
+        assert_eq!(info, expected);
     }
 
     #[test]
     fn test_mechanism_missing_attributes() {
-        use crate::protocol::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
-
         let mut mechanism = Annotated::new(Mechanism {
             ty: Annotated::new("mytype".to_string()),
             meta: Annotated::new(MechanismMeta {
@@ -240,14 +239,11 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(mechanism, expected);
+        assert_eq!(mechanism, expected);
     }
 
     #[test]
     fn test_stacktrace_missing_attribute() {
-        use crate::protocol::RawStacktrace;
-        use crate::types::ErrorKind;
-
         let mut stack = Annotated::new(RawStacktrace::default());
 
         process_value(&mut stack, &mut SchemaProcessor, ProcessingState::root()).unwrap();
@@ -257,12 +253,11 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(stack, expected);
+        assert_eq!(stack, expected);
     }
 
     #[test]
     fn test_newlines_release() {
-        use crate::protocol::Event;
         let mut event = Annotated::new(Event {
             release: Annotated::new("42\n".to_string().into()),
             ..Default::default()
@@ -275,6 +270,6 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(expected, event);
+        assert_eq!(expected, event);
     }
 }

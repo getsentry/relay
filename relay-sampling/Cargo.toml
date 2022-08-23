@@ -21,4 +21,4 @@ rand_pcg = "0.1.2"
 unicase = "2.6.0"
 
 [dev-dependencies]
-insta = { version = "1.1.0", features = ["ron"] }
+insta = { version = "1.19.0", features = ["ron"] }

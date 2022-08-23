@@ -189,362 +189,357 @@ pub fn normalize_request(request: &mut Request) -> ProcessingResult {
 }
 
 #[cfg(test)]
-use {crate::protocol::PairList, crate::testutils::assert_eq_dbg, crate::types::Object};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_url_truncation() {
-    let mut request = Request {
-        url: Annotated::new("http://example.com/path?foo#bar".to_string()),
-        ..Request::default()
-    };
+    use crate::protocol::{Cookies, Headers, PairList, Query};
+    use crate::types::Object;
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path"));
-}
+    use super::*;
 
-#[test]
-fn test_url_truncation_reversed() {
-    let mut request = Request {
-        // The query string is empty and the fragment is "foo?bar" here
-        url: Annotated::new("http://example.com/path#foo?bar".to_string()),
-        ..Request::default()
-    };
+    #[test]
+    fn test_url_truncation() {
+        let mut request = Request {
+            url: Annotated::new("http://example.com/path?foo#bar".to_string()),
+            ..Request::default()
+        };
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path"));
-}
+        normalize_request(&mut request).unwrap();
+        assert_eq!(request.url.as_str(), Some("http://example.com/path"));
+    }
 
-#[test]
-fn test_url_with_ellipsis() {
-    let mut request = Request {
-        url: Annotated::new("http://example.com/path…".to_string()),
-        ..Request::default()
-    };
+    #[test]
+    fn test_url_truncation_reversed() {
+        let mut request = Request {
+            // The query string is empty and the fragment is "foo?bar" here
+            url: Annotated::new("http://example.com/path#foo?bar".to_string()),
+            ..Request::default()
+        };
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(request.url.as_str(), Some("http://example.com/path..."));
-}
+        normalize_request(&mut request).unwrap();
+        assert_eq!(request.url.as_str(), Some("http://example.com/path"));
+    }
 
-#[test]
-fn test_url_with_qs_and_fragment() {
-    use crate::protocol::Query;
+    #[test]
+    fn test_url_with_ellipsis() {
+        let mut request = Request {
+            url: Annotated::new("http://example.com/path…".to_string()),
+            ..Request::default()
+        };
 
-    let mut request = Request {
-        url: Annotated::new("http://example.com/path?some=thing#else".to_string()),
-        ..Request::default()
-    };
+        normalize_request(&mut request).unwrap();
+        assert_eq!(request.url.as_str(), Some("http://example.com/path..."));
+    }
 
-    normalize_request(&mut request).unwrap();
+    #[test]
+    fn test_url_with_qs_and_fragment() {
+        let mut request = Request {
+            url: Annotated::new("http://example.com/path?some=thing#else".to_string()),
+            ..Request::default()
+        };
 
-    assert_eq_dbg!(
-        request,
-        Request {
-            url: Annotated::new("http://example.com/path".to_string()),
+        normalize_request(&mut request).unwrap();
+
+        assert_eq!(
+            request,
+            Request {
+                url: Annotated::new("http://example.com/path".to_string()),
+                query_string: Annotated::new(Query(PairList(vec![Annotated::new((
+                    Annotated::new("some".to_string()),
+                    Annotated::new("thing".to_string().into()),
+                )),]))),
+                fragment: Annotated::new("else".to_string()),
+                ..Request::default()
+            }
+        );
+    }
+
+    #[test]
+    fn test_url_only_path() {
+        let mut request = Request {
+            url: Annotated::from("metamask/popup.html#".to_string()),
+            ..Request::default()
+        };
+
+        normalize_request(&mut request).unwrap();
+        assert_eq!(
+            request,
+            Request {
+                url: Annotated::new("metamask/popup.html".to_string()),
+                ..Request::default()
+            }
+        );
+    }
+
+    #[test]
+    fn test_url_punycoded() {
+        let mut request = Request {
+            url: Annotated::new("http://göögle.com/".to_string()),
+            ..Request::default()
+        };
+
+        normalize_request(&mut request).unwrap();
+
+        assert_eq!(
+            request,
+            Request {
+                url: Annotated::new("http://xn--ggle-5qaa.com/".to_string()),
+                ..Request::default()
+            }
+        );
+    }
+
+    #[test]
+    fn test_url_precedence() {
+        let mut request = Request {
+            url: Annotated::new("http://example.com/path?completely=different#stuff".to_string()),
             query_string: Annotated::new(Query(PairList(vec![Annotated::new((
                 Annotated::new("some".to_string()),
                 Annotated::new("thing".to_string().into()),
-            )),]))),
+            ))]))),
             fragment: Annotated::new("else".to_string()),
             ..Request::default()
-        }
-    );
-}
+        };
 
-#[test]
-fn test_url_only_path() {
-    let mut request = Request {
-        url: Annotated::from("metamask/popup.html#".to_string()),
-        ..Request::default()
-    };
+        normalize_request(&mut request).unwrap();
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(
-        request,
-        Request {
-            url: Annotated::new("metamask/popup.html".to_string()),
+        assert_eq!(
+            request,
+            Request {
+                url: Annotated::new("http://example.com/path".to_string()),
+                query_string: Annotated::new(Query(PairList(vec![Annotated::new((
+                    Annotated::new("some".to_string()),
+                    Annotated::new("thing".to_string().into()),
+                )),]))),
+                fragment: Annotated::new("else".to_string()),
+                ..Request::default()
+            }
+        );
+    }
+
+    #[test]
+    fn test_query_string_empty_value() {
+        let mut request = Request {
+            url: Annotated::new("http://example.com/path?some".to_string()),
             ..Request::default()
-        }
-    );
-}
+        };
 
-#[test]
-fn test_url_punycoded() {
-    let mut request = Request {
-        url: Annotated::new("http://göögle.com/".to_string()),
-        ..Request::default()
-    };
+        normalize_request(&mut request).unwrap();
 
-    normalize_request(&mut request).unwrap();
+        assert_eq!(
+            request,
+            Request {
+                url: Annotated::new("http://example.com/path".to_string()),
+                query_string: Annotated::new(Query(PairList(vec![Annotated::new((
+                    Annotated::new("some".to_string()),
+                    Annotated::new("".to_string().into()),
+                )),]))),
+                ..Request::default()
+            }
+        );
+    }
 
-    assert_eq_dbg!(
-        request,
-        Request {
-            url: Annotated::new("http://xn--ggle-5qaa.com/".to_string()),
-            ..Request::default()
-        }
-    );
-}
-
-#[test]
-fn test_url_precedence() {
-    use crate::protocol::Query;
-
-    let mut request = Request {
-        url: Annotated::new("http://example.com/path?completely=different#stuff".to_string()),
-        query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-            Annotated::new("some".to_string()),
-            Annotated::new("thing".to_string().into()),
-        ))]))),
-        fragment: Annotated::new("else".to_string()),
-        ..Request::default()
-    };
-
-    normalize_request(&mut request).unwrap();
-
-    assert_eq_dbg!(
-        request,
-        Request {
-            url: Annotated::new("http://example.com/path".to_string()),
-            query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-                Annotated::new("some".to_string()),
-                Annotated::new("thing".to_string().into()),
-            )),]))),
-            fragment: Annotated::new("else".to_string()),
-            ..Request::default()
-        }
-    );
-}
-
-#[test]
-fn test_query_string_empty_value() {
-    use crate::protocol::Query;
-
-    let mut request = Request {
-        url: Annotated::new("http://example.com/path?some".to_string()),
-        ..Request::default()
-    };
-
-    normalize_request(&mut request).unwrap();
-
-    assert_eq_dbg!(
-        request,
-        Request {
-            url: Annotated::new("http://example.com/path".to_string()),
-            query_string: Annotated::new(Query(PairList(vec![Annotated::new((
-                Annotated::new("some".to_string()),
-                Annotated::new("".to_string().into()),
-            )),]))),
-            ..Request::default()
-        }
-    );
-}
-
-#[test]
-fn test_cookies_in_header() {
-    use crate::protocol::{Cookies, Headers};
-
-    let mut request = Request {
-        url: Annotated::new("http://example.com".to_string()),
-        headers: Annotated::new(Headers(PairList(vec![Annotated::new((
-            Annotated::new("Cookie".to_string().into()),
-            Annotated::new("a=b;c=d".to_string().into()),
-        ))]))),
-        ..Request::default()
-    };
-
-    normalize_request(&mut request).unwrap();
-
-    assert_eq_dbg!(
-        request.cookies,
-        Annotated::new(Cookies(PairList(vec![
-            Annotated::new((
-                Annotated::new("a".to_string()),
-                Annotated::new("b".to_string()),
-            )),
-            Annotated::new((
-                Annotated::new("c".to_string()),
-                Annotated::new("d".to_string()),
-            )),
-        ])))
-    );
-
-    assert_eq_dbg!(request.headers.value().unwrap().get_header("Cookie"), None);
-}
-
-#[test]
-fn test_cookies_in_header_dont_override_cookies() {
-    use crate::protocol::{Cookies, Headers};
-
-    let mut request = Request {
-        url: Annotated::new("http://example.com".to_string()),
-        headers: Annotated::new(Headers(
-            vec![Annotated::new((
+    #[test]
+    fn test_cookies_in_header() {
+        let mut request = Request {
+            url: Annotated::new("http://example.com".to_string()),
+            headers: Annotated::new(Headers(PairList(vec![Annotated::new((
                 Annotated::new("Cookie".to_string().into()),
                 Annotated::new("a=b;c=d".to_string().into()),
-            ))]
-            .into(),
-        )),
-        cookies: Annotated::new(Cookies(PairList(vec![Annotated::new((
-            Annotated::new("foo".to_string()),
-            Annotated::new("bar".to_string()),
-        ))]))),
-        ..Request::default()
-    };
+            ))]))),
+            ..Request::default()
+        };
 
-    normalize_request(&mut request).unwrap();
+        normalize_request(&mut request).unwrap();
 
-    assert_eq_dbg!(
-        request.cookies,
-        Annotated::new(Cookies(PairList(vec![Annotated::new((
-            Annotated::new("foo".to_string()),
-            Annotated::new("bar".to_string()),
-        ))])))
-    );
+        assert_eq!(
+            request.cookies,
+            Annotated::new(Cookies(PairList(vec![
+                Annotated::new((
+                    Annotated::new("a".to_string()),
+                    Annotated::new("b".to_string()),
+                )),
+                Annotated::new((
+                    Annotated::new("c".to_string()),
+                    Annotated::new("d".to_string()),
+                )),
+            ])))
+        );
 
-    // Cookie header is removed when explicit cookies are given
-    assert_eq_dbg!(request.headers.value().unwrap().get_header("Cookie"), None);
-}
+        assert_eq!(request.headers.value().unwrap().get_header("Cookie"), None);
+    }
 
-#[test]
-fn test_method_invalid() {
-    let mut request = Request {
-        method: Annotated::new("!!!!".to_string()),
-        ..Request::default()
-    };
+    #[test]
+    fn test_cookies_in_header_dont_override_cookies() {
+        let mut request = Request {
+            url: Annotated::new("http://example.com".to_string()),
+            headers: Annotated::new(Headers(
+                vec![Annotated::new((
+                    Annotated::new("Cookie".to_string().into()),
+                    Annotated::new("a=b;c=d".to_string().into()),
+                ))]
+                .into(),
+            )),
+            cookies: Annotated::new(Cookies(PairList(vec![Annotated::new((
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string()),
+            ))]))),
+            ..Request::default()
+        };
 
-    normalize_request(&mut request).unwrap();
+        normalize_request(&mut request).unwrap();
 
-    assert_eq_dbg!(request.method.value(), None);
-}
+        assert_eq!(
+            request.cookies,
+            Annotated::new(Cookies(PairList(vec![Annotated::new((
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string()),
+            ))])))
+        );
 
-#[test]
-fn test_method_valid() {
-    let mut request = Request {
-        method: Annotated::new("POST".to_string()),
-        ..Request::default()
-    };
+        // Cookie header is removed when explicit cookies are given
+        assert_eq!(request.headers.value().unwrap().get_header("Cookie"), None);
+    }
 
-    normalize_request(&mut request).unwrap();
+    #[test]
+    fn test_method_invalid() {
+        let mut request = Request {
+            method: Annotated::new("!!!!".to_string()),
+            ..Request::default()
+        };
 
-    assert_eq_dbg!(request.method.as_str(), Some("POST"));
-}
+        normalize_request(&mut request).unwrap();
 
-#[test]
-fn test_infer_json() {
-    let mut request = Request {
-        data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_string())),
-        ..Request::default()
-    };
+        assert_eq!(request.method.value(), None);
+    }
 
-    let mut expected_value = Object::new();
-    expected_value.insert(
-        "foo".to_string(),
-        Annotated::from(Value::String("bar".into())),
-    );
+    #[test]
+    fn test_method_valid() {
+        let mut request = Request {
+            method: Annotated::new("POST".to_string()),
+            ..Request::default()
+        };
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(
-        request.inferred_content_type.as_str(),
-        Some("application/json")
-    );
-    assert_eq_dbg!(request.data.value(), Some(&Value::Object(expected_value)));
-}
+        normalize_request(&mut request).unwrap();
 
-#[test]
-fn test_broken_json_with_fallback() {
-    use crate::protocol::Headers;
+        assert_eq!(request.method.as_str(), Some("POST"));
+    }
 
-    let mut request = Request {
-        data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
-        headers: Annotated::from(Headers(PairList(vec![Annotated::new((
-            Annotated::new("Content-Type".to_string().into()),
-            Annotated::new("text/plain; encoding=utf-8".to_string().into()),
-        ))]))),
-        ..Request::default()
-    };
+    #[test]
+    fn test_infer_json() {
+        let mut request = Request {
+            data: Annotated::from(Value::String(r#"{"foo":"bar"}"#.to_string())),
+            ..Request::default()
+        };
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(request.inferred_content_type.as_str(), Some("text/plain"));
-    assert_eq_dbg!(request.data.as_str(), Some(r#"{"foo":"b"#));
-}
+        let mut expected_value = Object::new();
+        expected_value.insert(
+            "foo".to_string(),
+            Annotated::from(Value::String("bar".into())),
+        );
 
-#[test]
-fn test_broken_json_without_fallback() {
-    let mut request = Request {
-        data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
-        ..Request::default()
-    };
+        normalize_request(&mut request).unwrap();
+        assert_eq!(
+            request.inferred_content_type.as_str(),
+            Some("application/json")
+        );
+        assert_eq!(request.data.value(), Some(&Value::Object(expected_value)));
+    }
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(request.inferred_content_type.value(), None);
-    assert_eq_dbg!(request.data.as_str(), Some(r#"{"foo":"b"#));
-}
+    #[test]
+    fn test_broken_json_with_fallback() {
+        let mut request = Request {
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            headers: Annotated::from(Headers(PairList(vec![Annotated::new((
+                Annotated::new("Content-Type".to_string().into()),
+                Annotated::new("text/plain; encoding=utf-8".to_string().into()),
+            ))]))),
+            ..Request::default()
+        };
 
-#[test]
-fn test_infer_url_encoded() {
-    let mut request = Request {
-        data: Annotated::from(Value::String(r#"foo=bar"#.to_string())),
-        ..Request::default()
-    };
+        normalize_request(&mut request).unwrap();
+        assert_eq!(request.inferred_content_type.as_str(), Some("text/plain"));
+        assert_eq!(request.data.as_str(), Some(r#"{"foo":"b"#));
+    }
 
-    let mut expected_value = Object::new();
-    expected_value.insert(
-        "foo".to_string(),
-        Annotated::from(Value::String("bar".into())),
-    );
+    #[test]
+    fn test_broken_json_without_fallback() {
+        let mut request = Request {
+            data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
+            ..Request::default()
+        };
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(
-        request.inferred_content_type.as_str(),
-        Some("application/x-www-form-urlencoded")
-    );
-    assert_eq_dbg!(request.data.value(), Some(&Value::Object(expected_value)));
-}
+        normalize_request(&mut request).unwrap();
+        assert_eq!(request.inferred_content_type.value(), None);
+        assert_eq!(request.data.as_str(), Some(r#"{"foo":"b"#));
+    }
 
-#[test]
-fn test_infer_url_false_positive() {
-    let mut request = Request {
-        data: Annotated::from(Value::String("dGU=".to_string())),
-        ..Request::default()
-    };
+    #[test]
+    fn test_infer_url_encoded() {
+        let mut request = Request {
+            data: Annotated::from(Value::String(r#"foo=bar"#.to_string())),
+            ..Request::default()
+        };
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(request.inferred_content_type.value(), None);
-    assert_eq_dbg!(request.data.as_str(), Some("dGU="));
-}
+        let mut expected_value = Object::new();
+        expected_value.insert(
+            "foo".to_string(),
+            Annotated::from(Value::String("bar".into())),
+        );
 
-#[test]
-fn test_infer_url_encoded_base64() {
-    let mut request = Request {
-        data: Annotated::from(Value::String("dA==".to_string())),
-        ..Request::default()
-    };
+        normalize_request(&mut request).unwrap();
+        assert_eq!(
+            request.inferred_content_type.as_str(),
+            Some("application/x-www-form-urlencoded")
+        );
+        assert_eq!(request.data.value(), Some(&Value::Object(expected_value)));
+    }
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(request.inferred_content_type.value(), None);
-    assert_eq_dbg!(request.data.as_str(), Some("dA=="));
-}
+    #[test]
+    fn test_infer_url_false_positive() {
+        let mut request = Request {
+            data: Annotated::from(Value::String("dGU=".to_string())),
+            ..Request::default()
+        };
 
-#[test]
-fn test_infer_xml() {
-    let mut request = Request {
-        data: Annotated::from(Value::String("<?xml version=\"1.0\" ?>".to_string())),
-        ..Request::default()
-    };
+        normalize_request(&mut request).unwrap();
+        assert_eq!(request.inferred_content_type.value(), None);
+        assert_eq!(request.data.as_str(), Some("dGU="));
+    }
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(request.inferred_content_type.value(), None);
-    assert_eq_dbg!(request.data.as_str(), Some("<?xml version=\"1.0\" ?>"));
-}
+    #[test]
+    fn test_infer_url_encoded_base64() {
+        let mut request = Request {
+            data: Annotated::from(Value::String("dA==".to_string())),
+            ..Request::default()
+        };
 
-#[test]
-fn test_infer_binary() {
-    let mut request = Request {
-        data: Annotated::from(Value::String("\u{001f}1\u{0000}\u{0000}".to_string())),
-        ..Request::default()
-    };
+        normalize_request(&mut request).unwrap();
+        assert_eq!(request.inferred_content_type.value(), None);
+        assert_eq!(request.data.as_str(), Some("dA=="));
+    }
 
-    normalize_request(&mut request).unwrap();
-    assert_eq_dbg!(request.inferred_content_type.value(), None);
-    assert_eq_dbg!(request.data.as_str(), Some("\u{001f}1\u{0000}\u{0000}"));
+    #[test]
+    fn test_infer_xml() {
+        let mut request = Request {
+            data: Annotated::from(Value::String("<?xml version=\"1.0\" ?>".to_string())),
+            ..Request::default()
+        };
+
+        normalize_request(&mut request).unwrap();
+        assert_eq!(request.inferred_content_type.value(), None);
+        assert_eq!(request.data.as_str(), Some("<?xml version=\"1.0\" ?>"));
+    }
+
+    #[test]
+    fn test_infer_binary() {
+        let mut request = Request {
+            data: Annotated::from(Value::String("\u{001f}1\u{0000}\u{0000}".to_string())),
+            ..Request::default()
+        };
+
+        normalize_request(&mut request).unwrap();
+        assert_eq!(request.inferred_content_type.value(), None);
+        assert_eq!(request.data.as_str(), Some("\u{001f}1\u{0000}\u{0000}"));
+    }
 }

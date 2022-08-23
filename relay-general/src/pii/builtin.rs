@@ -360,16 +360,15 @@ declare_builtin_rules! {
 // TODO: Move these tests to /tests
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
     use std::collections::BTreeMap;
 
-    use crate::pii::config::{PiiConfig, RuleSpec, RuleType};
+    use crate::pii::config::PiiConfig;
     use crate::pii::processor::PiiProcessor;
-    use crate::pii::{Redaction, ReplaceRedaction};
     use crate::processor::{process_value, ProcessingState, ValueType};
-    use crate::testutils::{assert_eq_dbg, assert_eq_str};
     use crate::types::{Annotated, Remark, RemarkType};
 
-    use super::{BUILTIN_RULES, BUILTIN_RULES_MAP};
+    use super::*;
 
     #[derive(Clone, Debug, PartialEq, Empty, FromValue, ProcessValue, IntoValue)]
     struct FreeformRoot {
@@ -397,9 +396,9 @@ mod tests {
             });
             process_value(&mut root, &mut processor, ProcessingState::root()).unwrap();
             let root = root.0.unwrap();
-            assert_eq_str!(root.value.value().unwrap(), $output);
+            assert_eq!(root.value.value().unwrap(), $output);
             let remarks: Vec<Remark> = $remarks;
-            assert_eq_dbg!(
+            assert_eq!(
                 root.value.meta().iter_remarks().collect::<Vec<_>>(),
                 remarks.iter().collect::<Vec<_>>()
             );
@@ -456,9 +455,9 @@ mod tests {
             });
             process_value(&mut root, &mut processor, ProcessingState::root()).unwrap();
             let root = root.0.unwrap();
-            assert_eq_str!(root.value.value().unwrap(), $output);
+            assert_eq!(root.value.value().unwrap(), $output);
             let remarks: Vec<Remark> = $remarks;
-            assert_eq_dbg!(
+            assert_eq!(
                 root.value.meta().iter_remarks().collect::<Vec<_>>(),
                 remarks.iter().collect::<Vec<_>>()
             );

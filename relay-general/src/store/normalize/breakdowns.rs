@@ -233,17 +233,19 @@ pub fn normalize_breakdowns(event: &mut Event, breakdowns_config: &BreakdownsCon
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
-    use crate::testutils::assert_eq_dbg;
-    use crate::types::Object;
     use chrono::{TimeZone, Utc};
+    use similar_asserts::assert_eq;
+
+    use crate::protocol::{EventType, Span, SpanId, SpanStatus, TraceId};
+    use crate::types::Object;
+
+    use super::*;
 
     #[test]
     fn test_skip_with_empty_breakdowns_config() {
         let mut event = Event::default();
         normalize_breakdowns(&mut event, &BreakdownsConfig::default());
-        assert_eq_dbg!(event.breakdowns.value(), None);
+        assert_eq!(event.breakdowns.value(), None);
     }
 
     #[test]
@@ -271,7 +273,7 @@ mod tests {
             ..Default::default()
         };
         normalize_breakdowns(&mut event, &BreakdownsConfig::default());
-        assert_eq_dbg!(event.breakdowns.into_value(), None);
+        assert_eq!(event.breakdowns.into_value(), None);
     }
 
     #[test]
@@ -384,6 +386,6 @@ mod tests {
             breakdowns
         });
 
-        assert_eq_dbg!(event.breakdowns.into_value().unwrap(), expected_breakdowns);
+        assert_eq!(event.breakdowns.into_value().unwrap(), expected_breakdowns);
     }
 }
