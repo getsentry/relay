@@ -507,7 +507,6 @@ mod tests {
     use itertools::Itertools;
 
     use crate::pii::PiiConfig;
-    use crate::testutils::assert_eq_bytes_str;
 
     use super::*;
 
@@ -534,7 +533,7 @@ mod tests {
 
     impl<'a> AttachmentBytesTestCase<'a> {
         fn run(self) {
-            let (config, filename, value_type, input, output, changed) = match self {
+            let (config, filename, value_type, input, expected, changed) = match self {
                 AttachmentBytesTestCase::Builtin {
                     selector,
                     rule,
@@ -585,12 +584,19 @@ mod tests {
             };
 
             let compiled = config.compiled();
-            let mut data = input.to_owned();
+            let mut actual = input.to_owned();
             let processor = PiiAttachmentsProcessor::new(&compiled);
             let state = processor.state(filename, value_type);
-            let has_changed = processor.scrub_bytes(&mut data, &state, ScrubEncodings::All);
+            let has_changed = processor.scrub_bytes(&mut actual, &state, ScrubEncodings::All);
 
-            assert_eq_bytes_str!(data, output);
+            assert!(
+                actual == expected,
+                "`actual == expected` in line {}:\n{}\n{}",
+                line!(),
+                pretty_hex::pretty_hex(&actual),
+                pretty_hex::pretty_hex(&expected),
+            );
+
             assert_eq!(changed, has_changed);
         }
     }

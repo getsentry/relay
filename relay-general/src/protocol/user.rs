@@ -79,53 +79,56 @@ pub struct User {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_geo_roundtrip() {
-    use crate::types::Map;
+    use crate::types::{Error, Map};
 
-    let json = r#"{
+    use super::*;
+
+    #[test]
+    fn test_geo_roundtrip() {
+        let json = r#"{
   "country_code": "US",
   "city": "San Francisco",
   "region": "CA",
   "other": "value"
 }"#;
-    let geo = Annotated::new(Geo {
-        country_code: Annotated::new("US".to_string()),
-        city: Annotated::new("San Francisco".to_string()),
-        region: Annotated::new("CA".to_string()),
-        other: {
-            let mut map = Map::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    });
+        let geo = Annotated::new(Geo {
+            country_code: Annotated::new("US".to_string()),
+            city: Annotated::new("San Francisco".to_string()),
+            region: Annotated::new("CA".to_string()),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
 
-    assert_eq_dbg!(geo, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, geo.to_json_pretty().unwrap());
-}
+        assert_eq!(geo, Annotated::from_json(json).unwrap());
+        assert_eq!(json, geo.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_geo_default_values() {
-    let json = "{}";
-    let geo = Annotated::new(Geo {
-        country_code: Annotated::empty(),
-        city: Annotated::empty(),
-        region: Annotated::empty(),
-        other: Object::default(),
-    });
+    #[test]
+    fn test_geo_default_values() {
+        let json = "{}";
+        let geo = Annotated::new(Geo {
+            country_code: Annotated::empty(),
+            city: Annotated::empty(),
+            region: Annotated::empty(),
+            other: Object::default(),
+        });
 
-    assert_eq_dbg!(geo, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, geo.to_json_pretty().unwrap());
-}
+        assert_eq!(geo, Annotated::from_json(json).unwrap());
+        assert_eq!(json, geo.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_user_roundtrip() {
-    let json = r#"{
+    #[test]
+    fn test_user_roundtrip() {
+        let json = r#"{
   "id": "e4e24881-8238-4539-a32b-d3c3ecd40568",
   "email": "mail@example.org",
   "ip_address": "{{auto}}",
@@ -137,72 +140,72 @@ fn test_user_roundtrip() {
   },
   "other": "value"
 }"#;
-    let user = Annotated::new(User {
-        id: Annotated::new("e4e24881-8238-4539-a32b-d3c3ecd40568".to_string().into()),
-        email: Annotated::new("mail@example.org".to_string()),
-        ip_address: Annotated::new(IpAddr::auto()),
-        name: Annotated::new("John Doe".to_string()),
-        username: Annotated::new("john_doe".to_string()),
-        geo: Annotated::empty(),
-        segment: Annotated::new("vip".to_string()),
-        data: {
-            let mut map = Object::new();
-            map.insert(
-                "data".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            Annotated::new(map)
-        },
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    });
+        let user = Annotated::new(User {
+            id: Annotated::new("e4e24881-8238-4539-a32b-d3c3ecd40568".to_string().into()),
+            email: Annotated::new("mail@example.org".to_string()),
+            ip_address: Annotated::new(IpAddr::auto()),
+            name: Annotated::new("John Doe".to_string()),
+            username: Annotated::new("john_doe".to_string()),
+            geo: Annotated::empty(),
+            segment: Annotated::new("vip".to_string()),
+            data: {
+                let mut map = Object::new();
+                map.insert(
+                    "data".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                Annotated::new(map)
+            },
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
 
-    assert_eq_dbg!(user, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, user.to_json_pretty().unwrap());
-}
+        assert_eq!(user, Annotated::from_json(json).unwrap());
+        assert_eq!(json, user.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_user_lenient_id() {
-    let input = r#"{"id":42}"#;
-    let output = r#"{"id":"42"}"#;
-    let user = Annotated::new(User {
-        id: Annotated::new("42".to_string().into()),
-        ..User::default()
-    });
+    #[test]
+    fn test_user_lenient_id() {
+        let input = r#"{"id":42}"#;
+        let output = r#"{"id":"42"}"#;
+        let user = Annotated::new(User {
+            id: Annotated::new("42".to_string().into()),
+            ..User::default()
+        });
 
-    assert_eq_dbg!(user, Annotated::from_json(input).unwrap());
-    assert_eq_str!(output, user.to_json().unwrap());
-}
+        assert_eq!(user, Annotated::from_json(input).unwrap());
+        assert_eq!(output, user.to_json().unwrap());
+    }
 
-#[test]
-fn test_user_invalid_id() {
-    use crate::types::Error;
-    let json = r#"{"id":[]}"#;
-    let user = Annotated::new(User {
-        id: Annotated::from_error(
-            Error::expected("a primitive value"),
-            Some(Value::Array(vec![])),
-        ),
-        ..User::default()
-    });
+    #[test]
+    fn test_user_invalid_id() {
+        let json = r#"{"id":[]}"#;
+        let user = Annotated::new(User {
+            id: Annotated::from_error(
+                Error::expected("a primitive value"),
+                Some(Value::Array(vec![])),
+            ),
+            ..User::default()
+        });
 
-    assert_eq_dbg!(user, Annotated::from_json(json).unwrap());
-}
+        assert_eq!(user, Annotated::from_json(json).unwrap());
+    }
 
-#[test]
-fn test_explicit_none() {
-    let json = r#"{
+    #[test]
+    fn test_explicit_none() {
+        let json = r#"{
   "id": null
 }"#;
 
-    let user = Annotated::new(User::default());
+        let user = Annotated::new(User::default());
 
-    assert_eq_dbg!(user, Annotated::from_json(json).unwrap());
-    assert_eq_str!("{}", user.to_json_pretty().unwrap());
+        assert_eq!(user, Annotated::from_json(json).unwrap());
+        assert_eq!("{}", user.to_json_pretty().unwrap());
+    }
 }

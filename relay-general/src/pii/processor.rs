@@ -354,505 +354,542 @@ fn insert_replacement_chunks(rule: &RuleRef, text: &str, output: &mut Vec<Chunk<
 }
 
 #[cfg(test)]
-use {
-    crate::pii::{PiiConfig, ReplaceRedaction},
-    crate::processor::process_value,
-    crate::protocol::{
+mod tests {
+    use crate::pii::{PiiConfig, ReplaceRedaction};
+    use crate::processor::process_value;
+    use crate::protocol::{
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
-        Request,
-    },
-    crate::testutils::assert_annotated_snapshot,
-    crate::types::{Annotated, Object, Value},
-};
+        Request, TagEntry, Tags,
+    };
+    use crate::testutils::assert_annotated_snapshot;
+    use crate::types::{Annotated, Object, Value};
 
-#[test]
-fn test_basic_stripping() {
-    use crate::protocol::{TagEntry, Tags};
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "rules": {
-                "remove_bad_headers": {
-                    "type": "redact_pair",
-                    "keyPattern": "(?i)cookie|secret[-_]?key"
-                }
-            },
-            "applications": {
-                "$string": ["@ip"],
-                "$object.**": ["remove_bad_headers"]
-            }
-        }
-    "##,
-    )
-    .unwrap();
+    use super::*;
 
-    let mut event = Annotated::new(Event {
-        logentry: Annotated::new(LogEntry {
-            formatted: Annotated::new("Hello world!".to_string().into()),
-            ..Default::default()
-        }),
-        request: Annotated::new(Request {
-            env: {
-                let mut rv = Object::new();
-                rv.insert(
-                    "SECRET_KEY".to_string(),
-                    Annotated::new(Value::String("134141231231231231231312".into())),
-                );
-                Annotated::new(rv)
-            },
-            headers: {
-                let rv = vec![
-                    Annotated::new((
-                        Annotated::new("Cookie".to_string().into()),
-                        Annotated::new("super secret".to_string().into()),
-                    )),
-                    Annotated::new((
-                        Annotated::new("X-Forwarded-For".to_string().into()),
-                        Annotated::new("127.0.0.1".to_string().into()),
-                    )),
-                ];
-                Annotated::new(Headers(PairList(rv)))
-            },
-            ..Default::default()
-        }),
-        tags: Annotated::new(Tags(
-            vec![Annotated::new(TagEntry(
-                Annotated::new("forwarded_for".to_string()),
-                Annotated::new("127.0.0.1".to_string()),
-            ))]
-            .into(),
-        )),
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_redact_containers() {
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "applications": {
-                "$object": ["@anything"]
-            }
-        }
-    "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        extra: {
-            let mut map = Object::new();
-            map.insert(
-                "foo".to_string(),
-                Annotated::new(ExtraValue(Value::String("bar".to_string()))),
-            );
-            Annotated::new(map)
-        },
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_redact_custom_pattern() {
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "applications": {
-                "$string": ["myrule"]
-            },
-            "rules": {
-                "myrule": {
-                    "type": "pattern",
-                    "pattern": "foo",
-                    "redaction": {
-                        "method": "replace",
-                        "text": "asd"
-                    }
-                }
-            }
-        }
-    "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        extra: {
-            let mut map = Object::new();
-            map.insert(
-                "myvalue".to_string(),
-                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
-            );
-            Annotated::new(map)
-        },
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_no_field_upsert() {
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "applications": {
-                "**": ["@anything:remove"]
-            }
-        }
-    "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        extra: {
-            let mut map = Object::new();
-            map.insert(
-                "myvalue".to_string(),
-                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
-            );
-            Annotated::new(map)
-        },
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_anything_hash_on_string() {
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "applications": {
-                "$string": ["@anything:hash"]
-            }
-        }
-    "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        extra: {
-            let mut map = Object::new();
-            map.insert(
-                "myvalue".to_string(),
-                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
-            );
-            Annotated::new(map)
-        },
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_anything_hash_on_container() {
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "applications": {
-                "$object": ["@anything:hash"]
-            }
-        }
-    "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        extra: {
-            let mut map = Object::new();
-            map.insert(
-                "myvalue".to_string(),
-                Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
-            );
-            Annotated::new(map)
-        },
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_remove_debugmeta_path() {
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "applications": {
-                "debug_meta.images.*.code_file": ["@anything:remove"],
-                "debug_meta.images.*.debug_file": ["@anything:remove"]
-            }
-        }
-        "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        debug_meta: Annotated::new(DebugMeta {
-            images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
-                NativeDebugImage {
-                    code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
-                    code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
-                    debug_id: Annotated::new(
-                        "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
-                    ),
-                    debug_file: Annotated::new("wntdll.pdb".into()),
-                    arch: Annotated::new("arm64".to_string()),
-                    image_addr: Annotated::new(Addr(0)),
-                    image_size: Annotated::new(4096),
-                    image_vmaddr: Annotated::new(Addr(32768)),
-                    other: {
-                        let mut map = Object::new();
-                        map.insert(
-                            "other".to_string(),
-                            Annotated::new(Value::String("value".to_string())),
-                        );
-                        map
-                    },
-                },
-            )))]),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_replace_debugmeta_path() {
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "applications": {
-                "debug_meta.images.*.code_file": ["@anything:replace"],
-                "debug_meta.images.*.debug_file": ["@anything:replace"]
-            }
-        }
-        "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        debug_meta: Annotated::new(DebugMeta {
-            images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
-                NativeDebugImage {
-                    code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
-                    code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
-                    debug_id: Annotated::new(
-                        "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
-                    ),
-                    debug_file: Annotated::new("wntdll.pdb".into()),
-                    arch: Annotated::new("arm64".to_string()),
-                    image_addr: Annotated::new(Addr(0)),
-                    image_size: Annotated::new(4096),
-                    image_vmaddr: Annotated::new(Addr(32768)),
-                    other: {
-                        let mut map = Object::new();
-                        map.insert(
-                            "other".to_string(),
-                            Annotated::new(Value::String("value".to_string())),
-                        );
-                        map
-                    },
-                },
-            )))]),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_hash_debugmeta_path() {
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "applications": {
-                "debug_meta.images.*.code_file": ["@anything:hash"],
-                "debug_meta.images.*.debug_file": ["@anything:hash"]
-            }
-        }
-        "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        debug_meta: Annotated::new(DebugMeta {
-            images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
-                NativeDebugImage {
-                    code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
-                    code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
-                    debug_id: Annotated::new(
-                        "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
-                    ),
-                    debug_file: Annotated::new("wntdll.pdb".into()),
-                    arch: Annotated::new("arm64".to_string()),
-                    image_addr: Annotated::new(Addr(0)),
-                    image_size: Annotated::new(4096),
-                    image_vmaddr: Annotated::new(Addr(32768)),
-                    other: {
-                        let mut map = Object::new();
-                        map.insert(
-                            "other".to_string(),
-                            Annotated::new(Value::String("value".to_string())),
-                        );
-                        map
-                    },
-                },
-            )))]),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_debugmeta_path_not_addressible_with_wildcard_selector() {
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "applications": {
-                "$string": ["@anything:remove"],
-                "**": ["@anything:remove"],
-                "debug_meta.**": ["@anything:remove"],
-                "(debug_meta.images.**.code_file & $string)": ["@anything:remove"]
-            }
-        }
-        "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        debug_meta: Annotated::new(DebugMeta {
-            images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
-                NativeDebugImage {
-                    code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
-                    code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
-                    debug_id: Annotated::new(
-                        "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
-                    ),
-                    debug_file: Annotated::new("wntdll.pdb".into()),
-                    arch: Annotated::new("arm64".to_string()),
-                    image_addr: Annotated::new(Addr(0)),
-                    image_size: Annotated::new(4096),
-                    image_vmaddr: Annotated::new(Addr(32768)),
-                    other: {
-                        let mut map = Object::new();
-                        map.insert(
-                            "other".to_string(),
-                            Annotated::new(Value::String("value".to_string())),
-                        );
-                        map
-                    },
-                },
-            )))]),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_quoted_keys() {
-    let config = PiiConfig::from_json(
-        r##"
-        {
-            "applications": {
-                "extra.'special ,./<>?!@#$%^&*())''gärbage'''": ["@anything:remove"]
-            }
-        }
-        "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        extra: {
-            let mut map = Object::new();
-            map.insert(
-                "do not ,./<>?!@#$%^&*())'ßtrip'".to_string(),
-                Annotated::new(ExtraValue(Value::String("foo".to_string()))),
-            );
-            map.insert(
-                "special ,./<>?!@#$%^&*())'gärbage'".to_string(),
-                Annotated::new(ExtraValue(Value::String("bar".to_string()))),
-            );
-            Annotated::new(map)
-        },
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_annotated_snapshot!(event);
-}
-
-#[test]
-fn test_logentry_value_types() {
-    // Assert that logentry.formatted is addressable as $string, $message and $logentry.formatted
-    for formatted_selector in &[
-        "$logentry.formatted",
-        "$message",
-        "$logentry.formatted && $message",
-        "$string",
-    ] {
-        let config = PiiConfig::from_json(&format!(
+    #[test]
+    fn test_basic_stripping() {
+        let config = PiiConfig::from_json(
             r##"
-            {{
-                "applications": {{
-                    "{formatted_selector}": ["@anything:remove"]
-                }}
-            }}
+            {
+                "rules": {
+                    "remove_bad_headers": {
+                        "type": "redact_pair",
+                        "keyPattern": "(?i)cookie|secret[-_]?key"
+                    }
+                },
+                "applications": {
+                    "$string": ["@ip"],
+                    "$object.**": ["remove_bad_headers"]
+                }
+            }
             "##,
-            formatted_selector = dbg!(formatted_selector),
-        ))
+        )
         .unwrap();
 
         let mut event = Annotated::new(Event {
             logentry: Annotated::new(LogEntry {
                 formatted: Annotated::new("Hello world!".to_string().into()),
+                ..Default::default()
+            }),
+            request: Annotated::new(Request {
+                env: {
+                    let mut rv = Object::new();
+                    rv.insert(
+                        "SECRET_KEY".to_string(),
+                        Annotated::new(Value::String("134141231231231231231312".into())),
+                    );
+                    Annotated::new(rv)
+                },
+                headers: {
+                    let rv = vec![
+                        Annotated::new((
+                            Annotated::new("Cookie".to_string().into()),
+                            Annotated::new("super secret".to_string().into()),
+                        )),
+                        Annotated::new((
+                            Annotated::new("X-Forwarded-For".to_string().into()),
+                            Annotated::new("127.0.0.1".to_string().into()),
+                        )),
+                    ];
+                    Annotated::new(Headers(PairList(rv)))
+                },
+                ..Default::default()
+            }),
+            tags: Annotated::new(Tags(
+                vec![Annotated::new(TagEntry(
+                    Annotated::new("forwarded_for".to_string()),
+                    Annotated::new("127.0.0.1".to_string()),
+                ))]
+                .into(),
+            )),
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_redact_containers() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "$object": ["@anything"]
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            extra: {
+                let mut map = Object::new();
+                map.insert(
+                    "foo".to_string(),
+                    Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+                );
+                Annotated::new(map)
+            },
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_redact_custom_pattern() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "$string": ["myrule"]
+                },
+                "rules": {
+                    "myrule": {
+                        "type": "pattern",
+                        "pattern": "foo",
+                        "redaction": {
+                            "method": "replace",
+                            "text": "asd"
+                        }
+                    }
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            extra: {
+                let mut map = Object::new();
+                map.insert(
+                    "myvalue".to_string(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                );
+                Annotated::new(map)
+            },
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_no_field_upsert() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "**": ["@anything:remove"]
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            extra: {
+                let mut map = Object::new();
+                map.insert(
+                    "myvalue".to_string(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                );
+                Annotated::new(map)
+            },
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_anything_hash_on_string() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "$string": ["@anything:hash"]
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            extra: {
+                let mut map = Object::new();
+                map.insert(
+                    "myvalue".to_string(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                );
+                Annotated::new(map)
+            },
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_anything_hash_on_container() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "$object": ["@anything:hash"]
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            extra: {
+                let mut map = Object::new();
+                map.insert(
+                    "myvalue".to_string(),
+                    Annotated::new(ExtraValue(Value::String("foobar".to_string()))),
+                );
+                Annotated::new(map)
+            },
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_remove_debugmeta_path() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "debug_meta.images.*.code_file": ["@anything:remove"],
+                    "debug_meta.images.*.debug_file": ["@anything:remove"]
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
+                    NativeDebugImage {
+                        code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+                        code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+                        debug_id: Annotated::new(
+                            "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
+                        ),
+                        debug_file: Annotated::new("wntdll.pdb".into()),
+                        arch: Annotated::new("arm64".to_string()),
+                        image_addr: Annotated::new(Addr(0)),
+                        image_size: Annotated::new(4096),
+                        image_vmaddr: Annotated::new(Addr(32768)),
+                        other: {
+                            let mut map = Object::new();
+                            map.insert(
+                                "other".to_string(),
+                                Annotated::new(Value::String("value".to_string())),
+                            );
+                            map
+                        },
+                    },
+                )))]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_replace_debugmeta_path() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "debug_meta.images.*.code_file": ["@anything:replace"],
+                    "debug_meta.images.*.debug_file": ["@anything:replace"]
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
+                    NativeDebugImage {
+                        code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+                        code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+                        debug_id: Annotated::new(
+                            "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
+                        ),
+                        debug_file: Annotated::new("wntdll.pdb".into()),
+                        arch: Annotated::new("arm64".to_string()),
+                        image_addr: Annotated::new(Addr(0)),
+                        image_size: Annotated::new(4096),
+                        image_vmaddr: Annotated::new(Addr(32768)),
+                        other: {
+                            let mut map = Object::new();
+                            map.insert(
+                                "other".to_string(),
+                                Annotated::new(Value::String("value".to_string())),
+                            );
+                            map
+                        },
+                    },
+                )))]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_hash_debugmeta_path() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "debug_meta.images.*.code_file": ["@anything:hash"],
+                    "debug_meta.images.*.debug_file": ["@anything:hash"]
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
+                    NativeDebugImage {
+                        code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+                        code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+                        debug_id: Annotated::new(
+                            "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
+                        ),
+                        debug_file: Annotated::new("wntdll.pdb".into()),
+                        arch: Annotated::new("arm64".to_string()),
+                        image_addr: Annotated::new(Addr(0)),
+                        image_size: Annotated::new(4096),
+                        image_vmaddr: Annotated::new(Addr(32768)),
+                        other: {
+                            let mut map = Object::new();
+                            map.insert(
+                                "other".to_string(),
+                                Annotated::new(Value::String("value".to_string())),
+                            );
+                            map
+                        },
+                    },
+                )))]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_debugmeta_path_not_addressible_with_wildcard_selector() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "$string": ["@anything:remove"],
+                    "**": ["@anything:remove"],
+                    "debug_meta.**": ["@anything:remove"],
+                    "(debug_meta.images.**.code_file & $string)": ["@anything:remove"]
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(DebugImage::Symbolic(Box::new(
+                    NativeDebugImage {
+                        code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+                        code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+                        debug_id: Annotated::new(
+                            "971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap(),
+                        ),
+                        debug_file: Annotated::new("wntdll.pdb".into()),
+                        arch: Annotated::new("arm64".to_string()),
+                        image_addr: Annotated::new(Addr(0)),
+                        image_size: Annotated::new(4096),
+                        image_vmaddr: Annotated::new(Addr(32768)),
+                        other: {
+                            let mut map = Object::new();
+                            map.insert(
+                                "other".to_string(),
+                                Annotated::new(Value::String("value".to_string())),
+                            );
+                            map
+                        },
+                    },
+                )))]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_quoted_keys() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "extra.'special ,./<>?!@#$%^&*())''gärbage'''": ["@anything:remove"]
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            extra: {
+                let mut map = Object::new();
+                map.insert(
+                    "do not ,./<>?!@#$%^&*())'ßtrip'".to_string(),
+                    Annotated::new(ExtraValue(Value::String("foo".to_string()))),
+                );
+                map.insert(
+                    "special ,./<>?!@#$%^&*())'gärbage'".to_string(),
+                    Annotated::new(ExtraValue(Value::String("bar".to_string()))),
+                );
+                Annotated::new(map)
+            },
+            ..Default::default()
+        });
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_logentry_value_types() {
+        // Assert that logentry.formatted is addressable as $string, $message and $logentry.formatted
+        for formatted_selector in &[
+            "$logentry.formatted",
+            "$message",
+            "$logentry.formatted && $message",
+            "$string",
+        ] {
+            let config = PiiConfig::from_json(&format!(
+                r##"
+                {{
+                    "applications": {{
+                        "{formatted_selector}": ["@anything:remove"]
+                    }}
+                }}
+                "##,
+                formatted_selector = dbg!(formatted_selector),
+            ))
+            .unwrap();
+
+            let mut event = Annotated::new(Event {
+                logentry: Annotated::new(LogEntry {
+                    formatted: Annotated::new("Hello world!".to_string().into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+
+            let compiled = config.compiled();
+            let mut processor = PiiProcessor::new(&compiled);
+            process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+            assert!(event
+                .value()
+                .unwrap()
+                .logentry
+                .value()
+                .unwrap()
+                .formatted
+                .value()
+                .is_none());
+        }
+    }
+
+    #[test]
+    fn test_ip_address_hashing() {
+        let config = PiiConfig::from_json(
+            r##"
+            {
+                "applications": {
+                    "$user.ip_address": ["@ip:hash"]
+                }
+            }
+            "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            user: Annotated::new(User {
+                ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
                 ..Default::default()
             }),
             ..Default::default()
@@ -862,110 +899,74 @@ fn test_logentry_value_types() {
         let mut processor = PiiProcessor::new(&compiled);
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        assert!(event
-            .value()
-            .unwrap()
-            .logentry
-            .value()
-            .unwrap()
-            .formatted
-            .value()
-            .is_none());
+        let user = event.value().unwrap().user.value().unwrap();
+
+        assert!(user.ip_address.value().is_none());
+
+        assert_eq!(
+            user.id.value().unwrap().as_str(),
+            "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
+        );
     }
-}
 
-#[test]
-fn test_ip_address_hashing() {
-    let config = PiiConfig::from_json(
-        r##"
+    #[test]
+    fn test_ip_address_hashing_does_not_overwrite_id() {
+        let config = PiiConfig::from_json(
+            r##"
             {
                 "applications": {
                     "$user.ip_address": ["@ip:hash"]
                 }
             }
-        "##,
-    )
-    .unwrap();
+            "##,
+        )
+        .unwrap();
 
-    let mut event = Annotated::new(Event {
-        user: Annotated::new(User {
-            ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+        let mut event = Annotated::new(Event {
+            user: Annotated::new(User {
+                id: Annotated::new("123".to_string().into()),
+                ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
+                ..Default::default()
+            }),
             ..Default::default()
-        }),
-        ..Default::default()
-    });
+        });
 
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(&compiled);
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let user = event.value().unwrap().user.value().unwrap();
+        let user = event.value().unwrap().user.value().unwrap();
 
-    assert!(user.ip_address.value().is_none());
+        // This will get wiped out in renormalization though
+        assert_eq!(
+            user.ip_address.value().unwrap().as_str(),
+            "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
+        );
 
-    assert_eq!(
-        user.id.value().unwrap().as_str(),
-        "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
-    );
-}
+        assert_eq!(user.id.value().unwrap().as_str(), "123");
+    }
 
-#[test]
-fn test_ip_address_hashing_does_not_overwrite_id() {
-    let config = PiiConfig::from_json(
-        r##"
-            {
-                "applications": {
-                    "$user.ip_address": ["@ip:hash"]
-                }
-            }
-        "##,
-    )
-    .unwrap();
-
-    let mut event = Annotated::new(Event {
-        user: Annotated::new(User {
-            id: Annotated::new("123".to_string().into()),
-            ip_address: Annotated::new(IpAddr("127.0.0.1".to_string())),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    let user = event.value().unwrap().user.value().unwrap();
-
-    // This will get wiped out in renormalization though
-    assert_eq!(
-        user.ip_address.value().unwrap().as_str(),
-        "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
-    );
-
-    assert_eq!(user.id.value().unwrap().as_str(), "123");
-}
-
-#[test]
-fn test_replace_replaced_text() {
-    let chunks = vec![Chunk::Redaction {
-        text: "[ip]".into(),
-        rule_id: "@ip".into(),
-        ty: RemarkType::Substituted,
-    }];
-    let rule = RuleRef {
-        id: "@ip:replace".into(),
-        origin: "@ip".into(),
-        ty: RuleType::Ip,
-        redaction: Redaction::Replace(ReplaceRedaction {
+    #[test]
+    fn test_replace_replaced_text() {
+        let chunks = vec![Chunk::Redaction {
             text: "[ip]".into(),
-        }),
-    };
-    let res = apply_regex_to_chunks(
-        chunks.clone(),
-        &rule,
-        &Regex::new(r#".*"#).unwrap(),
-        ReplaceBehavior::Value,
-    );
-    assert_eq!(chunks, res);
+            rule_id: "@ip".into(),
+            ty: RemarkType::Substituted,
+        }];
+        let rule = RuleRef {
+            id: "@ip:replace".into(),
+            origin: "@ip".into(),
+            ty: RuleType::Ip,
+            redaction: Redaction::Replace(ReplaceRedaction {
+                text: "[ip]".into(),
+            }),
+        };
+        let res = apply_regex_to_chunks(
+            chunks.clone(),
+            &rule,
+            &Regex::new(r#".*"#).unwrap(),
+            ReplaceBehavior::Value,
+        );
+        assert_eq!(chunks, res);
+    }
 }

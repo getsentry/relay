@@ -173,369 +173,375 @@ pub fn normalize_context(context: &mut Context) {
 }
 
 #[cfg(test)]
-use {crate::protocol::LenientString, crate::testutils::assert_eq_dbg};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_dotnet_framework_48_without_build_id() {
-    let mut runtime = RuntimeContext {
-        raw_description: ".NET Framework 4.8.4250.0".to_string().into(),
-        ..RuntimeContext::default()
-    };
+    use crate::protocol::LenientString;
 
-    normalize_runtime_context(&mut runtime);
-    assert_eq_dbg!(Some(".NET Framework"), runtime.name.as_str());
-    assert_eq_dbg!(Some("4.8.4250.0"), runtime.version.as_str());
-}
+    use super::*;
 
-#[test]
-fn test_dotnet_framework_472() {
-    let mut runtime = RuntimeContext {
-        raw_description: ".NET Framework 4.7.3056.0".to_string().into(),
-        build: LenientString("461814".to_string()).into(),
-        ..RuntimeContext::default()
-    };
+    #[test]
+    fn test_dotnet_framework_48_without_build_id() {
+        let mut runtime = RuntimeContext {
+            raw_description: ".NET Framework 4.8.4250.0".to_string().into(),
+            ..RuntimeContext::default()
+        };
 
-    normalize_runtime_context(&mut runtime);
-    assert_eq_dbg!(Some(".NET Framework"), runtime.name.as_str());
-    assert_eq_dbg!(Some("4.7.2"), runtime.version.as_str());
-}
+        normalize_runtime_context(&mut runtime);
+        assert_eq!(Some(".NET Framework"), runtime.name.as_str());
+        assert_eq!(Some("4.8.4250.0"), runtime.version.as_str());
+    }
 
-#[test]
-fn test_dotnet_framework_future_version() {
-    let mut runtime = RuntimeContext {
-        raw_description: ".NET Framework 200.0".to_string().into(),
-        build: LenientString("999999".to_string()).into(),
-        ..RuntimeContext::default()
-    };
+    #[test]
+    fn test_dotnet_framework_472() {
+        let mut runtime = RuntimeContext {
+            raw_description: ".NET Framework 4.7.3056.0".to_string().into(),
+            build: LenientString("461814".to_string()).into(),
+            ..RuntimeContext::default()
+        };
 
-    // Unmapped build number doesn't override version
-    normalize_runtime_context(&mut runtime);
-    assert_eq_dbg!(Some(".NET Framework"), runtime.name.as_str());
-    assert_eq_dbg!(Some("200.0"), runtime.version.as_str());
-}
+        normalize_runtime_context(&mut runtime);
+        assert_eq!(Some(".NET Framework"), runtime.name.as_str());
+        assert_eq!(Some("4.7.2"), runtime.version.as_str());
+    }
 
-#[test]
-fn test_dotnet_native() {
-    let mut runtime = RuntimeContext {
-        raw_description: ".NET Native 2.0".to_string().into(),
-        ..RuntimeContext::default()
-    };
+    #[test]
+    fn test_dotnet_framework_future_version() {
+        let mut runtime = RuntimeContext {
+            raw_description: ".NET Framework 200.0".to_string().into(),
+            build: LenientString("999999".to_string()).into(),
+            ..RuntimeContext::default()
+        };
 
-    normalize_runtime_context(&mut runtime);
-    assert_eq_dbg!(Some(".NET Native"), runtime.name.as_str());
-    assert_eq_dbg!(Some("2.0"), runtime.version.as_str());
-}
+        // Unmapped build number doesn't override version
+        normalize_runtime_context(&mut runtime);
+        assert_eq!(Some(".NET Framework"), runtime.name.as_str());
+        assert_eq!(Some("200.0"), runtime.version.as_str());
+    }
 
-#[test]
-fn test_dotnet_core() {
-    let mut runtime = RuntimeContext {
-        raw_description: ".NET Core 2.0".to_string().into(),
-        ..RuntimeContext::default()
-    };
+    #[test]
+    fn test_dotnet_native() {
+        let mut runtime = RuntimeContext {
+            raw_description: ".NET Native 2.0".to_string().into(),
+            ..RuntimeContext::default()
+        };
 
-    normalize_runtime_context(&mut runtime);
-    assert_eq_dbg!(Some(".NET Core"), runtime.name.as_str());
-    assert_eq_dbg!(Some("2.0"), runtime.version.as_str());
-}
+        normalize_runtime_context(&mut runtime);
+        assert_eq!(Some(".NET Native"), runtime.name.as_str());
+        assert_eq!(Some("2.0"), runtime.version.as_str());
+    }
 
-#[test]
-fn test_windows_7_or_server_2008() {
-    // Environment.OSVersion on Windows 7 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)
-    let mut os = OsContext {
-        raw_description: "Microsoft Windows NT 6.1.7601 Service Pack 1"
-            .to_string()
-            .into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_dotnet_core() {
+        let mut runtime = RuntimeContext {
+            raw_description: ".NET Core 2.0".to_string().into(),
+            ..RuntimeContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("7"), os.version.as_str());
-}
+        normalize_runtime_context(&mut runtime);
+        assert_eq!(Some(".NET Core"), runtime.name.as_str());
+        assert_eq!(Some("2.0"), runtime.version.as_str());
+    }
 
-#[test]
-fn test_windows_8_or_server_2012_or_later() {
-    // Environment.OSVersion on Windows 10 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)
-    // *or later, due to GetVersionEx deprecated on Windows 8.1
-    // It's a potentially really misleading API on newer platforms
-    // Only used if RuntimeInformation.OSDescription is not available (old runtimes)
-    let mut os = OsContext {
-        raw_description: "Microsoft Windows NT 6.2.9200.0".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_windows_7_or_server_2008() {
+        // Environment.OSVersion on Windows 7 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)
+        let mut os = OsContext {
+            raw_description: "Microsoft Windows NT 6.1.7601 Service Pack 1"
+                .to_string()
+                .into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("8"), os.version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Windows"), os.name.as_str());
+        assert_eq!(Some("7"), os.version.as_str());
+    }
 
-#[test]
-fn test_windows_10() {
-    // RuntimeInformation.OSDescription on Windows 10 (CoreCLR 2.0+, .NET
-    // Framework 4.7.1+, Mono 5.4+)
-    let mut os = OsContext {
-        raw_description: "Microsoft Windows 10.0.16299".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_windows_8_or_server_2012_or_later() {
+        // Environment.OSVersion on Windows 10 (CoreCLR 1.0+, .NET Framework 1.1+, Mono 1+)
+        // *or later, due to GetVersionEx deprecated on Windows 8.1
+        // It's a potentially really misleading API on newer platforms
+        // Only used if RuntimeInformation.OSDescription is not available (old runtimes)
+        let mut os = OsContext {
+            raw_description: "Microsoft Windows NT 6.2.9200.0".to_string().into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("10"), os.version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Windows"), os.name.as_str());
+        assert_eq!(Some("8"), os.version.as_str());
+    }
 
-#[test]
-fn test_windows_11() {
-    // https://github.com/getsentry/relay/issues/1201
-    let mut os = OsContext {
-        raw_description: "Microsoft Windows 10.0.22000".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_windows_10() {
+        // RuntimeInformation.OSDescription on Windows 10 (CoreCLR 2.0+, .NET
+        // Framework 4.7.1+, Mono 5.4+)
+        let mut os = OsContext {
+            raw_description: "Microsoft Windows 10.0.16299".to_string().into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("11"), os.version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Windows"), os.name.as_str());
+        assert_eq!(Some("10"), os.version.as_str());
+    }
 
-#[test]
-fn test_windows_11_future1() {
-    // This is fictional as of today, but let's be explicit about the behavior we expect.
-    let mut os = OsContext {
-        raw_description: "Microsoft Windows 10.0.22001".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_windows_11() {
+        // https://github.com/getsentry/relay/issues/1201
+        let mut os = OsContext {
+            raw_description: "Microsoft Windows 10.0.22000".to_string().into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("11"), os.version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Windows"), os.name.as_str());
+        assert_eq!(Some("11"), os.version.as_str());
+    }
 
-#[test]
-fn test_windows_11_future2() {
-    // This is fictional, but let's be explicit about the behavior we expect.
-    let mut os = OsContext {
-        raw_description: "Microsoft Windows 10.1.23456".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_windows_11_future1() {
+        // This is fictional as of today, but let's be explicit about the behavior we expect.
+        let mut os = OsContext {
+            raw_description: "Microsoft Windows 10.0.22001".to_string().into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("10.1.23456"), os.version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Windows"), os.name.as_str());
+        assert_eq!(Some("11"), os.version.as_str());
+    }
 
-#[test]
-fn test_macos_os_version() {
-    // Environment.OSVersion on macOS (CoreCLR 1.0+, Mono 1+)
-    let mut os = OsContext {
-        raw_description: "Unix 17.5.0.0".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_windows_11_future2() {
+        // This is fictional, but let's be explicit about the behavior we expect.
+        let mut os = OsContext {
+            raw_description: "Microsoft Windows 10.1.23456".to_string().into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Unix"), os.name.as_str());
-    assert_eq_dbg!(Some("17.5.0"), os.kernel_version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Windows"), os.name.as_str());
+        assert_eq!(Some("10.1.23456"), os.version.as_str());
+    }
 
-#[test]
-fn test_macos_runtime() {
-    // RuntimeInformation.OSDescription on macOS (CoreCLR 2.0+, Mono 5.4+)
-    let mut os = OsContext {
+    #[test]
+    fn test_macos_os_version() {
+        // Environment.OSVersion on macOS (CoreCLR 1.0+, Mono 1+)
+        let mut os = OsContext {
+            raw_description: "Unix 17.5.0.0".to_string().into(),
+            ..OsContext::default()
+        };
+
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Unix"), os.name.as_str());
+        assert_eq!(Some("17.5.0"), os.kernel_version.as_str());
+    }
+
+    #[test]
+    fn test_macos_runtime() {
+        // RuntimeInformation.OSDescription on macOS (CoreCLR 2.0+, Mono 5.4+)
+        let mut os = OsContext {
         raw_description: "Darwin 17.5.0 Darwin Kernel Version 17.5.0: Mon Mar  5 22:24:32 PST 2018; root:xnu-4570.51.1~1/RELEASE_X86_64".to_string().into(),
         ..OsContext::default()
     };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Darwin"), os.name.as_str());
-    assert_eq_dbg!(Some("17.5.0"), os.kernel_version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Darwin"), os.name.as_str());
+        assert_eq!(Some("17.5.0"), os.kernel_version.as_str());
+    }
 
-#[test]
-fn test_centos_os_version() {
-    // Environment.OSVersion on CentOS 7 (CoreCLR 1.0+, Mono 1+)
-    let mut os = OsContext {
-        raw_description: "Unix 3.10.0.693".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_centos_os_version() {
+        // Environment.OSVersion on CentOS 7 (CoreCLR 1.0+, Mono 1+)
+        let mut os = OsContext {
+            raw_description: "Unix 3.10.0.693".to_string().into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Unix"), os.name.as_str());
-    assert_eq_dbg!(Some("3.10.0.693"), os.kernel_version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Unix"), os.name.as_str());
+        assert_eq!(Some("3.10.0.693"), os.kernel_version.as_str());
+    }
 
-#[test]
-fn test_centos_runtime_info() {
-    // RuntimeInformation.OSDescription on CentOS 7 (CoreCLR 2.0+, Mono 5.4+)
-    let mut os = OsContext {
-        raw_description: "Linux 3.10.0-693.21.1.el7.x86_64 #1 SMP Wed Mar 7 19:03:37 UTC 2018"
-            .to_string()
-            .into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_centos_runtime_info() {
+        // RuntimeInformation.OSDescription on CentOS 7 (CoreCLR 2.0+, Mono 5.4+)
+        let mut os = OsContext {
+            raw_description: "Linux 3.10.0-693.21.1.el7.x86_64 #1 SMP Wed Mar 7 19:03:37 UTC 2018"
+                .to_string()
+                .into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Linux"), os.name.as_str());
-    assert_eq_dbg!(Some("3.10.0"), os.kernel_version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Linux"), os.name.as_str());
+        assert_eq!(Some("3.10.0"), os.kernel_version.as_str());
+    }
 
-#[test]
-fn test_wsl_ubuntu() {
-    // RuntimeInformation.OSDescription on Windows Subsystem for Linux (Ubuntu)
-    // (CoreCLR 2.0+, Mono 5.4+)
-    let mut os = OsContext {
-        raw_description: "Linux 4.4.0-43-Microsoft #1-Microsoft Wed Dec 31 14:42:53 PST 2014"
-            .to_string()
-            .into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_wsl_ubuntu() {
+        // RuntimeInformation.OSDescription on Windows Subsystem for Linux (Ubuntu)
+        // (CoreCLR 2.0+, Mono 5.4+)
+        let mut os = OsContext {
+            raw_description: "Linux 4.4.0-43-Microsoft #1-Microsoft Wed Dec 31 14:42:53 PST 2014"
+                .to_string()
+                .into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Linux"), os.name.as_str());
-    assert_eq_dbg!(Some("4.4.0"), os.kernel_version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Linux"), os.name.as_str());
+        assert_eq!(Some("4.4.0"), os.kernel_version.as_str());
+    }
 
-#[test]
-fn test_macos_with_build() {
-    let mut os = OsContext {
-        raw_description: "Mac OS X 10.14.2 (18C54)".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_macos_with_build() {
+        let mut os = OsContext {
+            raw_description: "Mac OS X 10.14.2 (18C54)".to_string().into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("macOS"), os.name.as_str());
-    assert_eq_dbg!(Some("10.14.2"), os.version.as_str());
-    assert_eq_dbg!(Some("18C54"), os.build.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("macOS"), os.name.as_str());
+        assert_eq!(Some("10.14.2"), os.version.as_str());
+        assert_eq!(Some("18C54"), os.build.as_str());
+    }
 
-#[test]
-fn test_macos_without_build() {
-    let mut os = OsContext {
-        raw_description: "Mac OS X 10.14.2".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_macos_without_build() {
+        let mut os = OsContext {
+            raw_description: "Mac OS X 10.14.2".to_string().into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("macOS"), os.name.as_str());
-    assert_eq_dbg!(Some("10.14.2"), os.version.as_str());
-    assert_eq_dbg!(None, os.build.value());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("macOS"), os.name.as_str());
+        assert_eq!(Some("10.14.2"), os.version.as_str());
+        assert_eq!(None, os.build.value());
+    }
 
-#[test]
-fn test_name_not_overwritten() {
-    let mut os = OsContext {
-        name: "Properly defined name".to_string().into(),
-        raw_description: "Linux 4.4.0".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_name_not_overwritten() {
+        let mut os = OsContext {
+            name: "Properly defined name".to_string().into(),
+            raw_description: "Linux 4.4.0".to_string().into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Properly defined name"), os.name.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Properly defined name"), os.name.as_str());
+    }
 
-#[test]
-fn test_version_not_overwritten() {
-    let mut os = OsContext {
-        version: "Properly defined version".to_string().into(),
-        raw_description: "Linux 4.4.0".to_string().into(),
-        ..OsContext::default()
-    };
+    #[test]
+    fn test_version_not_overwritten() {
+        let mut os = OsContext {
+            version: "Properly defined version".to_string().into(),
+            raw_description: "Linux 4.4.0".to_string().into(),
+            ..OsContext::default()
+        };
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Properly defined version"), os.version.as_str());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Properly defined version"), os.version.as_str());
+    }
 
-#[test]
-fn test_no_name() {
-    let mut os = OsContext::default();
+    #[test]
+    fn test_no_name() {
+        let mut os = OsContext::default();
 
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(None, os.name.value());
-    assert_eq_dbg!(None, os.version.value());
-    assert_eq_dbg!(None, os.kernel_version.value());
-    assert_eq_dbg!(None, os.raw_description.value());
-}
+        normalize_os_context(&mut os);
+        assert_eq!(None, os.name.value());
+        assert_eq!(None, os.version.value());
+        assert_eq!(None, os.kernel_version.value());
+        assert_eq!(None, os.raw_description.value());
+    }
 
-#[test]
-fn test_unity_mac_os() {
-    let mut os = OsContext {
-        raw_description: "Mac OS X 10.16.0".to_string().into(),
-        ..OsContext::default()
-    };
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("macOS"), os.name.as_str());
-    assert_eq_dbg!(Some("10.16.0"), os.version.as_str());
-    assert_eq_dbg!(None, os.build.value());
-}
+    #[test]
+    fn test_unity_mac_os() {
+        let mut os = OsContext {
+            raw_description: "Mac OS X 10.16.0".to_string().into(),
+            ..OsContext::default()
+        };
+        normalize_os_context(&mut os);
+        assert_eq!(Some("macOS"), os.name.as_str());
+        assert_eq!(Some("10.16.0"), os.version.as_str());
+        assert_eq!(None, os.build.value());
+    }
 
-//OS_WINDOWS_REGEX = r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.\d+).*$"#;
-#[test]
-fn test_unity_windows_os() {
-    let mut os = OsContext {
-        raw_description: "Windows 10  (10.0.19042) 64bit".to_string().into(),
-        ..OsContext::default()
-    };
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Windows"), os.name.as_str());
-    assert_eq_dbg!(Some("10"), os.version.as_str());
-    assert_eq_dbg!(Some(&LenientString("19042".to_string())), os.build.value());
-}
+    //OS_WINDOWS_REGEX = r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.\d+).*$"#;
+    #[test]
+    fn test_unity_windows_os() {
+        let mut os = OsContext {
+            raw_description: "Windows 10  (10.0.19042) 64bit".to_string().into(),
+            ..OsContext::default()
+        };
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Windows"), os.name.as_str());
+        assert_eq!(Some("10"), os.version.as_str());
+        assert_eq!(Some(&LenientString("19042".to_string())), os.build.value());
+    }
 
-#[test]
-fn test_unity_android_os() {
-    let mut os = OsContext {
-        raw_description: "Android OS 11 / API-30 (RP1A.201005.001/2107031736)"
-            .to_string()
-            .into(),
-        ..OsContext::default()
-    };
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Android"), os.name.as_str());
-    assert_eq_dbg!(Some("11"), os.version.as_str());
-    assert_eq_dbg!(None, os.build.value());
-}
+    #[test]
+    fn test_unity_android_os() {
+        let mut os = OsContext {
+            raw_description: "Android OS 11 / API-30 (RP1A.201005.001/2107031736)"
+                .to_string()
+                .into(),
+            ..OsContext::default()
+        };
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Android"), os.name.as_str());
+        assert_eq!(Some("11"), os.version.as_str());
+        assert_eq!(None, os.build.value());
+    }
 
-#[test]
-fn test_unity_android_api_version() {
-    let description = "Android OS 11 / API-30 (RP1A.201005.001/2107031736)";
-    assert_eq_dbg!(Some("30"), get_android_api_version(description));
-}
+    #[test]
+    fn test_unity_android_api_version() {
+        let description = "Android OS 11 / API-30 (RP1A.201005.001/2107031736)";
+        assert_eq!(Some("30"), get_android_api_version(description));
+    }
 
-#[test]
-fn test_linux_5_11() {
-    let mut os = OsContext {
-        raw_description: "Linux 5.11 Ubuntu 20.04 64bit".to_string().into(),
-        ..OsContext::default()
-    };
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Ubuntu"), os.name.as_str());
-    assert_eq_dbg!(Some("20.04"), os.version.as_str());
-    assert_eq_dbg!(Some("5.11"), os.kernel_version.as_str());
-    assert_eq_dbg!(None, os.build.value());
-}
+    #[test]
+    fn test_linux_5_11() {
+        let mut os = OsContext {
+            raw_description: "Linux 5.11 Ubuntu 20.04 64bit".to_string().into(),
+            ..OsContext::default()
+        };
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Ubuntu"), os.name.as_str());
+        assert_eq!(Some("20.04"), os.version.as_str());
+        assert_eq!(Some("5.11"), os.kernel_version.as_str());
+        assert_eq!(None, os.build.value());
+    }
 
-#[test]
-fn test_android_4_4_2() {
-    let mut os = OsContext {
-        raw_description: "Android OS 4.4.2 / API-19 (KOT49H/A536_S186_150813_ROW)"
-            .to_string()
-            .into(),
-        ..OsContext::default()
-    };
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("Android"), os.name.as_str());
-    assert_eq_dbg!(Some("4.4.2"), os.version.as_str());
-    assert_eq_dbg!(None, os.build.value());
-}
+    #[test]
+    fn test_android_4_4_2() {
+        let mut os = OsContext {
+            raw_description: "Android OS 4.4.2 / API-19 (KOT49H/A536_S186_150813_ROW)"
+                .to_string()
+                .into(),
+            ..OsContext::default()
+        };
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Android"), os.name.as_str());
+        assert_eq!(Some("4.4.2"), os.version.as_str());
+        assert_eq!(None, os.build.value());
+    }
 
-#[test]
-fn test_ios_15_0() {
-    let mut os = OsContext {
-        raw_description: "iOS 15.0".to_string().into(),
-        ..OsContext::default()
-    };
-    normalize_os_context(&mut os);
-    assert_eq_dbg!(Some("iOS"), os.name.as_str());
+    #[test]
+    fn test_ios_15_0() {
+        let mut os = OsContext {
+            raw_description: "iOS 15.0".to_string().into(),
+            ..OsContext::default()
+        };
+        normalize_os_context(&mut os);
+        assert_eq!(Some("iOS"), os.name.as_str());
 
-    // XXX: This behavior of putting it into kernel_version vs version is probably not desired and
-    // may be revisited
-    assert_eq_dbg!(Some("15.0"), os.kernel_version.as_str());
-    assert_eq_dbg!(None, os.build.value());
+        // XXX: This behavior of putting it into kernel_version vs version is probably not desired and
+        // may be revisited
+        assert_eq!(Some("15.0"), os.kernel_version.as_str());
+        assert_eq!(None, os.build.value());
+    }
 }
