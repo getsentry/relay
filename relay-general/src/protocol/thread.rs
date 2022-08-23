@@ -131,6 +131,8 @@ pub struct Thread {
 mod tests {
     use similar_asserts::assert_eq;
 
+    use crate::types::Map;
+
     use super::*;
 
     #[test]
@@ -157,8 +159,6 @@ mod tests {
 
     #[test]
     fn test_thread_roundtrip() {
-        use crate::types::Map;
-
         // stack traces are tested separately
         let json = r#"{
   "id": 42,

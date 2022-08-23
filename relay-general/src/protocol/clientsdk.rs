@@ -81,12 +81,12 @@ impl ClientSdkInfo {
 mod tests {
     use similar_asserts::assert_eq;
 
+    use crate::types::Map;
+
     use super::*;
 
     #[test]
     fn test_client_sdk_roundtrip() {
-        use crate::types::Map;
-
         let json = r#"{
   "name": "sentry.rust",
   "version": "1.0.0",

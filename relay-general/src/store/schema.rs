@@ -106,7 +106,11 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use crate::processor::{process_value, ProcessingState};
-    use crate::types::{Annotated, Array, Error, Object};
+    use crate::protocol::{
+        CError, ClientSdkInfo, Event, MachException, Mechanism, MechanismMeta, PosixSignal,
+        RawStacktrace, User,
+    };
+    use crate::types::{Annotated, Array, Error, ErrorKind, Object};
 
     use super::*;
 
@@ -153,8 +157,6 @@ mod tests {
 
     #[test]
     fn test_invalid_email() {
-        use crate::protocol::User;
-
         let mut user = Annotated::new(User {
             email: Annotated::new("bananabread".to_owned()),
             ..Default::default()
@@ -168,9 +170,6 @@ mod tests {
 
     #[test]
     fn test_client_sdk_missing_attribute() {
-        use crate::protocol::ClientSdkInfo;
-        use crate::types::ErrorKind;
-
         let mut info = Annotated::new(ClientSdkInfo {
             name: Annotated::new("sentry.rust".to_string()),
             ..Default::default()
@@ -189,8 +188,6 @@ mod tests {
 
     #[test]
     fn test_mechanism_missing_attributes() {
-        use crate::protocol::{CError, MachException, Mechanism, MechanismMeta, PosixSignal};
-
         let mut mechanism = Annotated::new(Mechanism {
             ty: Annotated::new("mytype".to_string()),
             meta: Annotated::new(MechanismMeta {
@@ -247,9 +244,6 @@ mod tests {
 
     #[test]
     fn test_stacktrace_missing_attribute() {
-        use crate::protocol::RawStacktrace;
-        use crate::types::ErrorKind;
-
         let mut stack = Annotated::new(RawStacktrace::default());
 
         process_value(&mut stack, &mut SchemaProcessor, ProcessingState::root()).unwrap();
@@ -264,7 +258,6 @@ mod tests {
 
     #[test]
     fn test_newlines_release() {
-        use crate::protocol::Event;
         let mut event = Annotated::new(Event {
             release: Annotated::new("42\n".to_string().into()),
             ..Default::default()

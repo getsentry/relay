@@ -65,6 +65,7 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use crate::processor::process_value;
+    use crate::protocol::{Breadcrumb, Values};
     use crate::types::{ErrorKind, Object, Value};
 
     use super::*;
@@ -142,8 +143,6 @@ mod tests {
 
     #[test]
     fn test_nested_errors() {
-        use crate::protocol::{Breadcrumb, Values};
-
         let mut event = Annotated::from(Event {
             breadcrumbs: Annotated::from(Values::new(vec![Annotated::from(Breadcrumb {
                 ty: Annotated::from_error(ErrorKind::InvalidData, None),

@@ -819,7 +819,6 @@ mod tests {
 
     #[test]
     fn test_debug_meta_roundtrip() {
-        use crate::types::Map;
         // NOTE: images are tested separately
         let json = r#"{
   "sdk_info": {

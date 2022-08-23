@@ -144,15 +144,15 @@ fn is_valid_measurement_name(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use relay_common::DurationUnit;
     use similar_asserts::assert_eq;
+
+    use crate::protocol::Event;
 
     use super::*;
 
     #[test]
     fn test_measurements_serialization() {
-        use crate::protocol::Event;
-        use relay_common::DurationUnit;
-
         let input = r#"{
     "measurements": {
         "LCP": {"value": 420.69, "unit": "millisecond"},

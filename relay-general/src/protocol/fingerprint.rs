@@ -118,6 +118,8 @@ impl ProcessValue for Fingerprint {}
 mod tests {
     use similar_asserts::assert_eq;
 
+    use crate::types::Meta;
+
     use super::*;
 
     #[test]
@@ -162,8 +164,6 @@ mod tests {
 
     #[test]
     fn test_fingerprint_float_strip() {
-        use crate::types::Meta;
-
         let bad_values = vec![Annotated::new(Value::F64(-1e100))];
 
         let mut meta = Meta::from_error(Error::with(ErrorKind::InvalidData, |e| {
@@ -179,8 +179,6 @@ mod tests {
 
     #[test]
     fn test_fingerprint_float_bounds() {
-        use crate::types::Meta;
-
         let bad_values = vec![Annotated::new(Value::F64(
             #[allow(clippy::excessive_precision)]
             1.797_693_134_862_315_7e+308,

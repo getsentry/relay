@@ -390,11 +390,19 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 
 #[cfg(test)]
 mod tests {
+
+    use insta::assert_ron_snapshot;
     use similar_asserts::assert_eq;
+    use std::iter::repeat;
 
     use crate::processor::MaxChars;
-    use crate::protocol::{Event, ExtraValue};
-    use crate::types::{Annotated, Meta, Remark, RemarkType, SerializableAnnotated, Value};
+    use crate::protocol::{
+        Breadcrumb, Context, ContextInner, Contexts, Event, Exception, ExtraValue, Frame,
+        RawStacktrace, TagEntry, Tags, Values,
+    };
+    use crate::types::{
+        Annotated, Map, Meta, Object, Remark, RemarkType, SerializableAnnotated, Value,
+    };
 
     use super::*;
 
@@ -517,8 +525,6 @@ mod tests {
 
     #[test]
     fn test_databag_array_stripping() {
-        use insta::assert_ron_snapshot;
-
         let mut processor = TrimmingProcessor::new();
 
         let databag = Annotated::new({
@@ -544,9 +550,6 @@ mod tests {
 
     #[test]
     fn test_tags_stripping() {
-        use crate::protocol::{Event, TagEntry, Tags};
-        use crate::types::Annotated;
-
         let mut processor = TrimmingProcessor::new();
 
         let mut event = Annotated::new(Event {
@@ -581,11 +584,6 @@ mod tests {
 
     #[test]
     fn test_databag_state_leak() {
-        use std::iter::repeat;
-
-        use crate::protocol::{Breadcrumb, Event, Exception, Frame, RawStacktrace, Values};
-        use crate::types::{Map, Value};
-
         let event = Annotated::new(Event {
             breadcrumbs: Annotated::new(Values::new(
                 repeat(Annotated::new(Breadcrumb {
@@ -637,9 +635,6 @@ mod tests {
 
     #[test]
     fn test_custom_context_trimming() {
-        use crate::protocol::{Context, ContextInner, Contexts};
-        use crate::types::{Annotated, Object, Value};
-
         let mut contexts = Object::new();
         for i in 1..2 {
             contexts.insert(format!("despacito{}", i), {
@@ -701,11 +696,6 @@ mod tests {
 
     #[test]
     fn test_extra_trimming_long_arrays() {
-        use std::iter::repeat;
-
-        use crate::protocol::{Event, ExtraValue};
-        use crate::types::{Annotated, Object, Value};
-
         let mut extra = Object::new();
         extra.insert("foo".to_string(), {
             Annotated::new(ExtraValue(Value::Array(

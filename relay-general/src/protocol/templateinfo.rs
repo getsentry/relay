@@ -36,11 +36,12 @@ pub struct TemplateInfo {
 mod tests {
     use similar_asserts::assert_eq;
 
+    use crate::types::Map;
+
     use super::*;
 
     #[test]
     fn test_template_roundtrip() {
-        use crate::types::Map;
         let json = r#"{
   "filename": "myfile.rs",
   "abs_path": "/path/to",

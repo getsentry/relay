@@ -564,17 +564,16 @@ impl Event {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{TimeZone, Utc};
     use similar_asserts::assert_eq;
+
+    use crate::protocol::TagEntry;
+    use crate::types::{Map, Meta};
 
     use super::*;
 
     #[test]
     fn test_event_roundtrip() {
-        use chrono::{TimeZone, Utc};
-
-        use crate::protocol::TagEntry;
-        use crate::types::{Map, Meta};
-
         // NOTE: Interfaces will be tested separately.
         let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
@@ -684,7 +683,6 @@ mod tests {
 
     #[test]
     fn test_event_default_values_with_meta() {
-        use crate::types::Meta;
         let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "fingerprint": [

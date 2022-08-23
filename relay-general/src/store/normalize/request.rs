@@ -192,7 +192,7 @@ pub fn normalize_request(request: &mut Request) -> ProcessingResult {
 mod tests {
     use similar_asserts::assert_eq;
 
-    use crate::protocol::PairList;
+    use crate::protocol::{Cookies, Headers, PairList, Query};
     use crate::types::Object;
 
     use super::*;
@@ -233,8 +233,6 @@ mod tests {
 
     #[test]
     fn test_url_with_qs_and_fragment() {
-        use crate::protocol::Query;
-
         let mut request = Request {
             url: Annotated::new("http://example.com/path?some=thing#else".to_string()),
             ..Request::default()
@@ -293,8 +291,6 @@ mod tests {
 
     #[test]
     fn test_url_precedence() {
-        use crate::protocol::Query;
-
         let mut request = Request {
             url: Annotated::new("http://example.com/path?completely=different#stuff".to_string()),
             query_string: Annotated::new(Query(PairList(vec![Annotated::new((
@@ -323,8 +319,6 @@ mod tests {
 
     #[test]
     fn test_query_string_empty_value() {
-        use crate::protocol::Query;
-
         let mut request = Request {
             url: Annotated::new("http://example.com/path?some".to_string()),
             ..Request::default()
@@ -347,8 +341,6 @@ mod tests {
 
     #[test]
     fn test_cookies_in_header() {
-        use crate::protocol::{Cookies, Headers};
-
         let mut request = Request {
             url: Annotated::new("http://example.com".to_string()),
             headers: Annotated::new(Headers(PairList(vec![Annotated::new((
@@ -379,8 +371,6 @@ mod tests {
 
     #[test]
     fn test_cookies_in_header_dont_override_cookies() {
-        use crate::protocol::{Cookies, Headers};
-
         let mut request = Request {
             url: Annotated::new("http://example.com".to_string()),
             headers: Annotated::new(Headers(
@@ -458,8 +448,6 @@ mod tests {
 
     #[test]
     fn test_broken_json_with_fallback() {
-        use crate::protocol::Headers;
-
         let mut request = Request {
             data: Annotated::from(Value::String(r#"{"foo":"b"#.to_string())),
             headers: Annotated::from(Headers(PairList(vec![Annotated::new((

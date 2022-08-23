@@ -77,7 +77,7 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use crate::processor::process_value;
-    use crate::protocol::ContextInner;
+    use crate::protocol::{Context, ContextInner, Contexts, OsContext, User, Values};
     use crate::testutils::get_value;
 
     use super::*;
@@ -138,8 +138,6 @@ mod tests {
 
     #[test]
     fn test_remove_nested_other() {
-        use crate::protocol::User;
-
         let mut event = Annotated::new(Event {
             user: Annotated::from(User {
                 other: {
@@ -165,8 +163,6 @@ mod tests {
 
     #[test]
     fn test_retain_context_other() {
-        use crate::protocol::{Context, Contexts, OsContext};
-
         let mut os = OsContext::default();
         os.other
             .insert("foo".to_string(), Annotated::from(Value::U64(42)));
@@ -194,8 +190,6 @@ mod tests {
 
     #[test]
     fn test_breadcrumb_errors() {
-        use crate::protocol::Values;
-
         let mut event = Annotated::new(Event {
             breadcrumbs: Annotated::new(Values::new(vec![Annotated::new(Breadcrumb {
                 other: {

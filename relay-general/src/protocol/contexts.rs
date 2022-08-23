@@ -819,6 +819,10 @@ impl FromValue for Contexts {
 
 #[cfg(test)]
 mod tests {
+    use crate::processor::{ProcessingState, Processor};
+    use crate::protocol::Event;
+    use crate::types::{Map, Meta, ProcessingResult};
+
     use super::*;
 
     #[test]
@@ -1093,8 +1097,6 @@ mod tests {
 
     #[test]
     fn test_other_context_roundtrip() {
-        use crate::types::Map;
-
         let json = r#"{"other":"value","type":"mytype"}"#;
         let context = Annotated::new(Context::Other({
             let mut map = Map::new();
@@ -1155,10 +1157,6 @@ mod tests {
 
     #[test]
     fn test_context_processing() {
-        use crate::processor::{ProcessingState, Processor};
-        use crate::protocol::Event;
-        use crate::types::{Meta, ProcessingResult};
-
         let mut event = Annotated::new(Event {
             contexts: Annotated::new(Contexts({
                 let mut contexts = Object::new();

@@ -82,12 +82,12 @@ pub struct User {
 mod tests {
     use similar_asserts::assert_eq;
 
+    use crate::types::{Error, Map};
+
     use super::*;
 
     #[test]
     fn test_geo_roundtrip() {
-        use crate::types::Map;
-
         let json = r#"{
   "country_code": "US",
   "city": "San Francisco",
@@ -185,7 +185,6 @@ mod tests {
 
     #[test]
     fn test_user_invalid_id() {
-        use crate::types::Error;
         let json = r#"{"id":[]}"#;
         let user = Annotated::new(User {
             id: Annotated::from_error(

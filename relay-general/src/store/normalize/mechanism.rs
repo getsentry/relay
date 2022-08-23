@@ -655,7 +655,10 @@ pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) -
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_ron_snapshot;
     use similar_asserts::assert_eq;
+
+    use crate::types::SerializableAnnotated;
 
     use super::*;
 
@@ -988,9 +991,6 @@ mod tests {
 
     #[test]
     fn test_normalize_http_url() {
-        use crate::types::SerializableAnnotated;
-        use insta::assert_ron_snapshot;
-
         let mut good_mechanism = Mechanism {
             ty: Annotated::new("generic".to_string()),
             help_link: Annotated::new("https://example.com/".to_string()),

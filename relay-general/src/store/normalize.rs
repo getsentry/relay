@@ -820,11 +820,17 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::TimeZone;
+    use insta::assert_ron_snapshot;
     use similar_asserts::assert_eq;
 
     use crate::processor::process_value;
-    use crate::protocol::{PairList, TagEntry};
+    use crate::protocol::{
+        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
+        Span, SpanId, TagEntry, TraceId, Values,
+    };
     use crate::testutils::{get_path, get_value};
+    use crate::types::{FromValue, SerializableAnnotated};
 
     use super::*;
 
@@ -909,8 +915,6 @@ mod tests {
 
     #[test]
     fn test_geo_from_ip_address() {
-        use crate::protocol::Geo;
-
         let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
         let mut processor =
             NormalizeProcessor::new(Arc::new(StoreConfig::default()), Some(&lookup));
@@ -1079,9 +1083,6 @@ mod tests {
 
     #[test]
     fn test_transaction_level_untouched() {
-        use crate::protocol::{ContextInner, SpanId, TraceId};
-        use chrono::TimeZone;
-
         let processor = &mut NormalizeProcessor::default();
         let mut event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
@@ -1195,8 +1196,6 @@ mod tests {
 
     #[test]
     fn test_invalid_release_removed() {
-        use crate::protocol::LenientString;
-
         let mut event = Annotated::new(Event {
             release: Annotated::new(LenientString("Latest".to_string())),
             ..Event::default()
@@ -1425,8 +1424,6 @@ mod tests {
 
     #[test]
     fn test_unknown_debug_image() {
-        use crate::protocol::DebugMeta;
-
         let mut event = Annotated::new(Event {
             debug_meta: Annotated::new(DebugMeta {
                 images: Annotated::new(vec![Annotated::new(DebugImage::Other(Object::default()))]),
@@ -1556,9 +1553,6 @@ mod tests {
 
     #[test]
     fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
-        use crate::protocol::Values;
-        use crate::protocol::{Frame, RawStacktrace};
-
         let mut event = Annotated::new(Event {
             exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
                 ty: Annotated::new("FooDivisionError".to_string()),
@@ -1627,7 +1621,6 @@ mod tests {
 
     #[test]
     fn test_discards_received() {
-        use crate::types::FromValue;
         let mut event = Annotated::new(Event {
             received: FromValue::from_value(Annotated::new(Value::U64(696_969_696_969))),
             ..Default::default()
@@ -1644,11 +1637,6 @@ mod tests {
 
     #[test]
     fn test_grouping_config() {
-        use crate::protocol::LogEntry;
-        use crate::types::SerializableAnnotated;
-        use insta::assert_ron_snapshot;
-        use serde_json::json;
-
         let mut event = Annotated::new(Event {
             logentry: Annotated::from(LogEntry {
                 message: Annotated::new("Hello World!".to_string().into()),
@@ -1659,7 +1647,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::new(
             Arc::new(StoreConfig {
-                grouping_config: Some(json!({
+                grouping_config: Some(serde_json::json!({
                     "id": "legacy:1234-12-12".to_string(),
                 })),
                 ..Default::default()
@@ -1696,11 +1684,6 @@ mod tests {
 
     #[test]
     fn test_future_timestamp() {
-        use crate::types::SerializableAnnotated;
-
-        use chrono::TimeZone;
-        use insta::assert_ron_snapshot;
-
         let mut event = Annotated::new(Event {
             timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 2, 0).into()),
             ..Default::default()
@@ -1760,11 +1743,6 @@ mod tests {
 
     #[test]
     fn test_past_timestamp() {
-        use crate::types::SerializableAnnotated;
-
-        use chrono::TimeZone;
-        use insta::assert_ron_snapshot;
-
         let mut event = Annotated::new(Event {
             timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0).into()),
             ..Default::default()
@@ -1852,9 +1830,6 @@ mod tests {
 
     #[test]
     fn test_computed_measurements() {
-        use crate::types::SerializableAnnotated;
-        use insta::assert_ron_snapshot;
-
         let json = r#"
         {
             "type": "transaction",
@@ -1911,9 +1886,6 @@ mod tests {
 
     #[test]
     fn test_light_normalization_is_idempotent() {
-        use crate::protocol::{ContextInner, Span, SpanId, TraceId};
-        use chrono::TimeZone;
-
         // get an event, light normalize it. the result of that must be the same as light normalizing it once more
         let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
         let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);

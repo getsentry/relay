@@ -125,12 +125,12 @@ pub struct Breadcrumb {
 mod tests {
     use similar_asserts::assert_eq;
 
+    use crate::types::Map;
+
     use super::*;
 
     #[test]
     fn test_breadcrumb_roundtrip() {
-        use crate::types::Map;
-
         let input = r#"{
   "timestamp": 946684800,
   "type": "mytype",

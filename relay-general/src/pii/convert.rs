@@ -130,6 +130,7 @@ mod tests {
     use crate::pii::{DataScrubbingConfig, PiiConfig, PiiProcessor};
     use crate::processor::{process_value, ProcessingState};
     use crate::protocol::Event;
+    use crate::store::{StoreConfig, StoreProcessor};
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::FromValue;
 
@@ -827,8 +828,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     /// then more granular/sophisticated because we now understand the structure.
     #[test]
     fn test_sanitize_http_body() {
-        use crate::store::{StoreConfig, StoreProcessor};
-
         let mut data = Event::from_value(
             serde_json::json!({
                 "request": {
@@ -854,8 +853,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     /// nevertheless.
     #[test]
     fn test_sanitize_http_body_string() {
-        use crate::store::{StoreConfig, StoreProcessor};
-
         let mut data = Event::from_value(
             serde_json::json!({
                 "request": {

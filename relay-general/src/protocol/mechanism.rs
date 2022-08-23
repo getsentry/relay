@@ -260,11 +260,12 @@ impl FromValue for Mechanism {
 mod tests {
     use similar_asserts::assert_eq;
 
+    use crate::types::Map;
+
     use super::*;
 
     #[test]
     fn test_mechanism_roundtrip() {
-        use crate::types::Map;
         let json = r#"{
   "type": "mytype",
   "description": "mydescription",
@@ -378,8 +379,6 @@ mod tests {
 
     #[test]
     fn test_mechanism_legacy_conversion() {
-        use crate::types::Map;
-
         let input = r#"{
   "posix_signal": {
     "name": "SIGSEGV",

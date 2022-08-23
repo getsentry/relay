@@ -72,12 +72,12 @@ pub struct Exception {
 mod tests {
     use similar_asserts::assert_eq;
 
+    use crate::types::Map;
+
     use super::*;
 
     #[test]
     fn test_exception_roundtrip() {
-        use crate::types::Map;
-
         // stack traces and mechanism are tested separately
         let json = r#"{
   "type": "mytype",
