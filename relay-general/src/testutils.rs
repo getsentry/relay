@@ -1,25 +1,6 @@
 use crate::protocol::{Event, Headers, PairList, Request};
 use crate::types::Annotated;
 
-macro_rules! assert_eq_bytes_str {
-    ($left:expr, $right:expr) => {
-        match (&$left, &$right) {
-            (left, right) => assert!(
-                left == right,
-                "`left == right` in line {}:\n{}\n{}",
-                line!(),
-                pretty_hex::pretty_hex(left),
-                pretty_hex::pretty_hex(right),
-            ),
-        }
-    };
-    ($left:expr, $right:expr,) => {
-        assert_eq_bytes_str!($left, $right)
-    };
-}
-
-pub(crate) use assert_eq_bytes_str;
-
 macro_rules! assert_annotated_snapshot {
     ($value:expr, @$snapshot:literal) => {
         ::insta::assert_snapshot!(
