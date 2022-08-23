@@ -1,3 +1,4 @@
+use once_cell::sync::OnceCell;
 use regex::Regex;
 use serde::{Serialize, Serializer};
 
@@ -360,11 +361,6 @@ impl ReprocessingContext {
 /// Tries to follow OpenCensus/OpenTracing's span types.
 pub type OperationType = String;
 
-lazy_static::lazy_static! {
-    static ref TRACE_ID: Regex = Regex::new("^[a-fA-F0-9]{32}$").unwrap();
-    static ref SPAN_ID: Regex = Regex::new("^[a-fA-F0-9]{16}$").unwrap();
-}
-
 /// GPU information.
 ///
 /// Example:
@@ -496,7 +492,10 @@ impl FromValue for TraceId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => {
-                if !TRACE_ID.is_match(&value) || value.bytes().all(|x| x == b'0') {
+                static TRACE_ID: OnceCell<Regex> = OnceCell::new();
+                let regex = TRACE_ID.get_or_init(|| Regex::new("^[a-fA-F0-9]{32}$").unwrap());
+
+                if !regex.is_match(&value) || value.bytes().all(|x| x == b'0') {
                     meta.add_error(Error::invalid("not a valid trace id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
@@ -523,7 +522,10 @@ impl FromValue for SpanId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
             Annotated(Some(Value::String(value)), mut meta) => {
-                if !SPAN_ID.is_match(&value) || value.bytes().all(|x| x == b'0') {
+                static SPAN_ID: OnceCell<Regex> = OnceCell::new();
+                let regex = SPAN_ID.get_or_init(|| Regex::new("^[a-fA-F0-9]{16}$").unwrap());
+
+                if !regex.is_match(&value) || value.bytes().all(|x| x == b'0') {
                     meta.add_error(Error::invalid("not a valid span id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)

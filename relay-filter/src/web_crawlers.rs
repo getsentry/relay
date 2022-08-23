@@ -1,6 +1,6 @@
 //! Filters events coming from user agents known to be web crawlers.
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use relay_general::protocol::Event;
@@ -8,30 +8,8 @@ use relay_general::user_agent;
 
 use crate::{FilterConfig, FilterStatKey};
 
-/// Checks if the event originates from a known web crawler.
-pub fn matches(event: &Event) -> bool {
-    if let Some(user_agent) = user_agent::get_user_agent(event) {
-        WEB_CRAWLERS.is_match(user_agent) && !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
-    } else {
-        false
-    }
-}
-
-/// Filters events originating from a known web crawler.
-pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
-    if !config.is_enabled {
-        return Ok(());
-    }
-
-    if matches(event) {
-        return Err(FilterStatKey::WebCrawlers);
-    }
-
-    Ok(())
-}
-
-lazy_static! {
-    static ref WEB_CRAWLERS: Regex = Regex::new(
+static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?ix)
         Mediapartners-Google|
         AdsBot-Google|
@@ -56,14 +34,38 @@ lazy_static! {
         HubSpot\sCrawler            # HubSpot web crawler (web-crawlers@hubspot.com)
     "#
     )
-    .expect("Invalid web crawlers filter Regex");
+    .expect("Invalid web crawlers filter Regex")
+});
 
-    static ref ALLOWED_WEB_CRAWLERS: Regex = Regex::new(
+static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?ix)
         Slackbot\s1\.\d+             # Slack - see https://api.slack.com/robots
-    "#
+    "#,
     )
-    .expect("Invalid allowed web crawlers filter Regex");
+    .expect("Invalid allowed web crawlers filter Regex")
+});
+
+/// Checks if the event originates from a known web crawler.
+pub fn matches(event: &Event) -> bool {
+    if let Some(user_agent) = user_agent::get_user_agent(event) {
+        WEB_CRAWLERS.is_match(user_agent) && !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
+    } else {
+        false
+    }
+}
+
+/// Filters events originating from a known web crawler.
+pub fn should_filter(event: &Event, config: &FilterConfig) -> Result<(), FilterStatKey> {
+    if !config.is_enabled {
+        return Ok(());
+    }
+
+    if matches(event) {
+        return Err(FilterStatKey::WebCrawlers);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

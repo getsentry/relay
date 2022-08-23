@@ -41,7 +41,6 @@ futures01 = { version = "0.1.28", package = "futures" }
 hashbrown = "0.12.3"
 itertools = "0.8.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
-lazy_static = "1.4.0"
 listenfd = "0.3.3"
 minidump = { version = "0.10.0", optional = true }
 native-tls = { version = "0.2.4", optional = true }

@@ -16,12 +16,12 @@ crate-type = ["cdylib"]
 chrono = "0.4.11"
 failure = "0.1.8"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
-lazy_static = "1.4.0"
-serde = { version = "1.0.114", features = ["derive"] }
-serde_json = "1.0.55"
+once_cell = "1.13.1"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-ffi = { path = "../relay-ffi" }
 relay-general = { path = "../relay-general" }
 relay-sampling = { path = "../relay-sampling" }
 sentry-release-parser = { version = "1.3.1", features = ["serde"] }
+serde = { version = "1.0.114", features = ["derive"] }
+serde_json = "1.0.55"

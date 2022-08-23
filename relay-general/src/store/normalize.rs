@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 use smallvec::SmallVec;
@@ -707,13 +707,12 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     ) -> ProcessingResult {
         exception.process_child_values(self, state)?;
 
-        lazy_static! {
-            static ref TYPE_VALUE_RE: Regex = Regex::new(r"^(\w+):(.*)$").unwrap();
-        }
+        static TYPE_VALUE_RE: OnceCell<Regex> = OnceCell::new();
+        let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
 
         if exception.ty.value().is_empty() {
             if let Some(value_str) = exception.value.value_mut() {
-                let new_values = TYPE_VALUE_RE
+                let new_values = regex
                     .captures(value_str)
                     .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
 

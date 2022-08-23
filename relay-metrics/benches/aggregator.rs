@@ -68,63 +68,6 @@ impl fmt::Display for MetricInput {
     }
 }
 
-lazy_static::lazy_static! {
-    static ref COUNTER_METRIC: Metric = Metric {
-        name: "custom/foo@none".to_owned(),
-        value: MetricValue::Counter(42.),
-        timestamp: UnixTimestamp::now(),
-        tags: BTreeMap::new(),
-    };
-
-    static ref METRIC_INPUTS: [MetricInput; 7] = [
-        MetricInput {
-            num_metrics: 1,
-            num_metric_names: 1,
-            metric: COUNTER_METRIC.clone(),
-            num_project_keys: 1,
-        },
-        // scaling num_metrics
-        MetricInput {
-            num_metrics: 100,
-            num_metric_names: 1,
-            metric: COUNTER_METRIC.clone(),
-            num_project_keys: 1,
-        },
-        MetricInput {
-            num_metrics: 1000,
-            num_metric_names: 1,
-            metric: COUNTER_METRIC.clone(),
-            num_project_keys: 1,
-        },
-        // scaling num_metric_names
-        MetricInput {
-            num_metrics: 100,
-            num_metric_names: 100,
-            metric: COUNTER_METRIC.clone(),
-            num_project_keys: 1,
-        },
-        MetricInput {
-            num_metrics: 1000,
-            num_metric_names: 1000,
-            metric: COUNTER_METRIC.clone(),
-            num_project_keys: 1,
-        },
-        // scaling num_project_keys
-        MetricInput {
-            num_metrics: 100,
-            num_metric_names: 1,
-            metric: COUNTER_METRIC.clone(),
-            num_project_keys: 100,
-        },
-        MetricInput {
-            num_metrics: 1000,
-            num_metric_names: 1,
-            metric: COUNTER_METRIC.clone(),
-            num_project_keys: 1000,
-        },
-    ];
-}
-
 fn bench_insert_and_flush(c: &mut Criterion) {
     let config = AggregatorConfig {
         bucket_interval: 1000,
@@ -135,7 +78,62 @@ fn bench_insert_and_flush(c: &mut Criterion) {
 
     let flush_receiver = TestReceiver.start().recipient();
 
-    for input in &*METRIC_INPUTS {
+    let counter = Metric {
+        name: "custom/foo@none".to_owned(),
+        value: MetricValue::Counter(42.),
+        timestamp: UnixTimestamp::now(),
+        tags: BTreeMap::new(),
+    };
+
+    let inputs = [
+        MetricInput {
+            num_metrics: 1,
+            num_metric_names: 1,
+            metric: counter.clone(),
+            num_project_keys: 1,
+        },
+        // scaling num_metrics
+        MetricInput {
+            num_metrics: 100,
+            num_metric_names: 1,
+            metric: counter.clone(),
+            num_project_keys: 1,
+        },
+        MetricInput {
+            num_metrics: 1000,
+            num_metric_names: 1,
+            metric: counter.clone(),
+            num_project_keys: 1,
+        },
+        // scaling num_metric_names
+        MetricInput {
+            num_metrics: 100,
+            num_metric_names: 100,
+            metric: counter.clone(),
+            num_project_keys: 1,
+        },
+        MetricInput {
+            num_metrics: 1000,
+            num_metric_names: 1000,
+            metric: counter.clone(),
+            num_project_keys: 1,
+        },
+        // scaling num_project_keys
+        MetricInput {
+            num_metrics: 100,
+            num_metric_names: 1,
+            metric: counter.clone(),
+            num_project_keys: 100,
+        },
+        MetricInput {
+            num_metrics: 1000,
+            num_metric_names: 1,
+            metric: counter,
+            num_project_keys: 1000,
+        },
+    ];
+
+    for input in &inputs {
         c.bench_with_input(
             BenchmarkId::new("bench_insert_metrics", input),
             &input,

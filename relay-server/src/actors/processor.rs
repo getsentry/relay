@@ -12,7 +12,7 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use serde_json::Value as SerdeValue;
 
 use relay_auth::RelayVersion;
@@ -1333,14 +1333,14 @@ impl EnvelopeProcessor {
         };
 
         if !self.config.processing_enabled() {
-            lazy_static! {
-                static ref MY_VERSION_STRING: String = format!("{}", RelayVersion::current());
-            }
+            static MY_VERSION_STRING: OnceCell<String> = OnceCell::new();
+            let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
+
             event
                 .ingest_path
                 .get_or_insert_with(Default::default)
                 .push(Annotated::new(RelayInfo {
-                    version: Annotated::new(MY_VERSION_STRING.clone()),
+                    version: Annotated::new(my_version.clone()),
                     public_key: self
                         .config
                         .public_key()

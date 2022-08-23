@@ -26,7 +26,6 @@ crc32fast = "1.2.1"
 criterion = "0.3"
 futures01 = { version = "0.1.28", package = "futures" }
 insta = "1.19.0"
-lazy_static = "1.4.0"
 relay-test = { path = "../relay-test" }
 
 [[bench]]

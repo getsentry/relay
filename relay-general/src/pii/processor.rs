@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::mem;
 
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use regex::Regex;
 
 use crate::pii::compiledconfig::RuleRef;
@@ -13,16 +13,6 @@ use crate::processor::{
 };
 use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, User};
 use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
-
-// The Regex initializer needs a scope to avoid an endless loop/recursion in RustAnalyzer:
-// https://github.com/rust-analyzer/rust-analyzer/issues/5896. Note that outside of lazy_static,
-// this would require the unstable `stmt_expr_attributes` feature.
-lazy_static! {
-    static ref NULL_SPLIT_RE: Regex = {
-        #[allow(clippy::trivial_regex)]
-        Regex::new("\x00").unwrap()
-    };
-}
 
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
@@ -270,8 +260,14 @@ fn apply_regex_to_chunks<'a>(
             return;
         }
 
+        static NULL_SPLIT_RE: OnceCell<Regex> = OnceCell::new();
+        let regex = NULL_SPLIT_RE.get_or_init(|| {
+            #[allow(clippy::trivial_regex)]
+            Regex::new("\x00").unwrap()
+        });
+
         let mut pos = 0;
-        for piece in NULL_SPLIT_RE.find_iter(text) {
+        for piece in regex.find_iter(text) {
             rv.push(Chunk::Text {
                 text: Cow::Owned(text[pos..piece.start()].to_string()),
             });
