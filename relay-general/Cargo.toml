@@ -42,10 +42,9 @@ uuid = { version = "0.8.1", features = ["v4", "serde"] }
 
 [dev-dependencies]
 criterion = "0.3"
-difference = "2.0.0"
 insta = { version = "1.19.0", features =  ["json", "redactions", "ron", "yaml"] }
 pretty-hex = "0.2.0"
-valico = "3.2.0"
+similar-asserts = "1.4.2"
 
 [features]
 mmap = ["maxminddb/mmap", "memmap"]

@@ -122,13 +122,16 @@ pub struct Breadcrumb {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_breadcrumb_roundtrip() {
-    use crate::types::Map;
+    use super::*;
 
-    let input = r#"{
+    #[test]
+    fn test_breadcrumb_roundtrip() {
+        use crate::types::Map;
+
+        let input = r#"{
   "timestamp": 946684800,
   "type": "mytype",
   "category": "mycategory",
@@ -141,7 +144,7 @@ fn test_breadcrumb_roundtrip() {
   "c": "d"
 }"#;
 
-    let output = r#"{
+        let output = r#"{
   "timestamp": 946684800.0,
   "type": "mytype",
   "category": "mycategory",
@@ -154,61 +157,62 @@ fn test_breadcrumb_roundtrip() {
   "c": "d"
 }"#;
 
-    let breadcrumb = Annotated::new(Breadcrumb {
-        timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-        ty: Annotated::new("mytype".to_string()),
-        category: Annotated::new("mycategory".to_string()),
-        level: Annotated::new(Level::Fatal),
-        message: Annotated::new("my message".to_string()),
-        data: {
-            let mut map = Map::new();
-            map.insert(
-                "a".to_string(),
-                Annotated::new(Value::String("b".to_string())),
-            );
-            Annotated::new(map)
-        },
-        event_id: Annotated::new("52df9022835246eeb317dbd739ccd059".parse().unwrap()),
-        other: {
-            let mut map = Map::new();
-            map.insert(
-                "c".to_string(),
-                Annotated::new(Value::String("d".to_string())),
-            );
-            map
-        },
-    });
+        let breadcrumb = Annotated::new(Breadcrumb {
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            ty: Annotated::new("mytype".to_string()),
+            category: Annotated::new("mycategory".to_string()),
+            level: Annotated::new(Level::Fatal),
+            message: Annotated::new("my message".to_string()),
+            data: {
+                let mut map = Map::new();
+                map.insert(
+                    "a".to_string(),
+                    Annotated::new(Value::String("b".to_string())),
+                );
+                Annotated::new(map)
+            },
+            event_id: Annotated::new("52df9022835246eeb317dbd739ccd059".parse().unwrap()),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "c".to_string(),
+                    Annotated::new(Value::String("d".to_string())),
+                );
+                map
+            },
+        });
 
-    assert_eq_dbg!(breadcrumb, Annotated::from_json(input).unwrap());
-    assert_eq_str!(output, breadcrumb.to_json_pretty().unwrap());
-}
+        assert_eq!(breadcrumb, Annotated::from_json(input).unwrap());
+        assert_eq!(output, breadcrumb.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_breadcrumb_default_values() {
-    let input = r#"{"timestamp":946684800}"#;
-    let output = r#"{"timestamp":946684800.0}"#;
+    #[test]
+    fn test_breadcrumb_default_values() {
+        let input = r#"{"timestamp":946684800}"#;
+        let output = r#"{"timestamp":946684800.0}"#;
 
-    let breadcrumb = Annotated::new(Breadcrumb {
-        timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-        ..Default::default()
-    });
+        let breadcrumb = Annotated::new(Breadcrumb {
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(breadcrumb, Annotated::from_json(input).unwrap());
-    assert_eq_str!(output, breadcrumb.to_json().unwrap());
-}
+        assert_eq!(breadcrumb, Annotated::from_json(input).unwrap());
+        assert_eq!(output, breadcrumb.to_json().unwrap());
+    }
 
-#[test]
-fn test_python_ty_regression() {
-    // The Python SDK used to send "ty" instead of "type". We're lenient to accept both.
-    let input = r#"{"timestamp":946684800,"ty":"http"}"#;
-    let output = r#"{"timestamp":946684800.0,"type":"http"}"#;
+    #[test]
+    fn test_python_ty_regression() {
+        // The Python SDK used to send "ty" instead of "type". We're lenient to accept both.
+        let input = r#"{"timestamp":946684800,"ty":"http"}"#;
+        let output = r#"{"timestamp":946684800.0,"type":"http"}"#;
 
-    let breadcrumb = Annotated::new(Breadcrumb {
-        timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-        ty: Annotated::new("http".into()),
-        ..Default::default()
-    });
+        let breadcrumb = Annotated::new(Breadcrumb {
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            ty: Annotated::new("http".into()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(breadcrumb, Annotated::from_json(input).unwrap());
-    assert_eq_str!(output, breadcrumb.to_json().unwrap());
+        assert_eq!(breadcrumb, Annotated::from_json(input).unwrap());
+        assert_eq!(output, breadcrumb.to_json().unwrap());
+    }
 }

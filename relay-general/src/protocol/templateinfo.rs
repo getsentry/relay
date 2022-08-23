@@ -33,12 +33,15 @@ pub struct TemplateInfo {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_template_roundtrip() {
-    use crate::types::Map;
-    let json = r#"{
+    use super::*;
+
+    #[test]
+    fn test_template_roundtrip() {
+        use crate::types::Map;
+        let json = r#"{
   "filename": "myfile.rs",
   "abs_path": "/path/to",
   "lineno": 2,
@@ -52,42 +55,43 @@ fn test_template_roundtrip() {
   ],
   "other": "value"
 }"#;
-    let template_info = Annotated::new(TemplateInfo {
-        filename: Annotated::new("myfile.rs".to_string()),
-        abs_path: Annotated::new("/path/to".to_string()),
-        lineno: Annotated::new(2),
-        colno: Annotated::new(42),
-        pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
-        context_line: Annotated::new("unimplemented!()".to_string()),
-        post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
-        other: {
-            let mut map = Map::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    });
+        let template_info = Annotated::new(TemplateInfo {
+            filename: Annotated::new("myfile.rs".to_string()),
+            abs_path: Annotated::new("/path/to".to_string()),
+            lineno: Annotated::new(2),
+            colno: Annotated::new(42),
+            pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
+            context_line: Annotated::new("unimplemented!()".to_string()),
+            post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
 
-    assert_eq_dbg!(template_info, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, template_info.to_json_pretty().unwrap());
-}
+        assert_eq!(template_info, Annotated::from_json(json).unwrap());
+        assert_eq!(json, template_info.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_template_default_values() {
-    let json = "{}";
-    let template_info = Annotated::new(TemplateInfo {
-        filename: Annotated::empty(),
-        abs_path: Annotated::empty(),
-        lineno: Annotated::empty(),
-        colno: Annotated::empty(),
-        pre_context: Annotated::empty(),
-        context_line: Annotated::empty(),
-        post_context: Annotated::empty(),
-        other: Object::default(),
-    });
+    #[test]
+    fn test_template_default_values() {
+        let json = "{}";
+        let template_info = Annotated::new(TemplateInfo {
+            filename: Annotated::empty(),
+            abs_path: Annotated::empty(),
+            lineno: Annotated::empty(),
+            colno: Annotated::empty(),
+            pre_context: Annotated::empty(),
+            context_line: Annotated::empty(),
+            post_context: Annotated::empty(),
+            other: Object::default(),
+        });
 
-    assert_eq_dbg!(template_info, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, template_info.to_json().unwrap());
+        assert_eq!(template_info, Annotated::from_json(json).unwrap());
+        assert_eq!(json, template_info.to_json().unwrap());
+    }
 }

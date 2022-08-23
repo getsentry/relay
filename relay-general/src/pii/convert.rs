@@ -123,12 +123,14 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     /// These tests are ported from Sentry's Python testsuite (test_data_scrubber). Each testcase
     /// has an equivalent testcase in Python.
     use crate::pii::{DataScrubbingConfig, PiiConfig, PiiProcessor};
     use crate::processor::{process_value, ProcessingState};
     use crate::protocol::Event;
-    use crate::testutils::{assert_annotated_snapshot, assert_eq_dbg};
+    use crate::testutils::assert_annotated_snapshot;
     use crate::types::FromValue;
 
     use super::to_pii_config as to_pii_config_impl;
@@ -138,7 +140,7 @@ mod tests {
         if let Some(ref config) = rv {
             let roundtrip: PiiConfig =
                 serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
-            assert_eq_dbg!(&roundtrip, config);
+            assert_eq!(&roundtrip, config);
         }
         rv
     }

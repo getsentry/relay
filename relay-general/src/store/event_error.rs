@@ -61,182 +61,185 @@ impl Processor for EmitEventErrors {
 }
 
 #[cfg(test)]
-use {
-    crate::processor::process_value,
-    crate::testutils::assert_eq_dbg,
-    crate::types::{ErrorKind, Object, Value},
-};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_no_errors() {
-    let mut event = Annotated::from(Event::default());
+    use crate::processor::process_value;
+    use crate::types::{ErrorKind, Object, Value};
 
-    process_value(
-        &mut event,
-        &mut EmitEventErrors::new(),
-        ProcessingState::root(),
-    )
-    .unwrap();
+    use super::*;
 
-    assert_eq_dbg!(event.value().unwrap().errors.value(), None);
-}
+    #[test]
+    fn test_no_errors() {
+        let mut event = Annotated::from(Event::default());
 
-#[test]
-fn test_top_level_errors() {
-    let mut event = Annotated::from(Event {
-        id: Annotated::from_error(ErrorKind::InvalidData, None),
-        ..Event::default()
-    });
+        process_value(
+            &mut event,
+            &mut EmitEventErrors::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
 
-    process_value(
-        &mut event,
-        &mut EmitEventErrors::new(),
-        ProcessingState::root(),
-    )
-    .unwrap();
+        assert_eq!(event.value().unwrap().errors.value(), None);
+    }
 
-    assert_eq_dbg!(
-        *event.value().unwrap().errors.value().unwrap(),
-        vec![Annotated::from(EventProcessingError {
-            ty: Annotated::from("invalid_data".to_string()),
-            name: Annotated::from("event_id".to_string()),
-            value: Annotated::empty(),
-            other: Object::default(),
-        })]
-    );
-}
+    #[test]
+    fn test_top_level_errors() {
+        let mut event = Annotated::from(Event {
+            id: Annotated::from_error(ErrorKind::InvalidData, None),
+            ..Event::default()
+        });
 
-#[test]
-fn test_errors_in_other() {
-    let mut event = Annotated::from(Event {
-        other: {
-            let mut other = Object::new();
-            other.insert(
-                "foo".to_string(),
-                Annotated::from_error(ErrorKind::InvalidData, None),
-            );
-            other
-        },
-        ..Event::default()
-    });
+        process_value(
+            &mut event,
+            &mut EmitEventErrors::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
 
-    process_value(
-        &mut event,
-        &mut EmitEventErrors::new(),
-        ProcessingState::root(),
-    )
-    .unwrap();
-
-    assert_eq_dbg!(
-        *event.value().unwrap().errors.value().unwrap(),
-        vec![Annotated::from(EventProcessingError {
-            ty: Annotated::from("invalid_data".to_string()),
-            name: Annotated::from("foo".to_string()),
-            value: Annotated::empty(),
-            other: Object::default(),
-        })]
-    );
-}
-
-#[test]
-fn test_nested_errors() {
-    use crate::protocol::{Breadcrumb, Values};
-
-    let mut event = Annotated::from(Event {
-        breadcrumbs: Annotated::from(Values::new(vec![Annotated::from(Breadcrumb {
-            ty: Annotated::from_error(ErrorKind::InvalidData, None),
-            ..Breadcrumb::default()
-        })])),
-        ..Event::default()
-    });
-
-    process_value(
-        &mut event,
-        &mut EmitEventErrors::new(),
-        ProcessingState::root(),
-    )
-    .unwrap();
-
-    assert_eq_dbg!(
-        *event.value().unwrap().errors.value().unwrap(),
-        vec![Annotated::from(EventProcessingError {
-            ty: Annotated::from("invalid_data".to_string()),
-            name: Annotated::from("breadcrumbs.values.0.type".to_string()),
-            value: Annotated::empty(),
-            other: Object::default(),
-        })]
-    );
-}
-
-#[test]
-fn test_multiple_errors() {
-    let mut meta = Meta::from_error(ErrorKind::InvalidData);
-    meta.add_error(ErrorKind::MissingAttribute);
-
-    let mut event = Annotated::from(Event {
-        id: Annotated(None, meta),
-        ..Event::default()
-    });
-
-    process_value(
-        &mut event,
-        &mut EmitEventErrors::new(),
-        ProcessingState::root(),
-    )
-    .unwrap();
-
-    assert_eq_dbg!(
-        *event.value().unwrap().errors.value().unwrap(),
-        vec![
-            Annotated::from(EventProcessingError {
+        assert_eq!(
+            *event.value().unwrap().errors.value().unwrap(),
+            vec![Annotated::from(EventProcessingError {
                 ty: Annotated::from("invalid_data".to_string()),
                 name: Annotated::from("event_id".to_string()),
                 value: Annotated::empty(),
                 other: Object::default(),
-            }),
-            Annotated::from(EventProcessingError {
-                ty: Annotated::from("missing_attribute".to_string()),
-                name: Annotated::from("event_id".to_string()),
-                value: Annotated::empty(),
-                other: Object::default(),
-            })
-        ]
-    );
-}
+            })]
+        );
+    }
 
-#[test]
-fn test_original_value() {
-    let mut meta = Meta::from_error(ErrorKind::InvalidData);
-    meta.add_error(ErrorKind::MissingAttribute);
-    meta.set_original_value(Some(Value::I64(42)));
+    #[test]
+    fn test_errors_in_other() {
+        let mut event = Annotated::from(Event {
+            other: {
+                let mut other = Object::new();
+                other.insert(
+                    "foo".to_string(),
+                    Annotated::from_error(ErrorKind::InvalidData, None),
+                );
+                other
+            },
+            ..Event::default()
+        });
 
-    let mut event = Annotated::from(Event {
-        id: Annotated(None, meta),
-        ..Event::default()
-    });
+        process_value(
+            &mut event,
+            &mut EmitEventErrors::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
 
-    process_value(
-        &mut event,
-        &mut EmitEventErrors::new(),
-        ProcessingState::root(),
-    )
-    .unwrap();
-
-    assert_eq_dbg!(
-        *event.value().unwrap().errors.value().unwrap(),
-        vec![
-            Annotated::from(EventProcessingError {
+        assert_eq!(
+            *event.value().unwrap().errors.value().unwrap(),
+            vec![Annotated::from(EventProcessingError {
                 ty: Annotated::from("invalid_data".to_string()),
-                name: Annotated::from("event_id".to_string()),
-                value: Annotated::from(Value::I64(42)),
-                other: Object::default(),
-            }),
-            Annotated::from(EventProcessingError {
-                ty: Annotated::from("missing_attribute".to_string()),
-                name: Annotated::from("event_id".to_string()),
+                name: Annotated::from("foo".to_string()),
                 value: Annotated::empty(),
                 other: Object::default(),
-            })
-        ]
-    );
+            })]
+        );
+    }
+
+    #[test]
+    fn test_nested_errors() {
+        use crate::protocol::{Breadcrumb, Values};
+
+        let mut event = Annotated::from(Event {
+            breadcrumbs: Annotated::from(Values::new(vec![Annotated::from(Breadcrumb {
+                ty: Annotated::from_error(ErrorKind::InvalidData, None),
+                ..Breadcrumb::default()
+            })])),
+            ..Event::default()
+        });
+
+        process_value(
+            &mut event,
+            &mut EmitEventErrors::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            *event.value().unwrap().errors.value().unwrap(),
+            vec![Annotated::from(EventProcessingError {
+                ty: Annotated::from("invalid_data".to_string()),
+                name: Annotated::from("breadcrumbs.values.0.type".to_string()),
+                value: Annotated::empty(),
+                other: Object::default(),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_multiple_errors() {
+        let mut meta = Meta::from_error(ErrorKind::InvalidData);
+        meta.add_error(ErrorKind::MissingAttribute);
+
+        let mut event = Annotated::from(Event {
+            id: Annotated(None, meta),
+            ..Event::default()
+        });
+
+        process_value(
+            &mut event,
+            &mut EmitEventErrors::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            *event.value().unwrap().errors.value().unwrap(),
+            vec![
+                Annotated::from(EventProcessingError {
+                    ty: Annotated::from("invalid_data".to_string()),
+                    name: Annotated::from("event_id".to_string()),
+                    value: Annotated::empty(),
+                    other: Object::default(),
+                }),
+                Annotated::from(EventProcessingError {
+                    ty: Annotated::from("missing_attribute".to_string()),
+                    name: Annotated::from("event_id".to_string()),
+                    value: Annotated::empty(),
+                    other: Object::default(),
+                })
+            ]
+        );
+    }
+
+    #[test]
+    fn test_original_value() {
+        let mut meta = Meta::from_error(ErrorKind::InvalidData);
+        meta.add_error(ErrorKind::MissingAttribute);
+        meta.set_original_value(Some(Value::I64(42)));
+
+        let mut event = Annotated::from(Event {
+            id: Annotated(None, meta),
+            ..Event::default()
+        });
+
+        process_value(
+            &mut event,
+            &mut EmitEventErrors::new(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            *event.value().unwrap().errors.value().unwrap(),
+            vec![
+                Annotated::from(EventProcessingError {
+                    ty: Annotated::from("invalid_data".to_string()),
+                    name: Annotated::from("event_id".to_string()),
+                    value: Annotated::from(Value::I64(42)),
+                    other: Object::default(),
+                }),
+                Annotated::from(EventProcessingError {
+                    ty: Annotated::from("missing_attribute".to_string()),
+                    name: Annotated::from("event_id".to_string()),
+                    value: Annotated::empty(),
+                    other: Object::default(),
+                })
+            ]
+        );
+    }
 }

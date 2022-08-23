@@ -103,10 +103,12 @@ fn verify_value_characters(
 
 #[cfg(test)]
 mod tests {
-    use super::SchemaProcessor;
+    use similar_asserts::assert_eq;
+
     use crate::processor::{process_value, ProcessingState};
-    use crate::testutils::assert_eq_dbg;
     use crate::types::{Annotated, Array, Error, Object};
+
+    use super::*;
 
     fn assert_nonempty_base<T>()
     where
@@ -125,7 +127,7 @@ mod tests {
         });
         process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
-        assert_eq_dbg!(
+        assert_eq!(
             wrapper,
             Annotated::new(Foo {
                 bar: Annotated::from_error(Error::expected("a non-empty value"), None),
@@ -161,7 +163,7 @@ mod tests {
         let expected = user.clone();
         process_value(&mut user, &mut SchemaProcessor, ProcessingState::root()).unwrap();
 
-        assert_eq_dbg!(user, expected);
+        assert_eq!(user, expected);
     }
 
     #[test]
@@ -182,7 +184,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(info, expected);
+        assert_eq!(info, expected);
     }
 
     #[test]
@@ -240,7 +242,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(mechanism, expected);
+        assert_eq!(mechanism, expected);
     }
 
     #[test]
@@ -257,7 +259,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(stack, expected);
+        assert_eq!(stack, expected);
     }
 
     #[test]
@@ -275,6 +277,6 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(expected, event);
+        assert_eq!(expected, event);
     }
 }

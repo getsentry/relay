@@ -5,6 +5,7 @@ use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
 };
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult};
+
 /// Rejects transactions based on required fields.
 pub struct TransactionsProcessor;
 
@@ -297,15 +298,16 @@ impl Processor for TransactionsProcessor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use chrono::offset::TimeZone;
     use chrono::Utc;
+    use similar_asserts::assert_eq;
 
     use crate::processor::process_value;
     use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
-    use crate::testutils::{assert_annotated_snapshot, assert_eq_dbg};
+    use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
+
+    use super::*;
 
     fn new_test_event() -> Annotated<Event> {
         let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
@@ -361,7 +363,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -381,7 +383,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -402,7 +404,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -424,7 +426,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -450,7 +452,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -481,7 +483,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -515,7 +517,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -715,7 +717,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -754,7 +756,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -794,7 +796,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -835,7 +837,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,
@@ -877,7 +879,7 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq_dbg!(
+        assert_eq!(
             process_value(
                 &mut event,
                 &mut TransactionsProcessor,

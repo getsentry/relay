@@ -481,37 +481,39 @@ pub struct DebugMeta {
 }
 
 #[cfg(test)]
-use {
-    crate::testutils::{assert_eq_dbg, assert_eq_str},
-    crate::types::Map,
-};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_debug_image_proguard_roundtrip() {
-    let json = r#"{
+    use crate::types::Map;
+
+    use super::*;
+
+    #[test]
+    fn test_debug_image_proguard_roundtrip() {
+        let json = r#"{
   "uuid": "395835f4-03e0-4436-80d3-136f0749a893",
   "other": "value",
   "type": "proguard"
 }"#;
-    let image = Annotated::new(DebugImage::Proguard(Box::new(ProguardDebugImage {
-        uuid: Annotated::new("395835f4-03e0-4436-80d3-136f0749a893".parse().unwrap()),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        let image = Annotated::new(DebugImage::Proguard(Box::new(ProguardDebugImage {
+            uuid: Annotated::new("395835f4-03e0-4436-80d3-136f0749a893".parse().unwrap()),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, image.to_json_pretty().unwrap());
-}
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_debug_image_apple_roundtrip() {
-    let json = r#"{
+    #[test]
+    fn test_debug_image_apple_roundtrip() {
+        let json = r#"{
   "name": "CoreFoundation",
   "arch": "arm64",
   "cpu_type": 1233,
@@ -524,32 +526,32 @@ fn test_debug_image_apple_roundtrip() {
   "type": "apple"
 }"#;
 
-    let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
-        name: Annotated::new("CoreFoundation".to_string()),
-        arch: Annotated::new("arm64".to_string()),
-        cpu_type: Annotated::new(1233),
-        cpu_subtype: Annotated::new(3),
-        image_addr: Annotated::new(Addr(0)),
-        image_size: Annotated::new(4096),
-        image_vmaddr: Annotated::new(Addr(32768)),
-        uuid: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6".parse().unwrap()),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
+            name: Annotated::new("CoreFoundation".to_string()),
+            arch: Annotated::new("arm64".to_string()),
+            cpu_type: Annotated::new(1233),
+            cpu_subtype: Annotated::new(3),
+            image_addr: Annotated::new(Addr(0)),
+            image_size: Annotated::new(4096),
+            image_vmaddr: Annotated::new(Addr(32768)),
+            uuid: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6".parse().unwrap()),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, image.to_json_pretty().unwrap());
-}
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_debug_image_apple_default_values() {
-    let json = r#"{
+    #[test]
+    fn test_debug_image_apple_default_values() {
+        let json = r#"{
   "name": "CoreFoundation",
   "image_addr": "0x0",
   "image_size": 4096,
@@ -557,21 +559,21 @@ fn test_debug_image_apple_default_values() {
   "type": "apple"
 }"#;
 
-    let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
-        name: Annotated::new("CoreFoundation".to_string()),
-        image_addr: Annotated::new(Addr(0)),
-        image_size: Annotated::new(4096),
-        uuid: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6".parse().unwrap()),
-        ..Default::default()
-    })));
+        let image = Annotated::new(DebugImage::Apple(Box::new(AppleDebugImage {
+            name: Annotated::new("CoreFoundation".to_string()),
+            image_addr: Annotated::new(Addr(0)),
+            image_size: Annotated::new(4096),
+            uuid: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6".parse().unwrap()),
+            ..Default::default()
+        })));
 
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, image.to_json_pretty().unwrap());
-}
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_debug_image_symbolic_roundtrip() {
-    let json = r#"{
+    #[test]
+    fn test_debug_image_symbolic_roundtrip() {
+        let json = r#"{
   "code_id": "59b0d8f3183000",
   "code_file": "C:\\Windows\\System32\\ntdll.dll",
   "debug_id": "971f98e5-ce60-41ff-b2d7-235bbeb34578-1",
@@ -584,32 +586,32 @@ fn test_debug_image_symbolic_roundtrip() {
   "type": "symbolic"
 }"#;
 
-    let image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
-        code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
-        code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
-        debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
-        debug_file: Annotated::new("wntdll.pdb".into()),
-        arch: Annotated::new("arm64".to_string()),
-        image_addr: Annotated::new(Addr(0)),
-        image_size: Annotated::new(4096),
-        image_vmaddr: Annotated::new(Addr(32768)),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        let image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
+            code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+            code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+            debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
+            debug_file: Annotated::new("wntdll.pdb".into()),
+            arch: Annotated::new("arm64".to_string()),
+            image_addr: Annotated::new(Addr(0)),
+            image_size: Annotated::new(4096),
+            image_vmaddr: Annotated::new(Addr(32768)),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, image.to_json_pretty().unwrap());
-}
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_debug_image_symbolic_legacy() {
-    let json = r#"{
+    #[test]
+    fn test_debug_image_symbolic_legacy() {
+        let json = r#"{
   "name": "CoreFoundation",
   "arch": "arm64",
   "image_addr": "0x0",
@@ -620,31 +622,31 @@ fn test_debug_image_symbolic_legacy() {
   "type": "symbolic"
 }"#;
 
-    let image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
-        code_id: Annotated::empty(),
-        code_file: Annotated::new("CoreFoundation".into()),
-        debug_id: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6-1234".parse().unwrap()),
-        debug_file: Annotated::empty(),
-        arch: Annotated::new("arm64".to_string()),
-        image_addr: Annotated::new(Addr(0)),
-        image_size: Annotated::new(4096),
-        image_vmaddr: Annotated::new(Addr(32768)),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        let image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
+            code_id: Annotated::empty(),
+            code_file: Annotated::new("CoreFoundation".into()),
+            debug_id: Annotated::new("494f3aea-88fa-4296-9644-fa8ef5d139b6-1234".parse().unwrap()),
+            debug_file: Annotated::empty(),
+            arch: Annotated::new("arm64".to_string()),
+            image_addr: Annotated::new(Addr(0)),
+            image_size: Annotated::new(4096),
+            image_vmaddr: Annotated::new(Addr(32768)),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-}
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+    }
 
-#[test]
-fn test_debug_image_symbolic_default_values() {
-    let json = r#"{
+    #[test]
+    fn test_debug_image_symbolic_default_values() {
+        let json = r#"{
   "code_file": "CoreFoundation",
   "debug_id": "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234",
   "image_addr": "0x0",
@@ -652,25 +654,25 @@ fn test_debug_image_symbolic_default_values() {
   "type": "symbolic"
 }"#;
 
-    let image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
-        code_file: Annotated::new("CoreFoundation".into()),
-        debug_id: Annotated::new(
-            "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
-                .parse::<DebugId>()
-                .unwrap(),
-        ),
-        image_addr: Annotated::new(Addr(0)),
-        image_size: Annotated::new(4096),
-        ..Default::default()
-    })));
+        let image = Annotated::new(DebugImage::Symbolic(Box::new(NativeDebugImage {
+            code_file: Annotated::new("CoreFoundation".into()),
+            debug_id: Annotated::new(
+                "494f3aea-88fa-4296-9644-fa8ef5d139b6-1234"
+                    .parse::<DebugId>()
+                    .unwrap(),
+            ),
+            image_addr: Annotated::new(Addr(0)),
+            image_size: Annotated::new(4096),
+            ..Default::default()
+        })));
 
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, image.to_json_pretty().unwrap());
-}
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_debug_image_elf_roundtrip() {
-    let json = r#"{
+    #[test]
+    fn test_debug_image_elf_roundtrip() {
+        let json = r#"{
   "code_id": "f1c3bcc0279865fe3058404b2831d9e64135386c",
   "code_file": "crash",
   "debug_id": "c0bcc3f1-9827-fe65-3058-404b2831d9e6",
@@ -682,32 +684,32 @@ fn test_debug_image_elf_roundtrip() {
   "type": "elf"
 }"#;
 
-    let image = Annotated::new(DebugImage::Elf(Box::new(NativeDebugImage {
-        code_id: Annotated::new("f1c3bcc0279865fe3058404b2831d9e64135386c".parse().unwrap()),
-        code_file: Annotated::new("crash".into()),
-        debug_id: Annotated::new("c0bcc3f1-9827-fe65-3058-404b2831d9e6".parse().unwrap()),
-        debug_file: Annotated::empty(),
-        arch: Annotated::new("arm64".to_string()),
-        image_addr: Annotated::new(Addr(0)),
-        image_size: Annotated::new(4096),
-        image_vmaddr: Annotated::new(Addr(32768)),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        let image = Annotated::new(DebugImage::Elf(Box::new(NativeDebugImage {
+            code_id: Annotated::new("f1c3bcc0279865fe3058404b2831d9e64135386c".parse().unwrap()),
+            code_file: Annotated::new("crash".into()),
+            debug_id: Annotated::new("c0bcc3f1-9827-fe65-3058-404b2831d9e6".parse().unwrap()),
+            debug_file: Annotated::empty(),
+            arch: Annotated::new("arm64".to_string()),
+            image_addr: Annotated::new(Addr(0)),
+            image_size: Annotated::new(4096),
+            image_vmaddr: Annotated::new(Addr(32768)),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, image.to_json_pretty().unwrap());
-}
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_debug_image_macho_roundtrip() {
-    let json = r#"{
+    #[test]
+    fn test_debug_image_macho_roundtrip() {
+        let json = r#"{
   "code_id": "67E9247C-814E-392B-A027-DBDE6748FCBF",
   "code_file": "crash",
   "debug_id": "67e9247c-814e-392b-a027-dbde6748fcbf",
@@ -719,31 +721,31 @@ fn test_debug_image_macho_roundtrip() {
   "type": "macho"
 }"#;
 
-    let image = Annotated::new(DebugImage::MachO(Box::new(NativeDebugImage {
-        code_id: Annotated::new("67E9247C-814E-392B-A027-DBDE6748FCBF".parse().unwrap()),
-        code_file: Annotated::new("crash".into()),
-        debug_id: Annotated::new("67e9247c-814e-392b-a027-dbde6748fcbf".parse().unwrap()),
-        debug_file: Annotated::empty(),
-        arch: Annotated::new("arm64".to_string()),
-        image_addr: Annotated::new(Addr(0)),
-        image_size: Annotated::new(4096),
-        image_vmaddr: Annotated::new(Addr(32768)),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    })));
+        let image = Annotated::new(DebugImage::MachO(Box::new(NativeDebugImage {
+            code_id: Annotated::new("67E9247C-814E-392B-A027-DBDE6748FCBF".parse().unwrap()),
+            code_file: Annotated::new("crash".into()),
+            debug_id: Annotated::new("67e9247c-814e-392b-a027-dbde6748fcbf".parse().unwrap()),
+            debug_file: Annotated::empty(),
+            arch: Annotated::new("arm64".to_string()),
+            image_addr: Annotated::new(Addr(0)),
+            image_size: Annotated::new(4096),
+            image_vmaddr: Annotated::new(Addr(32768)),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
 
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-}
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+    }
 
-#[test]
-fn test_debug_image_pe_roundtrip() {
-    let json = r#"{
+    #[test]
+    fn test_debug_image_pe_roundtrip() {
+        let json = r#"{
   "code_id": "59b0d8f3183000",
   "code_file": "C:\\Windows\\System32\\ntdll.dll",
   "debug_id": "971f98e5-ce60-41ff-b2d7-235bbeb34578-1",
@@ -756,70 +758,70 @@ fn test_debug_image_pe_roundtrip() {
   "type": "pe"
 }"#;
 
-    let image = Annotated::new(DebugImage::Pe(Box::new(NativeDebugImage {
-        code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
-        code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
-        debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
-        debug_file: Annotated::new("wntdll.pdb".into()),
-        arch: Annotated::new("arm64".to_string()),
-        image_addr: Annotated::new(Addr(0)),
-        image_size: Annotated::new(4096),
-        image_vmaddr: Annotated::new(Addr(32768)),
-        other: {
-            let mut map = Object::new();
+        let image = Annotated::new(DebugImage::Pe(Box::new(NativeDebugImage {
+            code_id: Annotated::new("59b0d8f3183000".parse().unwrap()),
+            code_file: Annotated::new("C:\\Windows\\System32\\ntdll.dll".into()),
+            debug_id: Annotated::new("971f98e5-ce60-41ff-b2d7-235bbeb34578-1".parse().unwrap()),
+            debug_file: Annotated::new("wntdll.pdb".into()),
+            arch: Annotated::new("arm64".to_string()),
+            image_addr: Annotated::new(Addr(0)),
+            image_size: Annotated::new(4096),
+            image_vmaddr: Annotated::new(Addr(32768)),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        })));
+
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_debug_image_other_roundtrip() {
+        let json = r#"{"other":"value","type":"mytype"}"#;
+        let image = Annotated::new(DebugImage::Other({
+            let mut map = Map::new();
+            map.insert(
+                "type".to_string(),
+                Annotated::new(Value::String("mytype".to_string())),
+            );
             map.insert(
                 "other".to_string(),
                 Annotated::new(Value::String("value".to_string())),
             );
             map
-        },
-    })));
+        }));
 
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, image.to_json_pretty().unwrap());
-}
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json().unwrap());
+    }
 
-#[test]
-fn test_debug_image_other_roundtrip() {
-    let json = r#"{"other":"value","type":"mytype"}"#;
-    let image = Annotated::new(DebugImage::Other({
-        let mut map = Map::new();
-        map.insert(
-            "type".to_string(),
-            Annotated::new(Value::String("mytype".to_string())),
-        );
-        map.insert(
-            "other".to_string(),
-            Annotated::new(Value::String("value".to_string())),
-        );
-        map
-    }));
+    #[test]
+    fn test_debug_image_untagged_roundtrip() {
+        let json = r#"{"other":"value"}"#;
+        let image = Annotated::new(DebugImage::Other({
+            let mut map = Map::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_string())),
+            );
+            map
+        }));
 
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, image.to_json().unwrap());
-}
+        assert_eq!(image, Annotated::from_json(json).unwrap());
+        assert_eq!(json, image.to_json().unwrap());
+    }
 
-#[test]
-fn test_debug_image_untagged_roundtrip() {
-    let json = r#"{"other":"value"}"#;
-    let image = Annotated::new(DebugImage::Other({
-        let mut map = Map::new();
-        map.insert(
-            "other".to_string(),
-            Annotated::new(Value::String("value".to_string())),
-        );
-        map
-    }));
-
-    assert_eq_dbg!(image, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, image.to_json().unwrap());
-}
-
-#[test]
-fn test_debug_meta_roundtrip() {
-    use crate::types::Map;
-    // NOTE: images are tested separately
-    let json = r#"{
+    #[test]
+    fn test_debug_meta_roundtrip() {
+        use crate::types::Map;
+        // NOTE: images are tested separately
+        let json = r#"{
   "sdk_info": {
     "sdk_name": "iOS",
     "version_major": 10,
@@ -829,12 +831,21 @@ fn test_debug_meta_roundtrip() {
   },
   "other": "value"
 }"#;
-    let meta = Annotated::new(DebugMeta {
-        system_sdk: Annotated::new(SystemSdkInfo {
-            sdk_name: Annotated::new("iOS".to_string()),
-            version_major: Annotated::new(10),
-            version_minor: Annotated::new(3),
-            version_patchlevel: Annotated::new(0),
+        let meta = Annotated::new(DebugMeta {
+            system_sdk: Annotated::new(SystemSdkInfo {
+                sdk_name: Annotated::new("iOS".to_string()),
+                version_major: Annotated::new(10),
+                version_minor: Annotated::new(3),
+                version_patchlevel: Annotated::new(0),
+                other: {
+                    let mut map = Map::new();
+                    map.insert(
+                        "other".to_string(),
+                        Annotated::new(Value::String("value".to_string())),
+                    );
+                    map
+                },
+            }),
             other: {
                 let mut map = Map::new();
                 map.insert(
@@ -843,27 +854,19 @@ fn test_debug_meta_roundtrip() {
                 );
                 map
             },
-        }),
-        other: {
-            let mut map = Map::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-        ..Default::default()
-    });
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(meta, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, meta.to_json_pretty().unwrap());
-}
+        assert_eq!(meta, Annotated::from_json(json).unwrap());
+        assert_eq!(json, meta.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_debug_meta_default_values() {
-    let json = "{}";
-    let meta = Annotated::new(DebugMeta::default());
+    #[test]
+    fn test_debug_meta_default_values() {
+        let json = "{}";
+        let meta = Annotated::new(DebugMeta::default());
 
-    assert_eq_dbg!(meta, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, meta.to_json_pretty().unwrap());
+        assert_eq!(meta, Annotated::from_json(json).unwrap());
+        assert_eq!(json, meta.to_json_pretty().unwrap());
+    }
 }

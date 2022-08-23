@@ -115,99 +115,103 @@ impl IntoValue for Fingerprint {
 impl ProcessValue for Fingerprint {}
 
 #[cfg(test)]
-use crate::testutils::assert_eq_dbg;
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_fingerprint_string() {
-    assert_eq_dbg!(
-        Annotated::new(vec!["fingerprint".to_string()].into()),
-        Annotated::<Fingerprint>::from_json("[\"fingerprint\"]").unwrap()
-    );
-}
+    use super::*;
 
-#[test]
-fn test_fingerprint_bool() {
-    assert_eq_dbg!(
-        Annotated::new(vec!["True".to_string(), "False".to_string()].into()),
-        Annotated::<Fingerprint>::from_json("[true, false]").unwrap()
-    );
-}
+    #[test]
+    fn test_fingerprint_string() {
+        assert_eq!(
+            Annotated::new(vec!["fingerprint".to_string()].into()),
+            Annotated::<Fingerprint>::from_json("[\"fingerprint\"]").unwrap()
+        );
+    }
 
-#[test]
-fn test_fingerprint_number() {
-    assert_eq_dbg!(
-        Annotated::new(vec!["-22".to_string()].into()),
-        Annotated::<Fingerprint>::from_json("[-22]").unwrap()
-    );
-}
+    #[test]
+    fn test_fingerprint_bool() {
+        assert_eq!(
+            Annotated::new(vec!["True".to_string(), "False".to_string()].into()),
+            Annotated::<Fingerprint>::from_json("[true, false]").unwrap()
+        );
+    }
 
-#[test]
-fn test_fingerprint_float() {
-    assert_eq_dbg!(
-        Annotated::new(vec!["3".to_string()].into()),
-        Annotated::<Fingerprint>::from_json("[3.0]").unwrap()
-    );
-}
+    #[test]
+    fn test_fingerprint_number() {
+        assert_eq!(
+            Annotated::new(vec!["-22".to_string()].into()),
+            Annotated::<Fingerprint>::from_json("[-22]").unwrap()
+        );
+    }
 
-#[test]
-fn test_fingerprint_float_trunc() {
-    assert_eq_dbg!(
-        Annotated::new(vec!["3".to_string()].into()),
-        Annotated::<Fingerprint>::from_json("[3.5]").unwrap()
-    );
-}
+    #[test]
+    fn test_fingerprint_float() {
+        assert_eq!(
+            Annotated::new(vec!["3".to_string()].into()),
+            Annotated::<Fingerprint>::from_json("[3.0]").unwrap()
+        );
+    }
 
-#[test]
-fn test_fingerprint_float_strip() {
-    use crate::types::Meta;
+    #[test]
+    fn test_fingerprint_float_trunc() {
+        assert_eq!(
+            Annotated::new(vec!["3".to_string()].into()),
+            Annotated::<Fingerprint>::from_json("[3.5]").unwrap()
+        );
+    }
 
-    let bad_values = vec![Annotated::new(Value::F64(-1e100))];
+    #[test]
+    fn test_fingerprint_float_strip() {
+        use crate::types::Meta;
 
-    let mut meta = Meta::from_error(Error::with(ErrorKind::InvalidData, |e| {
-        e.insert("value", bad_values);
-    }));
-    meta.set_original_length(Some(1));
+        let bad_values = vec![Annotated::new(Value::F64(-1e100))];
 
-    assert_eq_dbg!(
-        Annotated(None, meta),
-        Annotated::<Fingerprint>::from_json("[-1e100]").unwrap()
-    );
-}
+        let mut meta = Meta::from_error(Error::with(ErrorKind::InvalidData, |e| {
+            e.insert("value", bad_values);
+        }));
+        meta.set_original_length(Some(1));
 
-#[test]
-fn test_fingerprint_float_bounds() {
-    use crate::types::Meta;
+        assert_eq!(
+            Annotated(None, meta),
+            Annotated::<Fingerprint>::from_json("[-1e100]").unwrap()
+        );
+    }
 
-    let bad_values = vec![Annotated::new(Value::F64(
-        #[allow(clippy::excessive_precision)]
-        1.797_693_134_862_315_7e+308,
-    ))];
+    #[test]
+    fn test_fingerprint_float_bounds() {
+        use crate::types::Meta;
 
-    let mut meta = Meta::from_error(Error::with(ErrorKind::InvalidData, |e| {
-        e.insert("value", bad_values);
-    }));
-    meta.set_original_length(Some(1));
+        let bad_values = vec![Annotated::new(Value::F64(
+            #[allow(clippy::excessive_precision)]
+            1.797_693_134_862_315_7e+308,
+        ))];
 
-    assert_eq_dbg!(
-        Annotated(None, meta),
-        Annotated::<Fingerprint>::from_json("[1.7976931348623157e+308]").unwrap()
-    );
-}
+        let mut meta = Meta::from_error(Error::with(ErrorKind::InvalidData, |e| {
+            e.insert("value", bad_values);
+        }));
+        meta.set_original_length(Some(1));
 
-#[test]
-fn test_fingerprint_invalid_fallback() {
-    // XXX: review, this was changed after refactor
-    assert_eq_dbg!(
-        Annotated::new(Fingerprint(vec!["a".to_string(), "d".to_string()])),
-        Annotated::<Fingerprint>::from_json("[\"a\", null, \"d\"]").unwrap()
-    );
-}
+        assert_eq!(
+            Annotated(None, meta),
+            Annotated::<Fingerprint>::from_json("[1.7976931348623157e+308]").unwrap()
+        );
+    }
 
-#[test]
-fn test_fingerprint_empty() {
-    // XXX: review, this was changed after refactor
-    assert_eq_dbg!(
-        Annotated::new(vec![].into()),
-        Annotated::<Fingerprint>::from_json("[]").unwrap()
-    );
+    #[test]
+    fn test_fingerprint_invalid_fallback() {
+        // XXX: review, this was changed after refactor
+        assert_eq!(
+            Annotated::new(Fingerprint(vec!["a".to_string(), "d".to_string()])),
+            Annotated::<Fingerprint>::from_json("[\"a\", null, \"d\"]").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_fingerprint_empty() {
+        // XXX: review, this was changed after refactor
+        assert_eq!(
+            Annotated::new(vec![].into()),
+            Annotated::<Fingerprint>::from_json("[]").unwrap()
+        );
+    }
 }
