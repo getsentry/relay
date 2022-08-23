@@ -359,7 +359,7 @@ mod tests {
     use crate::processor::process_value;
     use crate::protocol::{
         Addr, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, NativeDebugImage,
-        Request,
+        Request, TagEntry, Tags,
     };
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::{Annotated, Object, Value};
@@ -368,7 +368,6 @@ mod tests {
 
     #[test]
     fn test_basic_stripping() {
-        use crate::protocol::{TagEntry, Tags};
         let config = PiiConfig::from_json(
             r##"
             {
