@@ -7,24 +7,16 @@ use relay_general::protocol::Event;
 use relay_sampling::{
     pseudo_random_from_uuid, DynamicSamplingContext, RuleId, SamplingConfig, SamplingRule,
 };
-use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
-use crate::statsd::{RelayCounters, RelayTimers};
-
-macro_rules! some_or {
-    ($e:expr, $fallback:expr) => {
-        match $e {
-            Some(x) => x,
-            None => $fallback,
-        }
-    };
-}
 
 macro_rules! or_ok_none {
     ($e:expr) => {
-        some_or!($e, return Ok(None))
+        match $e {
+            Some(x) => x,
+            None => return Ok(None),
+        }
     };
 }
 
@@ -131,32 +123,6 @@ pub fn should_keep_event(
     }
 
     SamplingResult::Keep
-}
-
-fn track_sampling_metrics(
-    sampling_context: Option<&DynamicSamplingContext>,
-    event: Option<&Event>,
-    project_state: &ProjectState,
-    sampling_project_state: Option<&ProjectState>,
-) {
-    let sampling_context = some_or!(sampling_context, return);
-    let event = some_or!(event, return);
-    let sampling_project_state = some_or!(sampling_project_state, return);
-
-    if sampling_project_state.project_id != project_state.project_id {
-        return;
-    }
-
-    let is_unstable_transaction_name = event.transaction.value() != sampling_context.transaction;
-    let dsc_has_transaction_name = sampling_context.transaction.is_some();
-    let event_has_transaction_name = event.transaction.value().is_some();
-
-    metric!(
-        counter(RelayCounters::DynamicSamplingRootTransaction) += 1,
-        is_unstable_transaction_name = is_unstable_transaction_name,
-        dsc_has_transaction_name = dsc_has_transaction_name,
-        event_has_transaction_name = event_has_transaction_name,
-    );
 }
 
 /// Returns the project key defined in the `trace` header of the envelope, if defined.

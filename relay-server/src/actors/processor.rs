@@ -32,7 +32,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, ReasonCode};
 use relay_redis::RedisPool;
-use relay_sampling::RuleId;
+use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
@@ -342,6 +342,30 @@ fn outcome_from_profile_error(err: relay_profiling::ProfileError) -> Outcome {
         _ => DiscardReason::ProcessProfile,
     };
     Outcome::Invalid(discard_reason)
+}
+
+fn track_sampling_metrics(
+    project_state: &ProjectState,
+    context: &DynamicSamplingContext,
+    event: &Event,
+) {
+    // We only collect this metric for the root transaction event, so ignore secondary projects.
+    if !project_state.is_matching_key(context.public_key) {
+        return;
+    }
+
+    let is_unstable = event.transaction.value() != context.transaction.as_ref();
+    let in_dsc = context.transaction.is_some();
+    let in_payload = event.transaction.value().is_some();
+
+    metric!(
+        counter(RelayCounters::DynamicSamplingRootTransaction) += 1,
+        match = if is_unstable { "mismatch" } else { "match" },
+        dsc = if in_dsc { "some" } else { "none" },
+        payload = if in_payload { "some" } else { "none" },
+        source = &event.get_transaction_source().to_string(),
+        platform = event.platform.as_str().unwrap_or("other"),
+    );
 }
 
 /// Synchronous service for processing envelopes.
@@ -1599,6 +1623,10 @@ impl EnvelopeProcessor {
                 }
             );
             state.transaction_metrics_extracted = true;
+
+            if let Some(context) = state.envelope.sampling_context() {
+                track_sampling_metrics(&state.project_state, context, event);
+            }
         }
         Ok(())
     }
