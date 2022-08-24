@@ -69,7 +69,7 @@ jobs:
           RUSTDOCFLAGS: -Dwarnings
         with:
           command: doc
-          args: --workspace --all-targets --all-features --no-deps --document-private-items
+          args: --workspace --all-features --no-deps --document-private-items
 
   lint_default:
     name: Lint Rust Default Features

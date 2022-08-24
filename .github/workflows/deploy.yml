@@ -43,7 +43,7 @@ jobs:
           RUSTDOCFLAGS: -Dwarnings
         with:
           command: doc
-          args: --workspace --all-targets --all-features --no-deps
+          args: --workspace --all-features --no-deps
 
       - run: echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
 
