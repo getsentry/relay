@@ -16,9 +16,6 @@ jobs:
     name: Cargo Docs
     runs-on: ubuntu-latest
 
-    env:
-      RUSTDOCFLAGS: -Dbroken_intra_doc_links
-
     steps:
       - name: Install libcurl-dev
         run: |
@@ -42,9 +39,11 @@ jobs:
 
       - name: Build Docs
         uses: actions-rs/cargo@v1
+        env:
+          RUSTDOCFLAGS: -Dwarnings
         with:
           command: doc
-          args: --workspace --all-features --no-deps
+          args: --workspace --all-targets --all-features --no-deps
 
       - run: echo '<meta http-equiv="refresh" content="0; url=relay/" />Redirecting to <a href="relay/">relay</a>' > target/doc/index.html
 
