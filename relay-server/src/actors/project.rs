@@ -111,7 +111,7 @@ pub struct ProjectConfig {
     pub dynamic_sampling: Option<SamplingConfig>,
     /// Feature flag configs
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub feature_flags: BTreeMap<String, FeatureFlag>,
+    pub feature_flags: BTreeMap<String, ErrorBoundary<FeatureFlag>>,
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,

@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use actix::prelude::*;
 use actix_web::{actix::ResponseFuture, HttpRequest, HttpResponse};
 use futures01::Future;
@@ -6,6 +8,7 @@ use crate::actors::project_cache::{GetProjectState, ProjectCache};
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::extractors::RequestMeta;
 use crate::service::{ServiceApp, ServiceState};
+use crate::utils::ErrorBoundary;
 
 use relay_feature_flags::{EvaluationRule, EvaluationType, FeatureDump, FeatureFlag, FlagKind};
 
@@ -19,8 +22,16 @@ fn fetch_feature_flags(
         .send(GetProjectState::new(meta.public_key()))
         .map_err(|_| BadStoreRequest::ScheduleFailed)
         .map(|state_result| {
-            let mut feature_flags = match state_result {
-                Ok(project_state) => project_state.config().feature_flags.clone(),
+            let mut feature_flags: BTreeMap<String, FeatureFlag> = match state_result {
+                Ok(project_state) => project_state
+                    .config()
+                    .feature_flags
+                    .iter()
+                    .filter_map(|(k, v)| match v {
+                        ErrorBoundary::Err(_) => None,
+                        ErrorBoundary::Ok(val) => Some((k.to_string(), val.clone())),
+                    })
+                    .collect(),
                 Err(_) => Default::default(),
             };
 
