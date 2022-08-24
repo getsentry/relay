@@ -1,15 +1,13 @@
 use std::borrow::Cow;
 
 use globset::GlobBuilder;
-use lazy_static::lazy_static;
 use lru::LruCache;
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use regex::bytes::{Regex, RegexBuilder};
 
-lazy_static! {
-    static ref GLOB_CACHE: Mutex<LruCache<(GlobOptions, String), Regex>> =
-        Mutex::new(LruCache::new(500));
-}
+static GLOB_CACHE: Lazy<Mutex<LruCache<(GlobOptions, String), Regex>>> =
+    Lazy::new(|| Mutex::new(LruCache::new(500)));
 
 /// Controls the options of the globber.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

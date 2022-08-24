@@ -583,9 +583,8 @@ mod tests {
                 }
             };
 
-            let compiled = config.compiled();
             let mut actual = input.to_owned();
-            let processor = PiiAttachmentsProcessor::new(&compiled);
+            let processor = PiiAttachmentsProcessor::new(config.compiled());
             let state = processor.state(filename, value_type);
             let has_changed = processor.scrub_bytes(&mut actual, &state, ScrubEncodings::All);
 

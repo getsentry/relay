@@ -8,54 +8,57 @@ use relay_general::store::{
 };
 use relay_general::types::{Annotated, SerializableAnnotated};
 
+fn pii_config() -> PiiConfig {
+    PiiConfig::from_json(
+        r##"{
+          "rules": {
+            "removeOkDetectToken": {
+              "type": "pattern",
+              "pattern": ".token.:.([0-9]+).",
+              "redaction": {"method": "replace", "text": "[ok detect token]"}
+            },
+            "removeDotLocal": {
+              "type": "pattern",
+              "pattern": "(.*)[.]local",
+              "redaction": {"method": "replace", "text": "[.local hostname]"}
+            }
+          },
+          "applications": {
+            "tags.server_name": ["removeDotLocal"],
+            "tags.RequestId": ["@anything:remove"],
+
+            "contexts.device.boot_time": ["@anything:remove"],
+            "contexts.device.screen_resolution": ["@anything:remove"],
+            "contexts.device.screen_density": ["@anything:remove"],
+            "contexts.device.screen_height_pixels": ["@anything:remove"],
+            "contexts.device.screen_width_pixels": ["@anything:remove"],
+            "contexts.device.screen_dpi": ["@anything:remove"],
+            "contexts.device.memory_size": ["@anything:remove"],
+            "contexts.device.timezone": ["@anything:remove"],
+
+            "user.ip_address": ["@anything:remove"],
+            "user.email": ["@anything:hash"],
+
+            "request.cookies.wcsid": ["@anything:replace"],
+            "request.cookies.hblid": ["@anything:replace"],
+            "request.cookies._okdetect": ["removeOkDetectToken"],
+            "request.headers.MS-ASPNETCORE-TOKEN": ["@anything:replace"],
+            "request.headers.User-Agent": ["@anything:replace"],
+
+            "request.env.DOCUMENT_ROOT": ["@userpath:replace"],
+            "exception.values.*.stacktrace.frames.*.filename": ["@userpath:replace"],
+            "exception.values.*.stacktrace.frames.*.abs_path": ["@userpath:replace"],
+            "breadcrumbs.values.*.message": ["@userpath:replace"]
+          }
+        }"##,
+    )
+    .unwrap()
+}
+
 macro_rules! event_snapshot {
     ($id:ident) => {
         mod $id {
             use super::*;
-
-            lazy_static::lazy_static! {
-                static ref PII_CONFIG: PiiConfig = PiiConfig::from_json(r##"{
-                  "rules": {
-                    "removeOkDetectToken": {
-                      "type": "pattern",
-                      "pattern": ".token.:.([0-9]+).",
-                      "redaction": {"method": "replace", "text": "[ok detect token]"}
-                    },
-                    "removeDotLocal": {
-                      "type": "pattern",
-                      "pattern": "(.*)[.]local",
-                      "redaction": {"method": "replace", "text": "[.local hostname]"}
-                    }
-                  },
-                  "applications": {
-                    "tags.server_name": ["removeDotLocal"],
-                    "tags.RequestId": ["@anything:remove"],
-
-                    "contexts.device.boot_time": ["@anything:remove"],
-                    "contexts.device.screen_resolution": ["@anything:remove"],
-                    "contexts.device.screen_density": ["@anything:remove"],
-                    "contexts.device.screen_height_pixels": ["@anything:remove"],
-                    "contexts.device.screen_width_pixels": ["@anything:remove"],
-                    "contexts.device.screen_dpi": ["@anything:remove"],
-                    "contexts.device.memory_size": ["@anything:remove"],
-                    "contexts.device.timezone": ["@anything:remove"],
-
-                    "user.ip_address": ["@anything:remove"],
-                    "user.email": ["@anything:hash"],
-
-                    "request.cookies.wcsid": ["@anything:replace"],
-                    "request.cookies.hblid": ["@anything:replace"],
-                    "request.cookies._okdetect": ["removeOkDetectToken"],
-                    "request.headers.MS-ASPNETCORE-TOKEN": ["@anything:replace"],
-                    "request.headers.User-Agent": ["@anything:replace"],
-
-                    "request.env.DOCUMENT_ROOT": ["@userpath:replace"],
-                    "exception.values.*.stacktrace.frames.*.filename": ["@userpath:replace"],
-                    "exception.values.*.stacktrace.frames.*.abs_path": ["@userpath:replace"],
-                    "breadcrumbs.values.*.message": ["@userpath:replace"]
-                  }
-                }"##).unwrap();
-            }
 
             fn load_fixture() -> Annotated<Event> {
                 let data = fs::read_to_string(
@@ -74,7 +77,8 @@ macro_rules! event_snapshot {
                 light_normalize_event(&mut event, &config).unwrap();
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-                let compiled = PII_CONFIG.compiled();
+                let pii_config = pii_config();
+                let compiled = pii_config.compiled();
                 let mut processor = PiiProcessor::new(&compiled);
 
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();

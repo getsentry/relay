@@ -1,7 +1,7 @@
 #![allow(clippy::needless_update)]
 use std::collections::BTreeMap;
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use crate::pii::{
     AliasRule, MultipleRule, PatternRule, Redaction, ReplaceRedaction, RuleSpec, RuleType,
@@ -9,20 +9,13 @@ use crate::pii::{
 
 macro_rules! declare_builtin_rules {
     ($($rule_id:expr => $spec:expr;)*) => {
-        lazy_static! {
-            pub(crate) static ref BUILTIN_RULES_MAP: BTreeMap<&'static str, &'static RuleSpec> = {
-                let mut map = BTreeMap::new();
-                $(
-                    map.insert($rule_id, Box::leak(Box::new($spec)) as &'static _);
-                )*
-                map
-            };
-        }
-
-        /// Names of all builtin rules
-        pub static BUILTIN_RULES: &[&'static str] = &[
-            $($rule_id,)*
-        ];
+        pub(crate) static BUILTIN_RULES_MAP: Lazy<BTreeMap<&str, RuleSpec>> = Lazy::new(|| {
+            let mut map = BTreeMap::new();
+            $(
+                map.insert($rule_id, $spec);
+            )*
+            map
+        });
     }
 }
 
@@ -1018,7 +1011,6 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
             for redaction_method in &["mask", "remove", "hash", "replace"] {
                 let key = format!("@{}:{}", rule_type, redaction_method);
                 println!("looking up {}", key);
-                assert!(BUILTIN_RULES.contains(&key.as_str()));
                 assert!(BUILTIN_RULES_MAP.contains_key(key.as_str()));
             }
         }

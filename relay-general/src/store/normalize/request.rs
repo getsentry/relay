@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use regex::Regex;
 use url::Url;
 
@@ -6,10 +6,6 @@ use crate::protocol::{Query, Request};
 use crate::types::{Annotated, ErrorKind, Meta, ProcessingAction, ProcessingResult, Value};
 
 const ELLIPSIS: char = '\u{2026}';
-
-lazy_static! {
-    static ref METHOD_RE: Regex = Regex::new(r"^[A-Z\-_]{3,32}$").unwrap();
-}
 
 fn normalize_url(request: &mut Request) {
     let url_string = match request.url.value_mut() {
@@ -80,7 +76,10 @@ fn normalize_url(request: &mut Request) {
 fn normalize_method(method: &mut String, meta: &mut Meta) -> ProcessingResult {
     method.make_ascii_uppercase();
 
-    if !meta.has_errors() && !METHOD_RE.is_match(method) {
+    static METHOD_RE: OnceCell<Regex> = OnceCell::new();
+    let regex = METHOD_RE.get_or_init(|| Regex::new(r"^[A-Z\-_]{3,32}$").unwrap());
+
+    if !meta.has_errors() && !regex.is_match(method) {
         meta.add_error(ErrorKind::InvalidData);
         return Err(ProcessingAction::DeleteValueSoft);
     }

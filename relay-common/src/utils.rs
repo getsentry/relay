@@ -1,14 +1,10 @@
 use std::fmt;
 use std::str;
 
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use regex::Regex;
 
 use crate::macros::impl_str_serde;
-
-lazy_static! {
-    static ref GLOB_RE: Regex = Regex::new(r#"\?|\*\*|\*"#).unwrap();
-}
 
 /// A simple glob matcher.
 ///
@@ -27,7 +23,11 @@ impl Glob {
         let mut last = 0;
 
         pattern.push('^');
-        for m in GLOB_RE.find_iter(glob) {
+
+        static GLOB_RE: OnceCell<Regex> = OnceCell::new();
+        let regex = GLOB_RE.get_or_init(|| Regex::new(r#"\?|\*\*|\*"#).unwrap());
+
+        for m in regex.find_iter(glob) {
             pattern.push_str(&regex::escape(&glob[last..m.start()]));
             match m.as_str() {
                 "?" => pattern.push_str("(.)"),
