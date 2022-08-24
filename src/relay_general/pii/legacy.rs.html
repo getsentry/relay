@@ -80,14 +80,14 @@
 <span id="72">72</span>
 <span id="73">73</span>
 <span id="74">74</span>
+<span id="75">75</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Legacy datascrubbing coniguration</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! All these configuration options are ignored by the new data scrubbers which operate</span>
 <span class="doccomment">//! solely from the [PiiConfig] rules for the project.</span>
 
+<span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">LazyCellRef</span>, <span class="ident">UpsertingLazyCell</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii</span>::{<span class="ident">convert</span>, <span class="ident">PiiConfig</span>};
 
@@ -119,7 +119,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Cached because the conversion process is expensive.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip</span>)]</span>
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="ident">pii_config</span>: <span class="ident">UpsertingLazyCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="ident">pii_config</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">DataScrubbingConfig</span> {
@@ -131,7 +131,7 @@
             <span class="ident">scrub_ip_addresses</span>: <span class="bool-val">false</span>,
             <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[],
             <span class="ident">scrub_defaults</span>: <span class="bool-val">false</span>,
-            <span class="ident">pii_config</span>: <span class="ident">UpsertingLazyCell::new</span>(),
+            <span class="ident">pii_config</span>: <span class="ident">OnceCell::with_value</span>(<span class="prelude-val">None</span>),
         }
     }
 
@@ -140,15 +140,17 @@
         <span class="op">!</span><span class="self">self</span>.<span class="ident">scrub_data</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">scrub_ip_addresses</span>
     }
 
-    <span class="doccomment">/// Get the PII config derived from datascrubbing settings. Result is cached in lazycell and</span>
-    <span class="doccomment">/// directly returned on second call.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pii_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">LazyCellRef</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Get the PII config derived from datascrubbing settings.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This can be computationally expensive when called for the first time. The result is cached</span>
+    <span class="doccomment">/// internally and reused on the second call.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pii_config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_</span> <span class="ident">PiiConfig</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">pii_config</span>
-            .<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">pii_config_uncached</span>())
+            .<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">pii_config_uncached</span>())
+            .<span class="ident">as_ref</span>()
     }
 
-    <span class="doccomment">/// Like `self.pii_config` but without internal caching. Useful for benchmarks but not much</span>
-    <span class="doccomment">/// else.</span>
+    <span class="doccomment">/// Like [`pii_config`](Self::pii_config) but without internal caching.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pii_config_uncached</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span> {
         <span class="ident">convert::to_pii_config</span>(<span class="self">self</span>)

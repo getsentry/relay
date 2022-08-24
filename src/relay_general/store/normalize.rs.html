@@ -1957,7 +1957,6 @@
 <span id="1949">1949</span>
 <span id="1950">1950</span>
 <span id="1951">1951</span>
-<span id="1952">1952</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::hash_map::DefaultHasher</span>;
 <span class="kw">use</span> <span class="ident">std::hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>};
 <span class="kw">use</span> <span class="ident">std::mem</span>;
@@ -1965,7 +1964,7 @@
 
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Duration</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
-<span class="kw">use</span> <span class="ident">lazy_static::lazy_static</span>;
+<span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
 <span class="kw">use</span> <span class="ident">regex::Regex</span>;
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DurationUnit</span>, <span class="ident">FractionUnit</span>, <span class="ident">MetricUnit</span>};
 <span class="kw">use</span> <span class="ident">smallvec::SmallVec</span>;
@@ -2667,13 +2666,12 @@
     ) -&gt; <span class="ident">ProcessingResult</span> {
         <span class="ident">exception</span>.<span class="ident">process_child_values</span>(<span class="self">self</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
 
-        <span class="macro">lazy_static!</span> {
-            <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">TYPE_VALUE_RE</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r&quot;^(\w+):(.*)$&quot;</span>).<span class="ident">unwrap</span>();
-        }
+        <span class="kw">static</span> <span class="ident">TYPE_VALUE_RE</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
+        <span class="kw">let</span> <span class="ident">regex</span> <span class="op">=</span> <span class="ident">TYPE_VALUE_RE</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Regex::new</span>(<span class="string">r&quot;^(\w+):(.*)$&quot;</span>).<span class="ident">unwrap</span>());
 
         <span class="kw">if</span> <span class="ident">exception</span>.<span class="ident">ty</span>.<span class="ident">value</span>().<span class="ident">is_empty</span>() {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value_str</span>) <span class="op">=</span> <span class="ident">exception</span>.<span class="ident">value</span>.<span class="ident">value_mut</span>() {
-                <span class="kw">let</span> <span class="ident">new_values</span> <span class="op">=</span> <span class="ident">TYPE_VALUE_RE</span>
+                <span class="kw">let</span> <span class="ident">new_values</span> <span class="op">=</span> <span class="ident">regex</span>
                     .<span class="ident">captures</span>(<span class="ident">value_str</span>)
                     .<span class="ident">map</span>(<span class="op">|</span><span class="ident">cap</span><span class="op">|</span> (<span class="ident">cap</span>[<span class="number">1</span>].<span class="ident">to_string</span>(), <span class="ident">cap</span>[<span class="number">2</span>].<span class="ident">trim</span>().<span class="ident">to_string</span>().<span class="ident">into</span>()));
 

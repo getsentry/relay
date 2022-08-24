@@ -279,8 +279,8 @@
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">convert::TryFrom</span>, <span class="ident">fmt</span>};
 
 <span class="kw">use</span> <span class="ident">globset::GlobBuilder</span>;
+<span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
 <span class="kw">use</span> <span class="ident">regex::bytes</span>::{<span class="ident">Regex</span>, <span class="ident">RegexBuilder</span>};
-<span class="kw">use</span> <span class="ident">relay_common::UpsertingLazyCell</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
 <span class="doccomment">/// Returns `true` if any of the patterns match the given message.</span>
@@ -292,7 +292,7 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GlobPatterns</span> {
     <span class="ident">patterns</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="ident">globs</span>: <span class="ident">UpsertingLazyCell</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">globs</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">GlobPatterns</span> {
@@ -300,7 +300,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">patterns</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">patterns</span>,
-            <span class="ident">globs</span>: <span class="ident">UpsertingLazyCell::new</span>(),
+            <span class="ident">globs</span>: <span class="ident">OnceCell::new</span>(),
         }
     }
 
@@ -321,8 +321,8 @@
             <span class="kw">return</span> <span class="bool-val">false</span>;
         }
 
-        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">globs</span>.<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">parse_globs</span>());
-        <span class="ident">is_match</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">globs</span>, <span class="ident">message</span>)
+        <span class="kw">let</span> <span class="ident">globs</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">globs</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">parse_globs</span>());
+        <span class="ident">is_match</span>(<span class="ident">globs</span>, <span class="ident">message</span>)
     }
 
     <span class="doccomment">/// Parses valid patterns from the list.</span>

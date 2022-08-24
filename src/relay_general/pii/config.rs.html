@@ -241,8 +241,8 @@
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::ops::Deref</span>;
 
+<span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
 <span class="kw">use</span> <span class="ident">regex</span>::{<span class="ident">Regex</span>, <span class="ident">RegexBuilder</span>};
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">LazyCellRef</span>, <span class="ident">UpsertingLazyCell</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de::Error</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii</span>::{<span class="ident">CompiledPiiConfig</span>, <span class="ident">Redaction</span>};
@@ -420,7 +420,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Cached because the conversion process is expensive.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip</span>)]</span>
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="ident">compiled</span>: <span class="ident">UpsertingLazyCell</span><span class="op">&lt;</span><span class="ident">CompiledPiiConfig</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="ident">compiled</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">CompiledPiiConfig</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">PiiConfig</span> {
@@ -454,15 +454,15 @@
         <span class="ident">serde_json::to_string_pretty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>)
     }
 
-    <span class="doccomment">/// Get a representation of the `PiiConfig` that is more (CPU-)efficient for processing. Result</span>
-    <span class="doccomment">/// is cached in lazycell and directly returned on second call.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compiled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">LazyCellRef</span><span class="op">&lt;</span><span class="ident">CompiledPiiConfig</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">compiled</span>
-            .<span class="ident">get_or_insert_with</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">compiled_uncached</span>())
+    <span class="doccomment">/// Get a representation of this `PiiConfig` that is more (CPU-)efficient for processing.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This can be computationally expensive when called for the first time. The result is cached</span>
+    <span class="doccomment">/// internally and reused on the second call.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compiled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">CompiledPiiConfig</span> {
+        <span class="self">self</span>.<span class="ident">compiled</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">compiled_uncached</span>())
     }
 
-    <span class="doccomment">/// Like `self.compiled` but without internal caching. Useful for benchmarks but not much</span>
-    <span class="doccomment">/// else.</span>
+    <span class="doccomment">/// Like [`compiled`](Self::compiled) but without internal caching.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compiled_uncached</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">CompiledPiiConfig</span> {
         <span class="ident">CompiledPiiConfig::new</span>(<span class="self">self</span>)

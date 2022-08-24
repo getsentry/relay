@@ -439,14 +439,9 @@
 <span id="431">431</span>
 <span id="432">432</span>
 <span id="433">433</span>
-<span id="434">434</span>
-<span id="435">435</span>
-<span id="436">436</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implements filtering for events originating from legacy browsers.</span>
 
-<span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
-
-<span class="kw">use</span> <span class="ident">lazy_static::lazy_static</span>;
+<span class="kw">use</span> <span class="ident">std::collections::BTreeSet</span>;
 
 <span class="kw">use</span> <span class="ident">relay_general::protocol::Event</span>;
 <span class="kw">use</span> <span class="ident">relay_general::user_agent</span>::{<span class="self">self</span>, <span class="ident">UserAgent</span>};
@@ -517,21 +512,6 @@
     }
 }
 
-<span class="macro">lazy_static!</span> {
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">MIN_VERSIONS</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">i32</span><span class="op">&gt;</span> <span class="op">=</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
-        <span class="ident">x</span>.<span class="ident">insert</span>(<span class="string">&quot;Chrome&quot;</span>, <span class="number">0</span>);
-        <span class="ident">x</span>.<span class="ident">insert</span>(<span class="string">&quot;IE&quot;</span>, <span class="number">10</span>);
-        <span class="ident">x</span>.<span class="ident">insert</span>(<span class="string">&quot;Firefox&quot;</span>, <span class="number">0</span>);
-        <span class="ident">x</span>.<span class="ident">insert</span>(<span class="string">&quot;Safari&quot;</span>, <span class="number">6</span>);
-        <span class="ident">x</span>.<span class="ident">insert</span>(<span class="string">&quot;Edge&quot;</span>, <span class="number">0</span>);
-        <span class="ident">x</span>.<span class="ident">insert</span>(<span class="string">&quot;Opera&quot;</span>, <span class="number">15</span>);
-        <span class="ident">x</span>.<span class="ident">insert</span>(<span class="string">&quot;Android&quot;</span>, <span class="number">4</span>);
-        <span class="ident">x</span>.<span class="ident">insert</span>(<span class="string">&quot;Opera Mini&quot;</span>, <span class="number">8</span>);
-        <span class="ident">x</span>
-    };
-}
-
 <span class="kw">fn</span> <span class="ident">get_browser_major_version</span>(<span class="ident">user_agent</span>: <span class="kw-2">&amp;</span><span class="ident">UserAgent</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">browser_major_version_str</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">user_agent</span>.<span class="ident">major</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">browser_major_version</span>) <span class="op">=</span> <span class="ident">browser_major_version_str</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>() {
@@ -542,9 +522,23 @@
     <span class="prelude-val">None</span>
 }
 
+<span class="kw">fn</span> <span class="ident">min_version</span>(<span class="ident">family</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span> {
+    <span class="kw">match</span> <span class="ident">family</span> {
+        <span class="string">&quot;Chrome&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="number">0</span>),
+        <span class="string">&quot;IE&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="number">10</span>),
+        <span class="string">&quot;Firefox&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="number">0</span>),
+        <span class="string">&quot;Safari&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="number">6</span>),
+        <span class="string">&quot;Edge&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="number">0</span>),
+        <span class="string">&quot;Opera&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="number">15</span>),
+        <span class="string">&quot;Android&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="number">4</span>),
+        <span class="string">&quot;Opera Mini&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="number">8</span>),
+        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
+    }
+}
+
 <span class="kw">fn</span> <span class="ident">default_filter</span>(<span class="ident">mapped_family</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">user_agent</span>: <span class="kw-2">&amp;</span><span class="ident">UserAgent</span>) -&gt; <span class="ident">bool</span> {
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">browser_major_version</span>) <span class="op">=</span> <span class="ident">get_browser_major_version</span>(<span class="ident">user_agent</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">min_version</span>) <span class="op">=</span> <span class="ident">MIN_VERSIONS</span>.<span class="ident">get</span>(<span class="ident">mapped_family</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">min_version</span>) <span class="op">=</span> <span class="ident">min_version</span>(<span class="ident">mapped_family</span>) {
             <span class="kw">if</span> <span class="ident">min_version</span> <span class="op">&gt;</span> <span class="ident">browser_major_version</span> {
                 <span class="kw">return</span> <span class="bool-val">true</span>;
             }

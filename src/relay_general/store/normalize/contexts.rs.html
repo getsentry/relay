@@ -553,31 +553,57 @@
 <span id="545">545</span>
 <span id="546">546</span>
 <span id="547">547</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">regex::Regex</span>;
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">once_cell::sync::Lazy</span>;
+<span class="kw">use</span> <span class="ident">regex::Regex</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol</span>::{<span class="ident">Context</span>, <span class="ident">OsContext</span>, <span class="ident">RuntimeContext</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::types::Empty</span>;
 
-<span class="macro">lazy_static::lazy_static!</span> {
-    <span class="doccomment">/// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_WINDOWS_REGEX1</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>).<span class="ident">unwrap</span>();
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_WINDOWS_REGEX2</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Windows\s+\d+\s+\((?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>).<span class="ident">unwrap</span>();
+<span class="doccomment">/// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows</span>
+<span class="kw">static</span> <span class="ident">OS_WINDOWS_REGEX1</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
+    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>)
+        .<span class="ident">unwrap</span>()
+});
+<span class="kw">static</span> <span class="ident">OS_WINDOWS_REGEX2</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
+    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Windows\s+\d+\s+\((?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>).<span class="ident">unwrap</span>()
+});
 
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_ANDROID_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Android (OS )?(?P&lt;version&gt;\d+(\.\d+){0,2}) / API-(?P&lt;api&gt;(\d+))&quot;#</span>).<span class="ident">unwrap</span>();
+<span class="kw">static</span> <span class="ident">OS_ANDROID_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
+    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Android (OS )?(?P&lt;version&gt;\d+(\.\d+){0,2}) / API-(?P&lt;api&gt;(\d+))&quot;#</span>).<span class="ident">unwrap</span>()
+});
 
-    <span class="doccomment">/// Format sent by Unreal Engine on macOS</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_MACOS_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Mac OS X (?P&lt;version&gt;\d+\.\d+\.\d+)( \((?P&lt;build&gt;[a-fA-F0-9]+)\))?$&quot;#</span>).<span class="ident">unwrap</span>();
+<span class="doccomment">/// Format sent by Unreal Engine on macOS</span>
+<span class="kw">static</span> <span class="ident">OS_MACOS_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
+    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Mac OS X (?P&lt;version&gt;\d+\.\d+\.\d+)( \((?P&lt;build&gt;[a-fA-F0-9]+)\))?$&quot;#</span>).<span class="ident">unwrap</span>()
+});
 
-    <span class="doccomment">/// Specific regex to parse Linux distros</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_LINUX_DISTRO_UNAME_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Linux (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P&lt;name&gt;[a-zA-Z]+) (?P&lt;version&gt;\d+(\.\d+){0,2})&quot;#</span>).<span class="ident">unwrap</span>();
+<span class="doccomment">/// Specific regex to parse Linux distros</span>
+<span class="kw">static</span> <span class="ident">OS_LINUX_DISTRO_UNAME_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
+    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^Linux (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P&lt;name&gt;[a-zA-Z]+) (?P&lt;version&gt;\d+(\.\d+){0,2})&quot;#</span>).<span class="ident">unwrap</span>()
+});
 
-    <span class="doccomment">/// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on</span>
-    <span class="doccomment">/// macOS, iOS, Linux, etc.</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OS_UNAME_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;[a-zA-Z]+) (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?)&quot;#</span>).<span class="ident">unwrap</span>();
+<span class="doccomment">/// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on</span>
+<span class="doccomment">/// macOS, iOS, Linux, etc.</span>
+<span class="kw">static</span> <span class="ident">OS_UNAME_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> {
+    <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;[a-zA-Z]+) (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?)&quot;#</span>).<span class="ident">unwrap</span>()
+});
 
-    <span class="doccomment">/// Mono 5.4, .NET Core 2.0</span>
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">RUNTIME_DOTNET_REGEX</span>: <span class="ident">Regex</span> <span class="op">=</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;.*) (?P&lt;version&gt;\d+\.\d+(\.\d+){0,2}).*$&quot;#</span>).<span class="ident">unwrap</span>();
-}
+<span class="doccomment">/// Mono 5.4, .NET Core 2.0</span>
+<span class="kw">static</span> <span class="ident">RUNTIME_DOTNET_REGEX</span>: <span class="ident">Lazy</span><span class="op">&lt;</span><span class="ident">Regex</span><span class="op">&gt;</span> <span class="op">=</span>
+    <span class="ident">Lazy::new</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Regex::new</span>(<span class="string">r#&quot;^(?P&lt;name&gt;.*) (?P&lt;version&gt;\d+\.\d+(\.\d+){0,2}).*$&quot;#</span>).<span class="ident">unwrap</span>());
 
 <span class="kw">fn</span> <span class="ident">normalize_runtime_context</span>(<span class="ident">runtime</span>: <span class="kw-2">&amp;mut</span> <span class="ident">RuntimeContext</span>) {
     <span class="kw">if</span> <span class="ident">runtime</span>.<span class="ident">name</span>.<span class="ident">value</span>().<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">runtime</span>.<span class="ident">version</span>.<span class="ident">value</span>().<span class="ident">is_empty</span>() {

@@ -814,7 +814,6 @@
 <span id="806">806</span>
 <span id="807">807</span>
 <span id="808">808</span>
-<span id="809">809</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Minidump scrubbing.</span>
 
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
@@ -1164,8 +1163,7 @@
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scrubbed_data</span> <span class="op">=</span> <span class="ident">Vec::from</span>(<span class="ident">orig_data</span>);
 
             <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">serde_json::from_value</span>::<span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span>(<span class="ident">json</span>).<span class="ident">expect</span>(<span class="string">&quot;invalid config json&quot;</span>);
-            <span class="kw">let</span> <span class="ident">compiled</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">compiled</span>();
-            <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiAttachmentsProcessor::new</span>(<span class="kw-2">&amp;</span><span class="ident">compiled</span>);
+            <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiAttachmentsProcessor::new</span>(<span class="ident">config</span>.<span class="ident">compiled</span>());
             <span class="ident">processor</span>
                 .<span class="ident">scrub_minidump</span>(<span class="ident">filename</span>, <span class="ident">scrubbed_data</span>.<span class="ident">as_mut_slice</span>())
                 .<span class="ident">expect</span>(<span class="string">&quot;scrubbing failed&quot;</span>);

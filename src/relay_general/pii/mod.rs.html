@@ -32,7 +32,6 @@
 <span id="24">24</span>
 <span id="25">25</span>
 <span id="26">26</span>
-<span id="27">27</span>
 </pre><pre class="rust"><code><span class="doccomment">//! PII stripping processor.</span>
 
 <span class="kw">mod</span> <span class="ident">attachments</span>;
@@ -49,7 +48,6 @@
 <span class="kw">mod</span> <span class="ident">utils</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::attachments</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">ScrubEncodings</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::builtin::BUILTIN_RULES</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::compiledconfig::CompiledPiiConfig</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::config</span>::{
     <span class="ident">AliasRule</span>, <span class="ident">MultipleRule</span>, <span class="ident">Pattern</span>, <span class="ident">PatternRule</span>, <span class="ident">PiiConfig</span>, <span class="ident">RedactPairRule</span>, <span class="ident">RuleSpec</span>, <span class="ident">RuleType</span>,
