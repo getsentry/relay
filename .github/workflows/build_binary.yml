@@ -5,6 +5,9 @@ on:
     branches:
       - release/**
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   linux:
     name: Linux

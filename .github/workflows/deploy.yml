@@ -8,6 +8,9 @@ on:
   # Run actions on PRs, but only deploy on master
   pull_request:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   cargo_docs:
     name: Cargo Docs

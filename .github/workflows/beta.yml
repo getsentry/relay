@@ -5,7 +5,7 @@ on:
     - cron: "11 7 * * 1,4"
 
 env:
-  RUSTFLAGS: -Dwarnings
+  CARGO_TERM_COLOR: always
 
 jobs:
   test-all:

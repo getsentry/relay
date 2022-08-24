@@ -10,7 +10,7 @@ on:
   pull_request:
 
 env:
-  RUSTFLAGS: -Dwarnings
+  CARGO_TERM_COLOR: always
 
 jobs:
   lint:
