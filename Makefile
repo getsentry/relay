@@ -48,11 +48,11 @@ test: test-rust-all test-python test-integration ## run all unit and integration
 .PHONY: test
 
 test-rust: setup-git ## run tests for Rust code with default features enabled
-	cargo test --workspace --all-targets
+	cargo test --workspace
 .PHONY: test-rust
 
 test-rust-all: setup-git ## run tests for Rust code with all the features enabled
-	cargo test --workspace --all-targets --all-features
+	cargo test --workspace --all-features
 .PHONY: test-rust-all
 
 test-python: setup-git setup-venv ## run tests for Python code
