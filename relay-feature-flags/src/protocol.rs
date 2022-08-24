@@ -2,7 +2,20 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-type TagMap = BTreeMap<String, String>;
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum TagValue {
+    String(String),
+    List(Vec<String>),
+}
+
+impl<T: Into<String>> From<T> for TagValue {
+    fn from(value: T) -> Self {
+        TagValue::String(value.into())
+    }
+}
+
+type TagMap = BTreeMap<String, TagValue>;
 
 pub use serde_json::Value as PayloadType;
 
@@ -15,7 +28,7 @@ pub struct FeatureDump {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FlagKind {
-    Bool,
+    Boolean,
     Number,
     String,
 }

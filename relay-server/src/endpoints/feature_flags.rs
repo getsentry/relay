@@ -39,7 +39,7 @@ fn fetch_feature_flags(
             feature_flags.insert(
                 "@@accessToProfiling".into(),
                 FeatureFlag {
-                    kind: FlagKind::Bool,
+                    kind: FlagKind::Boolean,
                     tags: Default::default(),
                     evaluation: vec![
                         EvaluationRule {
@@ -62,7 +62,7 @@ fn fetch_feature_flags(
             feature_flags.insert(
                 "@@profilingEnabled".into(),
                 FeatureFlag {
-                    kind: FlagKind::Bool,
+                    kind: FlagKind::Boolean,
                     tags: Default::default(),
                     evaluation: vec![
                         EvaluationRule {
