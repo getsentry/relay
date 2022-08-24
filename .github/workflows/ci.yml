@@ -24,7 +24,7 @@ jobs:
           sudo apt update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -86,7 +86,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -131,7 +131,7 @@ jobs:
           sudo apt update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -165,7 +165,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -232,7 +232,7 @@ jobs:
           sudo apt update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -271,13 +271,13 @@ jobs:
 
     steps:
       - name: Checkout Relay
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: getsentry/sentry
           path: sentry
