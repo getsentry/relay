@@ -48,7 +48,7 @@ jobs:
           components: clippy, rustfmt, rust-docs
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -96,7 +96,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -141,7 +141,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -182,7 +182,7 @@ jobs:
       - name: Install Dependencies
         run: pip install -U pytest
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -242,7 +242,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
