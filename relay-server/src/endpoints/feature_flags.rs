@@ -84,36 +84,6 @@ fn fetch_feature_flags(
                     enabled: true,
                 },
             );
-            feature_flags.insert(
-                "@@tracesSampleRate".into(),
-                FeatureFlag {
-                    kind: FlagKind::Number,
-                    tags: Default::default(),
-                    evaluation: vec![EvaluationRule {
-                        payload: None,
-                        percentage: None,
-                        result: Some(0.25.into()),
-                        tags: Default::default(),
-                        ty: EvaluationType::Match,
-                    }],
-                    enabled: true,
-                },
-            );
-            feature_flags.insert(
-                "@@errorsSampleRate".into(),
-                FeatureFlag {
-                    kind: FlagKind::Number,
-                    tags: Default::default(),
-                    evaluation: vec![EvaluationRule {
-                        payload: None,
-                        percentage: None,
-                        result: Some(0.75.into()),
-                        tags: Default::default(),
-                        ty: EvaluationType::Match,
-                    }],
-                    enabled: true,
-                },
-            );
 
             HttpResponse::Ok().json(FeatureDump { feature_flags })
         });
