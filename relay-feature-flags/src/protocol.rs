@@ -40,6 +40,10 @@ pub struct FeatureFlag {
     pub tags: TagMap,
     pub evaluation: Vec<EvaluationRule>,
     pub kind: FlagKind,
+
+    // We never need to send this to the SDK, we filter the list before sending.
+    #[serde(skip_serializing)]
+    pub enabled: bool,
 }
 
 /// Potential values for a feature flag post evaluation.

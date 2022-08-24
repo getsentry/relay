@@ -28,8 +28,8 @@ fn fetch_feature_flags(
                     .feature_flags
                     .iter()
                     .filter_map(|(k, v)| match v {
-                        ErrorBoundary::Err(_) => None,
-                        ErrorBoundary::Ok(val) => Some((k.to_string(), val.clone())),
+                        ErrorBoundary::Ok(val) if val.enabled => Some((k.to_string(), val.clone())),
+                        _ => None,
                     })
                     .collect(),
                 Err(_) => Default::default(),
@@ -57,6 +57,7 @@ fn fetch_feature_flags(
                             tags: Default::default(),
                         },
                     ],
+                    enabled: true,
                 },
             );
             feature_flags.insert(
@@ -80,6 +81,7 @@ fn fetch_feature_flags(
                             tags: Default::default(),
                         },
                     ],
+                    enabled: true,
                 },
             );
             feature_flags.insert(
@@ -94,6 +96,7 @@ fn fetch_feature_flags(
                         tags: Default::default(),
                         ty: EvaluationType::Match,
                     }],
+                    enabled: true,
                 },
             );
             feature_flags.insert(
@@ -108,6 +111,7 @@ fn fetch_feature_flags(
                         tags: Default::default(),
                         ty: EvaluationType::Match,
                     }],
+                    enabled: true,
                 },
             );
 
