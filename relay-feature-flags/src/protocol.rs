@@ -40,6 +40,8 @@ pub struct FeatureFlag {
     pub tags: TagMap,
     pub evaluation: Vec<EvaluationRule>,
     pub kind: FlagKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 
     // We never need to send this to the SDK, we filter the list before sending.
     #[serde(skip_serializing)]
