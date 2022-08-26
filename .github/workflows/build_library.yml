@@ -31,6 +31,12 @@ jobs:
         with:
           platforms: arm64
 
+      - if: matrix.build-arch == 'manylinux2014_aarch64'
+        run: |
+          scripts/docker-aarch64-crossbuild.sh
+          echo "CARGO_BUILD_TARGET=aarch64-unknown-linux-gnu" >> $GITHUB_ENV
+          echo "SKIP_RELAY_LIB_BUILD=1" >> $GITHUB_ENV
+
       - name: Build in Docker
         run: scripts/docker-manylinux.sh
         env:
