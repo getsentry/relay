@@ -1957,6 +1957,36 @@
 <span id="1949">1949</span>
 <span id="1950">1950</span>
 <span id="1951">1951</span>
+<span id="1952">1952</span>
+<span id="1953">1953</span>
+<span id="1954">1954</span>
+<span id="1955">1955</span>
+<span id="1956">1956</span>
+<span id="1957">1957</span>
+<span id="1958">1958</span>
+<span id="1959">1959</span>
+<span id="1960">1960</span>
+<span id="1961">1961</span>
+<span id="1962">1962</span>
+<span id="1963">1963</span>
+<span id="1964">1964</span>
+<span id="1965">1965</span>
+<span id="1966">1966</span>
+<span id="1967">1967</span>
+<span id="1968">1968</span>
+<span id="1969">1969</span>
+<span id="1970">1970</span>
+<span id="1971">1971</span>
+<span id="1972">1972</span>
+<span id="1973">1973</span>
+<span id="1974">1974</span>
+<span id="1975">1975</span>
+<span id="1976">1976</span>
+<span id="1977">1977</span>
+<span id="1978">1978</span>
+<span id="1979">1979</span>
+<span id="1980">1980</span>
+<span id="1981">1981</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::hash_map::DefaultHasher</span>;
 <span class="kw">use</span> <span class="ident">std::hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>};
 <span class="kw">use</span> <span class="ident">std::mem</span>;
@@ -2233,6 +2263,35 @@
     }
 
     <span class="prelude-val">Ok</span>(())
+}
+
+<span class="doccomment">/// Process the required stacktraces for light normalization.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The browser extension filter requires the last frame of the stacktrace of the first exception</span>
+<span class="doccomment">/// processed. There&#39;s no need to do further processing at this early stage.</span>
+<span class="kw">fn</span> <span class="ident">light_normalize_stacktraces</span>(<span class="ident">event</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Event</span>) -&gt; <span class="ident">ProcessingResult</span> {
+    <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">exceptions</span>.<span class="ident">value_mut</span>() {
+        <span class="prelude-val">None</span> =&gt; <span class="prelude-val">Ok</span>(()),
+        <span class="prelude-val">Some</span>(<span class="ident">exception</span>) =&gt; <span class="kw">match</span> <span class="ident">exception</span>.<span class="ident">values</span>.<span class="ident">value_mut</span>() {
+            <span class="prelude-val">None</span> =&gt; <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Some</span>(<span class="ident">exceptions</span>) =&gt; <span class="kw">match</span> <span class="ident">exceptions</span>.<span class="ident">first_mut</span>() {
+                <span class="prelude-val">None</span> =&gt; <span class="prelude-val">Ok</span>(()),
+                <span class="prelude-val">Some</span>(<span class="ident">first</span>) =&gt; <span class="ident">normalize_last_stacktrace_frame</span>(<span class="ident">first</span>),
+            },
+        },
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">normalize_last_stacktrace_frame</span>(<span class="ident">exception</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Annotated</span><span class="op">&lt;</span><span class="ident">Exception</span><span class="op">&gt;</span>) -&gt; <span class="ident">ProcessingResult</span> {
+    <span class="ident">exception</span>.<span class="ident">apply</span>(<span class="op">|</span><span class="ident">e</span>, <span class="kw">_</span><span class="op">|</span> {
+        <span class="ident">e</span>.<span class="ident">stacktrace</span>.<span class="ident">apply</span>(<span class="op">|</span><span class="ident">s</span>, <span class="kw">_</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">s</span>.<span class="ident">frames</span>.<span class="ident">value_mut</span>() {
+            <span class="prelude-val">None</span> =&gt; <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Some</span>(<span class="ident">frames</span>) =&gt; <span class="kw">match</span> <span class="ident">frames</span>.<span class="ident">last_mut</span>() {
+                <span class="prelude-val">None</span> =&gt; <span class="prelude-val">Ok</span>(()),
+                <span class="prelude-val">Some</span>(<span class="ident">frame</span>) =&gt; <span class="ident">frame</span>.<span class="ident">apply</span>(<span class="ident">stacktrace::process_non_raw_frame</span>),
+            },
+        })
+    })
 }
 
 <span class="doccomment">/// Removes internal tags and adds tags for well-known attributes.</span>
@@ -2513,6 +2572,7 @@
             <span class="ident">config</span>.<span class="ident">max_secs_in_future</span>,
         )<span class="question-mark">?</span>; <span class="comment">// Timestamps are core in the metrics extraction</span>
         <span class="ident">normalize_event_tags</span>(<span class="ident">event</span>)<span class="question-mark">?</span>; <span class="comment">// Tags are added to every metric</span>
+        <span class="ident">light_normalize_stacktraces</span>(<span class="ident">event</span>)<span class="question-mark">?</span>;
         <span class="ident">normalize_exceptions</span>(<span class="ident">event</span>)<span class="question-mark">?</span>; <span class="comment">// Browser extension filters look at the stacktrace</span>
         <span class="ident">normalize_user_agent</span>(<span class="ident">event</span>, <span class="ident">config</span>.<span class="ident">normalize_user_agent</span>); <span class="comment">// Legacy browsers filter</span>
         <span class="ident">normalize_measurements</span>(<span class="ident">event</span>); <span class="comment">// Measurements are part of the metric extraction</span>
