@@ -59,6 +59,58 @@ def test_filters_are_applied(
 
 
 @pytest.mark.parametrize(
+    "is_processing_relay", (False, True), ids=["external relay", "processing relay"]
+)
+@pytest.mark.parametrize(
+    "enable_filters",
+    (False, True),
+    ids=["events from extensions not filtered", "events from extensions filtered"],
+)
+def test_browser_extension_filters_are_applied(
+    mini_sentry,
+    events_consumer,
+    relay_with_processing,
+    relay,
+    is_processing_relay,
+    enable_filters,
+):
+    """Test if all processing relays apply browser extension filters when enabled."""
+    events_consumer = events_consumer()
+    processing = relay_with_processing()
+    if is_processing_relay:
+        relay = processing
+    else:
+        relay = relay(processing)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["filterSettings"]["browserExtensions"] = {
+        "isEnabled": enable_filters
+    }
+
+    event = {
+        "exception": {
+            "values": [
+                {
+                    "stacktrace": {
+                        "frames": [
+                            {"filename": "a/different.file"},
+                            {"filename": "chrome-extension://blablabla"},
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+    relay.send_event(project_id, event)
+
+    if enable_filters:
+        events_consumer.assert_empty()
+    else:
+        events_consumer.get_event()
+
+
+@pytest.mark.parametrize(
     "is_enabled, should_filter",
     [(True, True), (False, False),],
     ids=["web crawlers filtered", "web crawlers not filtered",],
