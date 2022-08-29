@@ -32,7 +32,7 @@ use std::net::IpAddr;
 use serde::{Deserialize, Serialize};
 use serde_json::Error;
 
-use relay_general::user_agent::{parse_device, parse_os, parse_user_agent, Device};
+use relay_general::user_agent;
 
 /// Validates and accepts a replay-event item as input and returns modified output.
 ///
@@ -89,22 +89,20 @@ impl ReplayInput {
     fn set_user_agent_meta(&mut self) {
         let user_agent = &self.requests.headers.user_agent;
 
-        let device = parse_device(user_agent);
-
-        let ua = parse_user_agent(user_agent);
+        let ua = user_agent::parse_user_agent(user_agent);
         let browser_struct = VersionedMeta {
             name: ua.family,
             version: get_version(&ua.major, &ua.minor, &ua.patch),
         };
 
-        let os = parse_os(user_agent);
+        let os = user_agent::parse_os(user_agent);
         let os_struct = VersionedMeta {
             name: os.family,
             version: get_version(&os.major, &os.minor, &os.patch),
         };
 
         self.contexts = Some(Contexts {
-            device: Some(device),
+            device: Some(user_agent::parse_device(user_agent)),
             browser: Some(browser_struct),
             os: Some(os_struct),
         })
@@ -137,7 +135,7 @@ fn get_version(
 #[derive(Debug, Deserialize, Serialize)]
 struct Contexts {
     browser: Option<VersionedMeta>,
-    device: Option<Device>,
+    device: Option<user_agent::Device>,
     os: Option<VersionedMeta>,
 }
 
