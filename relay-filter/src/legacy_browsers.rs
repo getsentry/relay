@@ -1,8 +1,6 @@
 //! Implements filtering for events originating from legacy browsers.
 
-use std::collections::{BTreeSet, HashMap};
-
-use lazy_static::lazy_static;
+use std::collections::BTreeSet;
 
 use relay_general::protocol::Event;
 use relay_general::user_agent::{self, UserAgent};
@@ -73,21 +71,6 @@ pub fn should_filter(
     }
 }
 
-lazy_static! {
-    static ref MIN_VERSIONS: HashMap<&'static str, i32> = {
-        let mut x = HashMap::new();
-        x.insert("Chrome", 0);
-        x.insert("IE", 10);
-        x.insert("Firefox", 0);
-        x.insert("Safari", 6);
-        x.insert("Edge", 0);
-        x.insert("Opera", 15);
-        x.insert("Android", 4);
-        x.insert("Opera Mini", 8);
-        x
-    };
-}
-
 fn get_browser_major_version(user_agent: &UserAgent) -> Option<i32> {
     if let Some(browser_major_version_str) = &user_agent.major {
         if let Ok(browser_major_version) = browser_major_version_str.parse::<i32>() {
@@ -98,9 +81,23 @@ fn get_browser_major_version(user_agent: &UserAgent) -> Option<i32> {
     None
 }
 
+fn min_version(family: &str) -> Option<i32> {
+    match family {
+        "Chrome" => Some(0),
+        "IE" => Some(10),
+        "Firefox" => Some(0),
+        "Safari" => Some(6),
+        "Edge" => Some(0),
+        "Opera" => Some(15),
+        "Android" => Some(4),
+        "Opera Mini" => Some(8),
+        _ => None,
+    }
+}
+
 fn default_filter(mapped_family: &str, user_agent: &UserAgent) -> bool {
     if let Some(browser_major_version) = get_browser_major_version(user_agent) {
-        if let Some(&min_version) = MIN_VERSIONS.get(mapped_family) {
+        if let Some(min_version) = min_version(mapped_family) {
             if min_version > browser_major_version {
                 return true;
             }

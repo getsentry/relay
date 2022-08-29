@@ -234,9 +234,6 @@ mod tests {
     #[test]
     #[cfg(feature = "processing")]
     fn test_extract_session_metrics() {
-        use relay_general::protocol::SessionUpdate;
-        use relay_metrics::MetricValue;
-
         let mut metrics = vec![];
 
         let client = "sentry-test/1.0";

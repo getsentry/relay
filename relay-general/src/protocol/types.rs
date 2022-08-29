@@ -1110,156 +1110,161 @@ impl schemars::JsonSchema for Timestamp {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_values_serialization() {
-    let value = Annotated::new(Values {
-        values: Annotated::new(vec![
-            Annotated::new(0u64),
-            Annotated::new(1u64),
-            Annotated::new(2u64),
-        ]),
-        other: Object::default(),
-    });
-    assert_eq!(value.to_json().unwrap(), "{\"values\":[0,1,2]}");
-}
+    use super::*;
 
-#[test]
-fn test_values_deserialization() {
-    #[derive(Clone, Debug, Empty, FromValue, IntoValue, PartialEq)]
-    struct Exception {
-        #[metastructure(field = "type")]
-        ty: Annotated<String>,
-        value: Annotated<String>,
+    #[test]
+    fn test_values_serialization() {
+        let value = Annotated::new(Values {
+            values: Annotated::new(vec![
+                Annotated::new(0u64),
+                Annotated::new(1u64),
+                Annotated::new(2u64),
+            ]),
+            other: Object::default(),
+        });
+        assert_eq!(value.to_json().unwrap(), "{\"values\":[0,1,2]}");
     }
-    let value = Annotated::<Values<Exception>>::from_json(
-        r#"{"values": [{"type": "Test", "value": "aha!"}]}"#,
-    )
-    .unwrap();
-    assert_eq!(
-        value,
-        Annotated::new(Values::new(vec![Annotated::new(Exception {
-            ty: Annotated::new("Test".to_string()),
-            value: Annotated::new("aha!".to_string()),
-        })]))
-    );
 
-    let value = Annotated::<Values<Exception>>::from_json(r#"[{"type": "Test", "value": "aha!"}]"#)
+    #[test]
+    fn test_values_deserialization() {
+        #[derive(Clone, Debug, Empty, FromValue, IntoValue, PartialEq)]
+        struct Exception {
+            #[metastructure(field = "type")]
+            ty: Annotated<String>,
+            value: Annotated<String>,
+        }
+        let value = Annotated::<Values<Exception>>::from_json(
+            r#"{"values": [{"type": "Test", "value": "aha!"}]}"#,
+        )
         .unwrap();
-    assert_eq!(
-        value,
-        Annotated::new(Values::new(vec![Annotated::new(Exception {
-            ty: Annotated::new("Test".to_string()),
-            value: Annotated::new("aha!".to_string()),
-        })]))
-    );
+        assert_eq!(
+            value,
+            Annotated::new(Values::new(vec![Annotated::new(Exception {
+                ty: Annotated::new("Test".to_string()),
+                value: Annotated::new("aha!".to_string()),
+            })]))
+        );
 
-    let value =
-        Annotated::<Values<Exception>>::from_json(r#"{"type": "Test", "value": "aha!"}"#).unwrap();
-    assert_eq!(
-        value,
-        Annotated::new(Values::new(vec![Annotated::new(Exception {
-            ty: Annotated::new("Test".to_string()),
-            value: Annotated::new("aha!".to_string()),
-        })]))
-    );
-}
+        let value =
+            Annotated::<Values<Exception>>::from_json(r#"[{"type": "Test", "value": "aha!"}]"#)
+                .unwrap();
+        assert_eq!(
+            value,
+            Annotated::new(Values::new(vec![Annotated::new(Exception {
+                ty: Annotated::new("Test".to_string()),
+                value: Annotated::new("aha!".to_string()),
+            })]))
+        );
 
-#[test]
-fn test_hex_to_string() {
-    assert_eq_str!("0x0", &Addr(0).to_string());
-    assert_eq_str!("0x2a", &Addr(42).to_string());
-}
-
-#[test]
-fn test_hex_from_string() {
-    assert_eq_dbg!(Addr(0), "0".parse().unwrap());
-    assert_eq_dbg!(Addr(42), "42".parse().unwrap());
-    assert_eq_dbg!(Addr(42), "0x2a".parse().unwrap());
-    assert_eq_dbg!(Addr(42), "0X2A".parse().unwrap());
-}
-
-#[test]
-fn test_hex_serialization() {
-    let value = Value::String("0x2a".to_string());
-    let addr: Annotated<Addr> = FromValue::from_value(Annotated::new(value));
-    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
-    let value = Value::U64(42);
-    let addr: Annotated<Addr> = FromValue::from_value(Annotated::new(value));
-    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
-}
-
-#[test]
-fn test_hex_deserialization() {
-    let addr = Annotated::<Addr>::from_json("\"0x2a\"").unwrap();
-    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
-    let addr = Annotated::<Addr>::from_json("42").unwrap();
-    assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
-}
-
-#[test]
-fn test_level() {
-    assert_eq_dbg!(
-        Level::Info,
-        Annotated::<Level>::from_json("\"log\"").unwrap().0.unwrap()
-    );
-    assert_eq_dbg!(
-        Level::Warning,
-        Annotated::<Level>::from_json("30").unwrap().0.unwrap()
-    );
-    assert_eq_dbg!(
-        Level::Fatal,
-        Annotated::<Level>::from_json("\"critical\"")
-            .unwrap()
-            .0
-            .unwrap()
-    );
-}
-
-#[test]
-fn test_ip_addr() {
-    assert_eq_dbg!(
-        IpAddr("{{auto}}".into()),
-        Annotated::<IpAddr>::from_json("\"{{auto}}\"")
-            .unwrap()
-            .0
-            .unwrap()
-    );
-    assert_eq_dbg!(
-        IpAddr("127.0.0.1".into()),
-        Annotated::<IpAddr>::from_json("\"127.0.0.1\"")
-            .unwrap()
-            .0
-            .unwrap()
-    );
-    assert_eq_dbg!(
-        IpAddr("::1".into()),
-        Annotated::<IpAddr>::from_json("\"::1\"")
-            .unwrap()
-            .0
-            .unwrap()
-    );
-    assert_eq_dbg!(
-        Annotated::from_error(
-            Error::expected("an ip address"),
-            Some(Value::String("clearly invalid value".into()))
-        ),
-        Annotated::<IpAddr>::from_json("\"clearly invalid value\"").unwrap()
-    );
-}
-
-#[test]
-fn test_timestamp_year_out_of_range() {
-    #[derive(Debug, FromValue, Default, Empty, IntoValue)]
-    struct Helper {
-        foo: Annotated<Timestamp>,
+        let value =
+            Annotated::<Values<Exception>>::from_json(r#"{"type": "Test", "value": "aha!"}"#)
+                .unwrap();
+        assert_eq!(
+            value,
+            Annotated::new(Values::new(vec![Annotated::new(Exception {
+                ty: Annotated::new("Test".to_string()),
+                value: Annotated::new("aha!".to_string()),
+            })]))
+        );
     }
 
-    let x: Annotated<Helper> = Annotated::from_json(r#"{"foo": 1562770897893}"#).unwrap();
-    assert_eq_str!(
-        x.to_json_pretty().unwrap(),
-        r#"{
+    #[test]
+    fn test_hex_to_string() {
+        assert_eq!("0x0", &Addr(0).to_string());
+        assert_eq!("0x2a", &Addr(42).to_string());
+    }
+
+    #[test]
+    fn test_hex_from_string() {
+        assert_eq!(Addr(0), "0".parse().unwrap());
+        assert_eq!(Addr(42), "42".parse().unwrap());
+        assert_eq!(Addr(42), "0x2a".parse().unwrap());
+        assert_eq!(Addr(42), "0X2A".parse().unwrap());
+    }
+
+    #[test]
+    fn test_hex_serialization() {
+        let value = Value::String("0x2a".to_string());
+        let addr: Annotated<Addr> = FromValue::from_value(Annotated::new(value));
+        assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+        let value = Value::U64(42);
+        let addr: Annotated<Addr> = FromValue::from_value(Annotated::new(value));
+        assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+    }
+
+    #[test]
+    fn test_hex_deserialization() {
+        let addr = Annotated::<Addr>::from_json("\"0x2a\"").unwrap();
+        assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+        let addr = Annotated::<Addr>::from_json("42").unwrap();
+        assert_eq!(addr.payload_to_json().unwrap(), "\"0x2a\"");
+    }
+
+    #[test]
+    fn test_level() {
+        assert_eq!(
+            Level::Info,
+            Annotated::<Level>::from_json("\"log\"").unwrap().0.unwrap()
+        );
+        assert_eq!(
+            Level::Warning,
+            Annotated::<Level>::from_json("30").unwrap().0.unwrap()
+        );
+        assert_eq!(
+            Level::Fatal,
+            Annotated::<Level>::from_json("\"critical\"")
+                .unwrap()
+                .0
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_ip_addr() {
+        assert_eq!(
+            IpAddr("{{auto}}".into()),
+            Annotated::<IpAddr>::from_json("\"{{auto}}\"")
+                .unwrap()
+                .0
+                .unwrap()
+        );
+        assert_eq!(
+            IpAddr("127.0.0.1".into()),
+            Annotated::<IpAddr>::from_json("\"127.0.0.1\"")
+                .unwrap()
+                .0
+                .unwrap()
+        );
+        assert_eq!(
+            IpAddr("::1".into()),
+            Annotated::<IpAddr>::from_json("\"::1\"")
+                .unwrap()
+                .0
+                .unwrap()
+        );
+        assert_eq!(
+            Annotated::from_error(
+                Error::expected("an ip address"),
+                Some(Value::String("clearly invalid value".into()))
+            ),
+            Annotated::<IpAddr>::from_json("\"clearly invalid value\"").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_timestamp_year_out_of_range() {
+        #[derive(Debug, FromValue, Default, Empty, IntoValue)]
+        struct Helper {
+            foo: Annotated<Timestamp>,
+        }
+
+        let x: Annotated<Helper> = Annotated::from_json(r#"{"foo": 1562770897893}"#).unwrap();
+        assert_eq!(
+            x.to_json_pretty().unwrap(),
+            r#"{
   "foo": null,
   "_meta": {
     "foo": {
@@ -1277,20 +1282,21 @@ fn test_timestamp_year_out_of_range() {
     }
   }
 }"#
-    );
-}
-
-#[test]
-fn test_timestamp_completely_out_of_range() {
-    #[derive(Debug, FromValue, Default, Empty, IntoValue)]
-    struct Helper {
-        foo: Annotated<Timestamp>,
+        );
     }
 
-    let x: Annotated<Helper> = Annotated::from_json(r#"{"foo": -10000000000000000.0}"#).unwrap();
-    assert_eq_str!(
-        x.to_json_pretty().unwrap(),
-        r#"{
+    #[test]
+    fn test_timestamp_completely_out_of_range() {
+        #[derive(Debug, FromValue, Default, Empty, IntoValue)]
+        struct Helper {
+            foo: Annotated<Timestamp>,
+        }
+
+        let x: Annotated<Helper> =
+            Annotated::from_json(r#"{"foo": -10000000000000000.0}"#).unwrap();
+        assert_eq!(
+            x.to_json_pretty().unwrap(),
+            r#"{
   "foo": null,
   "_meta": {
     "foo": {
@@ -1308,5 +1314,6 @@ fn test_timestamp_completely_out_of_range() {
     }
   }
 }"#
-    );
+        );
+    }
 }

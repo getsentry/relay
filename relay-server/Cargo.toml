@@ -41,7 +41,6 @@ futures01 = { version = "0.1.28", package = "futures" }
 hashbrown = "0.12.3"
 itertools = "0.8.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
-lazy_static = "1.4.0"
 listenfd = "0.3.3"
 minidump = { version = "0.10.0", optional = true }
 native-tls = { version = "0.2.4", optional = true }
@@ -74,7 +73,7 @@ smallvec = { version = "1.4.0", features = ["serde"] }
 symbolic-common = { version = "8.7.2", optional = true, default-features=false }
 symbolic-unreal = { version = "8.7.2", optional = true, default-features=false, features=["serde"] }
 take_mut = "0.2.2"
-tokio = { version = "1.0", features = ["rt-multi-thread"] } # in sync with reqwest
+tokio = { version = "1.0", features = ["rt-multi-thread", "sync"] }
 tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }
 uuid = { version = "0.8.1", features = ["v5"] }
@@ -84,5 +83,5 @@ zstd = { version = "0.11.2"}
 libc = "0.2.71"
 
 [dev-dependencies]
-insta = "1.1.0"
+insta = "1.19.0"
 relay-test = { path = "../relay-test" }

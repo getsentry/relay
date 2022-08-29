@@ -257,12 +257,16 @@ impl FromValue for Mechanism {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_mechanism_roundtrip() {
     use crate::types::Map;
-    let json = r#"{
+
+    use super::*;
+
+    #[test]
+    fn test_mechanism_roundtrip() {
+        let json = r#"{
   "type": "mytype",
   "description": "mydescription",
   "help_link": "https://developer.apple.com/library/content/qa/qa1367/_index.html",
@@ -295,42 +299,51 @@ fn test_mechanism_roundtrip() {
   },
   "other": "value"
 }"#;
-    let mechanism = Annotated::new(Mechanism {
-        ty: Annotated::new("mytype".to_string()),
-        synthetic: Annotated::empty(),
-        description: Annotated::new("mydescription".to_string()),
-        help_link: Annotated::new(
-            "https://developer.apple.com/library/content/qa/qa1367/_index.html".to_string(),
-        ),
-        handled: Annotated::new(false),
-        data: {
-            let mut map = Map::new();
-            map.insert(
-                "relevant_address".to_string(),
-                Annotated::new(Value::String("0x1".to_string())),
-            );
-            Annotated::new(map)
-        },
-        meta: Annotated::new(MechanismMeta {
-            errno: Annotated::new(CError {
-                number: Annotated::new(2),
-                name: Annotated::new("ENOENT".to_string()),
-            }),
-            mach_exception: Annotated::new(MachException {
-                ty: Annotated::new(1),
-                code: Annotated::new(1),
-                subcode: Annotated::new(8),
-                name: Annotated::new("EXC_BAD_ACCESS".to_string()),
-            }),
-            signal: Annotated::new(PosixSignal {
-                number: Annotated::new(11),
-                code: Annotated::new(0),
-                name: Annotated::new("SIGSEGV".to_string()),
-                code_name: Annotated::new("SEGV_NOOP".to_string()),
-            }),
-            ns_error: Annotated::new(NsError {
-                code: Annotated::new(-42),
-                domain: Annotated::new("SqlException".to_string()),
+        let mechanism = Annotated::new(Mechanism {
+            ty: Annotated::new("mytype".to_string()),
+            synthetic: Annotated::empty(),
+            description: Annotated::new("mydescription".to_string()),
+            help_link: Annotated::new(
+                "https://developer.apple.com/library/content/qa/qa1367/_index.html".to_string(),
+            ),
+            handled: Annotated::new(false),
+            data: {
+                let mut map = Map::new();
+                map.insert(
+                    "relevant_address".to_string(),
+                    Annotated::new(Value::String("0x1".to_string())),
+                );
+                Annotated::new(map)
+            },
+            meta: Annotated::new(MechanismMeta {
+                errno: Annotated::new(CError {
+                    number: Annotated::new(2),
+                    name: Annotated::new("ENOENT".to_string()),
+                }),
+                mach_exception: Annotated::new(MachException {
+                    ty: Annotated::new(1),
+                    code: Annotated::new(1),
+                    subcode: Annotated::new(8),
+                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                }),
+                signal: Annotated::new(PosixSignal {
+                    number: Annotated::new(11),
+                    code: Annotated::new(0),
+                    name: Annotated::new("SIGSEGV".to_string()),
+                    code_name: Annotated::new("SEGV_NOOP".to_string()),
+                }),
+                ns_error: Annotated::new(NsError {
+                    code: Annotated::new(-42),
+                    domain: Annotated::new("SqlException".to_string()),
+                }),
+                other: {
+                    let mut map = Object::new();
+                    map.insert(
+                        "other".to_string(),
+                        Annotated::new(Value::String("value".to_string())),
+                    );
+                    map
+                },
             }),
             other: {
                 let mut map = Object::new();
@@ -340,44 +353,33 @@ fn test_mechanism_roundtrip() {
                 );
                 map
             },
-        }),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    });
+        });
 
-    assert_eq_dbg!(mechanism, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, mechanism.to_json_pretty().unwrap());
-}
+        assert_eq!(mechanism, Annotated::from_json(json).unwrap());
+        assert_eq!(json, mechanism.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_mechanism_default_values() {
-    let json = r#"{"type":"mytype"}"#;
-    let mechanism = Annotated::new(Mechanism {
-        ty: Annotated::new("mytype".to_string()),
-        ..Default::default()
-    });
+    #[test]
+    fn test_mechanism_default_values() {
+        let json = r#"{"type":"mytype"}"#;
+        let mechanism = Annotated::new(Mechanism {
+            ty: Annotated::new("mytype".to_string()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(mechanism, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, mechanism.to_json().unwrap());
-}
+        assert_eq!(mechanism, Annotated::from_json(json).unwrap());
+        assert_eq!(json, mechanism.to_json().unwrap());
+    }
 
-#[test]
-fn test_mechanism_empty() {
-    let mechanism = Annotated::<Mechanism>::empty();
-    assert_eq_dbg!(mechanism, Annotated::from_json("{}").unwrap());
-}
+    #[test]
+    fn test_mechanism_empty() {
+        let mechanism = Annotated::<Mechanism>::empty();
+        assert_eq!(mechanism, Annotated::from_json("{}").unwrap());
+    }
 
-#[test]
-fn test_mechanism_legacy_conversion() {
-    use crate::types::Map;
-
-    let input = r#"{
+    #[test]
+    fn test_mechanism_legacy_conversion() {
+        let input = r#"{
   "posix_signal": {
     "name": "SIGSEGV",
     "code_name": "SEGV_NOOP",
@@ -393,7 +395,7 @@ fn test_mechanism_legacy_conversion() {
   }
 }"#;
 
-    let output = r#"{
+        let output = r#"{
   "type": "generic",
   "data": {
     "relevant_address": "0x1"
@@ -413,40 +415,41 @@ fn test_mechanism_legacy_conversion() {
     }
   }
 }"#;
-    let mechanism = Annotated::new(Mechanism {
-        ty: Annotated::new("generic".to_string()),
-        synthetic: Annotated::empty(),
-        description: Annotated::empty(),
-        help_link: Annotated::empty(),
-        handled: Annotated::empty(),
-        data: {
-            let mut map = Map::new();
-            map.insert(
-                "relevant_address".to_string(),
-                Annotated::new(Value::String("0x1".to_string())),
-            );
-            Annotated::new(map)
-        },
-        meta: Annotated::new(MechanismMeta {
-            errno: Annotated::empty(),
-            mach_exception: Annotated::new(MachException {
-                ty: Annotated::new(1),
-                code: Annotated::new(1),
-                subcode: Annotated::new(8),
-                name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+        let mechanism = Annotated::new(Mechanism {
+            ty: Annotated::new("generic".to_string()),
+            synthetic: Annotated::empty(),
+            description: Annotated::empty(),
+            help_link: Annotated::empty(),
+            handled: Annotated::empty(),
+            data: {
+                let mut map = Map::new();
+                map.insert(
+                    "relevant_address".to_string(),
+                    Annotated::new(Value::String("0x1".to_string())),
+                );
+                Annotated::new(map)
+            },
+            meta: Annotated::new(MechanismMeta {
+                errno: Annotated::empty(),
+                mach_exception: Annotated::new(MachException {
+                    ty: Annotated::new(1),
+                    code: Annotated::new(1),
+                    subcode: Annotated::new(8),
+                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                }),
+                signal: Annotated::new(PosixSignal {
+                    number: Annotated::new(11),
+                    code: Annotated::new(0),
+                    name: Annotated::new("SIGSEGV".to_string()),
+                    code_name: Annotated::new("SEGV_NOOP".to_string()),
+                }),
+                ns_error: Annotated::empty(),
+                other: Object::default(),
             }),
-            signal: Annotated::new(PosixSignal {
-                number: Annotated::new(11),
-                code: Annotated::new(0),
-                name: Annotated::new("SIGSEGV".to_string()),
-                code_name: Annotated::new("SEGV_NOOP".to_string()),
-            }),
-            ns_error: Annotated::empty(),
             other: Object::default(),
-        }),
-        other: Object::default(),
-    });
+        });
 
-    assert_eq_dbg!(mechanism, Annotated::from_json(input).unwrap());
-    assert_eq_str!(output, mechanism.to_json_pretty().unwrap());
+        assert_eq!(mechanism, Annotated::from_json(input).unwrap());
+        assert_eq!(output, mechanism.to_json_pretty().unwrap());
+    }
 }

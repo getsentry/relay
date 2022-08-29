@@ -5,6 +5,9 @@ on:
     branches:
       - release-library/**
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   linux:
     strategy:
@@ -19,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -33,7 +36,7 @@ jobs:
         env:
           BUILD_ARCH: ${{ matrix.build-arch }}
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           path: py/dist/*
@@ -54,7 +57,7 @@ jobs:
     runs-on: ${{ matrix.macos-version }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -65,7 +68,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.7
 
@@ -78,7 +81,7 @@ jobs:
           # consumed by cargo and setup.py to obtain the target dir
           CARGO_BUILD_TARGET: ${{ matrix.target }}
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           path: py/dist/*
@@ -88,11 +91,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.7
 
@@ -100,7 +103,7 @@ jobs:
         run: python setup.py sdist --format=zip
         working-directory: py
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           path: py/dist/*

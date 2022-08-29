@@ -1,8 +1,8 @@
 use std::{convert::TryFrom, fmt};
 
 use globset::GlobBuilder;
+use once_cell::sync::OnceCell;
 use regex::bytes::{Regex, RegexBuilder};
-use relay_common::UpsertingLazyCell;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Returns `true` if any of the patterns match the given message.
@@ -14,7 +14,7 @@ fn is_match(globs: &[Regex], message: &[u8]) -> bool {
 #[derive(Clone, Default)]
 pub struct GlobPatterns {
     patterns: Vec<String>,
-    globs: UpsertingLazyCell<Vec<Regex>>,
+    globs: OnceCell<Vec<Regex>>,
 }
 
 impl GlobPatterns {
@@ -22,7 +22,7 @@ impl GlobPatterns {
     pub fn new(patterns: Vec<String>) -> Self {
         Self {
             patterns,
-            globs: UpsertingLazyCell::new(),
+            globs: OnceCell::new(),
         }
     }
 
@@ -43,8 +43,8 @@ impl GlobPatterns {
             return false;
         }
 
-        let globs = self.globs.get_or_insert_with(|| self.parse_globs());
-        is_match(&*globs, message)
+        let globs = self.globs.get_or_init(|| self.parse_globs());
+        is_match(globs, message)
     }
 
     /// Parses valid patterns from the list.

@@ -254,57 +254,57 @@ contexts:
     type: runtime
 breadcrumbs:
   values:
-    - timestamp: 1532343407.0
+    - timestamp: 1532343407
       type: default
       category: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager
       level: info
       message: "User profile is available. Using 'C:\\Users\\[user]\\AppData\\Local\\ASP.NET\\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest."
-    - timestamp: 1532343443.0
+    - timestamp: 1532343443
       type: default
       category: Microsoft.AspNetCore.Hosting.Internal.WebHost
       level: info
       message: "Request starting HTTP/1.1 POST http://localhost:62919/Home/[user]/json; charset=UTF-8 65"
       data:
         eventId: "1"
-    - timestamp: 1532343443.0
+    - timestamp: 1532343443
       type: default
       category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
       level: info
       message: Executing action method Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.PostIndex (Sentry.Samples.AspNetCore.Mvc) with arguments () - ModelState is Valid
       data:
         eventId: "1"
-    - timestamp: 1532343443.0
+    - timestamp: 1532343443
       type: default
       category: Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController
       level: warning
       message: Param is null!
-    - timestamp: 1532343443.0
+    - timestamp: 1532343443
       type: default
       category: Sentry.Samples.AspNetCore.Mvc.GameService
       level: info
       message: Fetching dungeons and mana level in parallel.
-    - timestamp: 1532343443.0
+    - timestamp: 1532343443
       type: default
       category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
       level: info
       message: Executed action Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.PostIndex (Sentry.Samples.AspNetCore.Mvc) in 43.7868ms
       data:
         eventId: "2"
-    - timestamp: 1532343443.0
+    - timestamp: 1532343443
       type: default
       category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
       level: info
       message: Executing action method Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.Error (Sentry.Samples.AspNetCore.Mvc) with arguments ((null)) - ModelState is Valid
       data:
         eventId: "1"
-    - timestamp: 1532343443.0
+    - timestamp: 1532343443
       type: default
       category: Microsoft.AspNetCore.Mvc.ViewFeatures.Internal.ViewResultExecutor
       level: info
       message: "Executing ViewResult, running view at path /Views/Shared/Error.cshtml."
       data:
         eventId: "1"
-    - timestamp: 1532343443.0
+    - timestamp: 1532343443
       type: default
       category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
       level: info

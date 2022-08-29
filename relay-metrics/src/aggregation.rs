@@ -1,6 +1,7 @@
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 use std::fmt;
+use std::hash::Hasher;
 use std::iter::{FromIterator, FusedIterator};
 use std::mem;
 use std::time::{Duration, Instant};
@@ -9,7 +10,7 @@ use actix::prelude::*;
 
 use failure::Fail;
 use float_ord::FloatOrd;
-use hash32::{FnvHasher, Hasher};
+use fnv::FnvHasher;
 use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
@@ -881,21 +882,12 @@ struct BucketKey {
 }
 
 impl BucketKey {
-    /// An extremely hamfisted way to hash a bucket key into an integer.
-    ///
-    /// This is necessary for (and probably only useful for) reporting unique bucket keys in a
-    /// cadence set metric, as cadence set metrics can only be constructed from values that
-    /// implement [`cadence::ext::ToSetValue`].  This trait is only implemented for [`i64`], and
-    /// while we could implement it directly for [`BucketKey`] the documentation advises us not to
-    /// interact with this trait.
-    ///
-    /// [`cadence::ext::ToSetValue`]: https://docs.rs/cadence/*/cadence/ext/trait.ToSetValue.html
-    fn as_integer_lossy(&self) -> i64 {
-        // XXX: The way this hasher is used may be platform-dependent. If we want to produce the
-        // same hash across platforms, the `deterministic_hash` crate may be useful.
-        let mut hasher = crc32fast::Hasher::new();
+    // Create a 64-bit hash of the bucket key using FnvHasher.
+    // This is used for partition key computation and statsd logging.
+    fn hash64(&self) -> u64 {
+        let mut hasher = FnvHasher::default();
         std::hash::Hash::hash(self, &mut hasher);
-        hasher.finalize() as i64
+        hasher.finish()
     }
 
     /// Estimates the number of bytes needed to encode the bucket key.
@@ -943,6 +935,12 @@ pub struct AggregatorConfig {
     /// adds some additional overhead, this number is approxmate and some safety margin should be
     /// left to hard limits.
     pub max_flush_bytes: usize,
+
+    /// The number of logical partitions that can receive flushed buckets.
+    ///
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Relay-Shard`.
+    pub flush_partitions: Option<u64>,
 
     /// The age in seconds of the oldest allowed bucket timestamp.
     ///
@@ -1052,7 +1050,7 @@ impl AggregatorConfig {
                 // key together.
                 let mut hasher = FnvHasher::default();
                 hasher.write(project_key.as_str().as_bytes());
-                let shift_millis = u64::from(hasher.finish()) % (self.bucket_interval * 1000);
+                let shift_millis = hasher.finish() % (self.bucket_interval * 1000);
 
                 flush = Some(initial_flush + Duration::from_millis(shift_millis));
             }
@@ -1079,7 +1077,8 @@ impl Default for AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 30,
             debounce_delay: 10,
-            max_flush_bytes: 50_000_000,        // 50 MB
+            max_flush_bytes: 50_000_000, // 50 MB
+            flush_partitions: None,
             max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
             max_secs_in_future: 60,             // 1 minute
             max_name_length: 200,
@@ -1135,6 +1134,15 @@ impl Ord for QueuedBucket {
         // Comparing order is reversed to convert the max heap into a min heap
         other.flush_at.cmp(&self.flush_at)
     }
+}
+
+/// A Bucket and its hashed key.
+/// This is cheaper to pass around than a (BucketKey, Bucket) pair.
+pub struct HashedBucket {
+    // This is only public because pop_flush_buckets is used in benchmark.
+    // TODO: Find better name for this struct
+    hashed_key: u64,
+    bucket: Bucket,
 }
 
 /// A message containing a vector of buckets to be flushed.
@@ -1298,15 +1306,14 @@ impl fmt::Debug for CostTracker {
 /// Since this uses an approximate function to estimate the size of buckets, the actual serialized
 /// payload may exceed the size. The estimation function is built in a way to guarantee the same
 /// order of magnitude.
-struct CappedBucketIter {
-    buckets: std::vec::IntoIter<Bucket>,
+struct CappedBucketIter<T: Iterator<Item = Bucket>> {
+    buckets: T,
     next_bucket: Option<Bucket>,
     max_flush_bytes: usize,
 }
 
-impl CappedBucketIter {
-    pub fn new(buckets: Vec<Bucket>, max_flush_bytes: usize) -> Self {
-        let mut buckets = buckets.into_iter();
+impl<T: Iterator<Item = Bucket>> CappedBucketIter<T> {
+    pub fn new(mut buckets: T, max_flush_bytes: usize) -> Self {
         let next_bucket = buckets.next();
 
         Self {
@@ -1317,7 +1324,7 @@ impl CappedBucketIter {
     }
 }
 
-impl Iterator for CappedBucketIter {
+impl<T: Iterator<Item = Bucket>> Iterator for CappedBucketIter<T> {
     type Item = Vec<Bucket>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1356,7 +1363,7 @@ impl Iterator for CappedBucketIter {
     }
 }
 
-impl FusedIterator for CappedBucketIter {}
+impl<T: Iterator<Item = Bucket>> FusedIterator for CappedBucketIter<T> {}
 
 /// A collector of [`Metric`] submissions.
 ///
@@ -1615,7 +1622,7 @@ impl Aggregator {
                     metric_name = &entry.key().metric_name
                 );
                 relay_statsd::metric!(
-                    set(MetricSets::UniqueBucketsCreated) = entry.key().as_integer_lossy(),
+                    set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() as i64, // 2-complement
                     metric_name = &entry.key().metric_name
                 );
 
@@ -1694,7 +1701,7 @@ impl Aggregator {
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
-    pub fn pop_flush_buckets(&mut self) -> HashMap<ProjectKey, Vec<Bucket>> {
+    pub fn pop_flush_buckets(&mut self) -> HashMap<ProjectKey, Vec<HashedBucket>> {
         relay_statsd::metric!(gauge(MetricGauges::Buckets) = self.buckets.len() as u64);
 
         // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
@@ -1703,7 +1710,7 @@ impl Aggregator {
             gauge(MetricGauges::BucketsCost) = self.cost_tracker.total_cost as u64
         );
 
-        let mut buckets = HashMap::<ProjectKey, Vec<Bucket>>::new();
+        let mut buckets = HashMap::<ProjectKey, Vec<HashedBucket>>::new();
 
         let force = matches!(&self.state, AggregatorState::ShuttingDown);
 
@@ -1717,7 +1724,13 @@ impl Aggregator {
                     cost_tracker.subtract_cost(key.project_key, key.cost());
                     cost_tracker.subtract_cost(key.project_key, value.cost());
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
-                    buckets.entry(key.project_key).or_default().push(bucket);
+                    buckets
+                        .entry(key.project_key)
+                        .or_default()
+                        .push(HashedBucket {
+                            hashed_key: key.hash64(),
+                            bucket,
+                        });
 
                     false
                 } else {
@@ -1729,11 +1742,63 @@ impl Aggregator {
         buckets
     }
 
+    /// Split buckets into N logical partitions, determined by the bucket key.
+    fn partition_buckets(
+        &self,
+        buckets: Vec<HashedBucket>,
+        flush_partitions: u64,
+    ) -> BTreeMap<u64, Vec<Bucket>> {
+        let mut partitions = BTreeMap::<u64, Vec<Bucket>>::new();
+        for bucket in buckets {
+            let partition_key = bucket.hashed_key % flush_partitions;
+            partitions
+                .entry(partition_key)
+                .or_default()
+                .push(bucket.bucket);
+        }
+        partitions
+    }
+
+    /// Split the provided buckets into batches and process each batch with the given function.
+    ///
+    /// For each batch, log a histogram metric.
+    /// NOTE: This function can be inlined again once we are done with the dry run.
+    fn process_batches<F>(
+        &self,
+        buckets: impl IntoIterator<Item = Bucket>,
+        partition_key: Option<u64>,
+        mut process: F,
+    ) where
+        F: FnMut(Vec<Bucket>),
+    {
+        let capped_batches =
+            CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
+        let partition_tag = match partition_key {
+            Some(partition_key) => partition_key.to_string(),
+            None => "none".to_owned(),
+        };
+        let capped_batches: Vec<_> = capped_batches.collect();
+        if partition_tag != "none" {
+            relay_statsd::metric!(
+                histogram(MetricHistograms::BatchesPerPartition) = capped_batches.len() as f64,
+                partition_key = partition_tag.as_str(),
+            );
+        }
+
+        for batch in capped_batches.into_iter() {
+            relay_statsd::metric!(
+                histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
+                partition_key = partition_tag.as_str(),
+            );
+            process(batch);
+        }
+    }
+
     /// Sends the [`FlushBuckets`] message to the receiver.
     ///
     /// If the receiver returns buckets, they are merged back into the cache.
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    fn try_flush(&mut self, context: &mut <Self as Actor>::Context) {
+    fn try_flush(&mut self, mut context: Option<&mut <Self as Actor>::Context>) {
         let flush_buckets = self.pop_flush_buckets();
 
         if flush_buckets.is_empty() {
@@ -1750,8 +1815,28 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            for batch in CappedBucketIter::new(project_buckets, self.config.max_flush_bytes) {
-                self.receiver
+            // Simulate the behavior of partitioning buckets by logical key:
+            let project_buckets: Box<dyn Iterator<Item = Bucket>> = if let Some(num_partitions) =
+                self.config.flush_partitions
+            {
+                let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
+                let mut all_project_batches = Vec::<Vec<Bucket>>::new();
+                for (partition_key, buckets) in partitioned_buckets {
+                    self.process_batches(buckets, Some(partition_key), |batch| {
+                        // This is just a dry run. Put the buckets back into the vector
+                        all_project_batches.push(batch);
+                    });
+                }
+                Box::new(all_project_batches.into_iter().flatten())
+            } else {
+                // Simply send buckets as before.
+                Box::new(project_buckets.into_iter().map(|x| x.bucket))
+            };
+
+            // Actually flush buckets:
+            self.process_batches(project_buckets, None, |batch| {
+                let fut = self
+                    .receiver
                     .send(FlushBuckets::new(project_key, batch))
                     .into_actor(self)
                     .and_then(move |result, slf, _ctx| {
@@ -1764,9 +1849,12 @@ impl Aggregator {
                         }
                         fut::ok(())
                     })
-                    .drop_err()
-                    .spawn(context);
-            }
+                    .drop_err();
+
+                if let Some(context) = context.as_deref_mut() {
+                    fut.spawn(context);
+                }
+            });
         }
 
         relay_statsd::metric!(histogram(MetricHistograms::BucketsFlushed) = total_bucket_count);
@@ -1794,7 +1882,7 @@ impl Actor for Aggregator {
 
         // TODO: Consider a better approach than busy polling
         ctx.run_interval(FLUSH_INTERVAL, |slf, context| {
-            slf.try_flush(context);
+            slf.try_flush(Some(context));
         });
     }
 
@@ -1977,6 +2065,7 @@ mod tests {
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
             max_total_bucket_bytes: None,
+            ..Default::default()
         }
     }
 
@@ -2586,7 +2675,7 @@ mod tests {
     fn test_capped_iter_empty() {
         let buckets = vec![];
 
-        let mut iter = CappedBucketIter::new(buckets, 200);
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), 200);
         assert!(iter.next().is_none());
     }
 
@@ -2608,7 +2697,7 @@ mod tests {
 
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
 
-        let mut iter = CappedBucketIter::new(buckets, 200);
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), 200);
         let batch = iter.next().unwrap();
         assert_eq!(batch.len(), 1);
 
@@ -2634,7 +2723,7 @@ mod tests {
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
 
         // 58 is a magic number obtained by experimentation that happens to split this bucket
-        let mut iter = CappedBucketIter::new(buckets, 108);
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), 108);
         let batch1 = iter.next().unwrap();
         assert_eq!(batch1.len(), 1);
 
@@ -2970,5 +3059,70 @@ mod tests {
             aggregator.insert(project_key, metric).unwrap_err().kind,
             AggregateMetricsErrorKind::ProjectLimitExceeded
         );
+    }
+
+    fn run_test_bucket_partitioning(flush_partitions: Option<u64>, expected: Vec<String>) {
+        let config = AggregatorConfig {
+            max_flush_bytes: 1000,
+            flush_partitions,
+            ..test_config()
+        };
+
+        let metric1 = Metric {
+            name: "c:transactions/foo".to_owned(),
+            value: MetricValue::Counter(42.),
+            timestamp: UnixTimestamp::from_secs(999994711),
+            tags: BTreeMap::new(),
+        };
+
+        let metric2 = Metric {
+            name: "c:transactions/bar".to_owned(),
+            value: MetricValue::Counter(43.),
+            timestamp: UnixTimestamp::from_secs(999994711),
+            tags: BTreeMap::new(),
+        };
+
+        let receiver = TestReceiver::start_default().recipient();
+        let mut aggregator = Aggregator::new(config, receiver);
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        let captures = relay_statsd::with_capturing_test_client(|| {
+            aggregator.insert(project_key, metric1).ok();
+            aggregator.insert(project_key, metric2).ok();
+            aggregator.try_flush(None);
+        });
+
+        assert_eq!(
+            captures
+                .into_iter()
+                .filter(|x| x.contains("per_batch") || x.contains("batches_per_partition"))
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+
+    #[test]
+    fn test_bucket_partitioning() {
+        // TODO: Also test with different `max_flush_bytes`.
+        // It currently looks like setting a small max_flush_bytes leads to no buckets being
+        // flushed at all.
+        for (flush_partitions, expected) in [
+            (
+                None,
+                vec!["metrics.buckets.per_batch:2|h|#partition_key:none".to_owned()],
+            ),
+            (
+                Some(5),
+                vec![
+                    "metrics.buckets.batches_per_partition:1|h|#partition_key:0".to_owned(),
+                    "metrics.buckets.per_batch:1|h|#partition_key:0".to_owned(),
+                    "metrics.buckets.batches_per_partition:1|h|#partition_key:3".to_owned(),
+                    "metrics.buckets.per_batch:1|h|#partition_key:3".to_owned(),
+                    "metrics.buckets.per_batch:2|h|#partition_key:none".to_owned(),
+                ],
+            ),
+        ] {
+            run_test_bucket_partitioning(flush_partitions, expected)
+        }
     }
 }

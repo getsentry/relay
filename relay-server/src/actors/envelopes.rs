@@ -7,7 +7,6 @@ use std::time::Instant;
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::Utc;
-use failure::Fail;
 use futures01::{future, prelude::*, sync::oneshot};
 
 use relay_common::ProjectKey;
@@ -19,15 +18,15 @@ use relay_quotas::Scoping;
 use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor, ProcessMetrics};
-use crate::actors::project_cache::{ProjectCache, UpdateRateLimits, ValidateEnvelope};
+use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
+use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
 use crate::statsd::RelayHistograms;
-use crate::utils::{EnvelopeContext, FutureExt as _, Semaphore};
+use crate::utils::{EnvelopeContext, FutureExt as _};
 
 #[cfg(feature = "processing")]
 use {
@@ -36,66 +35,6 @@ use {
     relay_system::Addr as ServiceAddr,
     tokio::runtime::Runtime,
 };
-
-#[derive(Debug, Fail)]
-pub enum QueueEnvelopeError {
-    #[fail(display = "Too many envelopes (event_buffer_size reached)")]
-    TooManyEnvelopes,
-}
-
-/// Access control for envelope processing.
-///
-/// The buffer guard is basically a semaphore that ensures the buffer does not outgrow the maximum
-/// number of envelopes configured through [`Config::envelope_buffer_size`]. To enter a new envelope
-/// into the processing pipeline, use [`BufferGuard::enter`].
-#[derive(Debug)]
-pub struct BufferGuard {
-    inner: Semaphore,
-    capacity: usize,
-}
-
-impl BufferGuard {
-    /// Creates a new `BufferGuard` based on config values.
-    pub fn new(capacity: usize) -> Self {
-        let inner = Semaphore::new(capacity);
-        Self { inner, capacity }
-    }
-
-    /// Returns the unused capacity of the pipeline.
-    pub fn available(&self) -> usize {
-        self.inner.available()
-    }
-
-    /// Returns the number of envelopes in the pipeline.
-    pub fn used(&self) -> usize {
-        self.capacity.saturating_sub(self.available())
-    }
-
-    /// Reserves resources for processing an envelope in Relay.
-    ///
-    /// Returns `Ok(EnvelopeContext)` on success, which internally holds a handle to the reserved
-    /// resources. When the envelope context is dropped, the slot is automatically reclaimed and can
-    /// be reused by a subsequent call to `enter`.
-    ///
-    /// If the buffer is full, this function returns `Err`.
-    pub fn enter(&self, envelope: &Envelope) -> Result<EnvelopeContext, QueueEnvelopeError> {
-        let permit = self
-            .inner
-            .try_acquire()
-            .ok_or(QueueEnvelopeError::TooManyEnvelopes)?;
-
-        metric!(histogram(RelayHistograms::EnvelopeQueueSize) = self.used() as u64);
-
-        metric!(
-            histogram(RelayHistograms::EnvelopeQueueSizePct) = {
-                let queue_size_pct = self.used() as f64 * 100.0 / self.capacity as f64;
-                queue_size_pct.floor() as u64
-            }
-        );
-
-        Ok(EnvelopeContext::new(envelope, permit))
-    }
-}
 
 /// Error created while handling [`SendEnvelope`].
 #[derive(Debug, failure::Fail)]
@@ -207,7 +146,6 @@ impl UpstreamRequest for SendEnvelope {
 
 pub struct EnvelopeManager {
     config: Arc<Config>,
-    buffer_guard: Arc<BufferGuard>,
     captures: BTreeMap<EventId, CapturedEnvelope>,
     #[cfg(feature = "processing")]
     store_forwarder: Option<ServiceAddr<StoreForwarder>>,
@@ -216,10 +154,7 @@ pub struct EnvelopeManager {
 }
 
 impl EnvelopeManager {
-    pub fn create(
-        config: Arc<Config>,
-        buffer_guard: Arc<BufferGuard>,
-    ) -> Result<Self, ServerError> {
+    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         // Enter the tokio runtime so we can start spawning tasks from the outside.
         #[cfg(feature = "processing")]
         let runtime = crate::utils::tokio_runtime_with_actix();
@@ -237,7 +172,6 @@ impl EnvelopeManager {
 
         Ok(EnvelopeManager {
             config,
-            buffer_guard,
             captures: BTreeMap::new(),
             #[cfg(feature = "processing")]
             store_forwarder,
@@ -347,103 +281,6 @@ impl SystemService for EnvelopeManager {}
 impl Default for EnvelopeManager {
     fn default() -> Self {
         unimplemented!("register with the SystemRegistry instead")
-    }
-}
-
-/// Queues an envelope for processing.
-///
-/// Depending on the items in the envelope, there are multiple outcomes:
-///
-/// - Events and event related items, such as attachments, are always queued together. See the
-///   [crate-level documentation](crate) for a full description of how envelopes are
-///   queued and processed.
-/// - Sessions and Session batches are always queued separately. If they occur in the same envelope
-///   as an event, they are split off. Their path is the same as other Envelopes.
-/// - Metrics are directly sent to the [`EnvelopeProcessor`], bypassing the manager's queue and
-///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
-///
-/// Queueing can fail if the queue exceeds [`Config::envelope_buffer_size`]. In this case, `Err` is
-/// returned and the envelope is not queued. Otherwise, this message responds with `Ok`. If it
-/// contained an event-related item, such as an event payload or an attachment, this contains
-/// `Some(EventId)`.
-pub struct QueueEnvelope {
-    pub envelope: Envelope,
-    pub envelope_context: EnvelopeContext,
-    pub project_key: ProjectKey,
-    pub start_time: Instant,
-}
-
-impl Message for QueueEnvelope {
-    type Result = Result<Option<EventId>, QueueEnvelopeError>;
-}
-
-impl Handler<QueueEnvelope> for EnvelopeManager {
-    type Result = Result<Option<EventId>, QueueEnvelopeError>;
-
-    fn handle(&mut self, message: QueueEnvelope, _: &mut Self::Context) -> Self::Result {
-        let QueueEnvelope {
-            mut envelope,
-            mut envelope_context,
-            project_key,
-            start_time,
-        } = message;
-
-        let event_id = envelope.event_id();
-
-        // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
-        let mut metric_items = Vec::new();
-        let is_metric = |i: &Item| matches!(i.ty(), ItemType::Metrics | ItemType::MetricBuckets);
-        while let Some(item) = envelope.take_item_by(is_metric) {
-            metric_items.push(item);
-        }
-
-        if !metric_items.is_empty() {
-            relay_log::trace!("sending metrics into processing queue");
-            EnvelopeProcessor::from_registry().do_send(ProcessMetrics {
-                items: metric_items,
-                project_key,
-                start_time,
-                sent_at: envelope.sent_at(),
-            });
-        }
-
-        // Split the envelope into event-related items and other items. This allows to fast-track:
-        //  1. Envelopes with only session items. They only require rate limiting.
-        //  2. Event envelope processing can bail out if the event is filtered or rate limited,
-        //     since all items depend on this event.
-        if let Some(event_envelope) = envelope.split_by(Item::requires_event) {
-            relay_log::trace!("queueing separate envelope for non-event items");
-
-            // The envelope has been split, so we need to fork the context.
-            let event_context = self.buffer_guard.enter(&event_envelope)?;
-            // Update the old context after successful forking.
-            envelope_context.update(&envelope);
-
-            ProjectCache::from_registry().do_send(ValidateEnvelope::new(
-                project_key,
-                event_envelope,
-                event_context,
-            ));
-        }
-
-        if envelope.is_empty() {
-            // The envelope can be empty here if it contained only metrics items which were removed
-            // above. In this case, the envelope was accepted and needs no further queueing.
-            envelope_context.accept();
-        } else {
-            relay_log::trace!("queueing envelope");
-            ProjectCache::from_registry().do_send(ValidateEnvelope::new(
-                project_key,
-                envelope,
-                envelope_context,
-            ));
-        }
-
-        // Actual event handling is performed asynchronously in a separate future. The lifetime of
-        // that future will be tied to the EnvelopeManager's context. This allows to keep the Project
-        // actor alive even if it is cleaned up in the ProjectManager.
-
-        Ok(event_id)
     }
 }
 

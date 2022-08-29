@@ -56,14 +56,14 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
-
 use std::collections::BTreeMap;
 use std::net::{ToSocketAddrs, UdpSocket};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use cadence::{
-    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient, UdpMetricSink,
+    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, SpyMetricSink, StatsdClient,
+    UdpMetricSink,
 };
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
@@ -119,7 +119,7 @@ impl MetricsClient {
                 LogError(&error),
                 METRICS_MAX_QUEUE_SIZE
             );
-        };
+        }
     }
 
     fn _should_send(&self) -> bool {
@@ -142,7 +142,7 @@ impl MetricsClient {
 static METRICS_CLIENT: RwLock<Option<Arc<MetricsClient>>> = RwLock::new(None);
 
 thread_local! {
-    static CURRENT_CLIENT: Option<Arc<MetricsClient>> = METRICS_CLIENT.read().clone();
+    static CURRENT_CLIENT: std::cell::RefCell<Option<Arc<MetricsClient>>>  = METRICS_CLIENT.read().clone().into();
     static RNG_UNIFORM_DISTRIBUTION: Uniform<f32> = Uniform::new(0.0, 1.0);
 }
 
@@ -160,6 +160,25 @@ pub mod prelude {
 /// Set a new statsd client.
 pub fn set_client(client: MetricsClient) {
     *METRICS_CLIENT.write() = Some(Arc::new(client));
+    CURRENT_CLIENT.with(|cell| cell.replace(METRICS_CLIENT.read().clone()));
+}
+
+/// Set a test client for the period of the called function (only affects the current thread).
+pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
+    let (rx, sink) = SpyMetricSink::new();
+    let test_client = MetricsClient {
+        statsd_client: StatsdClient::from_sink("", sink),
+        default_tags: Default::default(),
+        sample_rate: 1.0,
+    };
+
+    CURRENT_CLIENT.with(|cell| {
+        let old_client = cell.replace(Some(Arc::new(test_client)));
+        f();
+        cell.replace(old_client);
+    });
+
+    rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
 }
 
 /// Disable the client again.
@@ -226,7 +245,7 @@ where
     R: Default,
 {
     CURRENT_CLIENT.with(|client| {
-        if let Some(client) = client {
+        if let Some(client) = client.borrow().as_deref() {
             f(client)
         } else {
             R::default()
@@ -550,4 +569,64 @@ macro_rules! metric {
         });
         rv
     }};
+}
+
+#[cfg(test)]
+mod tests {
+
+    use cadence::{NopMetricSink, StatsdClient};
+
+    use crate::{set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient};
+
+    enum TestGauges {
+        Foo,
+        Bar,
+    }
+
+    impl GaugeMetric for TestGauges {
+        fn name(&self) -> &'static str {
+            match self {
+                Self::Foo => "foo",
+                Self::Bar => "bar",
+            }
+        }
+    }
+
+    #[test]
+    fn test_capturing_client() {
+        let captures = with_capturing_test_client(|| {
+            metric!(
+                gauge(TestGauges::Foo) = 123,
+                server = "server1",
+                host = "host1"
+            );
+            metric!(
+                gauge(TestGauges::Bar) = 456,
+                server = "server2",
+                host = "host2"
+            );
+        });
+
+        assert_eq!(
+            captures.as_slice(),
+            [
+                "foo:123|g|#server:server1,host:host1",
+                "bar:456|g|#server:server2,host:host2"
+            ]
+        )
+    }
+
+    #[test]
+    fn current_client_is_global_client() {
+        let client1 = with_client(|c| format!("{:?}", c));
+        set_client(MetricsClient {
+            statsd_client: StatsdClient::from_sink("", NopMetricSink),
+            default_tags: Default::default(),
+            sample_rate: 1.0,
+        });
+        let client2 = with_client(|c| format!("{:?}", c));
+
+        // After setting the global client,the current client must change:
+        assert_ne!(client1, client2);
+    }
 }
