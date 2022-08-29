@@ -15,8 +15,7 @@ use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use failure::Fail;
 use futures01::{future, prelude::*, sync::oneshot};
-
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use relay_common::GlobMatcher;
 use relay_config::Config;
@@ -100,18 +99,25 @@ impl ResponseError for ForwardedUpstreamRequestError {
     }
 }
 
-lazy_static! {
-    /// Glob matcher for special routes.
-    static ref SPECIAL_ROUTES: GlobMatcher<SpecialRoute> = {
-        let mut m = GlobMatcher::new();
-        // file uploads / legacy dsym uploads
-        m.add("/api/0/projects/*/*/releases/*/files/", SpecialRoute::FileUpload);
-        m.add("/api/0/projects/*/*/releases/*/dsyms/", SpecialRoute::FileUpload);
-        // new chunk uploads
-        m.add("/api/0/organizations/*/chunk-upload/", SpecialRoute::ChunkUpload);
-        m
-    };
-}
+/// Glob matcher for special routes.
+static SPECIAL_ROUTES: Lazy<GlobMatcher<SpecialRoute>> = Lazy::new(|| {
+    let mut m = GlobMatcher::new();
+    // file uploads / legacy dsym uploads
+    m.add(
+        "/api/0/projects/*/*/releases/*/files/",
+        SpecialRoute::FileUpload,
+    );
+    m.add(
+        "/api/0/projects/*/*/releases/*/dsyms/",
+        SpecialRoute::FileUpload,
+    );
+    // new chunk uploads
+    m.add(
+        "/api/0/organizations/*/chunk-upload/",
+        SpecialRoute::ChunkUpload,
+    );
+    m
+});
 
 /// Returns the maximum request body size for a route path.
 fn get_limit_for_path(path: &str, config: &Config) -> usize {

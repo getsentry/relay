@@ -12,7 +12,7 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use serde_json::Value as SerdeValue;
 
 use relay_auth::RelayVersion;
@@ -1354,14 +1354,14 @@ impl EnvelopeProcessor {
         };
 
         if !self.config.processing_enabled() {
-            lazy_static! {
-                static ref MY_VERSION_STRING: String = format!("{}", RelayVersion::current());
-            }
+            static MY_VERSION_STRING: OnceCell<String> = OnceCell::new();
+            let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
+
             event
                 .ingest_path
                 .get_or_insert_with(Default::default)
                 .push(Annotated::new(RelayInfo {
-                    version: Annotated::new(MY_VERSION_STRING.clone()),
+                    version: Annotated::new(my_version.clone()),
                     public_key: self
                         .config
                         .public_key()
@@ -1633,14 +1633,12 @@ impl EnvelopeProcessor {
 
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = config.pii_config {
-                let compiled = config.compiled();
-                let mut processor = PiiProcessor::new(&compiled);
+                let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
-            if let Some(ref config) = *config.datascrubbing_settings.pii_config() {
-                let compiled = config.compiled();
-                let mut processor = PiiProcessor::new(&compiled);
+            if let Some(config) = config.datascrubbing_settings.pii_config() {
+                let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
@@ -1664,8 +1662,7 @@ impl EnvelopeProcessor {
                 let filename = item.filename().unwrap_or_default();
                 let mut payload = item.payload().to_vec();
 
-                let compiled = config.compiled();
-                let processor = PiiAttachmentsProcessor::new(&compiled);
+                let processor = PiiAttachmentsProcessor::new(config.compiled());
 
                 // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
                 // must be conservative and treat it as a plain attachment. Under extreme

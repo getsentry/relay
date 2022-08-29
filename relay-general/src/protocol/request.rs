@@ -501,70 +501,73 @@ pub struct Request {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_header_normalization() {
-    let json = r#"{
+    use super::*;
+
+    #[test]
+    fn test_header_normalization() {
+        let json = r#"{
   "-other-": "header",
   "accept": "application/json",
   "WWW-Authenticate": "basic",
   "x-sentry": "version=8"
 }"#;
 
-    let headers = vec![
-        Annotated::new((
-            Annotated::new("-Other-".to_string().into()),
-            Annotated::new("header".to_string().into()),
-        )),
-        Annotated::new((
-            Annotated::new("Accept".to_string().into()),
-            Annotated::new("application/json".to_string().into()),
-        )),
-        Annotated::new((
-            Annotated::new("WWW-Authenticate".to_string().into()),
-            Annotated::new("basic".to_string().into()),
-        )),
-        Annotated::new((
-            Annotated::new("X-Sentry".to_string().into()),
-            Annotated::new("version=8".to_string().into()),
-        )),
-    ];
+        let headers = vec![
+            Annotated::new((
+                Annotated::new("-Other-".to_string().into()),
+                Annotated::new("header".to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("Accept".to_string().into()),
+                Annotated::new("application/json".to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("WWW-Authenticate".to_string().into()),
+                Annotated::new("basic".to_string().into()),
+            )),
+            Annotated::new((
+                Annotated::new("X-Sentry".to_string().into()),
+                Annotated::new("version=8".to_string().into()),
+            )),
+        ];
 
-    let headers = Annotated::new(Headers(PairList(headers)));
-    assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
-}
+        let headers = Annotated::new(Headers(PairList(headers)));
+        assert_eq!(headers, Annotated::from_json(json).unwrap());
+    }
 
-#[test]
-fn test_header_from_sequence() {
-    let json = r#"[
+    #[test]
+    fn test_header_from_sequence() {
+        let json = r#"[
   ["accept", "application/json"]
 ]"#;
 
-    let headers = vec![Annotated::new((
-        Annotated::new("Accept".to_string().into()),
-        Annotated::new("application/json".to_string().into()),
-    ))];
+        let headers = vec![Annotated::new((
+            Annotated::new("Accept".to_string().into()),
+            Annotated::new("application/json".to_string().into()),
+        ))];
 
-    let headers = Annotated::new(Headers(PairList(headers)));
-    assert_eq_dbg!(headers, Annotated::from_json(json).unwrap());
+        let headers = Annotated::new(Headers(PairList(headers)));
+        assert_eq!(headers, Annotated::from_json(json).unwrap());
 
-    let json = r#"[
+        let json = r#"[
   ["accept", "application/json"],
   [1, 2],
   ["a", "b", "c"],
   23
 ]"#;
-    let headers = Annotated::<Headers>::from_json(json).unwrap();
-    #[derive(Debug, Empty, IntoValue)]
-    pub struct Container {
-        headers: Annotated<Headers>,
-    }
-    assert_eq_str!(
-        Annotated::new(Container { headers })
-            .to_json_pretty()
-            .unwrap(),
-        r#"{
+        let headers = Annotated::<Headers>::from_json(json).unwrap();
+        #[derive(Debug, Empty, IntoValue)]
+        pub struct Container {
+            headers: Annotated<Headers>,
+        }
+        assert_eq!(
+            Annotated::new(Container { headers })
+                .to_json_pretty()
+                .unwrap(),
+            r#"{
   "headers": [
     [
       "Accept",
@@ -627,12 +630,12 @@ fn test_header_from_sequence() {
     }
   }
 }"#
-    );
-}
+        );
+    }
 
-#[test]
-fn test_request_roundtrip() {
-    let json = r#"{
+    #[test]
+    fn test_request_roundtrip() {
+        let json = r#"{
   "url": "https://google.com/search",
   "method": "GET",
   "data": {
@@ -664,242 +667,242 @@ fn test_request_roundtrip() {
   "other": "value"
 }"#;
 
-    let request = Annotated::new(Request {
-        url: Annotated::new("https://google.com/search".to_string()),
-        method: Annotated::new("GET".to_string()),
-        data: {
-            let mut map = Object::new();
-            map.insert("some".to_string(), Annotated::new(Value::I64(1)));
-            Annotated::new(Value::Object(map))
-        },
-        query_string: Annotated::new(Query(
+        let request = Annotated::new(Request {
+            url: Annotated::new("https://google.com/search".to_string()),
+            method: Annotated::new("GET".to_string()),
+            data: {
+                let mut map = Object::new();
+                map.insert("some".to_string(), Annotated::new(Value::I64(1)));
+                Annotated::new(Value::Object(map))
+            },
+            query_string: Annotated::new(Query(
+                vec![Annotated::new((
+                    Annotated::new("q".to_string()),
+                    Annotated::new("foo".to_string().into()),
+                ))]
+                .into(),
+            )),
+            fragment: Annotated::new("home".to_string()),
+            cookies: Annotated::new(Cookies({
+                PairList(vec![Annotated::new((
+                    Annotated::new("GOOGLE".to_string()),
+                    Annotated::new("1".to_string()),
+                ))])
+            })),
+            headers: Annotated::new(Headers({
+                let headers = vec![Annotated::new((
+                    Annotated::new("Referer".to_string().into()),
+                    Annotated::new("https://google.com/".to_string().into()),
+                ))];
+                PairList(headers)
+            })),
+            env: Annotated::new({
+                let mut map = Object::new();
+                map.insert(
+                    "REMOTE_ADDR".to_string(),
+                    Annotated::new(Value::String("213.47.147.207".to_string())),
+                );
+                map
+            }),
+            inferred_content_type: Annotated::new("application/json".to_string()),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
+
+        assert_eq!(request, Annotated::from_json(json).unwrap());
+        assert_eq!(json, request.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_query_string() {
+        let query = Annotated::new(Query(
             vec![Annotated::new((
-                Annotated::new("q".to_string()),
-                Annotated::new("foo".to_string().into()),
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string().into()),
             ))]
             .into(),
-        )),
-        fragment: Annotated::new("home".to_string()),
-        cookies: Annotated::new(Cookies({
-            PairList(vec![Annotated::new((
-                Annotated::new("GOOGLE".to_string()),
-                Annotated::new("1".to_string()),
-            ))])
-        })),
-        headers: Annotated::new(Headers({
-            let headers = vec![Annotated::new((
-                Annotated::new("Referer".to_string().into()),
-                Annotated::new("https://google.com/".to_string().into()),
-            ))];
-            PairList(headers)
-        })),
-        env: Annotated::new({
-            let mut map = Object::new();
-            map.insert(
-                "REMOTE_ADDR".to_string(),
-                Annotated::new(Value::String("213.47.147.207".to_string())),
-            );
-            map
-        }),
-        inferred_content_type: Annotated::new("application/json".to_string()),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    });
+        ));
+        assert_eq!(query, Annotated::from_json("\"foo=bar\"").unwrap());
+        assert_eq!(query, Annotated::from_json("\"?foo=bar\"").unwrap());
 
-    assert_eq_dbg!(request, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, request.to_json_pretty().unwrap());
-}
+        let query = Annotated::new(Query(
+            vec![
+                Annotated::new((
+                    Annotated::new("foo".to_string()),
+                    Annotated::new("bar".to_string().into()),
+                )),
+                Annotated::new((
+                    Annotated::new("baz".to_string()),
+                    Annotated::new("42".to_string().into()),
+                )),
+            ]
+            .into(),
+        ));
+        assert_eq!(query, Annotated::from_json("\"foo=bar&baz=42\"").unwrap());
+    }
 
-#[test]
-fn test_query_string() {
-    let query = Annotated::new(Query(
-        vec![Annotated::new((
-            Annotated::new("foo".to_string()),
-            Annotated::new("bar".to_string().into()),
-        ))]
-        .into(),
-    ));
-    assert_eq_dbg!(query, Annotated::from_json("\"foo=bar\"").unwrap());
-    assert_eq_dbg!(query, Annotated::from_json("\"?foo=bar\"").unwrap());
-
-    let query = Annotated::new(Query(
-        vec![
-            Annotated::new((
+    #[test]
+    fn test_query_string_legacy_nested() {
+        // this test covers a case that previously was let through the ingest system but in a bad
+        // way.  This was untyped and became a str repr() in Python.  New SDKs will no longer send
+        // nested objects here but for legacy values we instead serialize it out as JSON.
+        let query = Annotated::new(Query(
+            vec![Annotated::new((
                 Annotated::new("foo".to_string()),
                 Annotated::new("bar".to_string().into()),
-            )),
-            Annotated::new((
-                Annotated::new("baz".to_string()),
-                Annotated::new("42".to_string().into()),
-            )),
-        ]
-        .into(),
-    ));
-    assert_eq_dbg!(query, Annotated::from_json("\"foo=bar&baz=42\"").unwrap());
-}
+            ))]
+            .into(),
+        ));
+        assert_eq!(query, Annotated::from_json("\"foo=bar\"").unwrap());
 
-#[test]
-fn test_query_string_legacy_nested() {
-    // this test covers a case that previously was let through the ingest system but in a bad
-    // way.  This was untyped and became a str repr() in Python.  New SDKs will no longer send
-    // nested objects here but for legacy values we instead serialize it out as JSON.
-    let query = Annotated::new(Query(
-        vec![Annotated::new((
-            Annotated::new("foo".to_string()),
-            Annotated::new("bar".to_string().into()),
-        ))]
-        .into(),
-    ));
-    assert_eq_dbg!(query, Annotated::from_json("\"foo=bar\"").unwrap());
-
-    let query = Annotated::new(Query(
-        vec![
-            Annotated::new((
-                Annotated::new("baz".to_string()),
-                Annotated::new(r#"{"a":42}"#.to_string().into()),
-            )),
-            Annotated::new((
-                Annotated::new("foo".to_string()),
-                Annotated::new("bar".to_string().into()),
-            )),
-        ]
-        .into(),
-    ));
-    assert_eq_dbg!(
-        query,
-        Annotated::from_json(
-            r#"
+        let query = Annotated::new(Query(
+            vec![
+                Annotated::new((
+                    Annotated::new("baz".to_string()),
+                    Annotated::new(r#"{"a":42}"#.to_string().into()),
+                )),
+                Annotated::new((
+                    Annotated::new("foo".to_string()),
+                    Annotated::new("bar".to_string().into()),
+                )),
+            ]
+            .into(),
+        ));
+        assert_eq!(
+            query,
+            Annotated::from_json(
+                r#"
         {
             "foo": "bar",
             "baz": {"a": 42}
         }
     "#
-        )
-        .unwrap()
-    );
-}
+            )
+            .unwrap()
+        );
+    }
 
-#[test]
-fn test_query_invalid() {
-    let query = Annotated::<Query>::from_error(
-        Error::expected("a query string or map"),
-        Some(Value::I64(42)),
-    );
-    assert_eq_dbg!(query, Annotated::from_json("42").unwrap());
-}
+    #[test]
+    fn test_query_invalid() {
+        let query = Annotated::<Query>::from_error(
+            Error::expected("a query string or map"),
+            Some(Value::I64(42)),
+        );
+        assert_eq!(query, Annotated::from_json("42").unwrap());
+    }
 
-#[test]
-fn test_cookies_parsing() {
-    let json = "\" PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;\"";
+    #[test]
+    fn test_cookies_parsing() {
+        let json = "\" PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;\"";
 
-    let map = vec![
-        Annotated::new((
-            Annotated::new("PHPSESSID".to_string()),
-            Annotated::new("298zf09hf012fh2".to_string()),
-        )),
-        Annotated::new((
-            Annotated::new("csrftoken".to_string()),
-            Annotated::new("u32t4o3tb3gg43".to_string()),
-        )),
-        Annotated::new((
-            Annotated::new("_gat".to_string()),
-            Annotated::new("1".to_string()),
-        )),
-    ];
+        let map = vec![
+            Annotated::new((
+                Annotated::new("PHPSESSID".to_string()),
+                Annotated::new("298zf09hf012fh2".to_string()),
+            )),
+            Annotated::new((
+                Annotated::new("csrftoken".to_string()),
+                Annotated::new("u32t4o3tb3gg43".to_string()),
+            )),
+            Annotated::new((
+                Annotated::new("_gat".to_string()),
+                Annotated::new("1".to_string()),
+            )),
+        ];
 
-    let cookies = Annotated::new(Cookies(PairList(map)));
-    assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
-}
+        let cookies = Annotated::new(Cookies(PairList(map)));
+        assert_eq!(cookies, Annotated::from_json(json).unwrap());
+    }
 
-#[test]
-fn test_cookies_array() {
-    let input = r#"{"cookies":[["foo","bar"],["invalid", 42],["none",null]]}"#;
-    let output = r#"{"cookies":[["foo","bar"],["invalid",null],["none",null]],"_meta":{"cookies":{"1":{"1":{"":{"err":[["invalid_data",{"reason":"expected a string"}]],"val":42}}}}}}"#;
+    #[test]
+    fn test_cookies_array() {
+        let input = r#"{"cookies":[["foo","bar"],["invalid", 42],["none",null]]}"#;
+        let output = r#"{"cookies":[["foo","bar"],["invalid",null],["none",null]],"_meta":{"cookies":{"1":{"1":{"":{"err":[["invalid_data",{"reason":"expected a string"}]],"val":42}}}}}}"#;
 
-    let map = vec![
-        Annotated::new((
-            Annotated::new("foo".to_string()),
-            Annotated::new("bar".to_string()),
-        )),
-        Annotated::new((
-            Annotated::new("invalid".to_string()),
-            Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
-        )),
-        Annotated::new((Annotated::new("none".to_string()), Annotated::empty())),
-    ];
-
-    let cookies = Annotated::new(Cookies(PairList(map)));
-    let request = Annotated::new(Request {
-        cookies,
-        ..Default::default()
-    });
-    assert_eq_dbg!(request, Annotated::from_json(input).unwrap());
-    assert_eq_dbg!(request.to_json().unwrap(), output);
-}
-
-#[test]
-fn test_cookies_object() {
-    let json = r#"{"foo":"bar", "invalid": 42}"#;
-
-    let map = vec![
-        Annotated::new((
-            Annotated::new("foo".to_string()),
-            Annotated::new("bar".to_string()),
-        )),
-        Annotated::new((
-            Annotated::new("invalid".to_string()),
-            Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
-        )),
-    ];
-
-    let cookies = Annotated::new(Cookies(PairList(map)));
-    assert_eq_dbg!(cookies, Annotated::from_json(json).unwrap());
-}
-
-#[test]
-fn test_cookies_invalid() {
-    let cookies =
-        Annotated::<Cookies>::from_error(Error::expected("cookies"), Some(Value::I64(42)));
-    assert_eq_dbg!(cookies, Annotated::from_json("42").unwrap());
-}
-
-#[test]
-fn test_querystring_without_value() {
-    let json = r#""foo=bar&baz""#;
-
-    let query = Annotated::new(Query(
-        vec![
+        let map = vec![
             Annotated::new((
                 Annotated::new("foo".to_string()),
-                Annotated::new("bar".to_string().into()),
+                Annotated::new("bar".to_string()),
             )),
             Annotated::new((
-                Annotated::new("baz".to_string()),
-                Annotated::new("".to_string().into()),
+                Annotated::new("invalid".to_string()),
+                Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
             )),
-        ]
-        .into(),
-    ));
+            Annotated::new((Annotated::new("none".to_string()), Annotated::empty())),
+        ];
 
-    assert_eq_dbg!(query, Annotated::from_json(json).unwrap());
-}
+        let cookies = Annotated::new(Cookies(PairList(map)));
+        let request = Annotated::new(Request {
+            cookies,
+            ..Default::default()
+        });
+        assert_eq!(request, Annotated::from_json(input).unwrap());
+        assert_eq!(request.to_json().unwrap(), output);
+    }
 
-#[test]
-fn test_headers_lenient_value() {
-    let input = r#"{
+    #[test]
+    fn test_cookies_object() {
+        let json = r#"{"foo":"bar", "invalid": 42}"#;
+
+        let map = vec![
+            Annotated::new((
+                Annotated::new("foo".to_string()),
+                Annotated::new("bar".to_string()),
+            )),
+            Annotated::new((
+                Annotated::new("invalid".to_string()),
+                Annotated::from_error(Error::expected("a string"), Some(Value::I64(42))),
+            )),
+        ];
+
+        let cookies = Annotated::new(Cookies(PairList(map)));
+        assert_eq!(cookies, Annotated::from_json(json).unwrap());
+    }
+
+    #[test]
+    fn test_cookies_invalid() {
+        let cookies =
+            Annotated::<Cookies>::from_error(Error::expected("cookies"), Some(Value::I64(42)));
+        assert_eq!(cookies, Annotated::from_json("42").unwrap());
+    }
+
+    #[test]
+    fn test_querystring_without_value() {
+        let json = r#""foo=bar&baz""#;
+
+        let query = Annotated::new(Query(
+            vec![
+                Annotated::new((
+                    Annotated::new("foo".to_string()),
+                    Annotated::new("bar".to_string().into()),
+                )),
+                Annotated::new((
+                    Annotated::new("baz".to_string()),
+                    Annotated::new("".to_string().into()),
+                )),
+            ]
+            .into(),
+        ));
+
+        assert_eq!(query, Annotated::from_json(json).unwrap());
+    }
+
+    #[test]
+    fn test_headers_lenient_value() {
+        let input = r#"{
   "headers": {
     "X-Foo": "",
     "X-Bar": 42
   }
 }"#;
 
-    let output = r#"{
+        let output = r#"{
   "headers": [
     [
       "X-Bar",
@@ -912,27 +915,27 @@ fn test_headers_lenient_value() {
   ]
 }"#;
 
-    let request = Annotated::new(Request {
-        headers: Annotated::new(Headers(PairList(vec![
-            Annotated::new((
-                Annotated::new("X-Bar".to_string().into()),
-                Annotated::new("42".to_string().into()),
-            )),
-            Annotated::new((
-                Annotated::new("X-Foo".to_string().into()),
-                Annotated::new("".to_string().into()),
-            )),
-        ]))),
-        ..Default::default()
-    });
+        let request = Annotated::new(Request {
+            headers: Annotated::new(Headers(PairList(vec![
+                Annotated::new((
+                    Annotated::new("X-Bar".to_string().into()),
+                    Annotated::new("42".to_string().into()),
+                )),
+                Annotated::new((
+                    Annotated::new("X-Foo".to_string().into()),
+                    Annotated::new("".to_string().into()),
+                )),
+            ]))),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(Annotated::from_json(input).unwrap(), request);
-    assert_eq_dbg!(request.to_json_pretty().unwrap(), output);
-}
+        assert_eq!(Annotated::from_json(input).unwrap(), request);
+        assert_eq!(request.to_json_pretty().unwrap(), output);
+    }
 
-#[test]
-fn test_headers_multiple_values() {
-    let input = r#"{
+    #[test]
+    fn test_headers_multiple_values() {
+        let input = r#"{
   "headers": {
     "X-Foo": [""],
     "X-Bar": [
@@ -943,7 +946,7 @@ fn test_headers_multiple_values() {
   }
 }"#;
 
-    let output = r#"{
+        let output = r#"{
   "headers": [
     [
       "X-Bar",
@@ -956,20 +959,21 @@ fn test_headers_multiple_values() {
   ]
 }"#;
 
-    let request = Annotated::new(Request {
-        headers: Annotated::new(Headers(PairList(vec![
-            Annotated::new((
-                Annotated::new("X-Bar".to_string().into()),
-                Annotated::new("42,bar,baz".to_string().into()),
-            )),
-            Annotated::new((
-                Annotated::new("X-Foo".to_string().into()),
-                Annotated::new("".to_string().into()),
-            )),
-        ]))),
-        ..Default::default()
-    });
+        let request = Annotated::new(Request {
+            headers: Annotated::new(Headers(PairList(vec![
+                Annotated::new((
+                    Annotated::new("X-Bar".to_string().into()),
+                    Annotated::new("42,bar,baz".to_string().into()),
+                )),
+                Annotated::new((
+                    Annotated::new("X-Foo".to_string().into()),
+                    Annotated::new("".to_string().into()),
+                )),
+            ]))),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(Annotated::from_json(input).unwrap(), request);
-    assert_eq_dbg!(request.to_json_pretty().unwrap(), output);
+        assert_eq!(Annotated::from_json(input).unwrap(), request);
+        assert_eq!(request.to_json_pretty().unwrap(), output);
+    }
 }

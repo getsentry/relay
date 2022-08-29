@@ -8,6 +8,8 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
+use once_cell::sync::OnceCell;
+
 use relay_common::{glob_match_bytes, GlobOptions};
 use relay_general::pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,
@@ -27,11 +29,6 @@ pub struct RelayGeoIpLookup;
 
 /// The processor that normalizes events for store.
 pub struct RelayStoreNormalizer;
-
-lazy_static::lazy_static! {
-    static ref VALID_PLATFORM_STRS: Vec<RelayStr> =
-        VALID_PLATFORMS.iter().map(|s| RelayStr::new(s)).collect();
-}
 
 /// Chunks the given text based on remarks.
 #[no_mangle]
@@ -69,11 +66,15 @@ pub unsafe extern "C" fn relay_geoip_lookup_free(lookup: *mut RelayGeoIpLookup) 
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_valid_platforms(size_out: *mut usize) -> *const RelayStr {
+    static VALID_PLATFORM_STRS: OnceCell<Vec<RelayStr>> = OnceCell::new();
+    let platforms = VALID_PLATFORM_STRS
+        .get_or_init(|| VALID_PLATFORMS.iter().map(|s| RelayStr::new(s)).collect());
+
     if let Some(size_out) = size_out.as_mut() {
-        *size_out = VALID_PLATFORM_STRS.len();
+        *size_out = platforms.len();
     }
 
-    VALID_PLATFORM_STRS.as_ptr()
+    platforms.as_ptr()
 }
 
 /// Creates a new normalization processor.
@@ -141,8 +142,8 @@ pub unsafe extern "C" fn relay_validate_pii_config(value: *const RelayStr) -> Re
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_convert_datascrubbing_config(config: *const RelayStr) -> RelayStr {
     let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
-    match *config.pii_config() {
-        Some(ref config) => RelayStr::from_string(config.to_json()?),
+    match config.pii_config() {
+        Some(config) => RelayStr::from_string(config.to_json()?),
         None => RelayStr::new("{}"),
     }
 }
@@ -155,8 +156,7 @@ pub unsafe extern "C" fn relay_pii_strip_event(
     event: *const RelayStr,
 ) -> RelayStr {
     let config = serde_json::from_str::<PiiConfig>((*config).as_str())?;
-    let compiled = config.compiled();
-    let mut processor = PiiProcessor::new(&compiled);
+    let mut processor = PiiProcessor::new(config.compiled());
 
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
     process_value(&mut event, &mut processor, ProcessingState::root())?;

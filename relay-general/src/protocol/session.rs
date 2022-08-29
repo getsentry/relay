@@ -294,9 +294,9 @@ impl SessionAggregates {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use similar_asserts::assert_eq;
 
-    use crate::testutils::{assert_eq_dbg, assert_eq_str};
+    use super::*;
 
     #[test]
     fn test_session_default_values() {
@@ -346,8 +346,8 @@ mod tests {
         assert!((default_sequence() - parsed.sequence) <= 1);
         parsed.sequence = 4711;
 
-        assert_eq_dbg!(update, parsed);
-        assert_eq_str!(output, serde_json::to_string_pretty(&update).unwrap());
+        assert_eq!(update, parsed);
+        assert_eq!(output, serde_json::to_string_pretty(&update).unwrap());
     }
 
     #[test]
@@ -401,8 +401,8 @@ mod tests {
             },
         };
 
-        assert_eq_dbg!(update, SessionUpdate::parse(json.as_bytes()).unwrap());
-        assert_eq_str!(json, serde_json::to_string_pretty(&update).unwrap());
+        assert_eq!(update, SessionUpdate::parse(json.as_bytes()).unwrap());
+        assert_eq!(json, serde_json::to_string_pretty(&update).unwrap());
     }
 
     #[test]
@@ -416,6 +416,6 @@ mod tests {
 }"#;
 
         let update = SessionUpdate::parse(json.as_bytes()).unwrap();
-        assert_eq_dbg!(update.attributes.ip_address, Some(IpAddr::auto()));
+        assert_eq!(update.attributes.ip_address, Some(IpAddr::auto()));
     }
 }

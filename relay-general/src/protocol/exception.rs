@@ -69,94 +69,98 @@ pub struct Exception {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_exception_roundtrip() {
     use crate::types::Map;
 
-    // stack traces and mechanism are tested separately
-    let json = r#"{
+    use super::*;
+
+    #[test]
+    fn test_exception_roundtrip() {
+        // stack traces and mechanism are tested separately
+        let json = r#"{
   "type": "mytype",
   "value": "myvalue",
   "module": "mymodule",
   "thread_id": 42,
   "other": "value"
 }"#;
-    let exception = Annotated::new(Exception {
-        ty: Annotated::new("mytype".to_string()),
-        value: Annotated::new("myvalue".to_string().into()),
-        module: Annotated::new("mymodule".to_string()),
-        thread_id: Annotated::new(ThreadId::Int(42)),
-        other: {
-            let mut map = Map::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-        ..Default::default()
-    });
+        let exception = Annotated::new(Exception {
+            ty: Annotated::new("mytype".to_string()),
+            value: Annotated::new("myvalue".to_string().into()),
+            module: Annotated::new("mymodule".to_string()),
+            thread_id: Annotated::new(ThreadId::Int(42)),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(exception, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, exception.to_json_pretty().unwrap());
-}
+        assert_eq!(exception, Annotated::from_json(json).unwrap());
+        assert_eq!(json, exception.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_exception_default_values() {
-    let json = r#"{"type":"mytype"}"#;
-    let exception = Annotated::new(Exception {
-        ty: Annotated::new("mytype".to_string()),
-        ..Default::default()
-    });
+    #[test]
+    fn test_exception_default_values() {
+        let json = r#"{"type":"mytype"}"#;
+        let exception = Annotated::new(Exception {
+            ty: Annotated::new("mytype".to_string()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(exception, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, exception.to_json().unwrap());
-}
+        assert_eq!(exception, Annotated::from_json(json).unwrap());
+        assert_eq!(json, exception.to_json().unwrap());
+    }
 
-#[test]
-fn test_exception_empty_fields() {
-    let json = r#"{"type":"","value":""}"#;
-    let exception = Annotated::new(Exception {
-        ty: Annotated::new("".to_string()),
-        value: Annotated::new("".to_string().into()),
-        ..Default::default()
-    });
+    #[test]
+    fn test_exception_empty_fields() {
+        let json = r#"{"type":"","value":""}"#;
+        let exception = Annotated::new(Exception {
+            ty: Annotated::new("".to_string()),
+            value: Annotated::new("".to_string().into()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(exception, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, exception.to_json().unwrap());
-}
+        assert_eq!(exception, Annotated::from_json(json).unwrap());
+        assert_eq!(json, exception.to_json().unwrap());
+    }
 
-#[test]
-fn test_coerces_object_value_to_string() {
-    let input = r#"{"value":{"unauthorized":true}}"#;
-    let output = r#"{"value":"{\"unauthorized\":true}"}"#;
+    #[test]
+    fn test_coerces_object_value_to_string() {
+        let input = r#"{"value":{"unauthorized":true}}"#;
+        let output = r#"{"value":"{\"unauthorized\":true}"}"#;
 
-    let exception = Annotated::new(Exception {
-        value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
-        ..Default::default()
-    });
+        let exception = Annotated::new(Exception {
+            value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(exception, Annotated::from_json(input).unwrap());
-    assert_eq_str!(output, exception.to_json().unwrap());
-}
+        assert_eq!(exception, Annotated::from_json(input).unwrap());
+        assert_eq!(output, exception.to_json().unwrap());
+    }
 
-#[test]
-fn test_explicit_none() {
-    let json = r#"{
+    #[test]
+    fn test_explicit_none() {
+        let json = r#"{
   "value": null,
   "type": "ZeroDivisionError"
 }"#;
 
-    let exception = Annotated::new(Exception {
-        ty: Annotated::new("ZeroDivisionError".to_string()),
-        ..Default::default()
-    });
+        let exception = Annotated::new(Exception {
+            ty: Annotated::new("ZeroDivisionError".to_string()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(exception, Annotated::from_json(json).unwrap());
-    assert_eq_str!(
-        r#"{"type":"ZeroDivisionError"}"#,
-        exception.to_json().unwrap()
-    );
+        assert_eq!(exception, Annotated::from_json(json).unwrap());
+        assert_eq!(
+            r#"{"type":"ZeroDivisionError"}"#,
+            exception.to_json().unwrap()
+        );
+    }
 }

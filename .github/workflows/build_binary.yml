@@ -5,13 +5,16 @@ on:
     branches:
       - release/**
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   linux:
     name: Linux
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -27,7 +30,7 @@ jobs:
           zip relay-Linux-x86_64-debug.zip relay.debug
           mv relay relay-Linux-x86_64
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           path: target/x86_64-unknown-linux-gnu/release/relay-Linux-x86_64*
@@ -37,7 +40,7 @@ jobs:
     runs-on: macos-10.15
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -61,7 +64,7 @@ jobs:
           mv relay relay-Darwin-x86_64
           zip -r relay-Darwin-x86_64-dsym.zip relay.dSYM
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           path: target/release/relay-Darwin-x86_64*
@@ -71,7 +74,7 @@ jobs:
     runs-on: windows-2019
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -94,7 +97,7 @@ jobs:
           7z a relay-Windows-x86_64-pdb.zip relay.pdb
           mv relay.exe relay-Windows-x86_64.exe
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           path: target/release/relay-Windows-x86_64*

@@ -5,7 +5,7 @@ on:
     - cron: "11 7 * * 1,4"
 
 env:
-  RUSTFLAGS: -Dwarnings
+  CARGO_TERM_COLOR: always
 
 jobs:
   test-all:
@@ -21,7 +21,7 @@ jobs:
           - 6379:6379
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -32,13 +32,14 @@ jobs:
           override: true
           components: clippy
 
-      - name: Run clippy
+      - name: Run Clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-features --workspace --tests --examples -- -D clippy::all
+          args: --workspace --all-targets --all-features --no-deps -- -D warnings
 
-      - uses: actions-rs/cargo@v1
+      - name: Run Cargo Tests
+        uses: actions-rs/cargo@v1
         with:
           command: test
           args: --workspace --all-features

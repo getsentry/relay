@@ -8,13 +8,13 @@ on:
   # Run actions on PRs, but only deploy on master
   pull_request:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   cargo_docs:
     name: Cargo Docs
     runs-on: ubuntu-latest
-
-    env:
-      RUSTDOCFLAGS: -Dbroken_intra_doc_links
 
     steps:
       - name: Install libcurl-dev
@@ -22,7 +22,7 @@ jobs:
           sudo apt update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -33,12 +33,14 @@ jobs:
           components: rust-docs
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
       - name: Build Docs
         uses: actions-rs/cargo@v1
+        env:
+          RUSTDOCFLAGS: -Dwarnings
         with:
           command: doc
           args: --workspace --all-features --no-deps
@@ -57,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -67,7 +69,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -113,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -121,7 +123,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 

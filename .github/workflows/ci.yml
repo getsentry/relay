@@ -10,13 +10,12 @@ on:
   pull_request:
 
 env:
-  RUSTFLAGS: -Dwarnings
+  CARGO_TERM_COLOR: always
 
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 25
 
     steps:
       - name: Install libcurl-dev
@@ -24,11 +23,11 @@ jobs:
           sudo apt update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.7
 
@@ -48,7 +47,7 @@ jobs:
           components: clippy, rustfmt, rust-docs
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -62,18 +61,49 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --workspace --all-features --tests -- -D clippy::all
+          args: --workspace --all-targets --all-features --no-deps -- -D warnings
 
-      - name: Rust Doc Comments
+      - name: Check Docs
         uses: actions-rs/cargo@v1
         env:
           RUSTDOCFLAGS: -Dwarnings
         with:
           command: doc
-          args: --workspace --all-features --document-private-items --no-deps
+          args: --workspace --all-features --no-deps --document-private-items
+
+  lint_default:
+    name: Lint Rust Default Features
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install libcurl-dev
+        run: |
+          sudo apt update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: clippy
+          override: true
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}
+
+      - name: Run Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --workspace --all-targets --no-deps -- -D warnings
 
   test:
-    timeout-minutes: 25
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -86,7 +116,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -96,18 +126,20 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
       - name: Run Cargo Tests
         uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: -Dwarnings
         with:
           command: test
           args: --workspace
 
   test_all:
-    timeout-minutes: 25
+    timeout-minutes: 15
     name: Test All Features (ubuntu-latest)
     runs-on: ubuntu-latest
 
@@ -131,7 +163,7 @@ jobs:
           sudo apt update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -141,7 +173,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -152,7 +184,6 @@ jobs:
           args: --workspace --all-features
 
   test_py:
-    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -165,7 +196,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -175,14 +206,14 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Dependencies
         run: pip install -U pytest
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -197,7 +228,7 @@ jobs:
   test_integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -232,7 +263,7 @@ jobs:
           sudo apt update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -242,7 +273,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: swatinem/rust-cache@v1
+      - uses: swatinem/rust-cache@v2
         with:
           key: ${{ github.job }}
 
@@ -252,7 +283,7 @@ jobs:
           command: build
           args: --all-features
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.7
 
@@ -271,13 +302,13 @@ jobs:
 
     steps:
       - name: Checkout Relay
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: getsentry/sentry
           path: sentry
