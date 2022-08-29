@@ -135,7 +135,7 @@ contexts:
   device:
     name: MacFox
     model: "MacBookPro16,1"
-    battery_level: 87.0
+    battery_level: 87
     simulator: true
     memory_size: ~
     boot_time: ~

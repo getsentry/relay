@@ -9,7 +9,7 @@ use futures01::{future, Future};
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
 use relay_metrics::{self, AggregateMetricsError, Bucket, FlushBuckets, Metric};
-use relay_quotas::{RateLimits, Scoping};
+use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 
@@ -408,19 +408,14 @@ impl Handler<GetCachedProjectState> for ProjectCache {
 ///  - Cached rate limits
 #[derive(Debug)]
 pub struct CheckEnvelope {
-    project_key: ProjectKey,
     envelope: Envelope,
     context: EnvelopeContext,
 }
 
 impl CheckEnvelope {
     /// Uses a cached project state and checks the envelope.
-    pub fn new(project_key: ProjectKey, envelope: Envelope, context: EnvelopeContext) -> Self {
-        Self {
-            project_key,
-            envelope,
-            context,
-        }
+    pub fn new(envelope: Envelope, context: EnvelopeContext) -> Self {
+        Self { envelope, context }
     }
 }
 
@@ -434,29 +429,22 @@ pub struct CheckedEnvelope {
     pub rate_limits: RateLimits,
 }
 
-/// Scoping information along with a checked envelope.
-#[derive(Debug)]
-pub struct CheckEnvelopeResponse {
-    pub result: Result<CheckedEnvelope, DiscardReason>,
-    pub scoping: Scoping,
-}
-
 impl Message for CheckEnvelope {
-    type Result = Result<CheckEnvelopeResponse, ProjectError>;
+    type Result = Result<CheckedEnvelope, DiscardReason>;
 }
 
 impl Handler<CheckEnvelope> for ProjectCache {
-    type Result = Result<CheckEnvelopeResponse, ProjectError>;
+    type Result = Result<CheckedEnvelope, DiscardReason>;
 
     fn handle(&mut self, message: CheckEnvelope, _: &mut Self::Context) -> Self::Result {
-        let project = self.get_or_create_project(message.project_key);
+        let project = self.get_or_create_project(message.envelope.meta().public_key());
 
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
         project.get_or_fetch_state(false);
 
-        Ok(project.check_envelope(message.envelope, message.context))
+        project.check_envelope(message.envelope, message.context)
     }
 }
 
@@ -472,22 +460,13 @@ impl Handler<CheckEnvelope> for ProjectCache {
 ///
 /// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
 pub struct ValidateEnvelope {
-    project_key: ProjectKey,
     envelope: Envelope,
-    envelope_context: EnvelopeContext,
+    context: EnvelopeContext,
 }
 
 impl ValidateEnvelope {
-    pub fn new(
-        project_key: ProjectKey,
-        envelope: Envelope,
-        envelope_context: EnvelopeContext,
-    ) -> Self {
-        Self {
-            project_key,
-            envelope,
-            envelope_context,
-        }
+    pub fn new(envelope: Envelope, context: EnvelopeContext) -> Self {
+        Self { envelope, context }
     }
 }
 
@@ -505,8 +484,8 @@ impl Handler<ValidateEnvelope> for ProjectCache {
                 .get_or_fetch_state(message.envelope.meta().no_cache());
         }
 
-        self.get_or_create_project(message.project_key)
-            .enqueue_validation(message.envelope, message.envelope_context);
+        self.get_or_create_project(message.envelope.meta().public_key())
+            .enqueue_validation(message.envelope, message.context);
     }
 }
 

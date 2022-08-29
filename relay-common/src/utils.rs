@@ -1,14 +1,10 @@
 use std::fmt;
 use std::str;
 
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use regex::Regex;
 
 use crate::macros::impl_str_serde;
-
-lazy_static! {
-    static ref GLOB_RE: Regex = Regex::new(r#"\?|\*\*|\*"#).unwrap();
-}
 
 /// A simple glob matcher.
 ///
@@ -27,7 +23,11 @@ impl Glob {
         let mut last = 0;
 
         pattern.push('^');
-        for m in GLOB_RE.find_iter(glob) {
+
+        static GLOB_RE: OnceCell<Regex> = OnceCell::new();
+        let regex = GLOB_RE.get_or_init(|| Regex::new(r#"\?|\*\*|\*"#).unwrap());
+
+        for m in regex.find_iter(glob) {
             pattern.push_str(&regex::escape(&glob[last..m.start()]));
             match m.as_str() {
                 "?" => pattern.push_str("(.)"),
@@ -145,44 +145,49 @@ impl<T: Clone> GlobMatcher<T> {
     }
 }
 
-#[test]
-fn test_glob() {
-    let g = Glob::new("foo/*/bar");
-    assert!(g.is_match("foo/blah/bar"));
-    assert!(!g.is_match("foo/blah/bar/aha"));
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let g = Glob::new("foo/???/bar");
-    assert!(g.is_match("foo/aha/bar"));
-    assert!(!g.is_match("foo/ah/bar"));
-    assert!(!g.is_match("foo/ahah/bar"));
+    #[test]
+    fn test_glob() {
+        let g = Glob::new("foo/*/bar");
+        assert!(g.is_match("foo/blah/bar"));
+        assert!(!g.is_match("foo/blah/bar/aha"));
 
-    let g = Glob::new("*/foo.txt");
-    assert!(g.is_match("prefix/foo.txt"));
-    assert!(!g.is_match("double/prefix/foo.txt"));
+        let g = Glob::new("foo/???/bar");
+        assert!(g.is_match("foo/aha/bar"));
+        assert!(!g.is_match("foo/ah/bar"));
+        assert!(!g.is_match("foo/ahah/bar"));
 
-    let g = Glob::new("api/**/store/");
-    assert!(g.is_match("api/some/stuff/here/store/"));
-    assert!(g.is_match("api/some/store/"));
-}
+        let g = Glob::new("*/foo.txt");
+        assert!(g.is_match("prefix/foo.txt"));
+        assert!(!g.is_match("double/prefix/foo.txt"));
 
-#[test]
-fn test_glob_matcher() {
-    #[derive(Clone, Copy, Debug, PartialEq)]
-    enum Paths {
-        Root,
-        Store,
+        let g = Glob::new("api/**/store/");
+        assert!(g.is_match("api/some/stuff/here/store/"));
+        assert!(g.is_match("api/some/store/"));
     }
-    let mut matcher = GlobMatcher::new();
-    matcher.add("/api/*/store/", Paths::Store);
-    matcher.add("/api/0/", Paths::Root);
 
-    assert_eq!(matcher.test("/api/42/store/"), Some(Paths::Store));
-    assert_eq!(matcher.test("/api/0/"), Some(Paths::Root));
-    assert_eq!(matcher.test("/api/0/"), Some(Paths::Root));
+    #[test]
+    fn test_glob_matcher() {
+        #[derive(Clone, Copy, Debug, PartialEq)]
+        enum Paths {
+            Root,
+            Store,
+        }
+        let mut matcher = GlobMatcher::new();
+        matcher.add("/api/*/store/", Paths::Store);
+        matcher.add("/api/0/", Paths::Root);
 
-    assert_eq!(matcher.matches("/api/0/"), Some((vec![], Paths::Root)));
-    assert_eq!(
-        matcher.matches("/api/42/store/"),
-        Some((vec!["42"], Paths::Store))
-    );
+        assert_eq!(matcher.test("/api/42/store/"), Some(Paths::Store));
+        assert_eq!(matcher.test("/api/0/"), Some(Paths::Root));
+        assert_eq!(matcher.test("/api/0/"), Some(Paths::Root));
+
+        assert_eq!(matcher.matches("/api/0/"), Some((vec![], Paths::Root)));
+        assert_eq!(
+            matcher.matches("/api/42/store/"),
+            Some((vec!["42"], Paths::Store))
+        );
+    }
 }

@@ -14,7 +14,6 @@ mod regexes;
 mod utils;
 
 pub use self::attachments::{PiiAttachmentsProcessor, ScrubEncodings};
-pub use self::builtin::BUILTIN_RULES;
 pub use self::compiledconfig::CompiledPiiConfig;
 pub use self::config::{
     AliasRule, MultipleRule, Pattern, PatternRule, PiiConfig, RedactPairRule, RuleSpec, RuleType,

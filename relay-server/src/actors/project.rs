@@ -25,8 +25,7 @@ use relay_statsd::metric;
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project_cache::{
-    AddSamplingState, CheckEnvelopeResponse, CheckedEnvelope, ProjectCache, ProjectError,
-    UpdateProjectState,
+    AddSamplingState, CheckedEnvelope, ProjectCache, ProjectError, UpdateProjectState,
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
@@ -699,7 +698,7 @@ impl Project {
         envelope_context: EnvelopeContext,
         project_state: Arc<ProjectState>,
     ) {
-        if let Ok(checked) = self.check_envelope(envelope, envelope_context).result {
+        if let Ok(checked) = self.check_envelope(envelope, envelope_context) {
             if let Some((envelope, envelope_context)) = checked.envelope {
                 let process = ProcessEnvelope {
                     envelope,
@@ -817,25 +816,18 @@ impl Project {
         })
     }
 
-    /// Amends request `Scoping` with information from this project state.
-    ///
-    /// If the project state is loaded, information from the project state is merged into the
-    /// request's scoping. Otherwise, this function returns partial scoping from the `request_meta`.
-    /// See [`RequestMeta::get_partial_scoping`] for more information.
-    fn scope_request(&self, meta: &RequestMeta) -> Scoping {
-        match self.valid_state() {
-            Some(state) => state.scope_request(meta),
-            None => meta.get_partial_scoping(),
-        }
-    }
-
-    fn check_envelope_scoped(
+    pub fn check_envelope(
         &mut self,
         mut envelope: Envelope,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state();
-        if let Some(state) = state.as_deref() {
+        let mut scoping = envelope_context.scoping();
+
+        if let Some(ref state) = state {
+            scoping = state.scope_request(envelope.meta());
+            envelope_context.scope(scoping);
+
             if let Err(reason) = state.check_request(envelope.meta(), &self.config) {
                 envelope_context.reject(Outcome::Invalid(reason));
                 return Err(reason);
@@ -849,7 +841,6 @@ impl Project {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let scoping = envelope_context.scoping();
         let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope, &scoping)?;
         enforcement.track_outcomes(&envelope, &scoping);
         envelope_context.update(&envelope);
@@ -866,18 +857,6 @@ impl Project {
             envelope,
             rate_limits,
         })
-    }
-
-    pub fn check_envelope(
-        &mut self,
-        envelope: Envelope,
-        mut envelope_context: EnvelopeContext,
-    ) -> CheckEnvelopeResponse {
-        let scoping = self.scope_request(envelope.meta());
-        envelope_context.scope(scoping);
-
-        let result = self.check_envelope_scoped(envelope, envelope_context);
-        CheckEnvelopeResponse { result, scoping }
     }
 }
 

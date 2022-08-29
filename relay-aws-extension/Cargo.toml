@@ -18,4 +18,4 @@ relay-system = { path = "../relay-system" }
 reqwest = { version = "0.11.1", features = ["json", "blocking"] }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
-tokio = { version = "1.0", features = ["rt-multi-thread"] } # in sync with reqwest
+tokio = { version = "1.0", features = ["rt-multi-thread"] }

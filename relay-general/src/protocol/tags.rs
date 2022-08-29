@@ -73,11 +73,16 @@ impl std::ops::DerefMut for Tags {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_tags_from_object() {
-    let json = r#"{
+    use crate::protocol::Event;
+
+    use super::*;
+
+    #[test]
+    fn test_tags_from_object() {
+        let json = r#"{
   "blah": "blub",
   "bool": true,
   "foo bar": "baz",
@@ -85,37 +90,35 @@ fn test_tags_from_object() {
   "bam": null
 }"#;
 
-    let arr = vec![
-        Annotated::new(TagEntry(
-            Annotated::new("bam".to_string()),
-            Annotated::empty(),
-        )),
-        Annotated::new(TagEntry(
-            Annotated::new("blah".to_string()),
-            Annotated::new("blub".to_string()),
-        )),
-        Annotated::new(TagEntry(
-            Annotated::new("bool".to_string()),
-            Annotated::new("True".to_string()),
-        )),
-        Annotated::new(TagEntry(
-            Annotated::new("foo-bar".to_string()),
-            Annotated::new("baz".to_string()),
-        )),
-        Annotated::new(TagEntry(
-            Annotated::new("non-string".to_string()),
-            Annotated::new("42".to_string()),
-        )),
-    ];
-    let tags = Annotated::new(Tags(arr.into()));
-    assert_eq_dbg!(tags, Annotated::from_json(json).unwrap());
-}
+        let arr = vec![
+            Annotated::new(TagEntry(
+                Annotated::new("bam".to_string()),
+                Annotated::empty(),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("blah".to_string()),
+                Annotated::new("blub".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("bool".to_string()),
+                Annotated::new("True".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("foo-bar".to_string()),
+                Annotated::new("baz".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("non-string".to_string()),
+                Annotated::new("42".to_string()),
+            )),
+        ];
+        let tags = Annotated::new(Tags(arr.into()));
+        assert_eq!(tags, Annotated::from_json(json).unwrap());
+    }
 
-#[test]
-fn test_tags_from_array() {
-    use crate::protocol::Event;
-
-    let input = r#"{
+    #[test]
+    fn test_tags_from_array() {
+        let input = r#"{
   "tags": [
     [
       "bool",
@@ -140,7 +143,7 @@ fn test_tags_from_array() {
   ]
 }"#;
 
-    let output = r#"{
+        let output = r#"{
   "tags": [
     [
       "bool",
@@ -165,35 +168,36 @@ fn test_tags_from_array() {
   ]
 }"#;
 
-    let arr = vec![
-        Annotated::new(TagEntry(
-            Annotated::new("bool".to_string()),
-            Annotated::new("True".to_string()),
-        )),
-        Annotated::new(TagEntry(
-            Annotated::new("foo-bar".to_string()),
-            Annotated::new("baz".to_string()),
-        )),
-        Annotated::new(TagEntry(
-            Annotated::new("23".to_string()),
-            Annotated::new("42".to_string()),
-        )),
-        Annotated::new(TagEntry(
-            Annotated::new("blah".to_string()),
-            Annotated::new("blub".to_string()),
-        )),
-        Annotated::new(TagEntry(
-            Annotated::new("bam".to_string()),
-            Annotated::empty(),
-        )),
-    ];
+        let arr = vec![
+            Annotated::new(TagEntry(
+                Annotated::new("bool".to_string()),
+                Annotated::new("True".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("foo-bar".to_string()),
+                Annotated::new("baz".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("23".to_string()),
+                Annotated::new("42".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("blah".to_string()),
+                Annotated::new("blub".to_string()),
+            )),
+            Annotated::new(TagEntry(
+                Annotated::new("bam".to_string()),
+                Annotated::empty(),
+            )),
+        ];
 
-    let tags = Annotated::new(Tags(arr.into()));
-    let event = Annotated::new(Event {
-        tags,
-        ..Default::default()
-    });
+        let tags = Annotated::new(Tags(arr.into()));
+        let event = Annotated::new(Event {
+            tags,
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(event, Annotated::from_json(input).unwrap());
-    assert_eq_str!(event.to_json_pretty().unwrap(), output);
+        assert_eq!(event, Annotated::from_json(input).unwrap());
+        assert_eq!(event.to_json_pretty().unwrap(), output);
+    }
 }
