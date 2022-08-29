@@ -3354,10 +3354,10 @@ name = "relay-metrics"
 version = "22.8.0"
 dependencies = [
  "actix",
- "crc32fast",
  "criterion",
  "failure",
  "float-ord",
+ "fnv",
  "futures 0.1.31",
  "hash32",
  "insta",

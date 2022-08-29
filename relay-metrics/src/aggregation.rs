@@ -1,6 +1,7 @@
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 use std::fmt;
+use std::hash::Hasher;
 use std::iter::{FromIterator, FusedIterator};
 use std::mem;
 use std::time::{Duration, Instant};
@@ -9,7 +10,7 @@ use actix::prelude::*;
 
 use failure::Fail;
 use float_ord::FloatOrd;
-use hash32::{FnvHasher, Hasher};
+use fnv::FnvHasher;
 use serde::{Deserialize, Serialize};
 
 use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
@@ -881,24 +882,11 @@ struct BucketKey {
 }
 
 impl BucketKey {
-    // Create a 32-bit hash of the bucket key using FnvHasher.
+    // Create a 64-bit hash of the bucket key using FnvHasher.
     // This is used for partition key computation and statsd logging.
-    fn hash32(&self) -> u32 {
-        let BucketKey {
-            project_key,
-            timestamp,
-            metric_name,
-            tags,
-        } = self;
+    fn hash64(&self) -> u64 {
         let mut hasher = FnvHasher::default();
-        hasher.write(project_key.as_bytes());
-        hasher.write(&timestamp.as_secs().to_le_bytes());
-        hasher.write(metric_name.as_bytes());
-        for (key, value) in tags.iter() {
-            // BTreeMap is sorted
-            hasher.write(key.as_bytes());
-            hasher.write(value.as_bytes());
-        }
+        std::hash::Hash::hash(self, &mut hasher);
         hasher.finish()
     }
 
@@ -952,7 +940,7 @@ pub struct AggregatorConfig {
     ///
     /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
     /// by setting the header `X-Relay-Shard`.
-    pub flush_partitions: Option<u32>,
+    pub flush_partitions: Option<u64>,
 
     /// The age in seconds of the oldest allowed bucket timestamp.
     ///
@@ -1062,7 +1050,7 @@ impl AggregatorConfig {
                 // key together.
                 let mut hasher = FnvHasher::default();
                 hasher.write(project_key.as_str().as_bytes());
-                let shift_millis = u64::from(hasher.finish()) % (self.bucket_interval * 1000);
+                let shift_millis = hasher.finish() % (self.bucket_interval * 1000);
 
                 flush = Some(initial_flush + Duration::from_millis(shift_millis));
             }
@@ -1153,7 +1141,7 @@ impl Ord for QueuedBucket {
 pub struct HashedBucket {
     // This is only public because pop_flush_buckets is used in benchmark.
     // TODO: Find better name for this struct
-    hashed_key: u32,
+    hashed_key: u64,
     bucket: Bucket,
 }
 
@@ -1634,7 +1622,7 @@ impl Aggregator {
                     metric_name = &entry.key().metric_name
                 );
                 relay_statsd::metric!(
-                    set(MetricSets::UniqueBucketsCreated) = entry.key().hash32() as i64,
+                    set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() as i64, // 2-complement
                     metric_name = &entry.key().metric_name
                 );
 
@@ -1740,7 +1728,7 @@ impl Aggregator {
                         .entry(key.project_key)
                         .or_default()
                         .push(HashedBucket {
-                            hashed_key: key.hash32(),
+                            hashed_key: key.hash64(),
                             bucket,
                         });
 
@@ -1758,9 +1746,9 @@ impl Aggregator {
     fn partition_buckets(
         &self,
         buckets: Vec<HashedBucket>,
-        flush_partitions: u32,
-    ) -> BTreeMap<u32, Vec<Bucket>> {
-        let mut partitions = BTreeMap::<u32, Vec<Bucket>>::new();
+        flush_partitions: u64,
+    ) -> BTreeMap<u64, Vec<Bucket>> {
+        let mut partitions = BTreeMap::<u64, Vec<Bucket>>::new();
         for bucket in buckets {
             let partition_key = bucket.hashed_key % flush_partitions;
             partitions
@@ -1778,7 +1766,7 @@ impl Aggregator {
     fn process_batches<F>(
         &self,
         buckets: impl IntoIterator<Item = Bucket>,
-        partition_key: Option<u32>,
+        partition_key: Option<u64>,
         mut process: F,
     ) where
         F: FnMut(Vec<Bucket>),
@@ -3067,7 +3055,7 @@ mod tests {
         );
     }
 
-    fn run_test_bucket_partitioning(flush_partitions: Option<u32>, expected: Vec<String>) {
+    fn run_test_bucket_partitioning(flush_partitions: Option<u64>, expected: Vec<String>) {
         let config = AggregatorConfig {
             max_flush_bytes: 1000,
             flush_partitions,
@@ -3121,7 +3109,7 @@ mod tests {
                 Some(5),
                 vec![
                     "metrics.buckets.per_batch:1|h|#partition_key:0,batch_index:0".to_owned(),
-                    "metrics.buckets.per_batch:1|h|#partition_key:2,batch_index:0".to_owned(),
+                    "metrics.buckets.per_batch:1|h|#partition_key:3,batch_index:0".to_owned(),
                     "metrics.buckets.per_batch:2|h|#partition_key:none,batch_index:0".to_owned(),
                 ],
             ),
