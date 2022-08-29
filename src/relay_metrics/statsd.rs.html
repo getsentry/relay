@@ -133,6 +133,24 @@
 <span id="125">125</span>
 <span id="126">126</span>
 <span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.</span>
@@ -232,6 +250,22 @@
     <span class="doccomment">///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`</span>
     <span class="doccomment">///    time period (`false`) or after the initial delay has expired (`true`).</span>
     <span class="ident">BucketsDelay</span>,
+
+    <span class="doccomment">/// The number of batches emitted per partition by [`crate::aggregation::Aggregator`].</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This metric is only emitted if a partition key is set.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Tags:</span>
+    <span class="doccomment">///   - `partition_key`: The logical sharding key for the current batch.</span>
+    <span class="ident">BatchesPerPartition</span>,
+
+    <span class="doccomment">/// The number of buckets in a batch emitted by [`crate::aggregation::Aggregator`].</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This corresponds to the number of buckets that will end up in an envelope.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Tags:</span>
+    <span class="doccomment">///   - `partition_key`: The logical sharding key for the current batch.</span>
+    <span class="ident">BucketsPerBatch</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">MetricHistograms</span> {
@@ -240,6 +274,8 @@
             <span class="ident"><span class="self">Self</span>::BucketsFlushed</span> =&gt; <span class="string">&quot;metrics.buckets.flushed&quot;</span>,
             <span class="ident"><span class="self">Self</span>::BucketsFlushedPerProject</span> =&gt; <span class="string">&quot;metrics.buckets.flushed_per_project&quot;</span>,
             <span class="ident"><span class="self">Self</span>::BucketsDelay</span> =&gt; <span class="string">&quot;metrics.buckets.delay&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::BatchesPerPartition</span> =&gt; <span class="string">&quot;metrics.buckets.batches_per_partition&quot;</span>,
+            <span class="ident"><span class="self">Self</span>::BucketsPerBatch</span> =&gt; <span class="string">&quot;metrics.buckets.per_batch&quot;</span>,
         }
     }
 }

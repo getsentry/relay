@@ -635,6 +635,7 @@
 <span id="629">629</span>
 <span id="630">630</span>
 <span id="631">631</span>
+<span id="632">632</span>
 </pre><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ## Defining Metrics</span>
@@ -1210,6 +1211,7 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
+
     <span class="kw">use</span> <span class="ident">cadence</span>::{<span class="ident">NopMetricSink</span>, <span class="ident">StatsdClient</span>};
 
     <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">set_client</span>, <span class="ident">with_capturing_test_client</span>, <span class="ident">with_client</span>, <span class="ident">GaugeMetric</span>, <span class="ident">MetricsClient</span>};
