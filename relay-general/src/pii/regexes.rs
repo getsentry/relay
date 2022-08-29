@@ -1,4 +1,4 @@
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use smallvec::{smallvec, SmallVec};
 
@@ -100,10 +100,10 @@ macro_rules! ip {
     (v6s) => { "[0-9a-fA-F]{1,4}" };
 }
 
-#[rustfmt::skip]
-lazy_static! {
-    pub static ref ANYTHING_REGEX: Regex = Regex::new(".*").unwrap();
-    static ref IMEI_REGEX: Regex = Regex::new(
+pub static ANYTHING_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(".*").unwrap());
+
+static IMEI_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?x)
             \b
                 (\d{2}-?
@@ -111,14 +111,22 @@ lazy_static! {
                  \d{6}-?
                  \d{1,2})
             \b
-        "#
-    ).unwrap();
-    static ref MAC_REGEX: Regex = Regex::new(
+        "#,
+    )
+    .unwrap()
+});
+
+static MAC_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?x)
             \b([[:xdigit:]]{2}[:-]){5}[[:xdigit:]]{2}\b
-        "#
-    ).unwrap();
-    static ref UUID_REGEX: Regex = Regex::new(
+        "#,
+    )
+    .unwrap()
+});
+
+static UUID_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?ix)
             \b
             [a-z0-9]{8}-?
@@ -127,19 +135,29 @@ lazy_static! {
             [a-z0-9]{4}-?
             [a-z0-9]{12}
             \b
-        "#
-    ).unwrap();
-    static ref EMAIL_REGEX: Regex = Regex::new(
+        "#,
+    )
+    .unwrap()
+});
+
+static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?x)
             \b
                 [a-zA-Z0-9.!\#$%&'*+/=?^_`{|}~-]+
                 @
                 [a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*
             \b
-        "#
-    ).unwrap();
-    static ref IPV4_REGEX: Regex = Regex::new(concat!("\\b", ip!(v4a), "\\b")).unwrap();
-    static ref IPV6_REGEX: Regex = Regex::new(
+        "#,
+    )
+    .unwrap()
+});
+
+static IPV4_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(concat!("\\b", ip!(v4a), "\\b")).unwrap());
+
+#[rustfmt::skip]
+static  IPV6_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         concat!(
             "(?i)(?:[\\s]|[[:punct:]]|^)(",
                 "(", ip!(v6s), ":){7}", ip!(v6s), "|",
@@ -156,14 +174,16 @@ lazy_static! {
                 "(", ip!(v6s), ":){1,4}:", ip!(v4a),
             ")([\\s]|[[:punct:]]|$)",
         )
-    ).unwrap();
+    ).unwrap()
+});
 
-    // http://www.richardsramblings.com/regex/credit-card-numbers/
-    // Re-formatted with comments and dashes support
-    //
-    // Why so complicated? Because creditcard numbers are variable length and we do not want to
-    // strip any number that just happens to have the same length.
-    static ref CREDITCARD_REGEX: Regex = Regex::new(
+// http://www.richardsramblings.com/regex/credit-card-numbers/
+// Re-formatted with comments and dashes support
+//
+// Why so complicated? Because creditcard numbers are variable length and we do not want to
+// strip any number that just happens to have the same length.
+static CREDITCARD_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?x)
         \b(
             (?:  # vendor specific prefixes
@@ -177,9 +197,13 @@ lazy_static! {
             # "wildcard" remainder (allowing dashes in every position because of variable length)
             ([-\s]?\d){12}
         )\b
-        "#
-    ).unwrap();
-    static ref PATH_REGEX: Regex = Regex::new(
+        "#,
+    )
+    .unwrap()
+});
+
+static PATH_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?ix)
             (?:
                 (?:
@@ -192,9 +216,13 @@ lazy_static! {
             (
                 [^/\\]+
             )
-        "#
-    ).unwrap();
-    static ref PEM_KEY_REGEX: Regex = Regex::new(
+        "#,
+    )
+    .unwrap()
+});
+
+static PEM_KEY_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?sx)
             (?:
                 -----
@@ -209,26 +237,38 @@ lazy_static! {
                 END[A-Z\ ]+(?:PRIVATE|PUBLIC)\ KEY
                 -----
             )
-        "#
-    ).unwrap();
-    static ref URL_AUTH_REGEX: Regex = Regex::new(
+        "#,
+    )
+    .unwrap()
+});
+
+static URL_AUTH_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?x)
             \b(?:
                 (?:[a-z0-9+-]+:)?//
                 ([a-zA-Z0-9%_.-]+(?::[a-zA-Z0-9%_.-]+)?)
             )@
-        "#
-    ).unwrap();
-    static ref US_SSN_REGEX: Regex = Regex::new(
+        "#,
+    )
+    .unwrap()
+});
+
+static US_SSN_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r#"(?x)
             \b(
                 [0-9]{3}-
                 [0-9]{2}-
                 [0-9]{4}
             )\b
-        "#
-    ).unwrap();
-    static ref PASSWORD_KEY_REGEX: Regex = Regex::new(
+        "#,
+    )
+    .unwrap()
+});
+
+static PASSWORD_KEY_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
         r"(?i)(password|secret|passwd|api_key|apikey|access_token|auth|credentials|mysql_pwd|stripetoken|privatekey|private_key|github_token)"
-    ).unwrap();
-}
+    ).unwrap()
+});

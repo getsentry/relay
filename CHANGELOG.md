@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
+
 **Bug Fixes**:
 
 - Do not apply rate limits or reject data based on expired project configs. ([#1404](https://github.com/getsentry/relay/pull/1404))
@@ -12,10 +16,8 @@
 - Refactor tokio-based Addr from healthcheck to be generic. ([#1405](https://github.com/relay/pull/1405))
 - Defer dropping of projects to a background thread to speed up project cache eviction. ([#1410](https://github.com/getsentry/relay/pull/1410))
 - Update store service to use generic Addr and minor changes to generic Addr. ([#1415](https://github.com/getsentry/relay/pull/1415))
-
-**Features**:
-
-- Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
+- Added new Register for the Services that is initialized later than the current. ([#1421](https://github.com/getsentry/relay/pull/1421))
+- Improve the release name used when reporting data to Sentry to include both the version and exact build. ([#1428](https://github.com/getsentry/relay/pull/1428))
 
 ## 22.8.0
 

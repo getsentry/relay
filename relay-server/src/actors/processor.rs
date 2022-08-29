@@ -12,7 +12,7 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use serde_json::Value as SerdeValue;
 
 use relay_auth::RelayVersion;
@@ -35,16 +35,16 @@ use relay_redis::RedisPool;
 use relay_sampling::RuleId;
 use relay_statsd::metric;
 
-use crate::actors::envelopes::{SendEnvelope, SendEnvelopeError};
+use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
-use crate::actors::project_cache::{InsertMetrics, MergeBuckets, ProjectCache, ProjectError};
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequestError};
-use crate::envelope::{AttachmentType, ContentType, Envelope, EnvelopeError, Item, ItemType};
+use crate::actors::project_cache::{InsertMetrics, MergeBuckets, ProjectCache};
+use crate::actors::upstream::{SendRequest, UpstreamRelay};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
-use crate::service::ServerError;
+use crate::service::{ServerError, REGISTRY};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
@@ -52,7 +52,7 @@ use crate::utils::{
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::StoreError,
+    crate::actors::project_cache::UpdateRateLimits,
     crate::service::ServerErrorKind,
     crate::utils::EnvelopeLimiter,
     failure::ResultExt,
@@ -92,12 +92,6 @@ pub enum ProcessingError {
     #[fail(display = "failed to extract event payload")]
     NoEventPayload,
 
-    #[fail(display = "could not schedule project fetch")]
-    ScheduleFailed,
-
-    #[fail(display = "failed to resolve project information")]
-    ProjectFailed(#[cause] ProjectError),
-
     #[fail(display = "missing project id in DSN")]
     MissingProjectId,
 
@@ -107,30 +101,11 @@ pub enum ProcessingError {
     #[fail(display = "invalid security report")]
     InvalidSecurityReport(#[cause] serde_json::Error),
 
-    #[fail(display = "submission rejected with reason: {:?}", _0)]
-    Rejected(DiscardReason),
-
     #[fail(display = "event filtered with reason: {:?}", _0)]
     EventFiltered(FilterStatKey),
 
     #[fail(display = "could not serialize event payload")]
     SerializeFailed(#[cause] serde_json::Error),
-
-    #[fail(display = "could not build envelope for upstream")]
-    EnvelopeBuildFailed(#[cause] EnvelopeError),
-
-    #[fail(display = "could not encode request body")]
-    BodyEncodingFailed(#[cause] std::io::Error),
-
-    #[fail(display = "could not send request to upstream")]
-    UpstreamRequestFailed(#[cause] UpstreamRequestError),
-
-    #[cfg(feature = "processing")]
-    #[fail(display = "could not store envelope")]
-    StoreFailed(#[cause] StoreError),
-
-    #[fail(display = "envelope items were rate limited")]
-    RateLimited,
 
     #[cfg(feature = "processing")]
     #[fail(display = "failed to apply quotas")]
@@ -141,7 +116,7 @@ pub enum ProcessingError {
 }
 
 impl ProcessingError {
-    pub fn to_outcome(&self) -> Option<Outcome> {
+    fn to_outcome(&self) -> Option<Outcome> {
         match *self {
             // General outcomes for invalid events
             Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
@@ -164,27 +139,21 @@ impl ProcessingError {
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
 
             // Internal errors
-            Self::SerializeFailed(_)
-            | Self::ProjectFailed(_)
-            | Self::ProcessingFailed(_)
-            | Self::MissingProjectId => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {
+                Some(Outcome::Invalid(DiscardReason::Internal))
+            }
             #[cfg(feature = "processing")]
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
 
             // These outcomes are emitted at the source.
-            Self::ScheduleFailed => None,
-            Self::Rejected(_) => None,
+            Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
             Self::Sampled(_) => None,
-            Self::RateLimited => None,
-            #[cfg(feature = "processing")]
-            Self::StoreFailed(_) => None,
-
-            // If we send to an upstream, we don't emit outcomes.
-            Self::UpstreamRequestFailed(_)
-            | Self::EnvelopeBuildFailed(_)
-            | Self::BodyEncodingFailed(_) => None,
         }
+    }
+
+    fn is_internal(&self) -> bool {
+        self.to_outcome() == Some(Outcome::Invalid(DiscardReason::Internal))
     }
 
     fn should_keep_metrics(&self) -> bool {
@@ -385,6 +354,10 @@ pub struct EnvelopeProcessor {
 }
 
 impl EnvelopeProcessor {
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().processor.clone()
+    }
+
     /// Starts a multi-threaded envelope processor.
     pub fn start(
         config: Arc<Config>,
@@ -927,7 +900,7 @@ impl EnvelopeProcessor {
     ) -> Result<ProcessEnvelopeState, ProcessingError> {
         let ProcessEnvelope {
             mut envelope,
-            envelope_context,
+            mut envelope_context,
             project_state,
             sampling_project_state,
         } = message;
@@ -944,10 +917,16 @@ impl EnvelopeProcessor {
         //
         // Neither ID can be available in proxy mode on the /store/ endpoint. This is not supported,
         // since we cannot process an envelope without project ID, so drop it.
-        let project_id = project_state
+        let project_id = match project_state
             .project_id
             .or_else(|| envelope.meta().project_id())
-            .ok_or(ProcessingError::MissingProjectId)?;
+        {
+            Some(project_id) => project_id,
+            None => {
+                envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
+                return Err(ProcessingError::MissingProjectId);
+            }
+        };
 
         // Ensure the project ID is updated to the stored instance for this project cache. This can
         // differ in two cases:
@@ -1354,14 +1333,14 @@ impl EnvelopeProcessor {
         };
 
         if !self.config.processing_enabled() {
-            lazy_static! {
-                static ref MY_VERSION_STRING: String = format!("{}", RelayVersion::current());
-            }
+            static MY_VERSION_STRING: OnceCell<String> = OnceCell::new();
+            let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
+
             event
                 .ingest_path
                 .get_or_insert_with(Default::default)
                 .push(Annotated::new(RelayInfo {
-                    version: Annotated::new(MY_VERSION_STRING.clone()),
+                    version: Annotated::new(my_version.clone()),
                     public_key: self
                         .config
                         .public_key()
@@ -1554,11 +1533,17 @@ impl EnvelopeProcessor {
             envelope_limiter.assume_event(category);
         }
 
+        let scoping = state.envelope_context.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
             envelope_limiter
-                .enforce(&mut state.envelope, &state.envelope_context.scoping())
+                .enforce(&mut state.envelope, &scoping)
                 .map_err(ProcessingError::QuotasFailed)?
         });
+
+        if limits.is_limited() {
+            ProjectCache::from_registry()
+                .do_send(UpdateRateLimits::new(scoping.project_key, limits.clone()));
+        }
 
         state.rate_limits = limits;
         enforcement.track_outcomes(&state.envelope, &state.envelope_context.scoping());
@@ -1627,14 +1612,12 @@ impl EnvelopeProcessor {
 
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = config.pii_config {
-                let compiled = config.compiled();
-                let mut processor = PiiProcessor::new(&compiled);
+                let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
-            if let Some(ref config) = *config.datascrubbing_settings.pii_config() {
-                let compiled = config.compiled();
-                let mut processor = PiiProcessor::new(&compiled);
+            if let Some(config) = config.datascrubbing_settings.pii_config() {
+                let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
@@ -1658,8 +1641,7 @@ impl EnvelopeProcessor {
                 let filename = item.filename().unwrap_or_default();
                 let mut payload = item.payload().to_vec();
 
-                let compiled = config.compiled();
-                let processor = PiiAttachmentsProcessor::new(&compiled);
+                let processor = PiiAttachmentsProcessor::new(config.compiled());
 
                 // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
                 // must be conservative and treat it as a plain attachment. Under extreme
@@ -1827,6 +1809,7 @@ impl EnvelopeProcessor {
         let project_id = state.project_id;
         let client = state.envelope.meta().client().map(str::to_owned);
         let user_agent = state.envelope.meta().user_agent().map(str::to_owned);
+        let project_key = state.envelope.meta().public_key();
 
         relay_log::with_scope(
             |scope| {
@@ -1839,8 +1822,6 @@ impl EnvelopeProcessor {
                 }
             },
             || {
-                let project_key = state.envelope_context.scoping().project_key;
-
                 match self.process_state(&mut state) {
                     Ok(()) => {
                         if !state.extracted_metrics.is_empty() {
@@ -1952,18 +1933,41 @@ pub struct ProcessEnvelope {
 }
 
 impl Message for ProcessEnvelope {
-    type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
+    type Result = ();
 }
 
 impl Handler<ProcessEnvelope> for EnvelopeProcessor {
-    type Result = Result<ProcessEnvelopeResponse, ProcessingError>;
+    type Result = ();
 
     fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
+        let project_key = message.envelope.meta().public_key();
         let wait_time = message.envelope_context.start_time().elapsed();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
-        metric!(timer(RelayTimers::EnvelopeProcessingTime), {
+
+        let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message)
-        })
+        });
+
+        match result {
+            Ok(response) => {
+                if let Some((envelope, envelope_context)) = response.envelope {
+                    EnvelopeManager::from_registry().do_send(SubmitEnvelope {
+                        envelope,
+                        envelope_context,
+                    })
+                };
+            }
+            Err(error) => {
+                // Errors are only logged for what we consider infrastructure or implementation
+                // bugs. In other cases, we "expect" errors and log them as debug level.
+                if error.is_internal() {
+                    relay_log::with_scope(
+                        |scope| scope.set_tag("project_key", project_key),
+                        || relay_log::error!("error processing envelope: {}", LogError(&error)),
+                    );
+                }
+            }
+        }
     }
 }
 

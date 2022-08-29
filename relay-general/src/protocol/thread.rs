@@ -128,68 +128,72 @@ pub struct Thread {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_thread_id() {
-    assert_eq_dbg!(
-        ThreadId::String("testing".into()),
-        Annotated::<ThreadId>::from_json("\"testing\"")
-            .unwrap()
-            .0
-            .unwrap()
-    );
-    assert_eq_dbg!(
-        ThreadId::String("42".into()),
-        Annotated::<ThreadId>::from_json("\"42\"")
-            .unwrap()
-            .0
-            .unwrap()
-    );
-    assert_eq_dbg!(
-        ThreadId::Int(42),
-        Annotated::<ThreadId>::from_json("42").unwrap().0.unwrap()
-    );
-}
-
-#[test]
-fn test_thread_roundtrip() {
     use crate::types::Map;
 
-    // stack traces are tested separately
-    let json = r#"{
+    use super::*;
+
+    #[test]
+    fn test_thread_id() {
+        assert_eq!(
+            ThreadId::String("testing".into()),
+            Annotated::<ThreadId>::from_json("\"testing\"")
+                .unwrap()
+                .0
+                .unwrap()
+        );
+        assert_eq!(
+            ThreadId::String("42".into()),
+            Annotated::<ThreadId>::from_json("\"42\"")
+                .unwrap()
+                .0
+                .unwrap()
+        );
+        assert_eq!(
+            ThreadId::Int(42),
+            Annotated::<ThreadId>::from_json("42").unwrap().0.unwrap()
+        );
+    }
+
+    #[test]
+    fn test_thread_roundtrip() {
+        // stack traces are tested separately
+        let json = r#"{
   "id": 42,
   "name": "myname",
   "crashed": true,
   "current": true,
   "other": "value"
 }"#;
-    let thread = Annotated::new(Thread {
-        id: Annotated::new(ThreadId::Int(42)),
-        name: Annotated::new("myname".to_string()),
-        stacktrace: Annotated::empty(),
-        raw_stacktrace: Annotated::empty(),
-        crashed: Annotated::new(true),
-        current: Annotated::new(true),
-        other: {
-            let mut map = Map::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    });
+        let thread = Annotated::new(Thread {
+            id: Annotated::new(ThreadId::Int(42)),
+            name: Annotated::new("myname".to_string()),
+            stacktrace: Annotated::empty(),
+            raw_stacktrace: Annotated::empty(),
+            crashed: Annotated::new(true),
+            current: Annotated::new(true),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
 
-    assert_eq_dbg!(thread, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, thread.to_json_pretty().unwrap());
-}
+        assert_eq!(thread, Annotated::from_json(json).unwrap());
+        assert_eq!(json, thread.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_thread_default_values() {
-    let json = "{}";
-    let thread = Annotated::new(Thread::default());
+    #[test]
+    fn test_thread_default_values() {
+        let json = "{}";
+        let thread = Annotated::new(Thread::default());
 
-    assert_eq_dbg!(thread, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, thread.to_json_pretty().unwrap());
+        assert_eq!(thread, Annotated::from_json(json).unwrap());
+        assert_eq!(json, thread.to_json_pretty().unwrap());
+    }
 }

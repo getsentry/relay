@@ -66,12 +66,12 @@ test-integration: build setup-venv ## run integration tests
 
 # Documentation
 
-doc: doc-api ## generate all API docs
-.PHONY: doc-api
+doc: doc-rust ## generate all API docs
+.PHONY: doc
 
-doc-api: setup-git ## generate API docs for Rust code
+doc-rust: setup-git ## generate API docs for Rust code
 	cargo doc --workspace --all-features --no-deps
-.PHONY: doc-api
+.PHONY: doc-rust
 
 # Style checking
 
@@ -94,7 +94,7 @@ lint: lint-rust lint-python ## runt lint on Python and Rust code
 
 lint-rust: setup-git ## run lint on Rust code using clippy
 	@rustup component add clippy --toolchain stable 2> /dev/null
-	cargo +stable clippy --workspace --all-features --tests -- -D clippy::all
+	cargo +stable clippy --workspace --all-targets --all-features --no-deps -- -D warnings
 .PHONY: lint-rust
 
 lint-python: setup-venv ## run lint on Python code using flake8
@@ -130,7 +130,7 @@ setup-git: .git/hooks/pre-commit init-submodules ## make sure all git configured
 setup-venv: .venv/bin/python .venv/python-requirements-stamp ## create a Python virtual environment with development requirements installed
 .PHONY: setup-venv
 
-devserver: ## run the development server
+devserver: ## run an auto-reloading development server
 	@systemfd --no-pid -s http::3000 -- cargo watch -x "run -- run"
 .PHONY: devserver
 

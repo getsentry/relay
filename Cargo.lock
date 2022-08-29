@@ -592,9 +592,9 @@ dependencies = [
 
 [[package]]
 name = "console"
-version = "0.15.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a28b32d32ca44b70c3e4acd7db1babf555fa026e385fb95f18028f88848b3c31"
+checksum = "89eab4d20ce20cea182308bca13088fecea9c05f6776cf287205d41a0ed3c847"
 dependencies = [
  "encode_unicode",
  "libc",
@@ -937,12 +937,6 @@ dependencies = [
  "lazy_static",
  "tempfile",
 ]
-
-[[package]]
-name = "difference"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524cbf6897b527295dff137cec09ecf3a05f4fddffd7dfcd1585403449e74198"
 
 [[package]]
 name = "digest"
@@ -1758,19 +1752,19 @@ dependencies = [
 
 [[package]]
 name = "insta"
-version = "1.14.1"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcc3e639bcba360d9237acabd22014c16f3df772db463b7446cd81b070714767"
+checksum = "f37dc501f12ec0c339b385787fa89ffda3d5d2caa62e558da731134c24d6e0c4"
 dependencies = [
- "console 0.15.0",
+ "console 0.15.1",
+ "linked-hash-map",
  "once_cell",
  "pest",
  "pest_derive",
  "ron",
  "serde",
- "serde_json",
- "serde_yaml",
  "similar",
+ "yaml-rust",
 ]
 
 [[package]]
@@ -1885,25 +1879,6 @@ version = "0.1.0"
 source = "git+https://github.com/getsentry/rust-json-forensics#3896ab98bae363570b7fc0e0af353f287ab17282"
 
 [[package]]
-name = "json-pointer"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fe841b94e719a482213cee19dd04927cf412f26d8dc84c5a446c081e49c2997"
-dependencies = [
- "serde_json",
-]
-
-[[package]]
-name = "jsonway"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "effcb749443c905fbaef49d214f8b1049c240e0adb7af9baa0e201e625e4f9de"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "kernel32-sys"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1961,9 +1936,9 @@ dependencies = [
 
 [[package]]
 name = "linked-hash-map"
-version = "0.5.4"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fb9b38af92608140b86b693604b9ffcc5824240a484d1ecd4795bacb2fe88f3"
+checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
 name = "listenfd"
@@ -2378,9 +2353,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.13.0"
+version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18a6dbe30758c9f83eb00cbea4ac95966305f5a7772f3f42ebfc7fc7eddbd8e1"
+checksum = "074864da206b4973b84eb91683020dbefd6a8c3f0f38e054d93954e891935e4e"
 
 [[package]]
 name = "oorandom"
@@ -2650,44 +2625,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "phf"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3dfb61232e34fcb633f43d12c58f83c1df82962dcdfa565a4e866ffc17dafe12"
-dependencies = [
- "phf_shared 0.8.0",
-]
-
-[[package]]
-name = "phf_codegen"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cbffee61585b0411840d3ece935cce9cb6321f01c45477d30066498cd5e1a815"
-dependencies = [
- "phf_generator",
- "phf_shared 0.8.0",
-]
-
-[[package]]
-name = "phf_generator"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17367f0cc86f2d25802b2c26ee58a7b23faeccf78a396094c13dced0d0182526"
-dependencies = [
- "phf_shared 0.8.0",
- "rand 0.7.3",
-]
-
-[[package]]
-name = "phf_shared"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c00cf8b9eafe68dde5e9eaa2cef8ee84a9336a47d566ec55ca16589633b65af7"
-dependencies = [
- "siphasher",
-]
-
-[[package]]
 name = "phf_shared"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2839,16 +2776,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "publicsuffix"
-version = "1.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95b4ce31ff0a27d93c8de1849cf58162283752f065a90d508f1105fa6c9a213f"
-dependencies = [
- "idna 0.2.3",
- "url 2.2.2",
-]
-
-[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2916,7 +2843,7 @@ dependencies = [
  "rand_isaac",
  "rand_jitter",
  "rand_os",
- "rand_pcg 0.1.2",
+ "rand_pcg",
  "rand_xorshift",
  "winapi 0.3.9",
 ]
@@ -2932,7 +2859,6 @@ dependencies = [
  "rand_chacha 0.2.2",
  "rand_core 0.5.1",
  "rand_hc 0.2.0",
- "rand_pcg 0.2.1",
 ]
 
 [[package]]
@@ -3069,15 +2995,6 @@ checksum = "abf9b09b01790cfe0364f52bf32995ea3c39f4d2dd011eac241d2914146d0b44"
 dependencies = [
  "autocfg 0.1.8",
  "rand_core 0.4.2",
-]
-
-[[package]]
-name = "rand_pcg"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16abd0c1b639e9eb4d7c50c0b8100b0d0f849be2349829c740fe8e6eb4816429"
-dependencies = [
- "rand_core 0.5.1",
 ]
 
 [[package]]
@@ -3231,7 +3148,7 @@ dependencies = [
  "failure",
  "futures 0.1.31",
  "hostname",
- "lazy_static",
+ "once_cell",
  "relay-common",
  "relay-config",
  "relay-log",
@@ -3277,7 +3194,7 @@ dependencies = [
  "chrono",
  "failure",
  "json-forensics",
- "lazy_static",
+ "once_cell",
  "relay-auth",
  "relay-common",
  "relay-ffi",
@@ -3296,9 +3213,8 @@ dependencies = [
  "chrono",
  "failure",
  "globset",
- "lazy_static",
- "lazycell",
  "lru",
+ "once_cell",
  "parking_lot 0.12.1",
  "regex",
  "relay-log",
@@ -3357,7 +3273,7 @@ dependencies = [
  "globset",
  "insta",
  "ipnetwork",
- "lazy_static",
+ "once_cell",
  "regex",
  "relay-common",
  "relay-general",
@@ -3375,18 +3291,17 @@ dependencies = [
  "cookie 0.16.0",
  "criterion",
  "debugid 0.7.3",
- "difference",
  "dynfmt",
  "enumset",
  "failure",
  "hmac",
  "insta",
  "itertools 0.8.2",
- "lazy_static",
  "maxminddb",
  "memmap",
  "minidump",
  "num-traits 0.2.15",
+ "once_cell",
  "pest",
  "pest_derive",
  "pretty-hex",
@@ -3399,12 +3314,12 @@ dependencies = [
  "serde_json",
  "serde_urlencoded 0.5.5",
  "sha-1",
+ "similar-asserts",
  "smallvec 1.8.0",
  "uaparser",
  "url 2.2.2",
  "utf16string",
  "uuid 0.8.2",
- "valico",
 ]
 
 [[package]]
@@ -3439,14 +3354,13 @@ name = "relay-metrics"
 version = "22.8.0"
 dependencies = [
  "actix",
- "crc32fast",
  "criterion",
  "failure",
  "float-ord",
+ "fnv",
  "futures 0.1.31",
  "hash32",
  "insta",
- "lazy_static",
  "relay-common",
  "relay-log",
  "relay-statsd",
@@ -3476,7 +3390,6 @@ version = "22.8.0"
 dependencies = [
  "failure",
  "insta",
- "lazy_static",
  "relay-common",
  "relay-log",
  "relay-redis",
@@ -3502,7 +3415,7 @@ version = "22.8.0"
 dependencies = [
  "insta",
  "rand 0.6.5",
- "rand_pcg 0.1.2",
+ "rand_pcg",
  "relay-common",
  "relay-filter",
  "relay-general",
@@ -3532,11 +3445,11 @@ dependencies = [
  "insta",
  "itertools 0.8.2",
  "json-forensics",
- "lazy_static",
  "libc",
  "listenfd",
  "minidump",
  "native-tls",
+ "once_cell",
  "parking_lot 0.12.1",
  "rdkafka",
  "rdkafka-sys",
@@ -3590,7 +3503,7 @@ dependencies = [
  "failure",
  "futures 0.1.31",
  "futures 0.3.21",
- "lazy_static",
+ "once_cell",
  "relay-log",
  "tokio 0.1.22",
  "tokio 1.19.2",
@@ -3699,9 +3612,9 @@ dependencies = [
 
 [[package]]
 name = "ron"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b861ecaade43ac97886a512b360d01d66be9f41f3c61088b42cedf92e03d678"
+checksum = "88073939a61e5b7680558e6be56b419e208420c2adb92be54921fa6b72283f1a"
 dependencies = [
  "base64 0.13.0",
  "bitflags",
@@ -4166,9 +4079,23 @@ dependencies = [
 
 [[package]]
 name = "similar"
-version = "2.1.0"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e24979f63a11545f5f2c60141afe249d4f19f84581ea2138065e400941d83d3"
+checksum = "62ac7f900db32bf3fd12e0117dd3dc4da74bc52ebaac97f39668446d89694803"
+dependencies = [
+ "bstr",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "similar-asserts"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbf644ad016b75129f01a34a355dcb8d66a5bc803e417c7a77cc5d5ee9fa0f18"
+dependencies = [
+ "console 0.15.1",
+ "similar",
+]
 
 [[package]]
 name = "siphasher"
@@ -4256,7 +4183,7 @@ dependencies = [
  "new_debug_unreachable",
  "once_cell",
  "parking_lot 0.12.1",
- "phf_shared 0.10.0",
+ "phf_shared",
  "precomputed-hash",
  "serde",
 ]
@@ -5076,15 +5003,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "uritemplate-next"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcde98d1fc3f528255b1ecb22fb688ee0d23deb672a8c57127df10b98b4bd18c"
-dependencies = [
- "regex",
-]
-
-[[package]]
 name = "url"
 version = "1.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5177,28 +5095,6 @@ checksum = "e33e939c0d8cf047514fb6ba7d5aac78bc56677a6938b2ee67000b91f2e97e41"
 dependencies = [
  "cfg-if 0.1.10",
  "v_escape",
-]
-
-[[package]]
-name = "valico"
-version = "3.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d81a70f930f9e6cd04669d38abcf232f96b193acceb0f4c006427ddec6e08b10"
-dependencies = [
- "base64 0.13.0",
- "chrono",
- "json-pointer",
- "jsonway",
- "percent-encoding 2.1.0",
- "phf",
- "phf_codegen",
- "publicsuffix",
- "regex",
- "serde",
- "serde_json",
- "uritemplate-next",
- "url 2.2.2",
- "uuid 0.8.2",
 ]
 
 [[package]]

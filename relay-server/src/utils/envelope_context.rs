@@ -10,6 +10,7 @@ use relay_common::DataCategory;
 use relay_general::protocol::EventId;
 use relay_quotas::Scoping;
 
+use crate::actors::envelopes::{Capture, EnvelopeManager};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::envelope::Envelope;
@@ -127,6 +128,10 @@ impl EnvelopeContext {
         if self.done {
             return;
         }
+
+        relay_log::debug!("dropped envelope: {}", outcome);
+        // TODO: This could be optimized with Capture::should_capture
+        EnvelopeManager::from_registry().do_send(Capture::rejected(self.event_id, &outcome));
 
         if let Some(category) = self.summary.event_category {
             self.track_outcome(outcome.clone(), category, 1);

@@ -1,5 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
+assertion_line: 110
 expression: event_json_schema()
 ---
 {
@@ -1432,7 +1433,7 @@ expression: event_json_schema()
       ]
     },
     "Frame": {
-      "description": " Holds information about a single stacktrace frame.\n\n Each object should contain **at least** a `filename`, `function` or `instruction_addr` attribute. All values are optional, but recommended.",
+      "description": " Holds information about a single stacktrace frame.\n\n Each object should contain **at least** a `filename`, `function` or `instruction_addr`\n attribute. All values are optional, but recommended.",
       "anyOf": [
         {
           "type": "object",
@@ -1590,7 +1591,7 @@ expression: event_json_schema()
               }
             },
             "raw_function": {
-              "description": " A raw (but potentially truncated) function value.\n\n The original function name, if the function name is shortened or demangled. Sentry shows\n the raw function when clicking on the shortened one in the UI.\n\n If this has the same value as `function` it's best to be omitted.  This\n exists because on many platforms the function itself contains additional\n information like overload specifies or a lot of generics which can make\n it exceed the maximum limit we provide for the field.  In those cases\n then we cannot reliably trim down the function any more at a later point\n because the more valuable information has been removed.\n\n The logic to be applied is that an intelligently trimmed function name\n should be stored in `function` and the value before trimming is stored\n in this field instead.  However also this field will be capped at 256\n characters at the moment which often means that not the entire original\n value can be stored.",
+              "description": " A raw (but potentially truncated) function value.\n\n The original function name, if the function name is shortened or demangled. Sentry shows the\n raw function when clicking on the shortened one in the UI.\n\n If this has the same value as `function` it's best to be omitted.  This exists because on\n many platforms the function itself contains additional information like overload specifies\n or a lot of generics which can make it exceed the maximum limit we provide for the field.\n In those cases then we cannot reliably trim down the function any more at a later point\n because the more valuable information has been removed.\n\n The logic to be applied is that an intelligently trimmed function name should be stored in\n `function` and the value before trimming is stored in this field instead.  However also this\n field will be capped at 256 characters at the moment which often means that not the entire\n original value can be stored.",
               "default": null,
               "type": [
                 "string",
@@ -2409,7 +2410,7 @@ expression: event_json_schema()
       ]
     },
     "RawStacktrace": {
-      "description": " A stack trace of a single thread.\n\n A stack trace contains a list of frames, each with various bits (most optional) describing the context of that frame. Frames should be sorted from oldest to newest.\n\n For the given example program written in Python:\n\n ```python\n def foo():\n     my_var = 'foo'\n     raise ValueError()\n\n def main():\n     foo()\n ```\n\n A minimalistic stack trace for the above program in the correct order:\n\n ```json\n {\n   \"frames\": [\n     {\"function\": \"main\"},\n     {\"function\": \"foo\"}\n   ]\n }\n ```\n\n The top frame fully symbolicated with five lines of source context:\n\n ```json\n {\n   \"frames\": [{\n     \"in_app\": true,\n     \"function\": \"myfunction\",\n     \"abs_path\": \"/real/file/name.py\",\n     \"filename\": \"file/name.py\",\n     \"lineno\": 3,\n     \"vars\": {\n       \"my_var\": \"'value'\"\n     },\n     \"pre_context\": [\n       \"def foo():\",\n       \"  my_var = 'foo'\",\n     ],\n     \"context_line\": \"  raise ValueError()\",\n     \"post_context\": [\n       \"\",\n       \"def main():\"\n     ],\n   }]\n }\n ```\n\n A minimal native stack trace with register values. Note that the `package` event attribute must be \"native\" for these frames to be symbolicated.\n\n ```json\n {\n   \"frames\": [\n     {\"instruction_addr\": \"0x7fff5bf3456c\"},\n     {\"instruction_addr\": \"0x7fff5bf346c0\"},\n   ],\n   \"registers\": {\n     \"rip\": \"0x00007ff6eef54be2\",\n     \"rsp\": \"0x0000003b710cd9e0\"\n   }\n }\n ```",
+      "description": " A stack trace of a single thread.\n\n A stack trace contains a list of frames, each with various bits (most optional) describing the\n context of that frame. Frames should be sorted from oldest to newest.\n\n For the given example program written in Python:\n\n ```python\n def foo():\n     my_var = 'foo'\n     raise ValueError()\n\n def main():\n     foo()\n ```\n\n A minimalistic stack trace for the above program in the correct order:\n\n ```json\n {\n   \"frames\": [\n     {\"function\": \"main\"},\n     {\"function\": \"foo\"}\n   ]\n }\n ```\n\n The top frame fully symbolicated with five lines of source context:\n\n ```json\n {\n   \"frames\": [{\n     \"in_app\": true,\n     \"function\": \"myfunction\",\n     \"abs_path\": \"/real/file/name.py\",\n     \"filename\": \"file/name.py\",\n     \"lineno\": 3,\n     \"vars\": {\n       \"my_var\": \"'value'\"\n     },\n     \"pre_context\": [\n       \"def foo():\",\n       \"  my_var = 'foo'\",\n     ],\n     \"context_line\": \"  raise ValueError()\",\n     \"post_context\": [\n       \"\",\n       \"def main():\"\n     ],\n   }]\n }\n ```\n\n A minimal native stack trace with register values. Note that the `package` event attribute must\n be \"native\" for these frames to be symbolicated.\n\n ```json\n {\n   \"frames\": [\n     {\"instruction_addr\": \"0x7fff5bf3456c\"},\n     {\"instruction_addr\": \"0x7fff5bf346c0\"},\n   ],\n   \"registers\": {\n     \"rip\": \"0x00007ff6eef54be2\",\n     \"rsp\": \"0x0000003b710cd9e0\"\n   }\n }\n ```",
       "anyOf": [
         {
           "type": "object",
@@ -2418,7 +2419,7 @@ expression: event_json_schema()
           ],
           "properties": {
             "frames": {
-              "description": " Required. A non-empty list of stack frames. The list is ordered from caller to callee, or oldest to youngest. The last frame is the one creating the exception.",
+              "description": " Required. A non-empty list of stack frames. The list is ordered from caller to callee, or\n oldest to youngest. The last frame is the one creating the exception.",
               "type": [
                 "array",
                 "null"
@@ -2443,7 +2444,7 @@ expression: event_json_schema()
               ]
             },
             "registers": {
-              "description": " Register values of the thread (top frame).\n\n A map of register names and their values. The values should contain the actual register values of the thread, thus mapping to the last frame in the list.",
+              "description": " Register values of the thread (top frame).\n\n A map of register names and their values. The values should contain the actual register\n values of the thread, thus mapping to the last frame in the list.",
               "default": null,
               "type": [
                 "object",

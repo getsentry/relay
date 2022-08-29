@@ -1,4 +1,3 @@
-use actix::prelude::*;
 use futures01::prelude::*;
 
 pub struct DropGuardedFuture<F: Sized> {
@@ -43,25 +42,6 @@ where
     }
 }
 
-impl<F> ActorFuture for DropGuardedFuture<F>
-where
-    F: ActorFuture,
-{
-    type Item = F::Item;
-    type Error = F::Error;
-    type Actor = F::Actor;
-
-    fn poll(
-        &mut self,
-        srv: &mut Self::Actor,
-        ctx: &mut <Self::Actor as Actor>::Context,
-    ) -> Poll<Self::Item, Self::Error> {
-        let rv = self.future.poll(srv, ctx);
-        self.done = !matches!(rv, Ok(Async::NotReady));
-        rv
-    }
-}
-
 pub trait FutureExt: Sized {
     fn drop_guard(self, name: &'static str) -> DropGuardedFuture<Self> {
         DropGuardedFuture::new(name, self)
@@ -70,34 +50,39 @@ pub trait FutureExt: Sized {
 
 impl<F> FutureExt for F where F: Sized {}
 
-#[test]
-#[should_panic(expected = "Dropped unfinished future during shutdown: bye")]
-fn test_drop_guard() {
+#[cfg(test)]
+mod tests {
     use std::time::Duration;
 
-    System::run(|| {
-        actix::spawn(
-            relay_test::delay(Duration::from_secs(10))
-                .drop_guard("bye")
-                .then(|_| Ok(())),
-        );
+    use actix::System;
 
-        actix::System::current().stop();
-    });
-}
+    use super::*;
 
-#[test]
-fn test_no_drop() {
-    use std::time::Duration;
+    #[test]
+    #[should_panic(expected = "Dropped unfinished future during shutdown: bye")]
+    fn test_drop_guard() {
+        System::run(|| {
+            actix::spawn(
+                relay_test::delay(Duration::from_secs(10))
+                    .drop_guard("bye")
+                    .then(|_| Ok(())),
+            );
 
-    System::run(|| {
-        actix::spawn(
-            relay_test::delay(Duration::from_millis(100))
-                .drop_guard("bye")
-                .then(|_| {
-                    actix::System::current().stop();
-                    Ok(())
-                }),
-        );
-    });
+            actix::System::current().stop();
+        });
+    }
+
+    #[test]
+    fn test_no_drop() {
+        System::run(|| {
+            actix::spawn(
+                relay_test::delay(Duration::from_millis(100))
+                    .drop_guard("bye")
+                    .then(|_| {
+                        actix::System::current().stop();
+                        Ok(())
+                    }),
+            );
+        });
+    }
 }

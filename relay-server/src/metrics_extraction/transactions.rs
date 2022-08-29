@@ -630,12 +630,12 @@ mod tests {
 
     use super::*;
 
-    use crate::metrics_extraction::TaggingRule;
-    use insta::assert_debug_snapshot;
     use relay_general::protocol::User;
     use relay_general::store::BreakdownsConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
+
+    use crate::metrics_extraction::TaggingRule;
 
     #[test]
     fn test_extract_transaction_metrics() {
@@ -1095,7 +1095,7 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
-        assert_debug_snapshot!(metrics, @r###"
+        insta::assert_debug_snapshot!(metrics, @r###"
             [
                 Metric {
                     name: "d:transactions/measurements.a_custom1@none",

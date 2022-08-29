@@ -7,6 +7,7 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
+use once_cell::sync::OnceCell;
 use rdkafka::error::KafkaError;
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
@@ -27,11 +28,6 @@ use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{CaptureErrorContext, ThreadedProducer};
-
-lazy_static::lazy_static! {
-    static ref NAMESPACE_DID: Uuid =
-        Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did");
-}
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -134,8 +130,12 @@ impl Service for StoreForwarder {
 }
 
 fn make_distinct_id(s: &str) -> Uuid {
+    static NAMESPACE: OnceCell<Uuid> = OnceCell::new();
+    let namespace =
+        NAMESPACE.get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did"));
+
     s.parse()
-        .unwrap_or_else(|_| Uuid::new_v5(&NAMESPACE_DID, s.as_bytes()))
+        .unwrap_or_else(|_| Uuid::new_v5(namespace, s.as_bytes()))
 }
 
 /// Temporary map used to deduplicate kafka producers

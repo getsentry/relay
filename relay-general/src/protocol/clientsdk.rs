@@ -78,13 +78,16 @@ impl ClientSdkInfo {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_client_sdk_roundtrip() {
     use crate::types::Map;
 
-    let json = r#"{
+    use super::*;
+
+    #[test]
+    fn test_client_sdk_roundtrip() {
+        let json = r#"{
   "name": "sentry.rust",
   "version": "1.0.0",
   "integrations": [
@@ -103,51 +106,52 @@ fn test_client_sdk_roundtrip() {
   "client_ip": "127.0.0.1",
   "other": "value"
 }"#;
-    let sdk = Annotated::new(ClientSdkInfo {
-        name: Annotated::new("sentry.rust".to_string()),
-        version: Annotated::new("1.0.0".to_string()),
-        integrations: Annotated::new(vec![Annotated::new("actix".to_string())]),
-        packages: Annotated::new(vec![
-            Annotated::new(ClientSdkPackage {
-                name: Annotated::new("cargo:sentry".to_string()),
-                version: Annotated::new("0.10.0".to_string()),
-            }),
-            Annotated::new(ClientSdkPackage {
-                name: Annotated::new("cargo:sentry-actix".to_string()),
-                version: Annotated::new("0.10.0".to_string()),
-            }),
-        ]),
-        client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
-        other: {
-            let mut map = Map::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    });
+        let sdk = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            version: Annotated::new("1.0.0".to_string()),
+            integrations: Annotated::new(vec![Annotated::new("actix".to_string())]),
+            packages: Annotated::new(vec![
+                Annotated::new(ClientSdkPackage {
+                    name: Annotated::new("cargo:sentry".to_string()),
+                    version: Annotated::new("0.10.0".to_string()),
+                }),
+                Annotated::new(ClientSdkPackage {
+                    name: Annotated::new("cargo:sentry-actix".to_string()),
+                    version: Annotated::new("0.10.0".to_string()),
+                }),
+            ]),
+            client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            other: {
+                let mut map = Map::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
 
-    assert_eq_dbg!(sdk, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, sdk.to_json_pretty().unwrap());
-}
+        assert_eq!(sdk, Annotated::from_json(json).unwrap());
+        assert_eq!(json, sdk.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_client_sdk_default_values() {
-    let json = r#"{
+    #[test]
+    fn test_client_sdk_default_values() {
+        let json = r#"{
   "name": "sentry.rust",
   "version": "1.0.0",
   "client_ip": "127.0.0.1"
 }"#;
-    let sdk = Annotated::new(ClientSdkInfo {
-        name: Annotated::new("sentry.rust".to_string()),
-        version: Annotated::new("1.0.0".to_string()),
-        integrations: Annotated::empty(),
-        packages: Annotated::empty(),
-        client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
-        other: Default::default(),
-    });
+        let sdk = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            version: Annotated::new("1.0.0".to_string()),
+            integrations: Annotated::empty(),
+            packages: Annotated::empty(),
+            client_ip: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+            other: Default::default(),
+        });
 
-    assert_eq_dbg!(sdk, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, sdk.to_json_pretty().unwrap());
+        assert_eq!(sdk, Annotated::from_json(json).unwrap());
+        assert_eq!(json, sdk.to_json_pretty().unwrap());
+    }
 }
