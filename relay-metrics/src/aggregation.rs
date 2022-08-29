@@ -1774,15 +1774,21 @@ impl Aggregator {
         let capped_batches =
             CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
         let partition_tag = match partition_key {
-            Some(partition_key) => format!("{partition_key}"),
+            Some(partition_key) => partition_key.to_string(),
             None => "none".to_owned(),
         };
         let capped_batches: Vec<_> = capped_batches.collect();
-        for (i, batch) in capped_batches.into_iter().enumerate() {
+        if partition_tag != "none" {
+            relay_statsd::metric!(
+                histogram(MetricHistograms::BatchesPerPartition) = capped_batches.len() as f64,
+                partition_key = partition_tag.as_str(),
+            );
+        }
+
+        for batch in capped_batches.into_iter() {
             relay_statsd::metric!(
                 histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
                 partition_key = partition_tag.as_str(),
-                batch_index = format!("{i}").as_str(),
             );
             process(batch);
         }
@@ -3089,7 +3095,7 @@ mod tests {
         assert_eq!(
             captures
                 .into_iter()
-                .filter(|x| x.contains("per_batch"))
+                .filter(|x| x.contains("per_batch") || x.contains("batches_per_partition"))
                 .collect::<Vec<_>>(),
             expected
         );
@@ -3103,14 +3109,16 @@ mod tests {
         for (flush_partitions, expected) in [
             (
                 None,
-                vec!["metrics.buckets.per_batch:2|h|#partition_key:none,batch_index:0".to_owned()],
+                vec!["metrics.buckets.per_batch:2|h|#partition_key:none".to_owned()],
             ),
             (
                 Some(5),
                 vec![
-                    "metrics.buckets.per_batch:1|h|#partition_key:0,batch_index:0".to_owned(),
-                    "metrics.buckets.per_batch:1|h|#partition_key:3,batch_index:0".to_owned(),
-                    "metrics.buckets.per_batch:2|h|#partition_key:none,batch_index:0".to_owned(),
+                    "metrics.buckets.batches_per_partition:1|h|#partition_key:0".to_owned(),
+                    "metrics.buckets.per_batch:1|h|#partition_key:0".to_owned(),
+                    "metrics.buckets.batches_per_partition:1|h|#partition_key:3".to_owned(),
+                    "metrics.buckets.per_batch:1|h|#partition_key:3".to_owned(),
+                    "metrics.buckets.per_batch:2|h|#partition_key:none".to_owned(),
                 ],
             ),
         ] {
