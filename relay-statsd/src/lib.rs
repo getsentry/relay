@@ -142,6 +142,7 @@ impl MetricsClient {
 static METRICS_CLIENT: RwLock<Option<Arc<MetricsClient>>> = RwLock::new(None);
 
 thread_local! {
+    static CURRENT_CLIENT: std::cell::RefCell<Option<Arc<MetricsClient>>>  = METRICS_CLIENT.read().clone().into();
     static RNG_UNIFORM_DISTRIBUTION: Uniform<f32> = Uniform::new(0.0, 1.0);
 }
 
@@ -159,24 +160,23 @@ pub mod prelude {
 /// Set a new statsd client.
 pub fn set_client(client: MetricsClient) {
     *METRICS_CLIENT.write() = Some(Arc::new(client));
+    CURRENT_CLIENT.with(|cell| cell.replace(METRICS_CLIENT.read().clone()));
 }
 
-/// Set a test client for the period of the called function.
-/// Note: This also changes the METRICS_CLIENT for other threads.
+/// Set a test client for the period of the called function (only affects the current thread).
 pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
-    let old_client = METRICS_CLIENT.read().clone();
-
     let (rx, sink) = SpyMetricSink::new();
     let test_client = MetricsClient {
         statsd_client: StatsdClient::from_sink("", sink),
         default_tags: Default::default(),
         sample_rate: 1.0,
     };
-    set_client(test_client);
 
-    f();
-
-    *METRICS_CLIENT.write() = old_client;
+    CURRENT_CLIENT.with(|cell| {
+        let old_client = cell.replace(Some(Arc::new(test_client)));
+        f();
+        cell.replace(old_client);
+    });
 
     rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
 }
@@ -244,12 +244,13 @@ where
     F: FnOnce(&MetricsClient) -> R,
     R: Default,
 {
-    let guard = METRICS_CLIENT.read();
-    if let Some(client) = guard.deref() {
-        f(client)
-    } else {
-        R::default()
-    }
+    CURRENT_CLIENT.with(|client| {
+        if let Some(client) = client.borrow().as_deref() {
+            f(client)
+        } else {
+            R::default()
+        }
+    })
 }
 
 /// A metric for capturing timings.
