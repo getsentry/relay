@@ -34,15 +34,15 @@ use serde_json::Error;
 
 use relay_general::user_agent::{parse_device, parse_os, parse_user_agent, Device};
 
+/// Validates and accepts a replay-event item as input and returns modified output.
+///
+/// The output of this function will return a valid replay-event payload with the addition of
+/// browser, device, and operating-system metadata.  The output will also contain a default
+/// ip-address value for the user if none was provided.
 pub fn normalize_replay_event(
     replay_bytes: &[u8],
     detected_ip_address: Option<IpAddr>,
 ) -> Result<Vec<u8>, Error> {
-    //! Validates and accepts a replay-event item as input and returns modified output.
-    //!
-    //! The output of this function will return a valid replay-event payload with the addition of
-    //! browser, device, and operating-system metadata.  The output will also contain a default
-    //! ip-address value for the user if none was provided.
     let mut replay_input: ReplayInput = serde_json::from_slice(replay_bytes)?;
 
     // Set user-agent metadata from requests object.
