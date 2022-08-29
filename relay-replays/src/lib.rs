@@ -214,33 +214,20 @@ mod tests {
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_agent_meta();
 
-        match replay_input.contexts {
-            Some(contexts) => {
-                match contexts.browser {
-                    Some(browser) => {
-                        assert!(browser.name == *"Safari");
-                        assert!(browser.version.unwrap() == *"15.5");
-                    }
-                    None => unreachable!(),
-                }
-                match contexts.os {
-                    Some(os) => {
-                        assert!(os.name == *"Mac OS X");
-                        assert!(os.version.unwrap() == *"10.15.7");
-                    }
-                    None => unreachable!(),
-                }
-                match contexts.device {
-                    Some(device) => {
-                        assert!(device.family == *"Mac");
-                        assert!(device.brand.unwrap() == *"Apple");
-                        assert!(device.model.unwrap() == *"Mac");
-                    }
-                    None => unreachable!(),
-                }
-            }
-            None => unreachable!(),
-        }
+        let contexts = replay_input.contexts.unwrap();
+
+        let browser = contexts.browser.unwrap();
+        assert!(browser.name == *"Safari");
+        assert!(browser.version.unwrap() == *"15.5");
+
+        let os = contexts.os.unwrap();
+        assert!(os.name == *"Mac OS X");
+        assert!(os.version.unwrap() == *"10.15.7");
+
+        let device = contexts.device.unwrap();
+        assert!(device.family == *"Mac");
+        assert!(device.brand.unwrap() == *"Apple");
+        assert!(device.model.unwrap() == *"Mac");
     }
 
     #[test]
@@ -249,32 +236,19 @@ mod tests {
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_agent_meta();
 
-        match replay_input.contexts {
-            Some(contexts) => {
-                match contexts.browser {
-                    Some(browser) => {
-                        assert!(browser.name == *"Other");
-                        assert!(browser.version.is_none());
-                    }
-                    None => unreachable!(),
-                }
-                match contexts.os {
-                    Some(os) => {
-                        assert!(os.name == *"Other");
-                        assert!(os.version.is_none());
-                    }
-                    None => unreachable!(),
-                }
-                match contexts.device {
-                    Some(device) => {
-                        assert!(device.family == *"Other");
-                        assert!(device.brand.is_none());
-                        assert!(device.model.is_none());
-                    }
-                    None => unreachable!(),
-                }
-            }
-            None => unreachable!(),
-        }
+        let contexts = replay_input.contexts.unwrap();
+
+        let browser = contexts.browser.unwrap();
+        assert!(browser.name == *"Other");
+        assert!(browser.version.is_none());
+
+        let os = contexts.os.unwrap();
+        assert!(os.name == *"Other");
+        assert!(os.version.is_none());
+
+        let device = contexts.device.unwrap();
+        assert!(device.family == *"Other");
+        assert!(device.brand.is_none());
+        assert!(device.model.is_none());
     }
 }
