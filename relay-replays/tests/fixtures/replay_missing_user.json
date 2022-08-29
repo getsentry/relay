@@ -1,0 +1,43 @@
+{
+    "type": "replay_event",
+    "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+    "event_id": "123",
+    "segment_id": 0,
+    "timestamp": 1597977777.6189718,
+    "replay_start_timestamp": 1597976392.6542819,
+    "urls": [
+        "sentry.io"
+    ],
+    "error_ids": [
+        "1",
+        "2"
+    ],
+    "trace_ids": [
+        "3",
+        "4"
+    ],
+    "dist": "1.12",
+    "platform": "Python",
+    "environment": "production",
+    "release": "version@1.3",
+    "tags": {
+        "transaction": "/organizations/:orgId/performance/:eventSlug/"
+    },
+    "sdk": {
+        "name": "name",
+        "version": "veresion"
+    },
+    "requests": {
+        "url": null,
+        "headers": {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
+        }
+    },
+    "contexts": {
+        "trace": {
+            "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+            "span_id": "FA90FDEAD5F74052",
+            "type": "trace"
+        }
+    }
+}

@@ -1,4 +1,10 @@
 //! Utility functions for working with user agents.
+//!
+//! NOTICE:
+//!
+//! Adding user_agent parsing to your module will incur a latency penalty in the test suite.
+//! Because of this some integration tests may fail. To fix this, you will need to add a timeout
+//! to your consumer.
 
 use once_cell::sync::Lazy;
 use uaparser::{Parser, UserAgentParser};
