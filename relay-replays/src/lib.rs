@@ -183,7 +183,7 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/replay.json");
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_ip_address(ip_address);
-        assert!("192.168.11.12".to_string() == replay_input.user.ip_address.unwrap());
+        assert!(*"192.168.11.12" == replay_input.user.ip_address.unwrap());
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/replay_missing_user.json");
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_ip_address(ip_address);
-        assert!("127.0.0.1".to_string() == replay_input.user.ip_address.unwrap());
+        assert!(*"127.0.0.1" == replay_input.user.ip_address.unwrap());
     }
 
     #[test]
@@ -205,7 +205,7 @@ mod tests {
         let payload = include_bytes!("../tests/fixtures/replay_missing_user_ip_address.json");
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_ip_address(ip_address);
-        assert!("127.0.0.1".to_string() == replay_input.user.ip_address.unwrap());
+        assert!(*"127.0.0.1" == replay_input.user.ip_address.unwrap());
     }
 
     #[test]
@@ -218,28 +218,28 @@ mod tests {
             Some(contexts) => {
                 match contexts.browser {
                     Some(browser) => {
-                        assert!(browser.name == "Safari".to_string());
-                        assert!(browser.version.unwrap() == "15.5".to_string());
+                        assert!(browser.name == *"Safari");
+                        assert!(browser.version.unwrap() == *"15.5");
                     }
-                    None => assert!(false),
+                    None => unreachable!(),
                 }
                 match contexts.os {
                     Some(os) => {
-                        assert!(os.name == "Mac OS X".to_string());
-                        assert!(os.version.unwrap() == "10.15.7".to_string());
+                        assert!(os.name == *"Mac OS X");
+                        assert!(os.version.unwrap() == *"10.15.7");
                     }
-                    None => assert!(false),
+                    None => unreachable!(),
                 }
                 match contexts.device {
                     Some(device) => {
-                        assert!(device.family == "Mac".to_string());
-                        assert!(device.brand.unwrap() == "Apple".to_string());
-                        assert!(device.model.unwrap() == "Mac".to_string());
+                        assert!(device.family == *"Mac");
+                        assert!(device.brand.unwrap() == *"Apple");
+                        assert!(device.model.unwrap() == *"Mac");
                     }
-                    None => assert!(false),
+                    None => unreachable!(),
                 }
             }
-            None => assert!(false),
+            None => unreachable!(),
         }
     }
 
@@ -253,28 +253,28 @@ mod tests {
             Some(contexts) => {
                 match contexts.browser {
                     Some(browser) => {
-                        assert!(browser.name == "Other".to_string());
+                        assert!(browser.name == *"Other");
                         assert!(browser.version.is_none());
                     }
-                    None => assert!(false),
+                    None => unreachable!(),
                 }
                 match contexts.os {
                     Some(os) => {
-                        assert!(os.name == "Other".to_string());
+                        assert!(os.name == *"Other");
                         assert!(os.version.is_none());
                     }
-                    None => assert!(false),
+                    None => unreachable!(),
                 }
                 match contexts.device {
                     Some(device) => {
-                        assert!(device.family == "Other".to_string());
+                        assert!(device.family == *"Other");
                         assert!(device.brand.is_none());
                         assert!(device.model.is_none());
                     }
-                    None => assert!(false),
+                    None => unreachable!(),
                 }
             }
-            None => assert!(false),
+            None => unreachable!(),
         }
     }
 }
