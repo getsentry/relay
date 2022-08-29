@@ -3415,7 +3415,7 @@ version = "22.7.0"
 dependencies = [
  "insta",
  "rand 0.6.5",
- "rand_pcg 0.1.2",
+ "rand_pcg",
  "relay-common",
  "relay-filter",
  "relay-general",
