@@ -80,7 +80,19 @@
 <span id="72">72</span>
 <span id="73">73</span>
 <span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Utility functions for working with user agents.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! NOTICE:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Adding user_agent parsing to your module will incur a latency penalty in the test suite.</span>
+<span class="doccomment">//! Because of this some integration tests may fail. To fix this, you will need to add a timeout</span>
+<span class="doccomment">//! to your consumer.</span>
 
 <span class="kw">use</span> <span class="ident">once_cell::sync::Lazy</span>;
 <span class="kw">use</span> <span class="ident">uaparser</span>::{<span class="ident">Parser</span>, <span class="ident">UserAgentParser</span>};
