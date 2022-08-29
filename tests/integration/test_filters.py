@@ -62,8 +62,8 @@ def test_filters_are_applied(
     "is_processing_relay", (False, True), ids=["external relay", "processing relay"]
 )
 @pytest.mark.parametrize(
-    "enable_filters, must_filter",
-    ((False, False), (True, True)),
+    "enable_filters",
+    (False, True),
     ids=["events from extensions not filtered", "events from extensions filtered"],
 )
 def test_browser_extension_filters_are_applied(
@@ -73,7 +73,6 @@ def test_browser_extension_filters_are_applied(
     relay,
     is_processing_relay,
     enable_filters,
-    must_filter,
 ):
     """Test if all processing relays apply browser extension filters when enabled."""
     events_consumer = events_consumer()
@@ -105,7 +104,7 @@ def test_browser_extension_filters_are_applied(
     }
     relay.send_event(project_id, event)
 
-    if must_filter:
+    if enable_filters:
         events_consumer.assert_empty()
     else:
         events_consumer.get_event()
