@@ -881,24 +881,25 @@ struct BucketKey {
 }
 
 impl BucketKey {
-    /// An extremely hamfisted way to hash a bucket key into an integer.
-    ///
-    /// This is necessary for (and probably only useful for) reporting unique bucket keys in a
-    /// cadence set metric, as cadence set metrics can only be constructed from values that
-    /// implement [`cadence::ext::ToSetValue`].  This trait is only implemented for [`i64`], and
-    /// while we could implement it directly for [`BucketKey`] the documentation advises us not to
-    /// interact with this trait.
-    ///
-    /// [`cadence::ext::ToSetValue`]: https://docs.rs/cadence/*/cadence/ext/trait.ToSetValue.html
-    fn as_integer_lossy(&self) -> u32 {
-        // XXX: The way this hasher is used may be platform-dependent. If we want to produce the
-        // same hash across platforms, the `deterministic_hash` crate may be useful.
-
-        // TODO(jjbayer): Use FnvHasher here
-
-        let mut hasher = crc32fast::Hasher::new();
-        std::hash::Hash::hash(self, &mut hasher);
-        hasher.finalize()
+    // Create a 32-bit hash of the bucket key using FnvHasher.
+    // This is used for partition key computation and statsd logging.
+    fn hash32(&self) -> u32 {
+        let BucketKey {
+            project_key,
+            timestamp,
+            metric_name,
+            tags,
+        } = self;
+        let mut hasher = FnvHasher::default();
+        hasher.write(project_key.as_bytes());
+        hasher.write(&timestamp.as_secs().to_le_bytes());
+        hasher.write(metric_name.as_bytes());
+        for (key, value) in tags.iter() {
+            // BTreeMap is sorted
+            hasher.write(key.as_bytes());
+            hasher.write(value.as_bytes());
+        }
+        hasher.finish()
     }
 
     /// Estimates the number of bytes needed to encode the bucket key.
@@ -1633,7 +1634,7 @@ impl Aggregator {
                     metric_name = &entry.key().metric_name
                 );
                 relay_statsd::metric!(
-                    set(MetricSets::UniqueBucketsCreated) = entry.key().as_integer_lossy() as i64,
+                    set(MetricSets::UniqueBucketsCreated) = entry.key().hash32() as i64,
                     metric_name = &entry.key().metric_name
                 );
 
@@ -1739,7 +1740,7 @@ impl Aggregator {
                         .entry(key.project_key)
                         .or_default()
                         .push(HashedBucket {
-                            hashed_key: key.as_integer_lossy(), // TODO: Do we need a more reliable hasher?
+                            hashed_key: key.hash32(),
                             bucket,
                         });
 

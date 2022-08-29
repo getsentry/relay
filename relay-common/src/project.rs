@@ -45,6 +45,11 @@ impl ProjectKey {
         Ok((key, iter.collect()))
     }
 
+    /// Returns the bytes of the project key.
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
     /// Returns the string representation of the project key.
     #[inline]
     pub fn as_str(&self) -> &str {
