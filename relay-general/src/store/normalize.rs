@@ -583,8 +583,8 @@ pub fn light_normalize_event(
             config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
-        normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         light_normalize_stacktraces(event)?;
+        normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(event); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
