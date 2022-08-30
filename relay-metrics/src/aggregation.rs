@@ -3033,7 +3033,7 @@ mod tests {
         );
     }
 
-    fn run_test_bucket_partitioning(flush_partitions: Option<u64>, expected: Vec<String>) {
+    fn run_test_bucket_partitioning(flush_partitions: Option<u64>) -> Vec<String> {
         let config = AggregatorConfig {
             max_flush_bytes: 1000,
             flush_partitions,
@@ -3064,38 +3064,34 @@ mod tests {
             aggregator.try_flush(None);
         });
 
-        assert_eq!(
-            captures
-                .into_iter()
-                .filter(|x| x.contains("per_batch") || x.contains("batches_per_partition"))
-                .collect::<Vec<_>>(),
-            expected
-        );
+        captures
+            .into_iter()
+            .filter(|x| x.contains("per_batch") || x.contains("batches_per_partition"))
+            .collect::<Vec<_>>()
     }
 
     #[test]
-    fn test_bucket_partitioning() {
-        // TODO: Also test with different `max_flush_bytes`.
-        // It currently looks like setting a small max_flush_bytes leads to no buckets being
-        // flushed at all.
-        for (flush_partitions, expected) in [
-            (
-                None,
-                vec!["metrics.buckets.per_batch:2|h|#partition_key:none".to_owned()],
-            ),
-            (
-                Some(5),
-                vec![
-                    "metrics.buckets.batches_per_partition:1|h|#partition_key:0".to_owned(),
-                    "metrics.buckets.per_batch:1|h|#partition_key:0".to_owned(),
-                    "metrics.buckets.batches_per_partition:1|h|#partition_key:3".to_owned(),
-                    "metrics.buckets.per_batch:1|h|#partition_key:3".to_owned(),
-                    "metrics.buckets.per_batch:2|h|#partition_key:none".to_owned(),
-                ],
-            ),
-        ] {
-            run_test_bucket_partitioning(flush_partitions, expected)
-        }
+    fn test_bucket_partitioning_dummy() {
+        let output = run_test_bucket_partitioning(None);
+        insta::assert_debug_snapshot!(output, @r###"
+        [
+            "metrics.buckets.batches_per_partition:1|h|#partition_key:0",
+            "metrics.buckets.per_batch:2|h|#partition_key:0",
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_bucket_partitioning_128() {
+        let output = run_test_bucket_partitioning(Some(128));
+        insta::assert_debug_snapshot!(output, @r###"
+        [
+            "metrics.buckets.batches_per_partition:1|h|#partition_key:59",
+            "metrics.buckets.per_batch:1|h|#partition_key:59",
+            "metrics.buckets.batches_per_partition:1|h|#partition_key:62",
+            "metrics.buckets.per_batch:1|h|#partition_key:62",
+        ]
+        "###);
     }
 
     fn test_capped_iter_completeness(max_flush_bytes: usize, expected_elements: usize) {
