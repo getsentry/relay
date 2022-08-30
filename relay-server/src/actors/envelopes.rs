@@ -66,6 +66,7 @@ pub struct SendEnvelope {
     pub http_encoding: HttpEncoding,
     pub response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
     pub project_key: ProjectKey,
+    partition_key: Option<String>,
 }
 
 impl UpstreamRequest for SendEnvelope {
@@ -75,6 +76,10 @@ impl UpstreamRequest for SendEnvelope {
 
     fn path(&self) -> Cow<'_, str> {
         format!("/api/{}/envelope/", self.scoping.project_id).into()
+    }
+
+    fn partition_key(&self) -> Option<&String> {
+        self.partition_key.as_ref()
     }
 
     fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
@@ -184,6 +189,7 @@ impl EnvelopeManager {
     fn submit_envelope(
         &mut self,
         project_key: ProjectKey,
+        partition_key: Option<String>,
         mut envelope: Envelope,
         scoping: Scoping,
         #[allow(unused_variables)] start_time: Instant,
@@ -240,6 +246,7 @@ impl EnvelopeManager {
             http_encoding: self.config.http_encoding(),
             response_sender: Some(tx),
             project_key,
+            partition_key,
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
@@ -307,7 +314,7 @@ impl Handler<SubmitEnvelope> for EnvelopeManager {
         let start_time = envelope.meta().start_time();
         let project_key = envelope.meta().public_key();
 
-        self.submit_envelope(project_key, envelope, scoping, start_time, context)
+        self.submit_envelope(project_key, None, envelope, scoping, start_time, context)
             .then(move |result| match result {
                 Ok(_) => {
                     envelope_context.accept();
@@ -345,6 +352,8 @@ pub struct SendMetrics {
     pub scoping: Scoping,
     /// The project of the metrics.
     pub project_key: ProjectKey,
+    /// The key of the logical partition to send the metrics to.
+    pub partition_key: u64,
 }
 
 impl fmt::Debug for SendMetrics {
@@ -353,6 +362,7 @@ impl fmt::Debug for SendMetrics {
             .field("buckets", &self.buckets)
             .field("scoping", &self.scoping)
             .field("project", &format_args!("Addr<Project>"))
+            .field("partition", &format_args!("{}", self.partition_key))
             .finish()
     }
 }
@@ -369,6 +379,7 @@ impl Handler<SendMetrics> for EnvelopeManager {
             buckets,
             scoping,
             project_key,
+            partition_key,
         } = message;
 
         let upstream = self.config.upstream_descriptor();
@@ -387,7 +398,14 @@ impl Handler<SendMetrics> for EnvelopeManager {
         envelope.add_item(item);
 
         let future = self
-            .submit_envelope(project_key, envelope, scoping, Instant::now(), context)
+            .submit_envelope(
+                project_key,
+                Some(partition_key.to_string()),
+                envelope,
+                scoping,
+                Instant::now(),
+                context,
+            )
             .map_err(|_| buckets);
 
         Box::new(future)
@@ -433,7 +451,14 @@ impl Handler<SendClientReports> for EnvelopeManager {
         }
 
         let future = self
-            .submit_envelope(scoping.project_key, envelope, scoping, Instant::now(), ctx)
+            .submit_envelope(
+                scoping.project_key,
+                None,
+                envelope,
+                scoping,
+                Instant::now(),
+                ctx,
+            )
             .map_err(|e| {
                 relay_log::trace!("Failed to send envelope for client report: {:?}", e);
             });

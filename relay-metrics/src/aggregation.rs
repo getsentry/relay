@@ -1155,29 +1155,12 @@ pub struct HashedBucket {
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
-    /// the project key
-    project_key: ProjectKey,
-    buckets: Vec<Bucket>,
-}
-
-impl FlushBuckets {
-    /// Creates a new message by consuming a vector of buckets.
-    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
-        Self {
-            project_key,
-            buckets,
-        }
-    }
-
-    /// Consumes the buckets contained in this message.
-    pub fn into_buckets(self) -> Vec<Bucket> {
-        self.buckets
-    }
-
-    /// Returns the project key (formally project public key)
-    pub fn project_key(&self) -> ProjectKey {
-        self.project_key
-    }
+    /// The project key.
+    pub project_key: ProjectKey,
+    /// The logical partition to send this batch to.
+    pub partition_key: u64,
+    /// The buckets to be flushed.
+    pub buckets: Vec<Bucket>,
 }
 
 impl Message for FlushBuckets {
@@ -1763,7 +1746,6 @@ impl Aggregator {
     /// Split the provided buckets into batches and process each batch with the given function.
     ///
     /// For each batch, log a histogram metric.
-    /// NOTE: This function can be inlined again once we are done with the dry run.
     fn process_batches<F>(
         &self,
         buckets: impl IntoIterator<Item = Bucket>,
@@ -1822,7 +1804,11 @@ impl Aggregator {
                 self.process_batches(buckets, Some(partition_key), |batch| {
                     let fut = self
                         .receiver
-                        .send(FlushBuckets::new(project_key, batch))
+                        .send(FlushBuckets {
+                            project_key,
+                            partition_key,
+                            buckets: batch,
+                        })
                         .into_actor(self)
                         .and_then(move |result, slf, _ctx| {
                             if let Err(buckets) = result {
@@ -2028,7 +2014,7 @@ mod tests {
         type Result = Result<(), Vec<Bucket>>;
 
         fn handle(&mut self, msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {
-            let buckets = msg.into_buckets();
+            let buckets = msg.buckets;
             relay_log::debug!("received buckets: {:#?}", buckets);
             if self.reject_all {
                 return Err(buckets);

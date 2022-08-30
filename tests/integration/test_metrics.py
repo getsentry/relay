@@ -102,6 +102,21 @@ def test_metrics_backdated(mini_sentry, relay):
     ]
 
 
+def test_metrics_partition_key(mini_sentry, relay):
+    relay = relay(
+        mini_sentry, options=dict(TEST_CONFIG, aggregator={"flush_partitions": 128})
+    )
+
+    project_id = 42
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c"
+    relay.send_metrics(project_id, metrics_payload, timestamp)
+
+    headers, _ = mini_sentry.request_log[-1]
+    assert headers.get("X-Sentry-Relay-Shard") == 1, headers
+
+
 def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()
