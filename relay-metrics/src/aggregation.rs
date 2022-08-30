@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 use std::fmt;
@@ -1148,8 +1149,7 @@ pub struct HashedBucket {
 
 /// A message containing a vector of buckets to be flushed.
 ///
-/// Use [`into_buckets`](Self::into_buckets) to access the raw [`Bucket`]s. Handlers must respond to
-/// this message with a `Result`:
+/// Handlers must respond to this message with a `Result`:
 /// - If flushing has succeeded or the buckets should be dropped for any reason, respond with `Ok`.
 /// - If flushing fails and should be retried at a later time, respond with `Err` containing the
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
@@ -1396,7 +1396,7 @@ impl<T: Iterator<Item = Bucket>> FusedIterator for CappedBucketIter<T> {}
 ///
 ///     fn handle(&mut self, msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {
 ///         // Return `Ok` to consume the buckets or `Err` to send them back
-///         Err(msg.into_buckets())
+///         Err(msg.buckets)
 ///     }
 /// }
 /// ```
@@ -1732,6 +1732,7 @@ impl Aggregator {
         buckets: Vec<HashedBucket>,
         flush_partitions: u64,
     ) -> BTreeMap<u64, Vec<Bucket>> {
+        let flush_partitions = max(1, flush_partitions); // handle 0
         let mut partitions = BTreeMap::<u64, Vec<Bucket>>::new();
         for bucket in buckets {
             let partition_key = bucket.hashed_key % flush_partitions;
@@ -1761,12 +1762,10 @@ impl Aggregator {
             None => "none".to_owned(),
         };
         let capped_batches: Vec<_> = capped_batches.collect();
-        if partition_tag != "none" {
-            relay_statsd::metric!(
-                histogram(MetricHistograms::BatchesPerPartition) = capped_batches.len() as f64,
-                partition_key = partition_tag.as_str(),
-            );
-        }
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BatchesPerPartition) = capped_batches.len() as f64,
+            partition_key = partition_tag.as_str(),
+        );
 
         for batch in capped_batches.into_iter() {
             relay_statsd::metric!(
