@@ -782,7 +782,8 @@ impl Bucket {
         // If the bucket key can't even fit into the remaining length, move the entire bucket into
         // the right-hand side.
         let own_size = self.estimated_own_size();
-        if size < own_size {
+        if size < (own_size + AVG_VALUE_SIZE) {
+            // split_at must not be zero
             return (None, Some(self));
         }
 
@@ -3124,5 +3125,48 @@ mod tests {
         ] {
             run_test_bucket_partitioning(flush_partitions, expected)
         }
+    }
+
+    fn test_capped_iter_completeness(max_flush_bytes: usize, expected_elements: usize) {
+        let json = r#"[
+          {
+            "name": "endpoint.response_time",
+            "unit": "millisecond",
+            "value": [1, 1, 1, 1],
+            "type": "d",
+            "timestamp": 1615889440,
+            "width": 10,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
+
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+
+        let iter = CappedBucketIter::new(buckets.into_iter(), max_flush_bytes);
+        let batches = iter.take(expected_elements + 1).collect::<Vec<_>>();
+        assert!(
+            batches.len() <= expected_elements,
+            "Cannot have more buckets than individual values"
+        );
+        let total_elements: usize = batches.into_iter().flatten().map(|x| x.value.len()).sum();
+        assert_eq!(total_elements, expected_elements);
+    }
+
+    #[test]
+    fn test_capped_iter_completeness_0() {
+        test_capped_iter_completeness(0, 0);
+    }
+
+    #[test]
+    fn test_capped_iter_completeness_90() {
+        // This would cause an infinite loop.
+        test_capped_iter_completeness(90, 0);
+    }
+
+    #[test]
+    fn test_capped_iter_completeness_100() {
+        test_capped_iter_completeness(100, 4);
     }
 }
