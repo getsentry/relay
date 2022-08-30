@@ -3134,6 +3134,50 @@
 <span id="3126">3126</span>
 <span id="3127">3127</span>
 <span id="3128">3128</span>
+<span id="3129">3129</span>
+<span id="3130">3130</span>
+<span id="3131">3131</span>
+<span id="3132">3132</span>
+<span id="3133">3133</span>
+<span id="3134">3134</span>
+<span id="3135">3135</span>
+<span id="3136">3136</span>
+<span id="3137">3137</span>
+<span id="3138">3138</span>
+<span id="3139">3139</span>
+<span id="3140">3140</span>
+<span id="3141">3141</span>
+<span id="3142">3142</span>
+<span id="3143">3143</span>
+<span id="3144">3144</span>
+<span id="3145">3145</span>
+<span id="3146">3146</span>
+<span id="3147">3147</span>
+<span id="3148">3148</span>
+<span id="3149">3149</span>
+<span id="3150">3150</span>
+<span id="3151">3151</span>
+<span id="3152">3152</span>
+<span id="3153">3153</span>
+<span id="3154">3154</span>
+<span id="3155">3155</span>
+<span id="3156">3156</span>
+<span id="3157">3157</span>
+<span id="3158">3158</span>
+<span id="3159">3159</span>
+<span id="3160">3160</span>
+<span id="3161">3161</span>
+<span id="3162">3162</span>
+<span id="3163">3163</span>
+<span id="3164">3164</span>
+<span id="3165">3165</span>
+<span id="3166">3166</span>
+<span id="3167">3167</span>
+<span id="3168">3168</span>
+<span id="3169">3169</span>
+<span id="3170">3170</span>
+<span id="3171">3171</span>
+<span id="3172">3172</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
@@ -3918,7 +3962,8 @@
         <span class="comment">// If the bucket key can&#39;t even fit into the remaining length, move the entire bucket into</span>
         <span class="comment">// the right-hand side.</span>
         <span class="kw">let</span> <span class="ident">own_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">estimated_own_size</span>();
-        <span class="kw">if</span> <span class="ident">size</span> <span class="op">&lt;</span> <span class="ident">own_size</span> {
+        <span class="kw">if</span> <span class="ident">size</span> <span class="op">&lt;</span> (<span class="ident">own_size</span> <span class="op">+</span> <span class="ident">AVG_VALUE_SIZE</span>) {
+            <span class="comment">// split_at must not be zero</span>
             <span class="kw">return</span> (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="self">self</span>));
         }
 
@@ -6260,6 +6305,49 @@
         ] {
             <span class="ident">run_test_bucket_partitioning</span>(<span class="ident">flush_partitions</span>, <span class="ident">expected</span>)
         }
+    }
+
+    <span class="kw">fn</span> <span class="ident">test_capped_iter_completeness</span>(<span class="ident">max_flush_bytes</span>: <span class="ident">usize</span>, <span class="ident">expected_elements</span>: <span class="ident">usize</span>) {
+        <span class="kw">let</span> <span class="ident">json</span> <span class="op">=</span> <span class="string">r#&quot;[
+          {
+            &quot;name&quot;: &quot;endpoint.response_time&quot;,
+            &quot;unit&quot;: &quot;millisecond&quot;,
+            &quot;value&quot;: [1, 1, 1, 1],
+            &quot;type&quot;: &quot;d&quot;,
+            &quot;timestamp&quot;: 1615889440,
+            &quot;width&quot;: 10,
+            &quot;tags&quot;: {
+                &quot;route&quot;: &quot;user_index&quot;
+            }
+          }
+        ]&quot;#</span>;
+
+        <span class="kw">let</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="ident">Bucket::parse_all</span>(<span class="ident">json</span>.<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
+
+        <span class="kw">let</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">CappedBucketIter::new</span>(<span class="ident">buckets</span>.<span class="ident">into_iter</span>(), <span class="ident">max_flush_bytes</span>);
+        <span class="kw">let</span> <span class="ident">batches</span> <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">take</span>(<span class="ident">expected_elements</span> <span class="op">+</span> <span class="number">1</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>();
+        <span class="macro">assert!</span>(
+            <span class="ident">batches</span>.<span class="ident">len</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="ident">expected_elements</span>,
+            <span class="string">&quot;Cannot have more buckets than individual values&quot;</span>
+        );
+        <span class="kw">let</span> <span class="ident">total_elements</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">batches</span>.<span class="ident">into_iter</span>().<span class="ident">flatten</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">value</span>.<span class="ident">len</span>()).<span class="ident">sum</span>();
+        <span class="macro">assert_eq!</span>(<span class="ident">total_elements</span>, <span class="ident">expected_elements</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_capped_iter_completeness_0</span>() {
+        <span class="ident">test_capped_iter_completeness</span>(<span class="number">0</span>, <span class="number">0</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_capped_iter_completeness_90</span>() {
+        <span class="comment">// This would cause an infinite loop.</span>
+        <span class="ident">test_capped_iter_completeness</span>(<span class="number">90</span>, <span class="number">0</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_capped_iter_completeness_100</span>() {
+        <span class="ident">test_capped_iter_completeness</span>(<span class="number">100</span>, <span class="number">4</span>);
     }
 }
 </code></pre></div>
