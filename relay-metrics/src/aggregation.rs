@@ -1816,46 +1816,31 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            // Simulate the behavior of partitioning buckets by logical key:
-            let project_buckets: Box<dyn Iterator<Item = Bucket>> = if let Some(num_partitions) =
-                self.config.flush_partitions
-            {
-                let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
-                let mut all_project_batches = Vec::<Vec<Bucket>>::new();
-                for (partition_key, buckets) in partitioned_buckets {
-                    self.process_batches(buckets, Some(partition_key), |batch| {
-                        // This is just a dry run. Put the buckets back into the vector
-                        all_project_batches.push(batch);
-                    });
-                }
-                Box::new(all_project_batches.into_iter().flatten())
-            } else {
-                // Simply send buckets as before.
-                Box::new(project_buckets.into_iter().map(|x| x.bucket))
-            };
+            let num_partitions = self.config.flush_partitions.unwrap_or(1);
+            let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
+            for (partition_key, buckets) in partitioned_buckets {
+                self.process_batches(buckets, Some(partition_key), |batch| {
+                    let fut = self
+                        .receiver
+                        .send(FlushBuckets::new(project_key, batch))
+                        .into_actor(self)
+                        .and_then(move |result, slf, _ctx| {
+                            if let Err(buckets) = result {
+                                relay_log::trace!(
+                                    "returned {} buckets from receiver, merging back",
+                                    buckets.len()
+                                );
+                                slf.merge_all(project_key, buckets).ok();
+                            }
+                            fut::ok(())
+                        })
+                        .drop_err();
 
-            // Actually flush buckets:
-            self.process_batches(project_buckets, None, |batch| {
-                let fut = self
-                    .receiver
-                    .send(FlushBuckets::new(project_key, batch))
-                    .into_actor(self)
-                    .and_then(move |result, slf, _ctx| {
-                        if let Err(buckets) = result {
-                            relay_log::trace!(
-                                "returned {} buckets from receiver, merging back",
-                                buckets.len()
-                            );
-                            slf.merge_all(project_key, buckets).ok();
-                        }
-                        fut::ok(())
-                    })
-                    .drop_err();
-
-                if let Some(context) = context.as_deref_mut() {
-                    fut.spawn(context);
-                }
-            });
+                    if let Some(context) = context.as_deref_mut() {
+                        fut.spawn(context);
+                    }
+                });
+            }
         }
 
         relay_statsd::metric!(histogram(MetricHistograms::BucketsFlushed) = total_bucket_count);
