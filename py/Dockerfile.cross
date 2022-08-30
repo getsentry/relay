@@ -1,0 +1,18 @@
+ARG IMAGE=centos:7
+FROM ${IMAGE}
+
+# must be lower case - used in the paths and packages names
+ARG TARGET="aarch64"
+
+# System dependencies
+RUN yum install -y dnf epel-release gcc curl git libffi-devel patch make \
+  && yum install -y "binutils-${TARGET}-linux-gnu" "gcc-${TARGET}-linux-gnu" "gcc-c++-${TARGET}-linux-gnu"
+  
+# Rust toolchain
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y \
+  && echo 'source "$HOME/.cargo/env"' >> ~/.bashrc && source ~/.bashrc \
+  && rustup target add "${TARGET}-unknown-linux-gnu"
+
+RUN sed -i s/gpgcheck=1/gpgcheck=0/g /etc/yum.repos.d/CentOS-* \
+  && dnf --forcearch "${TARGET}" --release 7 install gcc glibc glibc-devel --installroot "/usr/${TARGET}-linux-gnu/sys-root/" -y \
+  && ln -s "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so.1" "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so"

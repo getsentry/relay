@@ -14,9 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         build-arch:
-          - manylinux2010_i686
-          - manylinux2010_x86_64
-          - manylinux2014_aarch64
+          - i686
+          - x86_64
+          - aarch64
 
     name: Python Linux ${{ matrix.build-arch }}
     runs-on: ubuntu-latest
@@ -26,21 +26,15 @@ jobs:
         with:
           submodules: recursive
 
-      - if: matrix.build-arch == 'manylinux2014_aarch64'
+      - if: matrix.build-arch == 'aarch64'
         uses: docker/setup-qemu-action@v1
         with:
           platforms: arm64
 
-      - if: matrix.build-arch == 'manylinux2014_aarch64'
-        run: |
-          scripts/docker-aarch64-crossbuild.sh
-          echo "CARGO_BUILD_TARGET=aarch64-unknown-linux-gnu" >> $GITHUB_ENV
-          echo "SKIP_RELAY_LIB_BUILD=1" >> $GITHUB_ENV
-
       - name: Build in Docker
-        run: scripts/docker-manylinux.sh
+        run: scripts/docker-build-lib-linux.sh
         env:
-          BUILD_ARCH: ${{ matrix.build-arch }}
+          TARGET: ${{ matrix.build-arch }}
 
       - uses: actions/upload-artifact@v3
         with:
