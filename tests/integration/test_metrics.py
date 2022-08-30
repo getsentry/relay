@@ -103,18 +103,27 @@ def test_metrics_backdated(mini_sentry, relay):
 
 
 def test_metrics_partition_key(mini_sentry, relay):
-    relay = relay(
-        mini_sentry, options=dict(TEST_CONFIG, aggregator={"flush_partitions": 128})
-    )
+    relay_config = {
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+            "debounce_delay": 0,
+            "flush_partitions": 1,
+        }
+    }
+    relay = relay(mini_sentry, options=relay_config)
 
     project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
     metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
+    mini_sentry.captured_events.get(timeout=3)
+
     headers, _ = mini_sentry.request_log[-1]
-    assert headers.get("X-Sentry-Relay-Shard") == 1, headers
+    assert headers.get("X-Sentry-Relay-Shard") == "0", headers
 
 
 def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):
