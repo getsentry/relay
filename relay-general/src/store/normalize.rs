@@ -276,6 +276,35 @@ fn normalize_exceptions(event: &mut Event) -> ProcessingResult {
     Ok(())
 }
 
+/// Process the required stacktraces for light normalization.
+///
+/// The browser extension filter requires the last frame of the stacktrace of the first exception
+/// processed. There's no need to do further processing at this early stage.
+fn light_normalize_stacktraces(event: &mut Event) -> ProcessingResult {
+    match event.exceptions.value_mut() {
+        None => Ok(()),
+        Some(exception) => match exception.values.value_mut() {
+            None => Ok(()),
+            Some(exceptions) => match exceptions.first_mut() {
+                None => Ok(()),
+                Some(first) => normalize_last_stacktrace_frame(first),
+            },
+        },
+    }
+}
+
+fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) -> ProcessingResult {
+    exception.apply(|e, _| {
+        e.stacktrace.apply(|s, _| match s.frames.value_mut() {
+            None => Ok(()),
+            Some(frames) => match frames.last_mut() {
+                None => Ok(()),
+                Some(frame) => frame.apply(stacktrace::process_non_raw_frame),
+            },
+        })
+    })
+}
+
 /// Removes internal tags and adds tags for well-known attributes.
 fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
     let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
@@ -554,6 +583,7 @@ pub fn light_normalize_event(
             config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
+        light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(event); // Measurements are part of the metric extraction

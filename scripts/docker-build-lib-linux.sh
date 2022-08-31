@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -ex
+set -e
 
 IMAGE=${IMAGE:-manylinux2014_x86_64}
 TARGET=${TARGET:-aarch64}

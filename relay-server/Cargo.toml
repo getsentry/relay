@@ -60,6 +60,7 @@ relay-metrics = { path = "../relay-metrics" }
 relay-profiling = { path = "../relay-profiling" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
+relay-replays = { path = "../relay-replays" }
 relay-sampling = { path = "../relay-sampling" }
 relay-statsd = { path = "../relay-statsd" }
 relay-system = { path = "../relay-system" }
