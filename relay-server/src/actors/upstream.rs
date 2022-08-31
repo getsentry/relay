@@ -1085,7 +1085,10 @@ pub trait UpstreamRequest: Send {
         true
     }
 
-    /// TODO: docs
+    /// Returns the value that will be used for the X-Sentry-Relay-Shard HTTP header.
+    ///
+    /// If set to None, the header will be omitted.
+    ///
     fn partition_key(&self) -> Option<&String> {
         None
     }

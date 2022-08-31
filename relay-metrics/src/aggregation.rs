@@ -941,7 +941,7 @@ pub struct AggregatorConfig {
     /// The number of logical partitions that can receive flushed buckets.
     ///
     /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
-    /// by setting the header `X-Relay-Shard`.
+    /// by setting the header `X-Sentry-Relay-Shard`.
     pub flush_partitions: Option<u64>,
 
     /// The age in seconds of the oldest allowed bucket timestamp.
@@ -1750,30 +1750,29 @@ impl Aggregator {
     fn process_batches<F>(
         &self,
         buckets: impl IntoIterator<Item = Bucket>,
-        partition_key: Option<u64>,
+        partition_key: u64,
         mut process: F,
     ) where
         F: FnMut(Vec<Bucket>),
     {
         let capped_batches =
             CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
-        let partition_tag = match partition_key {
-            Some(partition_key) => partition_key.to_string(),
-            None => "none".to_owned(),
-        };
-        let capped_batches: Vec<_> = capped_batches.collect();
+        let partition_tag = partition_key.to_string();
+
+        let num_batches = capped_batches
+            .map(|batch| {
+                relay_statsd::metric!(
+                    histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
+                    partition_key = partition_tag.as_str(),
+                );
+                process(batch);
+            })
+            .count();
+
         relay_statsd::metric!(
-            histogram(MetricHistograms::BatchesPerPartition) = capped_batches.len() as f64,
+            histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
             partition_key = partition_tag.as_str(),
         );
-
-        for batch in capped_batches.into_iter() {
-            relay_statsd::metric!(
-                histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
-                partition_key = partition_tag.as_str(),
-            );
-            process(batch);
-        }
     }
 
     /// Sends the [`FlushBuckets`] message to the receiver.
@@ -1800,7 +1799,7 @@ impl Aggregator {
             let num_partitions = self.config.flush_partitions.unwrap_or(1);
             let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
-                self.process_batches(buckets, Some(partition_key), |batch| {
+                self.process_batches(buckets, partition_key, |batch| {
                     let fut = self
                         .receiver
                         .send(FlushBuckets {
@@ -3032,6 +3031,7 @@ mod tests {
         );
     }
 
+    #[must_use]
     fn run_test_bucket_partitioning(flush_partitions: Option<u64>) -> Vec<String> {
         let config = AggregatorConfig {
             max_flush_bytes: 1000,
@@ -3074,8 +3074,8 @@ mod tests {
         let output = run_test_bucket_partitioning(None);
         insta::assert_debug_snapshot!(output, @r###"
         [
-            "metrics.buckets.batches_per_partition:1|h|#partition_key:0",
             "metrics.buckets.per_batch:2|h|#partition_key:0",
+            "metrics.buckets.batches_per_partition:1|h|#partition_key:0",
         ]
         "###);
     }
@@ -3085,10 +3085,10 @@ mod tests {
         let output = run_test_bucket_partitioning(Some(128));
         insta::assert_debug_snapshot!(output, @r###"
         [
-            "metrics.buckets.batches_per_partition:1|h|#partition_key:59",
             "metrics.buckets.per_batch:1|h|#partition_key:59",
-            "metrics.buckets.batches_per_partition:1|h|#partition_key:62",
+            "metrics.buckets.batches_per_partition:1|h|#partition_key:59",
             "metrics.buckets.per_batch:1|h|#partition_key:62",
+            "metrics.buckets.batches_per_partition:1|h|#partition_key:62",
         ]
         "###);
     }

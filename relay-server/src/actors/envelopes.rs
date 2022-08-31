@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::fmt;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -345,6 +344,7 @@ impl Handler<SubmitEnvelope> for EnvelopeManager {
 ///
 /// Responds with `Err` if there was an error sending some or all of the buckets, containing the
 /// failed buckets.
+#[derive(Debug)]
 pub struct SendMetrics {
     /// The pre-aggregated metric buckets.
     pub buckets: Vec<Bucket>,
@@ -354,17 +354,6 @@ pub struct SendMetrics {
     pub project_key: ProjectKey,
     /// The key of the logical partition to send the metrics to.
     pub partition_key: u64,
-}
-
-impl fmt::Debug for SendMetrics {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct(std::any::type_name::<Self>())
-            .field("buckets", &self.buckets)
-            .field("scoping", &self.scoping)
-            .field("project", &format_args!("Addr<Project>"))
-            .field("partition", &format_args!("{}", self.partition_key))
-            .finish()
-    }
 }
 
 impl Message for SendMetrics {
