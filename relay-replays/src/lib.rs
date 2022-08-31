@@ -256,6 +256,7 @@ mod tests {
         let result = normalize_replay_event(payload, None);
         assert!(result.is_ok());
 
+        // Assert the user payload is just generally unaffected by parsing.
         let replay_output: ReplayInput = serde_json::from_slice(&result.unwrap()).unwrap();
         assert!(replay_output.user.ip_address.unwrap() == *"127.1.1.1");
         assert!(replay_output.user.username.is_none());
