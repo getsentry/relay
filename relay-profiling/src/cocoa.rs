@@ -121,11 +121,33 @@ struct CocoaProfile {
     version_name: String,
 }
 
+impl CocoaProfile {
+    fn filter_samples(&mut self) {
+        let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
+
+        for sample in self.sampled_profile.samples.iter() {
+            *sample_count_by_thread_id
+                .entry(sample.thread_id)
+                .or_default() += 1;
+        }
+
+        sample_count_by_thread_id.retain(|_, count| *count > 1);
+
+        let thread_ids: Vec<u64> = sample_count_by_thread_id.keys().cloned().collect();
+
+        self.sampled_profile
+            .samples
+            .retain(|sample| thread_ids.contains(&sample.thread_id));
+    }
+}
+
 pub fn parse_cocoa_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
-    let profile: CocoaProfile =
+    let mut profile: CocoaProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
-    if profile.sampled_profile.samples.len() < 2 {
+    profile.filter_samples();
+
+    if profile.sampled_profile.samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
     }
 
@@ -168,5 +190,103 @@ mod tests {
                 image_vmaddr: Annotated::new(Addr(4294967296)),
                 other: Map::new(),
             }))), annotated);
+    }
+
+    fn generate_profile() -> CocoaProfile {
+        CocoaProfile {
+            debug_meta: DebugMeta { images: Vec::new() },
+            device_is_emulator: true,
+            device_locale: "en_US".to_string(),
+            device_manufacturer: "Apple".to_string(),
+            device_model: "iPhome11,3".to_string(),
+            device_os_build_number: "H3110".to_string(),
+            device_os_name: "iOS".to_string(),
+            device_os_version: "16.0".to_string(),
+            duration_ns: 1337,
+            environment: "testing".to_string(),
+            platform: "cocoa".to_string(),
+            profile_id: EventId::new(),
+            sampled_profile: SampledProfile {
+                thread_metadata: HashMap::new(),
+                samples: Vec::new(),
+                queue_metadata: HashMap::new(),
+            },
+            trace_id: EventId::new(),
+            transaction_id: EventId::new(),
+            transaction_name: "test".to_string(),
+            version_code: "9999".to_string(),
+            version_name: "1.0".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_filter_samples() {
+        let mut profile = generate_profile();
+
+        profile.sampled_profile.samples.extend(vec![
+            Sample {
+                frames: Vec::new(),
+                queue_address: "0xdeadbeef".to_string(),
+                relative_timestamp_ns: 1,
+                thread_id: 1,
+            },
+            Sample {
+                frames: Vec::new(),
+                queue_address: "0xdeadbeef".to_string(),
+                relative_timestamp_ns: 1,
+                thread_id: 1,
+            },
+            Sample {
+                frames: Vec::new(),
+                queue_address: "0xdeadbeef".to_string(),
+                relative_timestamp_ns: 1,
+                thread_id: 2,
+            },
+            Sample {
+                frames: Vec::new(),
+                queue_address: "0xdeadbeef".to_string(),
+                relative_timestamp_ns: 1,
+                thread_id: 3,
+            },
+        ]);
+
+        profile.filter_samples();
+
+        assert!(profile.sampled_profile.samples.len() == 2);
+    }
+
+    #[test]
+    fn test_parse_profile_with_all_samples_filtered() {
+        let mut profile = generate_profile();
+        profile.sampled_profile.samples.extend(vec![
+            Sample {
+                frames: Vec::new(),
+                queue_address: "0xdeadbeef".to_string(),
+                relative_timestamp_ns: 1,
+                thread_id: 1,
+            },
+            Sample {
+                frames: Vec::new(),
+                queue_address: "0xdeadbeef".to_string(),
+                relative_timestamp_ns: 1,
+                thread_id: 2,
+            },
+            Sample {
+                frames: Vec::new(),
+                queue_address: "0xdeadbeef".to_string(),
+                relative_timestamp_ns: 1,
+                thread_id: 3,
+            },
+            Sample {
+                frames: Vec::new(),
+                queue_address: "0xdeadbeef".to_string(),
+                relative_timestamp_ns: 1,
+                thread_id: 4,
+            },
+        ]);
+
+        let payload = serde_json::to_vec(&profile).unwrap();
+
+        assert!(parse_cocoa_profile(&payload[..]).is_err());
     }
 }
