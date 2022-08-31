@@ -30,7 +30,7 @@ use std::fmt::Write;
 use std::net::IpAddr;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Error;
+use serde_json::{Error, Value};
 
 use relay_general::user_agent;
 
@@ -147,7 +147,7 @@ struct VersionedMeta {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 struct User {
-    id: Option<String>,
+    id: Option<Value>,
     username: Option<String>,
     email: Option<String>,
     ip_address: Option<String>,
@@ -171,7 +171,7 @@ struct Headers {
 mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
-    use crate::ReplayInput;
+    use crate::{normalize_replay_event, ReplayInput};
 
     #[test]
     fn test_set_ip_address() {
@@ -248,5 +248,12 @@ mod tests {
         assert!(device.family == *"Other");
         assert!(device.brand.is_none());
         assert!(device.model.is_none());
+    }
+
+    #[test]
+    fn test_loose_type_requirements() {
+        let payload = include_bytes!("../tests/fixtures/replay_failure_22_08_31.json");
+        let result = normalize_replay_event(payload, None);
+        assert!(result.is_ok());
     }
 }
