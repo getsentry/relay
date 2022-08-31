@@ -113,6 +113,7 @@ impl From<Context<ServerErrorKind>> for ServerError {
 #[derive(Clone)]
 pub struct Registry {
     pub healthcheck: Addr<Healthcheck>,
+    pub outcome_producer: Addr<OutcomeProducer>,
     pub processor: actix::Addr<EnvelopeProcessor>,
 }
 
@@ -147,11 +148,10 @@ impl ServiceState {
         let upstream_relay = UpstreamRelay::new(config.clone());
         registry.set(Arbiter::start(|_| upstream_relay));
 
-        let outcome_producer = OutcomeProducer::create(config.clone())?;
-        let outcome_producer = Arbiter::start(|_| outcome_producer);
-        registry.set(outcome_producer.clone());
+        // TODO(tobias): Check if this is good enough or if we want this to have its own tokio runtime?
+        let outcome_producer = OutcomeProducer::create(config.clone())?.start();
 
-        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
+        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient()); // TODO: Not yet sure how to do this
         registry.set(outcome_aggregator.start());
 
         let redis_pool = match config.redis() {
@@ -186,6 +186,7 @@ impl ServiceState {
             .set(Box::new(Registry {
                 processor,
                 healthcheck,
+                outcome_producer,
             }))
             .unwrap();
 

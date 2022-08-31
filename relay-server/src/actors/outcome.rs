@@ -41,6 +41,7 @@ use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
 use crate::service::ServerErrorKind;
+use crate::service::REGISTRY;
 use crate::statsd::RelayCounters;
 #[cfg(feature = "processing")]
 use crate::utils::{CaptureErrorContext, ThreadedProducer};
@@ -784,13 +785,16 @@ enum ProducerInner {
     Disabled,
 }
 
-// TODO: Actor #3
 pub struct OutcomeProducer {
     config: Arc<Config>,
     producer: ProducerInner,
 }
 
 impl OutcomeProducer {
+    pub fn from_registry() -> ServiceAddr<Self> {
+        REGISTRY.get().unwrap().outcome_producer.clone() // TODO(tobias): Make sure this unwrap is not killing us
+    }
+
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let producer = match config.emit_outcomes() {
             EmitOutcomes::AsOutcomes => {
@@ -807,7 +811,7 @@ impl OutcomeProducer {
                 } else {
                     relay_log::info!("Configured to emit outcomes via http");
                     ProducerInner::AsHttpOutcomes(
-                        HttpOutcomeProducer::create(Arc::clone(&config))?.start(), // TODO: Seems like here is where the HttpOutcomeProducer is started
+                        HttpOutcomeProducer::create(Arc::clone(&config))?.start(),
                     )
                 }
             }
@@ -824,6 +828,32 @@ impl OutcomeProducer {
         };
 
         Ok(Self { config, producer })
+    }
+
+    pub fn start(mut self) -> ServiceAddr<Self> {
+        relay_log::info!("OutcomeProducer started.");
+        let (tx, mut rx) = mpsc::unbounded_channel::<OutcomeProducerMessages>();
+
+        tokio::spawn(async move {
+            while let Some(message) = rx.recv().await {
+                self.handle_message(message);
+            }
+        });
+
+        ServiceAddr { tx }
+    }
+
+    fn handle_message(&mut self, message: OutcomeProducerMessages) {
+        match message {
+            OutcomeProducerMessages::TrackOutcome(msg, response_tx) => {
+                let response = self.handle_track_outcome(msg);
+                response_tx.send(response).ok();
+            }
+            OutcomeProducerMessages::TrackRawOutcome(msg, response_tx) => {
+                let response = self.handle_track_raw_outcome(msg);
+                response_tx.send(response).ok();
+            }
+        }
     }
 
     #[cfg(feature = "processing")]
@@ -867,7 +897,76 @@ impl OutcomeProducer {
             to = to,
         );
     }
+
+    fn handle_track_outcome(&mut self, message: TrackOutcome) -> Result<(), OutcomeError> {
+        match &self.producer {
+            #[cfg(feature = "processing")]
+            ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
+                Self::send_outcome_metric(&message, "kafka");
+                let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
+                self.send_kafka_message(kafka_producer, raw_message) // This can yield a Outcome error
+            }
+            ProducerInner::AsClientReports(ref producer) => {
+                Self::send_outcome_metric(&message, "client_report");
+                producer.send(message); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works
+                Ok(())
+            }
+            ProducerInner::AsHttpOutcomes(ref producer) => {
+                Self::send_outcome_metric(&message, "http");
+                producer.send(TrackRawOutcome::from_outcome(message, &self.config)); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works
+                Ok(())
+            }
+            ProducerInner::Disabled => Ok(()),
+        }
+    }
+
+    fn handle_track_raw_outcome(&mut self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
+        match &self.producer {
+            #[cfg(feature = "processing")]
+            ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
+                Self::send_outcome_metric(&message, "kafka");
+                self.send_kafka_message(kafka_producer, message) // This can yield a Outcome error
+            }
+            ProducerInner::AsHttpOutcomes(ref producer) => {
+                Self::send_outcome_metric(&message, "http");
+                producer.send(message); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works I think we NEED to await them sadly
+                Ok(())
+            }
+            ProducerInner::AsClientReports(_) => Ok(()),
+            ProducerInner::Disabled => Ok(()),
+        }
+    }
 }
+
+impl Service for OutcomeProducer {
+    type Messages = OutcomeProducerMessages;
+}
+
+impl ServiceMessage<OutcomeProducer> for TrackOutcome {
+    type Response = Result<(), OutcomeError>;
+
+    fn into_messages(self) -> (OutcomeProducerMessages, oneshot::Receiver<Self::Response>) {
+        let (tx, rx) = oneshot::channel();
+        (OutcomeProducerMessages::TrackOutcome(self, tx), rx)
+    }
+}
+
+impl ServiceMessage<OutcomeProducer> for TrackRawOutcome {
+    type Response = Result<(), OutcomeError>;
+
+    fn into_messages(self) -> (OutcomeProducerMessages, oneshot::Receiver<Self::Response>) {
+        let (tx, rx) = oneshot::channel();
+        (OutcomeProducerMessages::TrackRawOutcome(self, tx), rx)
+    }
+}
+
+#[derive(Debug)]
+pub enum OutcomeProducerMessages {
+    TrackOutcome(TrackOutcome, oneshot::Sender<Result<(), OutcomeError>>),
+    TrackRawOutcome(TrackRawOutcome, oneshot::Sender<Result<(), OutcomeError>>),
+}
+
+/*
 
 impl Actor for OutcomeProducer {
     type Context = Context<Self>;
@@ -882,9 +981,9 @@ impl Actor for OutcomeProducer {
     }
 }
 
-impl Supervised for OutcomeProducer {}
+impl Supervised for OutcomeProducer {} // TODO(tobias): Think about what to do with this
 
-impl SystemService for OutcomeProducer {}
+impl SystemService for OutcomeProducer {} // TODO(tobias): Think about what to do with this
 
 impl Default for OutcomeProducer {
     fn default() -> Self {
@@ -900,7 +999,7 @@ impl Handler<TrackOutcome> for OutcomeProducer {
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
                 Self::send_outcome_metric(&message, "kafka");
                 let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
-                self.send_kafka_message(kafka_producer, raw_message)
+                self.send_kafka_message(kafka_producer, raw_message) // This can yield a Outcome error
             }
             ProducerInner::AsClientReports(ref producer) => {
                 Self::send_outcome_metric(&message, "client_report");
@@ -937,3 +1036,5 @@ impl Handler<TrackRawOutcome> for OutcomeProducer {
         }
     }
 }
+
+*/
