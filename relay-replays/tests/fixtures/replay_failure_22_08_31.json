@@ -46,11 +46,11 @@
         "timeOrigin.mode": "timeOrigin"
     },
     "user": {
-        "ip_address": "73.241.205.8",
-        "email": "josh.ferge@sentry.io",
-        "id": 880461,
+        "ip_address": "127.1.1.1",
+        "email": "email@sentry.io",
+        "id": 1,
         "isStaff": false,
-        "name": "Josh Ferge"
+        "name": "First Last"
     },
     "contexts": {
         "trace": {
