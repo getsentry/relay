@@ -10,15 +10,16 @@ env:
 
 jobs:
   linux:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         build-arch:
-          - i686
-          - x86_64
-          - aarch64
+          - { image: 'manylinux2014_x86_64', target: 'i686' }
+          - { image: 'manylinux2014_x86_64', target: 'x86_64' }
+          - { image: 'manylinux2014_x86_64', target: 'aarch64' }
 
-    name: Python Linux ${{ matrix.build-arch }}
+    name: Python Linux ${{ matrix.build-arch.target }}
     runs-on: ubuntu-latest
 
     steps:
@@ -26,15 +27,37 @@ jobs:
         with:
           submodules: recursive
 
-      - if: matrix.build-arch == 'aarch64'
+      - if: matrix.build-arch.target == 'aarch64'
         uses: docker/setup-qemu-action@v1
         with:
           platforms: arm64
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and export
+        uses: docker/build-push-action@v3
+        with:
+          context: py/
+          tags: relay-cabi-builder-${{matrix.build-arch.target}}:latest
+          build-args: |
+            IMAGE=quay.io/pypa/${{matrix.build-arch.image}}
+            TARGET=${{matrix.build-arch.target}}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: type=docker,dest=/tmp/relay-cabi-builder-${{matrix.build-arch.target}}.tar
+
+      - name: Load image
+        run: |
+          docker load --input /tmp/relay-cabi-builder-${{matrix.build-arch.target}}.tar
+          docker image ls -a
+
       - name: Build in Docker
         run: scripts/docker-build-lib-linux.sh
         env:
-          TARGET: ${{ matrix.build-arch }}
+          IMAGE: ${{ matrix.build-arch.image }}
+          TARGET: ${{ matrix.build-arch.target }}
+          BUILDER_NAME: relay-cabi-builder-${{matrix.build-arch.target}}:latest
 
       - uses: actions/upload-artifact@v3
         with:
