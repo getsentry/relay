@@ -1284,6 +1284,18 @@
 <span id="1276">1276</span>
 <span id="1277">1277</span>
 <span id="1278">1278</span>
+<span id="1279">1279</span>
+<span id="1280">1280</span>
+<span id="1281">1281</span>
+<span id="1282">1282</span>
+<span id="1283">1283</span>
+<span id="1284">1284</span>
+<span id="1285">1285</span>
+<span id="1286">1286</span>
+<span id="1287">1287</span>
+<span id="1288">1288</span>
+<span id="1289">1289</span>
+<span id="1290">1290</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module implements the `UpstreamRelay` actor that can be used for sending requests to the</span>
 <span class="doccomment">//! upstream relay via HTTP.</span>
 <span class="doccomment">//!</span>
@@ -1840,6 +1852,10 @@
             }
         }
 
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">partition_key</span>) <span class="op">=</span> <span class="ident">request</span>.<span class="ident">request</span>.<span class="ident">partition_key</span>() {
+            <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Relay-Shard&quot;</span>, <span class="ident">partition_key</span>);
+        }
+
         <span class="comment">//try to build a ClientRequest</span>
         <span class="kw">let</span> <span class="ident">client_request</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">request</span>.<span class="ident">request</span>.<span class="ident">build</span>(<span class="ident">builder</span>) {
             <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
@@ -2365,6 +2381,14 @@
     <span class="doccomment">/// This should be done (only) for calls to endpoints that use Relay authentication.</span>
     <span class="kw">fn</span> <span class="ident">set_relay_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="bool-val">true</span>
+    }
+
+    <span class="doccomment">/// Returns the value that will be used for the X-Sentry-Relay-Shard HTTP header.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If set to None, the header will be omitted.</span>
+    <span class="doccomment">///</span>
+    <span class="kw">fn</span> <span class="ident">partition_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> {
+        <span class="prelude-val">None</span>
     }
 
     <span class="doccomment">/// Called whenever the request will be send over HTTP (possible multiple times)</span>

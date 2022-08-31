@@ -3144,41 +3144,8 @@
 <span id="3136">3136</span>
 <span id="3137">3137</span>
 <span id="3138">3138</span>
-<span id="3139">3139</span>
-<span id="3140">3140</span>
-<span id="3141">3141</span>
-<span id="3142">3142</span>
-<span id="3143">3143</span>
-<span id="3144">3144</span>
-<span id="3145">3145</span>
-<span id="3146">3146</span>
-<span id="3147">3147</span>
-<span id="3148">3148</span>
-<span id="3149">3149</span>
-<span id="3150">3150</span>
-<span id="3151">3151</span>
-<span id="3152">3152</span>
-<span id="3153">3153</span>
-<span id="3154">3154</span>
-<span id="3155">3155</span>
-<span id="3156">3156</span>
-<span id="3157">3157</span>
-<span id="3158">3158</span>
-<span id="3159">3159</span>
-<span id="3160">3160</span>
-<span id="3161">3161</span>
-<span id="3162">3162</span>
-<span id="3163">3163</span>
-<span id="3164">3164</span>
-<span id="3165">3165</span>
-<span id="3166">3166</span>
-<span id="3167">3167</span>
-<span id="3168">3168</span>
-<span id="3169">3169</span>
-<span id="3170">3170</span>
-<span id="3171">3171</span>
-<span id="3172">3172</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
+<span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">btree_map</span>, <span class="ident">hash_map::Entry</span>, <span class="ident">BTreeMap</span>, <span class="ident">BTreeSet</span>, <span class="ident">HashMap</span>};
 
 <span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::hash::Hasher</span>;
@@ -4120,7 +4087,7 @@
     <span class="doccomment">/// The number of logical partitions that can receive flushed buckets.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If set, buckets are partitioned by (bucket key % flush_partitions), and routed</span>
-    <span class="doccomment">/// by setting the header `X-Relay-Shard`.</span>
+    <span class="doccomment">/// by setting the header `X-Sentry-Relay-Shard`.</span>
     <span class="kw">pub</span> <span class="ident">flush_partitions</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// The age in seconds of the oldest allowed bucket timestamp.</span>
@@ -4328,36 +4295,18 @@
 
 <span class="doccomment">/// A message containing a vector of buckets to be flushed.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// Use [`into_buckets`](Self::into_buckets) to access the raw [`Bucket`]s. Handlers must respond to</span>
-<span class="doccomment">/// this message with a `Result`:</span>
+<span class="doccomment">/// Handlers must respond to this message with a `Result`:</span>
 <span class="doccomment">/// - If flushing has succeeded or the buckets should be dropped for any reason, respond with `Ok`.</span>
 <span class="doccomment">/// - If flushing fails and should be retried at a later time, respond with `Err` containing the</span>
 <span class="doccomment">///   failed buckets. They will be merged back into the aggregator and flushed at a later time.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FlushBuckets</span> {
-    <span class="doccomment">/// the project key</span>
-    <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-    <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">FlushBuckets</span> {
-    <span class="doccomment">/// Creates a new message by consuming a vector of buckets.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">project_key</span>: <span class="ident">ProjectKey</span>, <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">project_key</span>,
-            <span class="ident">buckets</span>,
-        }
-    }
-
-    <span class="doccomment">/// Consumes the buckets contained in this message.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_buckets</span>(<span class="self">self</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">buckets</span>
-    }
-
-    <span class="doccomment">/// Returns the project key (formally project public key)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">project_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ProjectKey</span> {
-        <span class="self">self</span>.<span class="ident">project_key</span>
-    }
+    <span class="doccomment">/// The project key.</span>
+    <span class="kw">pub</span> <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
+    <span class="doccomment">/// The logical partition to send this batch to.</span>
+    <span class="kw">pub</span> <span class="ident">partition_key</span>: <span class="ident">u64</span>,
+    <span class="doccomment">/// The buckets to be flushed.</span>
+    <span class="kw">pub</span> <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">FlushBuckets</span> {
@@ -4593,7 +4542,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">///     fn handle(&amp;mut self, msg: FlushBuckets, _ctx: &amp;mut Self::Context) -&gt; Self::Result {</span>
 <span class="doccomment">///         // Return `Ok` to consume the buckets or `Err` to send them back</span>
-<span class="doccomment">///         Err(msg.into_buckets())</span>
+<span class="doccomment">///         Err(msg.buckets)</span>
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
@@ -4929,6 +4878,7 @@
         <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">HashedBucket</span><span class="op">&gt;</span>,
         <span class="ident">flush_partitions</span>: <span class="ident">u64</span>,
     ) -&gt; <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">u64</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">flush_partitions</span> <span class="op">=</span> <span class="ident">max</span>(<span class="number">1</span>, <span class="ident">flush_partitions</span>); <span class="comment">// handle 0</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">partitions</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="op">&lt;</span><span class="ident">u64</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="ident">::new</span>();
         <span class="kw">for</span> <span class="ident">bucket</span> <span class="kw">in</span> <span class="ident">buckets</span> {
             <span class="kw">let</span> <span class="ident">partition_key</span> <span class="op">=</span> <span class="ident">bucket</span>.<span class="ident">hashed_key</span> <span class="op">%</span> <span class="ident">flush_partitions</span>;
@@ -4943,36 +4893,32 @@
     <span class="doccomment">/// Split the provided buckets into batches and process each batch with the given function.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// For each batch, log a histogram metric.</span>
-    <span class="doccomment">/// NOTE: This function can be inlined again once we are done with the dry run.</span>
     <span class="kw">fn</span> <span class="ident">process_batches</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">buckets</span>: <span class="kw">impl</span> <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Bucket</span><span class="op">&gt;</span>,
-        <span class="ident">partition_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+        <span class="ident">partition_key</span>: <span class="ident">u64</span>,
         <span class="kw-2">mut</span> <span class="ident">process</span>: <span class="ident">F</span>,
     ) <span class="kw">where</span>
         <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span>),
     {
         <span class="kw">let</span> <span class="ident">capped_batches</span> <span class="op">=</span>
             <span class="ident">CappedBucketIter::new</span>(<span class="ident">buckets</span>.<span class="ident">into_iter</span>(), <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">max_flush_bytes</span>);
-        <span class="kw">let</span> <span class="ident">partition_tag</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">partition_key</span> {
-            <span class="prelude-val">Some</span>(<span class="ident">partition_key</span>) =&gt; <span class="ident">partition_key</span>.<span class="ident">to_string</span>(),
-            <span class="prelude-val">None</span> =&gt; <span class="string">&quot;none&quot;</span>.<span class="ident">to_owned</span>(),
-        };
-        <span class="kw">let</span> <span class="ident">capped_batches</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">capped_batches</span>.<span class="ident">collect</span>();
-        <span class="kw">if</span> <span class="ident">partition_tag</span> <span class="op">!</span><span class="op">=</span> <span class="string">&quot;none&quot;</span> {
-            <span class="macro">relay_statsd::metric!</span>(
-                <span class="ident">histogram</span>(<span class="ident">MetricHistograms::BatchesPerPartition</span>) <span class="op">=</span> <span class="ident">capped_batches</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">f64</span>,
-                <span class="ident">partition_key</span> <span class="op">=</span> <span class="ident">partition_tag</span>.<span class="ident">as_str</span>(),
-            );
-        }
+        <span class="kw">let</span> <span class="ident">partition_tag</span> <span class="op">=</span> <span class="ident">partition_key</span>.<span class="ident">to_string</span>();
 
-        <span class="kw">for</span> <span class="ident">batch</span> <span class="kw">in</span> <span class="ident">capped_batches</span>.<span class="ident">into_iter</span>() {
-            <span class="macro">relay_statsd::metric!</span>(
-                <span class="ident">histogram</span>(<span class="ident">MetricHistograms::BucketsPerBatch</span>) <span class="op">=</span> <span class="ident">batch</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">f64</span>,
-                <span class="ident">partition_key</span> <span class="op">=</span> <span class="ident">partition_tag</span>.<span class="ident">as_str</span>(),
-            );
-            <span class="ident">process</span>(<span class="ident">batch</span>);
-        }
+        <span class="kw">let</span> <span class="ident">num_batches</span> <span class="op">=</span> <span class="ident">capped_batches</span>
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">batch</span><span class="op">|</span> {
+                <span class="macro">relay_statsd::metric!</span>(
+                    <span class="ident">histogram</span>(<span class="ident">MetricHistograms::BucketsPerBatch</span>) <span class="op">=</span> <span class="ident">batch</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">f64</span>,
+                    <span class="ident">partition_key</span> <span class="op">=</span> <span class="ident">partition_tag</span>.<span class="ident">as_str</span>(),
+                );
+                <span class="ident">process</span>(<span class="ident">batch</span>);
+            })
+            .<span class="ident">count</span>();
+
+        <span class="macro">relay_statsd::metric!</span>(
+            <span class="ident">histogram</span>(<span class="ident">MetricHistograms::BatchesPerPartition</span>) <span class="op">=</span> <span class="ident">num_batches</span> <span class="kw">as</span> <span class="ident">f64</span>,
+            <span class="ident">partition_key</span> <span class="op">=</span> <span class="ident">partition_tag</span>.<span class="ident">as_str</span>(),
+        );
     }
 
     <span class="doccomment">/// Sends the [`FlushBuckets`] message to the receiver.</span>
@@ -4996,46 +4942,35 @@
             );
             <span class="ident">total_bucket_count</span> <span class="op">+</span><span class="op">=</span> <span class="ident">bucket_count</span>;
 
-            <span class="comment">// Simulate the behavior of partitioning buckets by logical key:</span>
-            <span class="kw">let</span> <span class="ident">project_buckets</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">num_partitions</span>) <span class="op">=</span>
-                <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">flush_partitions</span>
-            {
-                <span class="kw">let</span> <span class="ident">partitioned_buckets</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">partition_buckets</span>(<span class="ident">project_buckets</span>, <span class="ident">num_partitions</span>);
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">all_project_batches</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="ident">::new</span>();
-                <span class="kw">for</span> (<span class="ident">partition_key</span>, <span class="ident">buckets</span>) <span class="kw">in</span> <span class="ident">partitioned_buckets</span> {
-                    <span class="self">self</span>.<span class="ident">process_batches</span>(<span class="ident">buckets</span>, <span class="prelude-val">Some</span>(<span class="ident">partition_key</span>), <span class="op">|</span><span class="ident">batch</span><span class="op">|</span> {
-                        <span class="comment">// This is just a dry run. Put the buckets back into the vector</span>
-                        <span class="ident">all_project_batches</span>.<span class="ident">push</span>(<span class="ident">batch</span>);
-                    });
-                }
-                <span class="ident">Box::new</span>(<span class="ident">all_project_batches</span>.<span class="ident">into_iter</span>().<span class="ident">flatten</span>())
-            } <span class="kw">else</span> {
-                <span class="comment">// Simply send buckets as before.</span>
-                <span class="ident">Box::new</span>(<span class="ident">project_buckets</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">bucket</span>))
-            };
+            <span class="kw">let</span> <span class="ident">num_partitions</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">flush_partitions</span>.<span class="ident">unwrap_or</span>(<span class="number">1</span>);
+            <span class="kw">let</span> <span class="ident">partitioned_buckets</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">partition_buckets</span>(<span class="ident">project_buckets</span>, <span class="ident">num_partitions</span>);
+            <span class="kw">for</span> (<span class="ident">partition_key</span>, <span class="ident">buckets</span>) <span class="kw">in</span> <span class="ident">partitioned_buckets</span> {
+                <span class="self">self</span>.<span class="ident">process_batches</span>(<span class="ident">buckets</span>, <span class="ident">partition_key</span>, <span class="op">|</span><span class="ident">batch</span><span class="op">|</span> {
+                    <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="self">self</span>
+                        .<span class="ident">receiver</span>
+                        .<span class="ident">send</span>(<span class="ident">FlushBuckets</span> {
+                            <span class="ident">project_key</span>,
+                            <span class="ident">partition_key</span>,
+                            <span class="ident">buckets</span>: <span class="ident">batch</span>,
+                        })
+                        .<span class="ident">into_actor</span>(<span class="self">self</span>)
+                        .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span>, <span class="ident">slf</span>, <span class="ident">_ctx</span><span class="op">|</span> {
+                            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">buckets</span>) <span class="op">=</span> <span class="ident">result</span> {
+                                <span class="macro">relay_log::trace!</span>(
+                                    <span class="string">&quot;returned {} buckets from receiver, merging back&quot;</span>,
+                                    <span class="ident">buckets</span>.<span class="ident">len</span>()
+                                );
+                                <span class="ident">slf</span>.<span class="ident">merge_all</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>).<span class="ident">ok</span>();
+                            }
+                            <span class="ident">fut::ok</span>(())
+                        })
+                        .<span class="ident">drop_err</span>();
 
-            <span class="comment">// Actually flush buckets:</span>
-            <span class="self">self</span>.<span class="ident">process_batches</span>(<span class="ident">project_buckets</span>, <span class="prelude-val">None</span>, <span class="op">|</span><span class="ident">batch</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="self">self</span>
-                    .<span class="ident">receiver</span>
-                    .<span class="ident">send</span>(<span class="ident">FlushBuckets::new</span>(<span class="ident">project_key</span>, <span class="ident">batch</span>))
-                    .<span class="ident">into_actor</span>(<span class="self">self</span>)
-                    .<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">result</span>, <span class="ident">slf</span>, <span class="ident">_ctx</span><span class="op">|</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">buckets</span>) <span class="op">=</span> <span class="ident">result</span> {
-                            <span class="macro">relay_log::trace!</span>(
-                                <span class="string">&quot;returned {} buckets from receiver, merging back&quot;</span>,
-                                <span class="ident">buckets</span>.<span class="ident">len</span>()
-                            );
-                            <span class="ident">slf</span>.<span class="ident">merge_all</span>(<span class="ident">project_key</span>, <span class="ident">buckets</span>).<span class="ident">ok</span>();
-                        }
-                        <span class="ident">fut::ok</span>(())
-                    })
-                    .<span class="ident">drop_err</span>();
-
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">context</span>) <span class="op">=</span> <span class="ident">context</span>.<span class="ident">as_deref_mut</span>() {
-                    <span class="ident">fut</span>.<span class="ident">spawn</span>(<span class="ident">context</span>);
-                }
-            });
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">context</span>) <span class="op">=</span> <span class="ident">context</span>.<span class="ident">as_deref_mut</span>() {
+                        <span class="ident">fut</span>.<span class="ident">spawn</span>(<span class="ident">context</span>);
+                    }
+                });
+            }
         }
 
         <span class="macro">relay_statsd::metric!</span>(<span class="ident">histogram</span>(<span class="ident">MetricHistograms::BucketsFlushed</span>) <span class="op">=</span> <span class="ident">total_bucket_count</span>);
@@ -5223,7 +5158,7 @@
         <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
         <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">msg</span>: <span class="ident">FlushBuckets</span>, <span class="ident">_ctx</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
-            <span class="kw">let</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">into_buckets</span>();
+            <span class="kw">let</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">buckets</span>;
             <span class="macro">relay_log::debug!</span>(<span class="string">&quot;received buckets: {:#?}&quot;</span>, <span class="ident">buckets</span>);
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">reject_all</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">buckets</span>);
@@ -6242,7 +6177,8 @@
         );
     }
 
-    <span class="kw">fn</span> <span class="ident">run_test_bucket_partitioning</span>(<span class="ident">flush_partitions</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>, <span class="ident">expected</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>) {
+    <span class="attribute">#[<span class="ident">must_use</span>]</span>
+    <span class="kw">fn</span> <span class="ident">run_test_bucket_partitioning</span>(<span class="ident">flush_partitions</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">AggregatorConfig</span> {
             <span class="ident">max_flush_bytes</span>: <span class="number">1000</span>,
             <span class="ident">flush_partitions</span>,
@@ -6273,38 +6209,34 @@
             <span class="ident">aggregator</span>.<span class="ident">try_flush</span>(<span class="prelude-val">None</span>);
         });
 
-        <span class="macro">assert_eq!</span>(
-            <span class="ident">captures</span>
-                .<span class="ident">into_iter</span>()
-                .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">contains</span>(<span class="string">&quot;per_batch&quot;</span>) <span class="op">|</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">contains</span>(<span class="string">&quot;batches_per_partition&quot;</span>))
-                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>(),
-            <span class="ident">expected</span>
-        );
+        <span class="ident">captures</span>
+            .<span class="ident">into_iter</span>()
+            .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">contains</span>(<span class="string">&quot;per_batch&quot;</span>) <span class="op">|</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">contains</span>(<span class="string">&quot;batches_per_partition&quot;</span>))
+            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>()
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_bucket_partitioning</span>() {
-        <span class="comment">// TODO: Also test with different `max_flush_bytes`.</span>
-        <span class="comment">// It currently looks like setting a small max_flush_bytes leads to no buckets being</span>
-        <span class="comment">// flushed at all.</span>
-        <span class="kw">for</span> (<span class="ident">flush_partitions</span>, <span class="ident">expected</span>) <span class="kw">in</span> [
-            (
-                <span class="prelude-val">None</span>,
-                <span class="macro">vec!</span>[<span class="string">&quot;metrics.buckets.per_batch:2|h|#partition_key:none&quot;</span>.<span class="ident">to_owned</span>()],
-            ),
-            (
-                <span class="prelude-val">Some</span>(<span class="number">5</span>),
-                <span class="macro">vec!</span>[
-                    <span class="string">&quot;metrics.buckets.batches_per_partition:1|h|#partition_key:0&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="string">&quot;metrics.buckets.per_batch:1|h|#partition_key:0&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="string">&quot;metrics.buckets.batches_per_partition:1|h|#partition_key:3&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="string">&quot;metrics.buckets.per_batch:1|h|#partition_key:3&quot;</span>.<span class="ident">to_owned</span>(),
-                    <span class="string">&quot;metrics.buckets.per_batch:2|h|#partition_key:none&quot;</span>.<span class="ident">to_owned</span>(),
-                ],
-            ),
-        ] {
-            <span class="ident">run_test_bucket_partitioning</span>(<span class="ident">flush_partitions</span>, <span class="ident">expected</span>)
-        }
+    <span class="kw">fn</span> <span class="ident">test_bucket_partitioning_dummy</span>() {
+        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">run_test_bucket_partitioning</span>(<span class="prelude-val">None</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">output</span>, @<span class="string">r###&quot;
+        [
+            &quot;metrics.buckets.per_batch:2|h|#partition_key:0&quot;,
+            &quot;metrics.buckets.batches_per_partition:1|h|#partition_key:0&quot;,
+        ]
+        &quot;###</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_bucket_partitioning_128</span>() {
+        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">run_test_bucket_partitioning</span>(<span class="prelude-val">Some</span>(<span class="number">128</span>));
+        <span class="macro">insta::assert_debug_snapshot!</span>(<span class="ident">output</span>, @<span class="string">r###&quot;
+        [
+            &quot;metrics.buckets.per_batch:1|h|#partition_key:59&quot;,
+            &quot;metrics.buckets.batches_per_partition:1|h|#partition_key:59&quot;,
+            &quot;metrics.buckets.per_batch:1|h|#partition_key:62&quot;,
+            &quot;metrics.buckets.batches_per_partition:1|h|#partition_key:62&quot;,
+        ]
+        &quot;###</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">test_capped_iter_completeness</span>(<span class="ident">max_flush_bytes</span>: <span class="ident">usize</span>, <span class="ident">expected_elements</span>: <span class="ident">usize</span>) {

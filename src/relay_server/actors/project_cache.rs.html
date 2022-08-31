@@ -679,6 +679,12 @@
 <span id="671">671</span>
 <span id="672">672</span>
 <span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
 
@@ -1306,8 +1312,13 @@
     <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> <span class="ident">ResponseFuture</span><span class="op">&lt;</span>(), <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bucket</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">FlushBuckets</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+        <span class="kw">let</span> <span class="ident">FlushBuckets</span> {
+            <span class="ident">project_key</span>,
+            <span class="ident">partition_key</span>,
+            <span class="ident">buckets</span>,
+        } <span class="op">=</span> <span class="ident">message</span>;
+
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">clone</span>();
-        <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">project_key</span>();
         <span class="kw">let</span> <span class="ident">project</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_or_create_project</span>(<span class="ident">project_key</span>);
         <span class="kw">let</span> <span class="ident">expiry_state</span> <span class="op">=</span> <span class="ident">project</span>.<span class="ident">expiry_state</span>();
 
@@ -1320,13 +1331,13 @@
             <span class="ident">ExpiryState::Expired</span> =&gt; {
                 <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into the</span>
                 <span class="comment">// aggregator and wait for the next flush cycle.</span>
-                <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">message</span>.<span class="ident">into_buckets</span>()));
+                <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">buckets</span>));
             }
         };
 
         <span class="kw">let</span> <span class="ident">scoping</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">project</span>.<span class="ident">scoping</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">scoping</span>) =&gt; <span class="ident">scoping</span>,
-            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">message</span>.<span class="ident">into_buckets</span>())),
+            <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="ident">Box::new</span>(<span class="ident">future::err</span>(<span class="ident">buckets</span>)),
         };
 
         <span class="comment">// Only send if the project state is valid, otherwise drop this bucket.</span>
@@ -1336,9 +1347,10 @@
 
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="ident">EnvelopeManager::from_registry</span>()
             .<span class="ident">send</span>(<span class="ident">SendMetrics</span> {
-                <span class="ident">buckets</span>: <span class="ident">message</span>.<span class="ident">into_buckets</span>(),
+                <span class="ident">buckets</span>,
                 <span class="ident">scoping</span>,
                 <span class="ident">project_key</span>,
+                <span class="ident">partition_key</span>,
             })
             .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">send_result</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">send_result</span> {
                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(())) =&gt; <span class="prelude-val">Ok</span>(()),
