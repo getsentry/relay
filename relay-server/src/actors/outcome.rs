@@ -18,12 +18,12 @@ use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::{Fail, ResultExt};
-use futures01::future::Future;
 #[cfg(feature = "processing")]
 use rdkafka::producer::BaseRecord;
 #[cfg(feature = "processing")]
 use rdkafka::ClientConfig as KafkaClientConfig;
 use serde::{Deserialize, Serialize};
+use tokio::sync::{mpsc, oneshot};
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
 use relay_config::{Config, EmitOutcomes};
@@ -35,10 +35,10 @@ use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 use relay_statsd::metric;
+use relay_system::{compat, Addr as ServiceAddr, Service, ServiceMessage};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
-use crate::actors::upstream::SendQuery;
-use crate::actors::upstream::{UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
 use crate::service::ServerErrorKind;
 use crate::statsd::RelayCounters;
@@ -475,21 +475,38 @@ pub enum OutcomeError {
 struct HttpOutcomeProducer {
     config: Arc<Config>,
     unsent_outcomes: Vec<TrackRawOutcome>,
-    pending_flush_handle: Option<SpawnHandle>,
+    pending_flush_handle: Option<tokio::task::JoinHandle<()>>,
+    tx: mpsc::UnboundedSender<HttpOutcomeProducerMessages>,
+    rx: mpsc::UnboundedReceiver<HttpOutcomeProducerMessages>,
 }
 
 impl HttpOutcomeProducer {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+        let (tx, rx) = mpsc::unbounded_channel::<HttpOutcomeProducerMessages>();
         Ok(Self {
             config,
             unsent_outcomes: Vec::new(),
             pending_flush_handle: None,
+            tx,
+            rx,
         })
+    }
+
+    pub fn start(mut self) -> ServiceAddr<Self> {
+        let tx = self.tx.clone();
+
+        tokio::spawn(async move {
+            while let Some(message) = self.rx.recv().await {
+                self.handle_message(message);
+            }
+        });
+
+        ServiceAddr { tx }
     }
 }
 
 impl HttpOutcomeProducer {
-    fn send_batch(&mut self, context: &mut Context<Self>) {
+    fn send_batch(&mut self) {
         //the future should be either canceled (if we are called with a full batch)
         // or already called (if we are called by a timeout)
         self.pending_flush_handle = None;
@@ -508,46 +525,69 @@ impl HttpOutcomeProducer {
             outcomes: mem::take(&mut self.unsent_outcomes),
         };
 
-        UpstreamRelay::from_registry()
-            .send(SendQuery(request))
-            .map(|_| relay_log::trace!("outcome batch sent."))
-            .map_err(|error| {
-                relay_log::error!("outcome batch sending failed with: {}", LogError(&error))
-            })
-            .into_actor(self)
-            .spawn(context);
+        tokio::spawn(async move {
+            match compat::send(UpstreamRelay::from_registry(), SendQuery(request)).await {
+                Ok(_) => relay_log::trace!("outcome batch sent."),
+                Err(error) => {
+                    relay_log::error!("outcome batch sending failed with: {}", LogError(&error))
+                }
+            }
+        });
     }
 
-    fn send_http_message(&mut self, message: TrackRawOutcome, context: &mut Context<Self>) {
+    fn send_http_message(&mut self, message: TrackRawOutcome) {
         relay_log::trace!("Batching outcome");
         self.unsent_outcomes.push(message);
 
         if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
-            if let Some(pending_flush_handle) = self.pending_flush_handle {
-                context.cancel_future(pending_flush_handle);
+            if let Some(pending_flush_handle) = &self.pending_flush_handle {
+                pending_flush_handle.abort();
             }
-
-            self.send_batch(context)
+            self.send_batch(); // Send what we have since we are already overflowing
         } else if self.pending_flush_handle.is_none() {
-            self.pending_flush_handle =
-                Some(context.run_later(self.config.outcome_batch_interval(), Self::send_batch));
+            let timeout = self.config.outcome_batch_interval();
+            let tx = self.tx.clone();
+            self.pending_flush_handle = Some(tokio::spawn(async move {
+                tokio::time::sleep(timeout).await;
+                tx.send(HttpOutcomeProducerMessages::Flush).ok();
+            }));
         }
     }
-}
 
-impl Actor for HttpOutcomeProducer {
-    type Context = Context<Self>;
-}
-
-impl Handler<TrackRawOutcome> for HttpOutcomeProducer {
-    type Result = Result<(), OutcomeError>;
-
-    fn handle(&mut self, msg: TrackRawOutcome, ctx: &mut Self::Context) -> Self::Result {
-        self.send_http_message(msg, ctx);
-        Ok(())
+    fn handle_message(&mut self, message: HttpOutcomeProducerMessages) {
+        match message {
+            HttpOutcomeProducerMessages::TrackRawOutcome(msg) => self.send_http_message(msg),
+            HttpOutcomeProducerMessages::Flush => self.send_batch(),
+        };
     }
 }
 
+impl Service for HttpOutcomeProducer {
+    type Messages = HttpOutcomeProducerMessages;
+}
+
+impl ServiceMessage<HttpOutcomeProducer> for TrackRawOutcome {
+    type Response = ();
+
+    fn into_messages(
+        self,
+    ) -> (
+        HttpOutcomeProducerMessages,
+        oneshot::Receiver<Self::Response>,
+    ) {
+        let (tx, rx) = oneshot::channel();
+        tx.send(()).ok();
+        (HttpOutcomeProducerMessages::TrackRawOutcome(self), rx)
+    }
+}
+
+#[derive(Debug)]
+enum HttpOutcomeProducerMessages {
+    TrackRawOutcome(TrackRawOutcome),
+    Flush,
+}
+
+// TODO: Actor #2
 struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
@@ -698,12 +738,13 @@ impl KafkaOutcomesProducer {
 
 enum ProducerInner {
     AsClientReports(Addr<ClientReportOutcomeProducer>),
-    AsHttpOutcomes(Addr<HttpOutcomeProducer>),
+    AsHttpOutcomes(ServiceAddr<HttpOutcomeProducer>),
     #[cfg(feature = "processing")]
     AsKafkaOutcomes(KafkaOutcomesProducer),
     Disabled,
 }
 
+// TODO: Actor #3
 pub struct OutcomeProducer {
     config: Arc<Config>,
     producer: ProducerInner,
@@ -726,7 +767,7 @@ impl OutcomeProducer {
                 } else {
                     relay_log::info!("Configured to emit outcomes via http");
                     ProducerInner::AsHttpOutcomes(
-                        HttpOutcomeProducer::create(Arc::clone(&config))?.start(),
+                        HttpOutcomeProducer::create(Arc::clone(&config))?.start(), // TODO: Seems like here is where the HttpOutcomeProducer is started
                     )
                 }
             }
@@ -828,7 +869,7 @@ impl Handler<TrackOutcome> for OutcomeProducer {
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
                 Self::send_outcome_metric(&message, "http");
-                producer.do_send(TrackRawOutcome::from_outcome(message, &self.config));
+                producer.send(TrackRawOutcome::from_outcome(message, &self.config)); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works
                 Ok(())
             }
             ProducerInner::Disabled => Ok(()),
@@ -848,7 +889,7 @@ impl Handler<TrackRawOutcome> for OutcomeProducer {
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
                 Self::send_outcome_metric(&message, "http");
-                producer.do_send(message);
+                producer.send(message); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works I think we NEED to await them sadly
                 Ok(())
             }
             ProducerInner::AsClientReports(_) => Ok(()),
