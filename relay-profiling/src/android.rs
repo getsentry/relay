@@ -1,4 +1,5 @@
-use android_trace_log::AndroidTraceLog;
+use android_trace_log::chrono::{DateTime, Utc};
+use android_trace_log::{AndroidTraceLog, Clock, Time};
 use serde::{Deserialize, Serialize};
 
 use relay_general::protocol::EventId;
@@ -98,8 +99,24 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
 
     for transaction in &profile.transactions {
         let mut new_profile = profile.clone();
+
         new_profile.set_transaction(transaction.clone());
         new_profile.transactions.clear();
+
+        let mut android_profile = new_profile.profile.as_ref().unwrap().clone();
+        let clock = android_profile.clock;
+        let start_time = android_profile.start_time;
+        let mut events = android_profile.events;
+
+        events.retain(|event| {
+            let event_timestamp = get_timestamp(clock, start_time, event.time);
+            event_timestamp >= transaction.relative_start_ns
+                && event_timestamp <= transaction.relative_end_ns
+        });
+
+        android_profile.events = events;
+        new_profile.profile = Some(android_profile);
+
         match serde_json::to_vec(&new_profile) {
             Ok(payload) => items.push(payload),
             Err(_) => {
@@ -107,7 +124,38 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
             }
         };
     }
+
     Ok(items)
+}
+
+fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u64 {
+    match (clock, event_time) {
+        (Clock::Global, Time::Global(time)) => {
+            time.as_nanos() as u64 - start_time.timestamp_nanos() as u64
+        }
+        (
+            Clock::Cpu,
+            Time::Monotonic {
+                cpu: Some(cpu),
+                wall: None,
+            },
+        ) => cpu.as_nanos() as u64,
+        (
+            Clock::Wall,
+            Time::Monotonic {
+                cpu: None,
+                wall: Some(wall),
+            },
+        ) => wall.as_nanos() as u64,
+        (
+            Clock::Dual,
+            Time::Monotonic {
+                cpu: Some(_),
+                wall: Some(wall),
+            },
+        ) => wall.as_nanos() as u64,
+        _ => todo!(),
+    }
 }
 
 fn parse_android_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {

@@ -162,8 +162,15 @@ pub fn expand_cocoa_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError
 
     for transaction in &profile.transactions {
         let mut new_profile = profile.clone();
+
         new_profile.set_transaction(transaction.clone());
         new_profile.transactions.clear();
+
+        new_profile.sampled_profile.samples.retain(|sample| {
+            transaction.relative_start_ns <= sample.relative_timestamp_ns
+                && sample.relative_timestamp_ns <= transaction.relative_end_ns
+        });
+
         match serde_json::to_vec(&new_profile) {
             Ok(payload) => items.push(payload),
             Err(_) => {
