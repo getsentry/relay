@@ -725,7 +725,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
     }
 
-
     fn process_exception(
         &mut self,
         exception: &mut Exception,
