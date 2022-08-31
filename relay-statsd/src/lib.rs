@@ -56,6 +56,8 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
+mod buffered_multi_udp_sink;
+
 use std::collections::BTreeMap;
 use std::net::{ToSocketAddrs, UdpSocket};
 use std::ops::{Deref, DerefMut};
@@ -69,6 +71,8 @@ use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 
 use relay_log::LogError;
+
+use crate::buffered_multi_udp_sink::BufferedMultiUdpMetricSink;
 
 /// Maximum number of metric events that can be queued before we start dropping them
 const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
