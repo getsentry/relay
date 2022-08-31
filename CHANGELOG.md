@@ -18,6 +18,7 @@
 - Update store service to use generic Addr and minor changes to generic Addr. ([#1415](https://github.com/getsentry/relay/pull/1415))
 - Added new Register for the Services that is initialized later than the current. ([#1421](https://github.com/getsentry/relay/pull/1421))
 - Batch metrics buckets into logical partitions before sending them as envelopes. ([#1440](https://github.com/getsentry/relay/pull/1440))
+- Filter out lonely samples in cocoa profiles. ([#1445](https://github.com/getsentry/relay/pull/1445))
 
 **Features**:
 
