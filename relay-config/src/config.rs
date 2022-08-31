@@ -485,6 +485,10 @@ struct Metrics {
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     sample_rate: f32,
+
+    // Number of UDP sockets we use for sending stuff
+    // TODO: make sure it can't be 0
+    client_sockets_num: u32,
 }
 
 impl Default for Metrics {
@@ -496,6 +500,7 @@ impl Default for Metrics {
             hostname_tag: None,
             buffering: true,
             sample_rate: 1.0,
+            client_sockets_num: 1,
         }
     }
 }
@@ -1758,6 +1763,10 @@ impl Config {
     /// Returns the global sample rate for all metrics.
     pub fn metrics_sample_rate(&self) -> f32 {
         self.values.metrics.sample_rate
+    }
+
+    pub fn metrics_client_sockets_num(&self) -> u32 {
+        self.values.metrics.client_sockets_num
     }
 
     /// Returns the default timeout for all upstream HTTP requests.

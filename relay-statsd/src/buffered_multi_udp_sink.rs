@@ -3,12 +3,10 @@ use std::net::{ToSocketAddrs, UdpSocket};
 
 use cadence::{BufferedUdpMetricSink, MetricResult, MetricSink};
 use rand::distributions::{Distribution, Uniform};
-use rand::rngs::ThreadRng;
 
 #[derive(Debug)]
 pub struct BufferedMultiUdpMetricSink {
     inner_sinks: Vec<BufferedUdpMetricSink>,
-    rng: ThreadRng,
     distr: Uniform<usize>,
 }
 
@@ -27,19 +25,14 @@ impl BufferedMultiUdpMetricSink {
             inner_sinks.push(sink);
         }
 
-        let rng = rand::thread_rng();
         let distr = Uniform::from(0..inner_sinks.len());
-        Ok(BufferedMultiUdpMetricSink {
-            inner_sinks,
-            rng,
-            distr,
-        })
+        Ok(BufferedMultiUdpMetricSink { inner_sinks, distr })
     }
 }
 
 impl MetricSink for BufferedMultiUdpMetricSink {
     fn emit(&self, metric: &str) -> io::Result<usize> {
-        let mut rng = self.rng;
+        let mut rng = rand::thread_rng();
         self.inner_sinks[self.distr.sample(&mut rng)].emit(metric)
     }
 

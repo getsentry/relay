@@ -197,6 +197,7 @@ pub fn init<A: ToSocketAddrs>(
     default_tags: BTreeMap<String, String>,
     buffering: bool,
     sample_rate: f32,
+    client_sockets_num: u32,
 ) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
@@ -219,9 +220,24 @@ pub fn init<A: ToSocketAddrs>(
     socket.set_nonblocking(true).unwrap();
 
     let statsd_client = if buffering {
-        let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
-        let queuing_sink = QueuingMetricSink::with_capacity(udp_sink, METRICS_MAX_QUEUE_SIZE);
-        StatsdClient::from_sink(prefix, queuing_sink)
+        let mut sockets = Vec::new();
+        for _i in 1..client_sockets_num {
+            let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+            socket.set_nonblocking(true).unwrap();
+            sockets.push(socket);
+        }
+
+        // TODO: this can be simplified for sure
+        if client_sockets_num <= 1 {
+            let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
+            let queuing_sink = QueuingMetricSink::with_capacity(udp_sink, METRICS_MAX_QUEUE_SIZE);
+            StatsdClient::from_sink(prefix, queuing_sink)
+        } else {
+            let multi_udp_sink = BufferedMultiUdpMetricSink::from(host, sockets).unwrap();
+            let queuing_sink =
+                QueuingMetricSink::with_capacity(multi_udp_sink, METRICS_MAX_QUEUE_SIZE);
+            StatsdClient::from_sink(prefix, queuing_sink)
+        }
     } else {
         let simple_sink = UdpMetricSink::from(host, socket).unwrap();
         StatsdClient::from_sink(prefix, simple_sink)

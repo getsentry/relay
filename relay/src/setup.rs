@@ -67,6 +67,7 @@ pub fn init_metrics(config: &Config) -> Result<(), Error> {
         default_tags,
         config.metrics_buffering(),
         config.metrics_sample_rate(),
+        config.metrics_client_sockets_num(),
     );
 
     Ok(())
