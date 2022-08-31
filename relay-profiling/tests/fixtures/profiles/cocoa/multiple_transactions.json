@@ -1,0 +1,106 @@
+{
+  "device_manufacturer": "Apple",
+  "profile_id": "41fed0925670468bb0457f61a74688ec",
+  "device_os_name": "iOS",
+  "device_os_version": "15.4.1",
+  "device_os_build_number": "19E258",
+  "sampled_profile": {
+    "samples": [
+      {
+        "thread_id": "259",
+        "queue_address": "0x0000000102adc700",
+        "relative_timestamp_ns": "1",
+        "frames": [
+          {
+            "instruction_addr": "0xa722447ffffffffc"
+          }
+        ]
+      },
+      {
+        "thread_id": "259",
+        "queue_address": "0x0000000102adc700",
+        "relative_timestamp_ns": "4",
+        "frames": [
+          {
+            "instruction_addr": "0xa722447ffffffffc"
+          }
+        ]
+      },
+      {
+        "thread_id": "259",
+        "queue_address": "0x0000000102adc700",
+        "relative_timestamp_ns": "8",
+        "frames": [
+          {
+            "instruction_addr": "0xa722447ffffffffc"
+          }
+        ]
+      },
+      {
+        "thread_id": "259",
+        "queue_address": "0x0000000102adc700",
+        "relative_timestamp_ns": "12",
+        "frames": [
+          {
+            "instruction_addr": "0xa722447ffffffffc"
+          }
+        ]
+      },
+      {
+        "thread_id": "259",
+        "queue_address": "0x0000000102adc700",
+        "relative_timestamp_ns": "15",
+        "frames": [
+          {
+            "instruction_addr": "0xa722447ffffffffc"
+          }
+        ]
+      }
+    ],
+    "thread_metadata": {
+      "259": {
+        "priority": 31
+      }
+    },
+    "queue_metadata": {
+      "0x0000000102adc700": {
+        "label": "com.apple.main-thread"
+      }
+    }
+  },
+  "version_name": "0.1",
+  "platform": "cocoa",
+  "device_locale": "en_US",
+  "device_is_emulator": false,
+  "debug_meta": {
+    "images": [
+      {
+        "debug_id": "32420279-25E2-34E6-8BC7-8A006A8F2425",
+        "image_addr": "0x000000010258c000",
+        "code_file": "/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies",
+        "type": "macho",
+        "image_size": 1720320,
+        "image_vmaddr": "0x0000000100000000"
+      }
+    ]
+  },
+  "device_physical_memory_bytes": "5899616256",
+  "device_model": "iPhone14,3",
+  "version_code": "181",
+  "transactions": [
+    {
+      "trace_id": "4b25bc58f14243d8b208d1e22a054164",
+      "name": "example_ios_movies_sources.MoviesViewController",
+      "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
+      "relative_start_ns": "0",
+      "relative_end_ns": "10"
+    },
+    {
+      "trace_id": "4b25bc58f14243d8b208d1e22a054164",
+      "name": "example_ios_movies_sources.MoviesViewController",
+      "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
+      "relative_start_ns": "5",
+      "relative_end_ns": "15"
+    }
+  ]
+}
