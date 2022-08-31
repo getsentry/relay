@@ -529,6 +529,10 @@ fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
     }
 }
 
+fn normalize_logentry(logentry: &mut Annotated<LogEntry>, meta: &mut Meta) -> ProcessingResult {
+    logentry.apply(|le, _| logentry::normalize_logentry(le, meta))
+}
+
 #[derive(Default, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
@@ -574,6 +578,7 @@ pub fn light_normalize_event(
         })?;
 
         // Default required attributes, even if they have errors
+        normalize_logentry(&mut event.logentry, meta)?;
         normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
         normalize_timestamps(
             event,
@@ -720,14 +725,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
     }
 
-    fn process_logentry(
-        &mut self,
-        logentry: &mut LogEntry,
-        meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        logentry::normalize_logentry(logentry, meta)
-    }
 
     fn process_exception(
         &mut self,
