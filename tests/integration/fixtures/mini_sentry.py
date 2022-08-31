@@ -218,7 +218,7 @@ def mini_sentry(request):
         if flask_request.headers.get("transfer-encoding"):
             abort(400, "transfer encoding not supported")
 
-        sentry.request_log.append(flask_request.url)
+        sentry.request_log.append((flask_request.headers, flask_request.url))
 
     @app.route("/api/0/relays/register/challenge/", methods=["POST"])
     def get_challenge():

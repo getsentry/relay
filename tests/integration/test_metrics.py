@@ -102,6 +102,44 @@ def test_metrics_backdated(mini_sentry, relay):
     ]
 
 
+@pytest.mark.parametrize(
+    "flush_partitions,expected_header", [(None, "0"), (0, "0"), (1, "0"), (128, "34")]
+)
+def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_header):
+    forever = 100 * 365 * 24 * 60 * 60  # *almost forever
+    relay_config = {
+        "processing": {"max_session_secs_in_past": forever,},
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+            "debounce_delay": 0,
+            "flush_partitions": flush_partitions,
+            "max_secs_in_past": forever,
+            "max_secs_in_future": forever,
+        },
+    }
+    relay = relay(mini_sentry, options=relay_config)
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(
+        project_id,
+        dsn_public_key={  # Need explicit DSN to get a consistent partition key
+            "publicKey": "31a5a894b4524f74a9a8d0e27e21ba91",
+            "isEnabled": True,
+            "numericId": 42,
+        },
+    )
+
+    timestamp = 999994711
+    metrics_payload = f"transactions/foo:42|c"
+    relay.send_metrics(project_id, metrics_payload, timestamp)
+
+    mini_sentry.captured_events.get(timeout=3)
+
+    headers, _ = mini_sentry.request_log[-1]
+    assert headers.get("X-Sentry-Relay-Shard") == expected_header, headers
+
+
 def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()

@@ -625,8 +625,13 @@ impl Handler<FlushBuckets> for ProjectCache {
     type Result = ResponseFuture<(), Vec<Bucket>>;
 
     fn handle(&mut self, message: FlushBuckets, _context: &mut Self::Context) -> Self::Result {
+        let FlushBuckets {
+            project_key,
+            partition_key,
+            buckets,
+        } = message;
+
         let config = self.config.clone();
-        let project_key = message.project_key();
         let project = self.get_or_create_project(project_key);
         let expiry_state = project.expiry_state();
 
@@ -639,13 +644,13 @@ impl Handler<FlushBuckets> for ProjectCache {
             ExpiryState::Expired => {
                 // If the state is outdated, we need to wait for an updated state. Put them back into the
                 // aggregator and wait for the next flush cycle.
-                return Box::new(future::err(message.into_buckets()));
+                return Box::new(future::err(buckets));
             }
         };
 
         let scoping = match project.scoping() {
             Some(scoping) => scoping,
-            _ => return Box::new(future::err(message.into_buckets())),
+            _ => return Box::new(future::err(buckets)),
         };
 
         // Only send if the project state is valid, otherwise drop this bucket.
@@ -655,9 +660,10 @@ impl Handler<FlushBuckets> for ProjectCache {
 
         let future = EnvelopeManager::from_registry()
             .send(SendMetrics {
-                buckets: message.into_buckets(),
+                buckets,
                 scoping,
                 project_key,
+                partition_key,
             })
             .then(move |send_result| match send_result {
                 Ok(Ok(())) => Ok(()),
