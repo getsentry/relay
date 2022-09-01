@@ -1757,7 +1757,6 @@ impl Aggregator {
     {
         let capped_batches =
             CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
-        let partition_tag = partition_key.to_string();
 
         let num_batches = capped_batches
             .map(|batch| {
