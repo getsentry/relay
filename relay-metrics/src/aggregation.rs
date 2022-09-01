@@ -1798,6 +1798,15 @@ impl Aggregator {
             let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
                 self.process_batches(buckets, |batch| {
+                    if let Some(key) = partition_key {
+                        // Log the distribution of batches over partition key
+                        // Note that we log this metric for each batch, because every batch should
+                        // have the same weight in the resulting distribution.
+                        relay_statsd::metric!(
+                            histogram(MetricHistograms::PartitionKeys) = key as f64
+                        );
+                    }
+
                     let fut = self
                         .receiver
                         .send(FlushBuckets {
@@ -3063,7 +3072,14 @@ mod tests {
 
         captures
             .into_iter()
-            .filter(|x| x.contains("per_batch") || x.contains("batches_per_partition"))
+            .filter(|x| {
+                [
+                    "metrics.buckets.batches_per_partition",
+                    "metrics.buckets.per_batch",
+                    "metrics.buckets.partition_keys",
+                ]
+                .contains(&x.split_once(':').unwrap().0)
+            })
             .collect::<Vec<_>>()
     }
 
@@ -3084,8 +3100,10 @@ mod tests {
         insta::assert_debug_snapshot!(output, @r###"
         [
             "metrics.buckets.per_batch:1|h",
+            "metrics.buckets.partition_keys:59|h",
             "metrics.buckets.batches_per_partition:1|h",
             "metrics.buckets.per_batch:1|h",
+            "metrics.buckets.partition_keys:62|h",
             "metrics.buckets.batches_per_partition:1|h",
         ]
         "###);
