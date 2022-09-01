@@ -1,4 +1,7 @@
-use android_trace_log::AndroidTraceLog;
+use std::collections::{HashMap, HashSet};
+
+use android_trace_log::chrono::{DateTime, Utc};
+use android_trace_log::{AndroidTraceLog, Clock, Time};
 use serde::{Deserialize, Serialize};
 
 use relay_general::protocol::EventId;
@@ -57,6 +60,28 @@ impl AndroidProfile {
         };
         Ok(())
     }
+
+    fn remove_invalid_events(&mut self) {
+        let mut android_profile = self.profile.as_ref().unwrap().clone();
+        let mut events = android_profile.events;
+        let clock = android_profile.clock;
+        let start_time = android_profile.start_time;
+        let mut timestamps_per_thread_id: HashMap<u16, HashSet<u64>> = HashMap::new();
+
+        for event in events.iter() {
+            let event_time = get_timestamp(clock, start_time, event.time);
+            timestamps_per_thread_id
+                .entry(event.thread_id)
+                .or_default()
+                .insert(event_time);
+        }
+
+        timestamps_per_thread_id.retain(|_, timestamps| timestamps.len() > 1);
+        events.retain(|event| timestamps_per_thread_id.contains_key(&event.thread_id));
+
+        android_profile.events = events;
+        self.profile = Some(android_profile);
+    }
 }
 
 pub fn parse_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
@@ -68,8 +93,9 @@ pub fn parse_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     }
 
     profile.parse()?;
+    profile.remove_invalid_events();
 
-    if profile.profile.as_ref().unwrap().events.len() < 2 {
+    if profile.profile.as_ref().unwrap().events.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
     }
 
@@ -79,15 +105,53 @@ pub fn parse_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     }
 }
 
+fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u64 {
+    match (clock, event_time) {
+        (Clock::Global, Time::Global(time)) => {
+            time.as_nanos() as u64 - start_time.timestamp_nanos() as u64
+        }
+        (
+            Clock::Cpu,
+            Time::Monotonic {
+                cpu: Some(cpu),
+                wall: None,
+            },
+        ) => cpu.as_nanos() as u64,
+        (
+            Clock::Wall,
+            Time::Monotonic {
+                cpu: None,
+                wall: Some(wall),
+            },
+        ) => wall.as_nanos() as u64,
+        (
+            Clock::Dual,
+            Time::Monotonic {
+                cpu: Some(_),
+                wall: Some(wall),
+            },
+        ) => wall.as_nanos() as u64,
+        _ => todo!(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_roundtrip_android() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android.json");
+        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
         let data = parse_android_profile(payload);
         assert!(data.is_ok());
         assert!(parse_android_profile(&(data.unwrap())[..]).is_ok());
+    }
+
+    #[test]
+    fn test_remove_invalid_events() {
+        let payload =
+            include_bytes!("../tests/fixtures/profiles/android/remove_invalid_events.json");
+        let data = parse_android_profile(payload);
+        assert!(data.is_err());
     }
 }
