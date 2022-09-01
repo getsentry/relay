@@ -103,7 +103,7 @@ def test_metrics_backdated(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "flush_partitions,expected_header", [(None, "0"), (0, "0"), (1, "0"), (128, "34")]
+    "flush_partitions,expected_header", [(None, None), (0, "0"), (1, "0"), (128, "34")]
 )
 def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_header):
     forever = 100 * 365 * 24 * 60 * 60  # *almost forever
@@ -137,7 +137,10 @@ def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_he
     mini_sentry.captured_events.get(timeout=3)
 
     headers, _ = mini_sentry.request_log[-1]
-    assert headers.get("X-Sentry-Relay-Shard") == expected_header, headers
+    if expected_header is None:
+        assert "X-Sentry-Relay-Shard" not in headers
+    else:
+        assert headers["X-Sentry-Relay-Shard"] == expected_header, headers
 
 
 def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):
