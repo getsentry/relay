@@ -133,11 +133,9 @@ impl CocoaProfile {
 
         sample_count_by_thread_id.retain(|_, count| *count > 1);
 
-        let thread_ids: Vec<u64> = sample_count_by_thread_id.keys().cloned().collect();
-
         self.sampled_profile
             .samples
-            .retain(|sample| thread_ids.contains(&sample.thread_id));
+            .retain(|sample| sample_count_by_thread_id.contains_key(&sample.thread_id));
     }
 }
 
