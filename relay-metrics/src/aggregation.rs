@@ -1763,7 +1763,6 @@ impl Aggregator {
             .map(|batch| {
                 relay_statsd::metric!(
                     histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
-                    partition_key = partition_tag.as_str(),
                 );
                 process(batch);
             })
@@ -1771,7 +1770,6 @@ impl Aggregator {
 
         relay_statsd::metric!(
             histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
-            partition_key = partition_tag.as_str(),
         );
     }
 
