@@ -122,7 +122,8 @@ struct CocoaProfile {
 }
 
 impl CocoaProfile {
-    fn filter_samples(&mut self) {
+    /// Removes a sample when it's the only sample on its thread
+    fn remove_single_samples_per_thread(&mut self) {
         let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
 
         for sample in self.sampled_profile.samples.iter() {
@@ -131,6 +132,7 @@ impl CocoaProfile {
                 .or_default() += 1;
         }
 
+        // Only keep data from threads with more than 1 sample so we can calculate a duration
         sample_count_by_thread_id.retain(|_, count| *count > 1);
 
         self.sampled_profile
@@ -143,7 +145,7 @@ pub fn parse_cocoa_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     let mut profile: CocoaProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
-    profile.filter_samples();
+    profile.remove_single_samples_per_thread();
 
     if profile.sampled_profile.samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
@@ -248,7 +250,7 @@ mod tests {
             },
         ]);
 
-        profile.filter_samples();
+        profile.remove_single_samples_per_thread();
 
         assert!(profile.sampled_profile.samples.len() == 2);
     }

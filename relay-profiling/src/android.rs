@@ -61,7 +61,8 @@ impl AndroidProfile {
         Ok(())
     }
 
-    fn remove_invalid_events(&mut self) {
+    /// Removes an event with a duration of 0
+    fn remove_events_with_no_duration(&mut self) {
         let mut android_profile = self.profile.as_ref().unwrap().clone();
         let mut events = android_profile.events;
         let clock = android_profile.clock;
@@ -93,7 +94,7 @@ pub fn parse_android_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
     }
 
     profile.parse()?;
-    profile.remove_invalid_events();
+    profile.remove_events_with_no_duration();
 
     if profile.profile.as_ref().unwrap().events.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
