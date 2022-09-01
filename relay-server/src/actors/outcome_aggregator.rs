@@ -97,7 +97,7 @@ impl OutcomeAggregator {
             };
 
             relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
-            outcome_producer.do_send(outcome).ok();
+            outcome_producer.do_send(outcome).ok(); // TODO: Here we use the Recipient to send a message
         }
     }
 
@@ -178,7 +178,7 @@ impl Handler<TrackOutcome> for OutcomeAggregator {
 
         if let Some(event_id) = event_id {
             relay_log::trace!("Forwarding outcome without aggregation: {}", event_id);
-            self.outcome_producer.do_send(msg).ok();
+            self.outcome_producer.do_send(msg).ok(); // TODO: Here we use the Recipient to send a message
             return Ok(());
         }
 

@@ -966,75 +966,8 @@ pub enum OutcomeProducerMessages {
     TrackRawOutcome(TrackRawOutcome, oneshot::Sender<Result<(), OutcomeError>>),
 }
 
-/*
-
-impl Actor for OutcomeProducer {
-    type Context = Context<Self>;
-
-    fn started(&mut self, context: &mut Self::Context) {
-        // Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
-        // should ensure that we're not dropping outcomes unintentionally.
-        let mailbox_size = self.config.envelope_buffer_size() as usize;
-        context.set_mailbox_capacity(mailbox_size);
-
-        relay_log::info!("OutcomeProducer started.");
-    }
-}
-
-impl Supervised for OutcomeProducer {} // TODO(tobias): Think about what to do with this
-
-impl SystemService for OutcomeProducer {} // TODO(tobias): Think about what to do with this
-
 impl Default for OutcomeProducer {
     fn default() -> Self {
         unimplemented!("register with the SystemRegistry instead")
     }
 }
-
-impl Handler<TrackOutcome> for OutcomeProducer {
-    type Result = Result<(), OutcomeError>;
-    fn handle(&mut self, message: TrackOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        match &self.producer {
-            #[cfg(feature = "processing")]
-            ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
-                Self::send_outcome_metric(&message, "kafka");
-                let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
-                self.send_kafka_message(kafka_producer, raw_message) // This can yield a Outcome error
-            }
-            ProducerInner::AsClientReports(ref producer) => {
-                Self::send_outcome_metric(&message, "client_report");
-                producer.send(message); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works
-                Ok(())
-            }
-            ProducerInner::AsHttpOutcomes(ref producer) => {
-                Self::send_outcome_metric(&message, "http");
-                producer.send(TrackRawOutcome::from_outcome(message, &self.config)); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works
-                Ok(())
-            }
-            ProducerInner::Disabled => Ok(()),
-        }
-    }
-}
-
-impl Handler<TrackRawOutcome> for OutcomeProducer {
-    type Result = Result<(), OutcomeError>;
-
-    fn handle(&mut self, message: TrackRawOutcome, _ctx: &mut Self::Context) -> Self::Result {
-        match &self.producer {
-            #[cfg(feature = "processing")]
-            ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
-                Self::send_outcome_metric(&message, "kafka");
-                self.send_kafka_message(kafka_producer, message)
-            }
-            ProducerInner::AsHttpOutcomes(ref producer) => {
-                Self::send_outcome_metric(&message, "http");
-                producer.send(message); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works I think we NEED to await them sadly
-                Ok(())
-            }
-            ProducerInner::AsClientReports(_) => Ok(()),
-            ProducerInner::Disabled => Ok(()),
-        }
-    }
-}
-
-*/

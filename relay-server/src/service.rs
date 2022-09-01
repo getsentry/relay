@@ -151,6 +151,7 @@ impl ServiceState {
         // TODO(tobias): Check if this is good enough or if we want this to have its own tokio runtime?
         let outcome_producer = OutcomeProducer::create(config.clone())?.start();
 
+        // This just seems like a very verbose way of not using the registry
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient()); // TODO: Not yet sure how to do this
         registry.set(outcome_aggregator.start());
 
