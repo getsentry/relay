@@ -908,12 +908,12 @@ impl OutcomeProducer {
             }
             ProducerInner::AsClientReports(ref producer) => {
                 Self::send_outcome_metric(&message, "client_report");
-                producer.send(message); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works
+                let _ = producer.send(message);
                 Ok(())
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
                 Self::send_outcome_metric(&message, "http");
-                producer.send(TrackRawOutcome::from_outcome(message, &self.config)); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works
+                let _ = producer.send(TrackRawOutcome::from_outcome(message, &self.config));
                 Ok(())
             }
             ProducerInner::Disabled => Ok(()),
@@ -929,7 +929,7 @@ impl OutcomeProducer {
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
                 Self::send_outcome_metric(&message, "http");
-                producer.send(message); // TODO(tobias): This replaced a do_send but not sure if this replacement actually works I think we NEED to await them sadly
+                let _ = producer.send(message);
                 Ok(())
             }
             ProducerInner::AsClientReports(_) => Ok(()),

@@ -12,7 +12,7 @@ fn send_outcomes(state: CurrentServiceState, body: SignedJson<SendOutcomes>) -> 
 
     let producer = OutcomeProducer::from_registry();
     for outcome in body.inner.outcomes {
-        producer.send(outcome); // TODO(tobias): think we still need to await this somehow
+        let _ = producer.send(outcome);
     }
 
     HttpResponse::Accepted().json(SendOutcomesResponse {})

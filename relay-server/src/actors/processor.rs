@@ -836,7 +836,7 @@ impl EnvelopeProcessor {
                 }
             };
 
-            producer.do_send(TrackOutcome {
+            let _ = producer.send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
                 scoping: state.envelope_context.scoping(),
                 outcome,
