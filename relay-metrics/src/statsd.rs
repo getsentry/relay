@@ -99,19 +99,11 @@ pub enum MetricHistograms {
     BucketsDelay,
 
     /// The number of batches emitted per partition by [`crate::aggregation::Aggregator`].
-    ///
-    /// This metric is only emitted if a partition key is set.
-    ///
-    /// Tags:
-    ///   - `partition_key`: The logical sharding key for the current batch.
     BatchesPerPartition,
 
     /// The number of buckets in a batch emitted by [`crate::aggregation::Aggregator`].
     ///
     /// This corresponds to the number of buckets that will end up in an envelope.
-    ///
-    /// Tags:
-    ///   - `partition_key`: The logical sharding key for the current batch.
     BucketsPerBatch,
 }
 

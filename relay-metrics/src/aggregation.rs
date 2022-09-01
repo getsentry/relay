@@ -1158,7 +1158,7 @@ pub struct FlushBuckets {
     /// The project key.
     pub project_key: ProjectKey,
     /// The logical partition to send this batch to.
-    pub partition_key: u64,
+    pub partition_key: Option<u64>,
     /// The buckets to be flushed.
     pub buckets: Vec<Bucket>,
 }
@@ -1730,14 +1730,19 @@ impl Aggregator {
     fn partition_buckets(
         &self,
         buckets: Vec<HashedBucket>,
-        flush_partitions: u64,
-    ) -> BTreeMap<u64, Vec<Bucket>> {
-        let flush_partitions = max(1, flush_partitions); // handle 0
-        let mut partitions = BTreeMap::<u64, Vec<Bucket>>::new();
+        flush_partitions: Option<u64>,
+    ) -> BTreeMap<Option<u64>, Vec<Bucket>> {
+        let flush_partitions = match flush_partitions {
+            None => {
+                return BTreeMap::from([(None, buckets.into_iter().map(|x| x.bucket).collect())]);
+            }
+            Some(x) => max(1, x), // handle 0,
+        };
+        let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
         for bucket in buckets {
             let partition_key = bucket.hashed_key % flush_partitions;
             partitions
-                .entry(partition_key)
+                .entry(Some(partition_key))
                 .or_default()
                 .push(bucket.bucket);
         }
@@ -1747,23 +1752,17 @@ impl Aggregator {
     /// Split the provided buckets into batches and process each batch with the given function.
     ///
     /// For each batch, log a histogram metric.
-    fn process_batches<F>(
-        &self,
-        buckets: impl IntoIterator<Item = Bucket>,
-        partition_key: u64,
-        mut process: F,
-    ) where
+    fn process_batches<F>(&self, buckets: impl IntoIterator<Item = Bucket>, mut process: F)
+    where
         F: FnMut(Vec<Bucket>),
     {
         let capped_batches =
             CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
-        let partition_tag = partition_key.to_string();
 
         let num_batches = capped_batches
             .map(|batch| {
                 relay_statsd::metric!(
                     histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
-                    partition_key = partition_tag.as_str(),
                 );
                 process(batch);
             })
@@ -1771,7 +1770,6 @@ impl Aggregator {
 
         relay_statsd::metric!(
             histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
-            partition_key = partition_tag.as_str(),
         );
     }
 
@@ -1796,10 +1794,10 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            let num_partitions = self.config.flush_partitions.unwrap_or(1);
+            let num_partitions = self.config.flush_partitions;
             let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
-                self.process_batches(buckets, partition_key, |batch| {
+                self.process_batches(buckets, |batch| {
                     let fut = self
                         .receiver
                         .send(FlushBuckets {
@@ -3074,8 +3072,8 @@ mod tests {
         let output = run_test_bucket_partitioning(None);
         insta::assert_debug_snapshot!(output, @r###"
         [
-            "metrics.buckets.per_batch:2|h|#partition_key:0",
-            "metrics.buckets.batches_per_partition:1|h|#partition_key:0",
+            "metrics.buckets.per_batch:2|h",
+            "metrics.buckets.batches_per_partition:1|h",
         ]
         "###);
     }
@@ -3085,10 +3083,10 @@ mod tests {
         let output = run_test_bucket_partitioning(Some(128));
         insta::assert_debug_snapshot!(output, @r###"
         [
-            "metrics.buckets.per_batch:1|h|#partition_key:59",
-            "metrics.buckets.batches_per_partition:1|h|#partition_key:59",
-            "metrics.buckets.per_batch:1|h|#partition_key:62",
-            "metrics.buckets.batches_per_partition:1|h|#partition_key:62",
+            "metrics.buckets.per_batch:1|h",
+            "metrics.buckets.batches_per_partition:1|h",
+            "metrics.buckets.per_batch:1|h",
+            "metrics.buckets.batches_per_partition:1|h",
         ]
         "###);
     }
