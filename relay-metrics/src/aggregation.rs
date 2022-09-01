@@ -1158,7 +1158,7 @@ pub struct FlushBuckets {
     /// The project key.
     pub project_key: ProjectKey,
     /// The logical partition to send this batch to.
-    pub partition_key: u64,
+    pub partition_key: Option<u64>,
     /// The buckets to be flushed.
     pub buckets: Vec<Bucket>,
 }
@@ -1730,14 +1730,19 @@ impl Aggregator {
     fn partition_buckets(
         &self,
         buckets: Vec<HashedBucket>,
-        flush_partitions: u64,
-    ) -> BTreeMap<u64, Vec<Bucket>> {
-        let flush_partitions = max(1, flush_partitions); // handle 0
-        let mut partitions = BTreeMap::<u64, Vec<Bucket>>::new();
+        flush_partitions: Option<u64>,
+    ) -> BTreeMap<Option<u64>, Vec<Bucket>> {
+        let flush_partitions = match flush_partitions {
+            None => {
+                return BTreeMap::from([(None, buckets.into_iter().map(|x| x.bucket).collect())]);
+            }
+            Some(x) => max(1, x), // handle 0,
+        };
+        let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
         for bucket in buckets {
             let partition_key = bucket.hashed_key % flush_partitions;
             partitions
-                .entry(partition_key)
+                .entry(Some(partition_key))
                 .or_default()
                 .push(bucket.bucket);
         }
@@ -1750,14 +1755,16 @@ impl Aggregator {
     fn process_batches<F>(
         &self,
         buckets: impl IntoIterator<Item = Bucket>,
-        partition_key: u64,
+        partition_key: Option<u64>,
         mut process: F,
     ) where
         F: FnMut(Vec<Bucket>),
     {
         let capped_batches =
             CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
-        let partition_tag = partition_key.to_string();
+        let partition_tag = partition_key
+            .map(|n| n.to_string())
+            .unwrap_or_else(|| "none".to_string());
 
         let num_batches = capped_batches
             .map(|batch| {
@@ -1796,7 +1803,7 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            let num_partitions = self.config.flush_partitions.unwrap_or(1);
+            let num_partitions = self.config.flush_partitions;
             let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
                 self.process_batches(buckets, partition_key, |batch| {
