@@ -106,9 +106,9 @@ pub enum MetricHistograms {
     /// This corresponds to the number of buckets that will end up in an envelope.
     BucketsPerBatch,
 
-    /// Distribution of flush batches over partition keys.
+    /// Distribution of flush buckets over partition keys.
     ///
-    /// The distribution of buckets / bucket batches should be even.
+    /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
     PartitionKeys,
 }

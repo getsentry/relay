@@ -1745,6 +1745,11 @@ impl Aggregator {
                 .entry(Some(partition_key))
                 .or_default()
                 .push(bucket.bucket);
+
+            // Log the distribution of buckets over partition key
+            relay_statsd::metric!(
+                histogram(MetricHistograms::PartitionKeys) = partition_key as f64
+            );
         }
         partitions
     }
@@ -1798,15 +1803,6 @@ impl Aggregator {
             let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
                 self.process_batches(buckets, |batch| {
-                    if let Some(key) = partition_key {
-                        // Log the distribution of batches over partition key
-                        // Note that we log this metric for each batch, because every batch should
-                        // have the same weight in the resulting distribution.
-                        relay_statsd::metric!(
-                            histogram(MetricHistograms::PartitionKeys) = key as f64
-                        );
-                    }
-
                     let fut = self
                         .receiver
                         .send(FlushBuckets {
