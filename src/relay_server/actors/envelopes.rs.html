@@ -625,10 +625,6 @@
         <span class="macro">format!</span>(<span class="string">&quot;/api/{}/envelope/&quot;</span>, <span class="self">self</span>.<span class="ident">scoping</span>.<span class="ident">project_id</span>).<span class="ident">into</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">partition_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">String</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">partition_key</span>.<span class="ident">as_ref</span>()
-    }
-
     <span class="kw">fn</span> <span class="ident">build</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">builder</span>: <span class="ident">RequestBuilder</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Request</span>, <span class="ident">HttpError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">meta</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">envelope_meta</span>;
         <span class="ident">builder</span>
@@ -638,6 +634,10 @@
             .<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Auth&quot;</span>, <span class="ident">meta</span>.<span class="ident">auth_header</span>())
             .<span class="ident">header</span>(<span class="string">&quot;X-Forwarded-For&quot;</span>, <span class="ident">meta</span>.<span class="ident">forwarded_for</span>())
             .<span class="ident">header</span>(<span class="string">&quot;Content-Type&quot;</span>, <span class="ident">envelope::CONTENT_TYPE</span>);
+
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">partition_key</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">partition_key</span> {
+            <span class="ident">builder</span>.<span class="ident">header</span>(<span class="string">&quot;X-Sentry-Relay-Shard&quot;</span>, <span class="ident">partition_key</span>);
+        }
 
         <span class="kw">let</span> <span class="ident">envelope_body</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">envelope_body</span>.<span class="ident">clone</span>();
         <span class="macro">metric!</span>(<span class="ident">histogram</span>(<span class="ident">RelayHistograms::UpstreamEnvelopeBodySize</span>) <span class="op">=</span> <span class="ident">envelope_body</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>);
@@ -901,7 +901,7 @@
     <span class="doccomment">/// The project of the metrics.</span>
     <span class="kw">pub</span> <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
     <span class="doccomment">/// The key of the logical partition to send the metrics to.</span>
-    <span class="kw">pub</span> <span class="ident">partition_key</span>: <span class="ident">u64</span>,
+    <span class="kw">pub</span> <span class="ident">partition_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">SendMetrics</span> {
@@ -937,7 +937,7 @@
         <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="self">self</span>
             .<span class="ident">submit_envelope</span>(
                 <span class="ident">project_key</span>,
-                <span class="prelude-val">Some</span>(<span class="ident">partition_key</span>.<span class="ident">to_string</span>()),
+                <span class="ident">partition_key</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">to_string</span>()),
                 <span class="ident">envelope</span>,
                 <span class="ident">scoping</span>,
                 <span class="ident">Instant::now</span>(),

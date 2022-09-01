@@ -143,14 +143,6 @@
 <span id="135">135</span>
 <span id="136">136</span>
 <span id="137">137</span>
-<span id="138">138</span>
-<span id="139">139</span>
-<span id="140">140</span>
-<span id="141">141</span>
-<span id="142">142</span>
-<span id="143">143</span>
-<span id="144">144</span>
-<span id="145">145</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">SetMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.</span>
@@ -252,19 +244,11 @@
     <span class="ident">BucketsDelay</span>,
 
     <span class="doccomment">/// The number of batches emitted per partition by [`crate::aggregation::Aggregator`].</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This metric is only emitted if a partition key is set.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Tags:</span>
-    <span class="doccomment">///   - `partition_key`: The logical sharding key for the current batch.</span>
     <span class="ident">BatchesPerPartition</span>,
 
     <span class="doccomment">/// The number of buckets in a batch emitted by [`crate::aggregation::Aggregator`].</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This corresponds to the number of buckets that will end up in an envelope.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Tags:</span>
-    <span class="doccomment">///   - `partition_key`: The logical sharding key for the current batch.</span>
     <span class="ident">BucketsPerBatch</span>,
 }
 
