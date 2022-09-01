@@ -554,10 +554,6 @@ impl UpstreamRelay {
             }
         }
 
-        if let Some(partition_key) = request.request.partition_key() {
-            builder.header("X-Sentry-Relay-Shard", partition_key);
-        }
-
         //try to build a ClientRequest
         let client_request = match request.request.build(builder) {
             Err(e) => {
@@ -1083,14 +1079,6 @@ pub trait UpstreamRequest: Send {
     /// This should be done (only) for calls to endpoints that use Relay authentication.
     fn set_relay_id(&self) -> bool {
         true
-    }
-
-    /// Returns the value that will be used for the X-Sentry-Relay-Shard HTTP header.
-    ///
-    /// If set to None, the header will be omitted.
-    ///
-    fn partition_key(&self) -> Option<&String> {
-        None
     }
 
     /// Called whenever the request will be send over HTTP (possible multiple times)

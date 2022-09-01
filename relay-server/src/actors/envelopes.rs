@@ -77,10 +77,6 @@ impl UpstreamRequest for SendEnvelope {
         format!("/api/{}/envelope/", self.scoping.project_id).into()
     }
 
-    fn partition_key(&self) -> Option<&String> {
-        self.partition_key.as_ref()
-    }
-
     fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
         let meta = &self.envelope_meta;
         builder
@@ -90,6 +86,10 @@ impl UpstreamRequest for SendEnvelope {
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE);
+
+        if let Some(partition_key) = &self.partition_key {
+            builder.header("X-Sentry-Relay-Shard", partition_key);
+        }
 
         let envelope_body = self.envelope_body.clone();
         metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
@@ -353,7 +353,7 @@ pub struct SendMetrics {
     /// The project of the metrics.
     pub project_key: ProjectKey,
     /// The key of the logical partition to send the metrics to.
-    pub partition_key: u64,
+    pub partition_key: Option<u64>,
 }
 
 impl Message for SendMetrics {
@@ -389,7 +389,7 @@ impl Handler<SendMetrics> for EnvelopeManager {
         let future = self
             .submit_envelope(
                 project_key,
-                Some(partition_key.to_string()),
+                partition_key.map(|x| x.to_string()),
                 envelope,
                 scoping,
                 Instant::now(),
