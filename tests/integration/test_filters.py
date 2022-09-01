@@ -1,4 +1,5 @@
 import datetime
+from time import sleep
 import pytest
 
 
@@ -99,6 +100,7 @@ def test_error_message_filters_are_applied(
     }
 
     relay.send_event(project_id, event)
+    sleep(1)
 
     if must_filter:
         events_consumer.assert_empty()
