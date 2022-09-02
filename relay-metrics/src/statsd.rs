@@ -105,6 +105,12 @@ pub enum MetricHistograms {
     ///
     /// This corresponds to the number of buckets that will end up in an envelope.
     BucketsPerBatch,
+
+    /// Distribution of flush buckets over partition keys.
+    ///
+    /// The distribution of buckets should be even.
+    /// If it is not, this metric should expose it.
+    PartitionKeys,
 }
 
 impl HistogramMetric for MetricHistograms {
@@ -115,6 +121,7 @@ impl HistogramMetric for MetricHistograms {
             Self::BucketsDelay => "metrics.buckets.delay",
             Self::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             Self::BucketsPerBatch => "metrics.buckets.per_batch",
+            Self::PartitionKeys => "metrics.buckets.partition_keys",
         }
     }
 }
