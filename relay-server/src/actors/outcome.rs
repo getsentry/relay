@@ -545,7 +545,7 @@ impl HttpOutcomeProducer {
                 pending_flush_handle.abort();
             }
 
-            self.send_batch(); // Send what we have since we are already overflowing
+            self.send_batch();
         } else if self.pending_flush_handle.is_none() {
             let timeout = self.config.outcome_batch_interval();
             let tx = self.tx.clone();
@@ -610,7 +610,6 @@ impl ClientReportOutcomeProducer {
             }
         });
 
-        // Legacy code
         if flush_interval > Duration::ZERO {
             tokio::spawn(async move {
                 tokio::time::sleep(flush_interval).await;
@@ -904,7 +903,7 @@ impl OutcomeProducer {
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
                 Self::send_outcome_metric(&message, "kafka");
                 let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
-                self.send_kafka_message(kafka_producer, raw_message) // This can yield a Outcome error
+                self.send_kafka_message(kafka_producer, raw_message)
             }
             ProducerInner::AsClientReports(ref producer) => {
                 Self::send_outcome_metric(&message, "client_report");
@@ -925,7 +924,7 @@ impl OutcomeProducer {
             #[cfg(feature = "processing")]
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
                 Self::send_outcome_metric(&message, "kafka");
-                self.send_kafka_message(kafka_producer, message) // This can yield a Outcome error
+                self.send_kafka_message(kafka_producer, message)
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
                 Self::send_outcome_metric(&message, "http");
