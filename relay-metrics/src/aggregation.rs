@@ -1745,6 +1745,11 @@ impl Aggregator {
                 .entry(Some(partition_key))
                 .or_default()
                 .push(bucket.bucket);
+
+            // Log the distribution of buckets over partition key
+            relay_statsd::metric!(
+                histogram(MetricHistograms::PartitionKeys) = partition_key as f64
+            );
         }
         partitions
     }
@@ -3063,7 +3068,14 @@ mod tests {
 
         captures
             .into_iter()
-            .filter(|x| x.contains("per_batch") || x.contains("batches_per_partition"))
+            .filter(|x| {
+                [
+                    "metrics.buckets.batches_per_partition",
+                    "metrics.buckets.per_batch",
+                    "metrics.buckets.partition_keys",
+                ]
+                .contains(&x.split_once(':').unwrap().0)
+            })
             .collect::<Vec<_>>()
     }
 
@@ -3081,7 +3093,17 @@ mod tests {
     #[test]
     fn test_bucket_partitioning_128() {
         let output = run_test_bucket_partitioning(Some(128));
-        insta::assert_debug_snapshot!(output, @r###"
+        // Because buckets are stored in a HashMap, we do not know in what order the buckets will
+        // be processed, so we need to convert them to a set:
+        let (partition_keys, tail) = output.split_at(2);
+        insta::assert_debug_snapshot!(BTreeSet::from_iter(partition_keys), @r###"
+        {
+            "metrics.buckets.partition_keys:59|h",
+            "metrics.buckets.partition_keys:62|h",
+        }
+        "###);
+
+        insta::assert_debug_snapshot!(tail, @r###"
         [
             "metrics.buckets.per_batch:1|h",
             "metrics.buckets.batches_per_partition:1|h",
