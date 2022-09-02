@@ -3067,20 +3067,20 @@ mod tests {
             .collect::<Vec<_>>()
     }
 
-    #[test]
-    fn test_bucket_partitioning_dummy() {
-        let output = run_test_bucket_partitioning(None);
-        insta::assert_debug_snapshot!(output, @r###"
-        [
-            "metrics.buckets.partition_keys:3445775173510277600|h",
-            "metrics.buckets.partition_keys:8702268962773871000|h",
-            "metrics.buckets.per_batch:1|h",
-            "metrics.buckets.batches_per_partition:1|h",
-            "metrics.buckets.per_batch:1|h",
-            "metrics.buckets.batches_per_partition:1|h",
-        ]
-        "###);
-    }
+    // #[test]
+    // fn test_bucket_partitioning_dummy() {
+    //     let output = run_test_bucket_partitioning(None);
+    //     insta::assert_debug_snapshot!(output, @r###"
+    //     [
+    //         "metrics.buckets.partition_keys:3445775173510277600|h",
+    //         "metrics.buckets.partition_keys:8702268962773871000|h",
+    //         "metrics.buckets.per_batch:1|h",
+    //         "metrics.buckets.batches_per_partition:1|h",
+    //         "metrics.buckets.per_batch:1|h",
+    //         "metrics.buckets.batches_per_partition:1|h",
+    //     ]
+    //     "###);
+    // }
 
     #[test]
     fn test_bucket_partitioning_128() {
