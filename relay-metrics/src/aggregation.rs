@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::collections::{btree_map, hash_map::Entry, BTreeMap, BTreeSet, HashMap};
 
 use std::fmt;
@@ -1727,20 +1726,10 @@ impl Aggregator {
     }
 
     /// Split buckets into N logical partitions, determined by the bucket key.
-    fn partition_buckets(
-        &self,
-        buckets: Vec<HashedBucket>,
-        flush_partitions: Option<u64>,
-    ) -> BTreeMap<Option<u64>, Vec<Bucket>> {
-        let flush_partitions = match flush_partitions {
-            None => {
-                return BTreeMap::from([(None, buckets.into_iter().map(|x| x.bucket).collect())]);
-            }
-            Some(x) => max(1, x), // handle 0,
-        };
+    fn partition_buckets(&self, buckets: Vec<HashedBucket>) -> BTreeMap<Option<u64>, Vec<Bucket>> {
         let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
         for bucket in buckets {
-            let partition_key = bucket.hashed_key % flush_partitions;
+            let partition_key = bucket.hashed_key;
             partitions
                 .entry(Some(partition_key))
                 .or_default()
@@ -1799,8 +1788,7 @@ impl Aggregator {
             );
             total_bucket_count += bucket_count;
 
-            let num_partitions = self.config.flush_partitions;
-            let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
+            let partitioned_buckets = self.partition_buckets(project_buckets);
             for (partition_key, buckets) in partitioned_buckets {
                 self.process_batches(buckets, |batch| {
                     let fut = self
