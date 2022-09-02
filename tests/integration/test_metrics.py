@@ -103,7 +103,13 @@ def test_metrics_backdated(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "flush_partitions,expected_header", [(None, None), (0, "0"), (1, "0"), (128, "34")]
+    "flush_partitions,expected_header",
+    [
+        (None, "13973965814914948258"),
+        (0, "13973965814914948258"),
+        (1, "13973965814914948258"),
+        (128, "13973965814914948258"),
+    ],
 )
 def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_header):
     forever = 100 * 365 * 24 * 60 * 60  # *almost forever

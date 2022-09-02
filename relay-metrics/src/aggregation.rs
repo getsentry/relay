@@ -3072,7 +3072,11 @@ mod tests {
         let output = run_test_bucket_partitioning(None);
         insta::assert_debug_snapshot!(output, @r###"
         [
-            "metrics.buckets.per_batch:2|h",
+            "metrics.buckets.partition_keys:3445775173510277600|h",
+            "metrics.buckets.partition_keys:8702268962773871000|h",
+            "metrics.buckets.per_batch:1|h",
+            "metrics.buckets.batches_per_partition:1|h",
+            "metrics.buckets.per_batch:1|h",
             "metrics.buckets.batches_per_partition:1|h",
         ]
         "###);
@@ -3086,8 +3090,8 @@ mod tests {
         let (partition_keys, tail) = output.split_at(2);
         insta::assert_debug_snapshot!(BTreeSet::from_iter(partition_keys), @r###"
         {
-            "metrics.buckets.partition_keys:59|h",
-            "metrics.buckets.partition_keys:62|h",
+            "metrics.buckets.partition_keys:3445775173510277600|h",
+            "metrics.buckets.partition_keys:8702268962773871000|h",
         }
         "###);
 
