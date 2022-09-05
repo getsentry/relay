@@ -157,10 +157,8 @@ impl OutcomeAggregator {
             // Flush immediately. This is useful for integration tests.
             self.do_flush();
         } else if let Either::Left(_) = &self.flush_handle {
-            if self.mode != AggregationMode::DropEverything {
-                let flush_interval = Duration::from_secs(self.flush_interval);
-                self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(flush_interval)));
-            }
+            let flush_interval = Duration::from_secs(self.flush_interval);
+            self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(flush_interval)));
         }
     }
 
@@ -207,8 +205,7 @@ impl OutcomeAggregator {
     }
 
     fn flush(&mut self) {
-        let flush_interval = Duration::from_secs(self.flush_interval);
-        self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(flush_interval)));
+        self.flush_handle = Either::Left(future::pending());
 
         metric!(timer(RelayTimers::OutcomeAggregatorFlushTime), {
             self.do_flush();
