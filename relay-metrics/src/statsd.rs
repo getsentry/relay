@@ -97,6 +97,20 @@ pub enum MetricHistograms {
     ///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`
     ///    time period (`false`) or after the initial delay has expired (`true`).
     BucketsDelay,
+
+    /// The number of batches emitted per partition by [`crate::aggregation::Aggregator`].
+    BatchesPerPartition,
+
+    /// The number of buckets in a batch emitted by [`crate::aggregation::Aggregator`].
+    ///
+    /// This corresponds to the number of buckets that will end up in an envelope.
+    BucketsPerBatch,
+
+    /// Distribution of flush buckets over partition keys.
+    ///
+    /// The distribution of buckets should be even.
+    /// If it is not, this metric should expose it.
+    PartitionKeys,
 }
 
 impl HistogramMetric for MetricHistograms {
@@ -105,6 +119,9 @@ impl HistogramMetric for MetricHistograms {
             Self::BucketsFlushed => "metrics.buckets.flushed",
             Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
             Self::BucketsDelay => "metrics.buckets.delay",
+            Self::BatchesPerPartition => "metrics.buckets.batches_per_partition",
+            Self::BucketsPerBatch => "metrics.buckets.per_batch",
+            Self::PartitionKeys => "metrics.buckets.partition_keys",
         }
     }
 }

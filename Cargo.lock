@@ -3354,10 +3354,10 @@ name = "relay-metrics"
 version = "22.8.0"
 dependencies = [
  "actix",
- "crc32fast",
  "criterion",
  "failure",
  "float-ord",
+ "fnv",
  "futures 0.1.31",
  "hash32",
  "insta",
@@ -3407,6 +3407,22 @@ dependencies = [
  "redis",
  "serde",
  "serde_yaml",
+]
+
+[[package]]
+name = "relay-replays"
+version = "22.7.0"
+dependencies = [
+ "insta",
+ "rand 0.6.5",
+ "rand_pcg",
+ "relay-common",
+ "relay-filter",
+ "relay-general",
+ "relay-log",
+ "serde",
+ "serde_json",
+ "unicase",
 ]
 
 [[package]]
@@ -3465,6 +3481,7 @@ dependencies = [
  "relay-profiling",
  "relay-quotas",
  "relay-redis",
+ "relay-replays",
  "relay-sampling",
  "relay-statsd",
  "relay-system",

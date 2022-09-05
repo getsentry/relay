@@ -885,8 +885,29 @@ impl EnvelopeProcessor {
     /// Remove replays if the feature flag is not enabled
     fn process_replays(&self, state: &mut ProcessEnvelopeState) {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
+        let envelope = &mut state.envelope;
+        let client_addr = envelope.meta().client_addr();
+
         state.envelope.retain_items(|item| match item.ty() {
-            ItemType::ReplayEvent | ItemType::ReplayRecording => replays_enabled,
+            ItemType::ReplayEvent => {
+                if !replays_enabled {
+                    return false;
+                }
+
+                let parsed_replay =
+                    relay_replays::normalize_replay_event(&item.payload(), client_addr);
+                match parsed_replay {
+                    Ok(replay) => {
+                        item.set_payload(ContentType::Json, &replay[..]);
+                        true
+                    }
+                    Err(_) => {
+                        relay_log::debug!("Replay item could not be parsed.");
+                        false
+                    }
+                }
+            }
+            ItemType::ReplayRecording => replays_enabled,
             _ => true,
         });
     }

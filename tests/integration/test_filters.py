@@ -1,4 +1,5 @@
 import datetime
+from time import sleep
 import pytest
 
 
@@ -53,6 +54,108 @@ def test_filters_are_applied(
     relay.send_event(project_id, event)
 
     if should_filter:
+        events_consumer.assert_empty()
+    else:
+        events_consumer.get_event()
+
+
+@pytest.mark.parametrize(
+    "is_processing_relay", (False, True), ids=["external relay", "processing relay"]
+)
+@pytest.mark.parametrize(
+    "event, must_filter",
+    (
+        ({"logentry": {"message": "filter:"}}, False),
+        ({"logentry": {"message": "filter:yes"}}, True),
+        ({"logentry": {"message": "filter:%s", "params": ["no"]}}, False),
+        ({"logentry": {"message": "filter:%s", "params": ["yes"]}}, True),
+    ),
+    ids=[
+        "plain non-matching message",
+        "plain matching message",
+        "formatting non-matching message",
+        "formatting matching message",
+    ],
+)
+def test_error_message_filters_are_applied(
+    mini_sentry,
+    events_consumer,
+    relay,
+    relay_with_processing,
+    is_processing_relay,
+    event,
+    must_filter,
+):
+    events_consumer = events_consumer()
+    processing = relay_with_processing()
+    if is_processing_relay:
+        relay = processing
+    else:
+        relay = relay(processing)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["filterSettings"]["errorMessages"] = {
+        "patterns": ["*yes*"]
+    }
+
+    relay.send_event(project_id, event)
+    sleep(1)
+
+    if must_filter:
+        events_consumer.assert_empty()
+    else:
+        events_consumer.get_event()
+        events_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "is_processing_relay", (False, True), ids=["external relay", "processing relay"]
+)
+@pytest.mark.parametrize(
+    "enable_filters",
+    (False, True),
+    ids=["events from extensions not filtered", "events from extensions filtered"],
+)
+def test_browser_extension_filters_are_applied(
+    mini_sentry,
+    events_consumer,
+    relay_with_processing,
+    relay,
+    is_processing_relay,
+    enable_filters,
+):
+    """Test if all processing relays apply browser extension filters when enabled."""
+    events_consumer = events_consumer()
+    processing = relay_with_processing()
+    if is_processing_relay:
+        relay = processing
+    else:
+        relay = relay(processing)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["filterSettings"]["browserExtensions"] = {
+        "isEnabled": enable_filters
+    }
+
+    event = {
+        "exception": {
+            "values": [
+                {
+                    "stacktrace": {
+                        "frames": [
+                            {"filename": "a/different.file"},
+                            {"filename": "chrome-extension://blablabla"},
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+    relay.send_event(project_id, event)
+
+    if enable_filters:
         events_consumer.assert_empty()
     else:
         events_consumer.get_event()
