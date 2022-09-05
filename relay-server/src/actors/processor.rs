@@ -2345,7 +2345,7 @@ mod tests {
                 "###,
             );
             item
-         });
+        });
 
         let new_envelope = relay_test::with_system(move || {
             let mut datascrubbing_settings = DataScrubbingConfig::default();
