@@ -225,75 +225,75 @@ jobs:
       - name: Run Python Tests
         run: pytest -v py
 
-  # test_integration:
-  #   name: Integration Tests
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 15
+  test_integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
 
-  #   # Skip redundant checks for library releases
-  #   if: "!startsWith(github.ref, 'refs/heads/release-library/')"
+    # Skip redundant checks for library releases
+    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
-  #   services:
-  #     redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
-  #       image: redis
-  #       ports:
-  #         - 6379:6379
+    services:
+      redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
+        image: redis
+        ports:
+          - 6379:6379
 
-  #     # Kafka + Zookeeper version synced with
-  #     # https://github.com/getsentry/sentry/blob/363509c242aff197409207ce4990fb061f3534a3/.github/actions/setup-sentry/action.yml#L174
+      # Kafka + Zookeeper version synced with
+      # https://github.com/getsentry/sentry/blob/363509c242aff197409207ce4990fb061f3534a3/.github/actions/setup-sentry/action.yml#L174
 
-  #     zookeeper:
-  #       image: confluentinc/cp-zookeeper:4.1.0
-  #       env:
-  #         ZOOKEEPER_CLIENT_PORT: 2181
+      zookeeper:
+        image: confluentinc/cp-zookeeper:4.1.0
+        env:
+          ZOOKEEPER_CLIENT_PORT: 2181
 
-  #     kafka:
-  #       image: confluentinc/cp-kafka:5.1.2
-  #       env:
-  #         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-  #         KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
-  #         KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-  #         KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
-  #       ports:
-  #         - 9092:9092
+      kafka:
+        image: confluentinc/cp-kafka:5.1.2
+        env:
+          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1
+        ports:
+          - 9092:9092
 
-  #   steps:
-  #     - name: Install libcurl-dev
-  #       run: |
-  #         sudo apt update
-  #         sudo apt-get install -y libcurl4-openssl-dev
+    steps:
+      - name: Install libcurl-dev
+        run: |
+          sudo apt update
+          sudo apt-get install -y libcurl4-openssl-dev
 
-  #     - uses: actions/checkout@v3
-  #       with:
-  #         submodules: recursive
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: stable
-  #         profile: minimal
-  #         override: true
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
 
-  #     - uses: swatinem/rust-cache@v2
-  #       with:
-  #         key: ${{ github.job }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          key: ${{ github.job }}
 
-  #     - name: Cargo build
-  #       uses: actions-rs/cargo@v1
-  #       with:
-  #         command: build
-  #         args: --all-features
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-features
 
-  #     - uses: actions/setup-python@v4
-  #       with:
-  #         python-version: 3.7
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.7
 
-  #     - name: Install dependencies
-  #       run: pip install -U -r requirements-dev.txt
+      - name: Install dependencies
+        run: pip install -U -r requirements-dev.txt
 
-  #     - name: Run tests
-  #       run: pytest tests -n auto -v
-  #       env:
-  #         RELAY_VERSION_CHAIN: "20.6.0,latest"
+      - name: Run tests
+        run: pytest tests -n auto -v
+        env:
+          RELAY_VERSION_CHAIN: "20.6.0,latest"
 
   sentry-relay-integration-tests:
     name: Sentry-Relay Integration Tests
