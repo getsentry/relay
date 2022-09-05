@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Dynamic sampling functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "22.7.0"
+version = "22.8.0"
 edition = "2018"
 license-file = "../LICENSE"
 publish = false
@@ -21,4 +21,4 @@ rand_pcg = "0.1.2"
 unicase = "2.6.0"
 
 [dev-dependencies]
-insta = { version = "1.1.0", features = ["ron"] }
+insta = { version = "1.19.0", features = ["ron"] }

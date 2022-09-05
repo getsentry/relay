@@ -389,108 +389,111 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
-
-#[test]
-fn test_string_trimming() {
-    use crate::processor::MaxChars;
-    use crate::types::{Annotated, Meta, Remark, RemarkType};
-
-    let mut value = Annotated::new("This is my long string I want to have trimmed!".to_string());
-    value
-        .apply(|v, m| {
-            trim_string(v, m, MaxChars::Hard(20));
-            Ok(())
-        })
-        .unwrap();
-
-    assert_eq_dbg!(
-        value,
-        Annotated(Some("This is my long s...".into()), {
-            let mut meta = Meta::default();
-            meta.add_remark(Remark {
-                ty: RemarkType::Substituted,
-                rule_id: "!limit".to_string(),
-                range: Some((17, 20)),
-            });
-            meta.set_original_length(Some(46));
-            meta
-        })
-    );
-}
-
-#[test]
-fn test_basic_trimming() {
-    use crate::protocol::Event;
-    use crate::types::Annotated;
+mod tests {
+    use similar_asserts::assert_eq;
+    use std::iter::repeat;
 
     use crate::processor::MaxChars;
+    use crate::protocol::{
+        Breadcrumb, Context, ContextInner, Contexts, Event, Exception, ExtraValue, Frame,
+        RawStacktrace, TagEntry, Tags, Values,
+    };
+    use crate::types::{
+        Annotated, Map, Meta, Object, Remark, RemarkType, SerializableAnnotated, Value,
+    };
 
-    let mut processor = TrimmingProcessor::new();
+    use super::*;
 
-    let mut event = Annotated::new(Event {
-        culprit: Annotated::new("x".repeat(300)),
-        ..Default::default()
-    });
+    #[test]
+    fn test_string_trimming() {
+        let mut value =
+            Annotated::new("This is my long string I want to have trimmed!".to_string());
+        value
+            .apply(|v, m| {
+                trim_string(v, m, MaxChars::Hard(20));
+                Ok(())
+            })
+            .unwrap();
 
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    let mut expected = Annotated::new("x".repeat(300));
-    expected
-        .apply(|v, m| {
-            trim_string(v, m, MaxChars::Culprit);
-            Ok(())
-        })
-        .unwrap();
-
-    assert_eq_dbg!(event.value().unwrap().culprit, expected);
-}
-
-#[test]
-fn test_databag_stripping() {
-    use crate::protocol::{Event, ExtraValue};
-    use crate::types::{Annotated, Value};
-
-    let mut processor = TrimmingProcessor::new();
-
-    fn make_nested_object(depth: usize) -> Annotated<Value> {
-        if depth == 0 {
-            return Annotated::new(Value::String("max depth".to_string()));
-        }
-        let mut rv = Object::new();
-        rv.insert(format!("key{}", depth), make_nested_object(depth - 1));
-        Annotated::new(Value::Object(rv))
+        assert_eq!(
+            value,
+            Annotated(Some("This is my long s...".into()), {
+                let mut meta = Meta::default();
+                meta.add_remark(Remark {
+                    ty: RemarkType::Substituted,
+                    rule_id: "!limit".to_string(),
+                    range: Some((17, 20)),
+                });
+                meta.set_original_length(Some(46));
+                meta
+            })
+        );
     }
 
-    let databag = Annotated::new({
-        let mut map = Object::new();
-        map.insert(
-            "key_1".to_string(),
-            Annotated::new(ExtraValue(Value::String("value 1".to_string()))),
-        );
-        map.insert(
-            "key_2".to_string(),
-            make_nested_object(8).map_value(ExtraValue),
-        );
-        map.insert(
-            "key_3".to_string(),
-            // innermost key (string) is entering json stringify codepath
-            make_nested_object(5).map_value(ExtraValue),
-        );
-        map
-    });
-    let mut event = Annotated::new(Event {
-        extra: databag,
-        ..Default::default()
-    });
+    #[test]
+    fn test_basic_trimming() {
+        let mut processor = TrimmingProcessor::new();
 
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    let stripped_extra = &event.value().unwrap().extra;
-    let json = stripped_extra.to_json_pretty().unwrap();
+        let mut event = Annotated::new(Event {
+            culprit: Annotated::new("x".repeat(300)),
+            ..Default::default()
+        });
 
-    assert_eq_str!(
-        json,
-        r#"{
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let mut expected = Annotated::new("x".repeat(300));
+        expected
+            .apply(|v, m| {
+                trim_string(v, m, MaxChars::Culprit);
+                Ok(())
+            })
+            .unwrap();
+
+        assert_eq!(event.value().unwrap().culprit, expected);
+    }
+
+    #[test]
+    fn test_databag_stripping() {
+        let mut processor = TrimmingProcessor::new();
+
+        fn make_nested_object(depth: usize) -> Annotated<Value> {
+            if depth == 0 {
+                return Annotated::new(Value::String("max depth".to_string()));
+            }
+            let mut rv = Object::new();
+            rv.insert(format!("key{}", depth), make_nested_object(depth - 1));
+            Annotated::new(Value::Object(rv))
+        }
+
+        let databag = Annotated::new({
+            let mut map = Object::new();
+            map.insert(
+                "key_1".to_string(),
+                Annotated::new(ExtraValue(Value::String("value 1".to_string()))),
+            );
+            map.insert(
+                "key_2".to_string(),
+                make_nested_object(8).map_value(ExtraValue),
+            );
+            map.insert(
+                "key_3".to_string(),
+                // innermost key (string) is entering json stringify codepath
+                make_nested_object(5).map_value(ExtraValue),
+            );
+            map
+        });
+        let mut event = Annotated::new(Event {
+            extra: databag,
+            ..Default::default()
+        });
+
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        let stripped_extra = &event.value().unwrap().extra;
+        let json = stripped_extra.to_json_pretty().unwrap();
+
+        assert_eq!(
+            json,
+            r#"{
   "key_1": "value 1",
   "key_2": {
     "key8": {
@@ -515,386 +518,367 @@ fn test_databag_stripping() {
     }
   }
 }"#
-    );
-}
+        );
+    }
 
-#[test]
-fn test_databag_array_stripping() {
-    use crate::protocol::{Event, ExtraValue};
-    use crate::types::{Annotated, SerializableAnnotated, Value};
-    use insta::assert_ron_snapshot;
+    #[test]
+    fn test_databag_array_stripping() {
+        let mut processor = TrimmingProcessor::new();
 
-    let mut processor = TrimmingProcessor::new();
+        let databag = Annotated::new({
+            let mut map = Object::new();
+            for idx in 0..100 {
+                map.insert(
+                    format!("key_{}", idx),
+                    Annotated::new(ExtraValue(Value::String("x".repeat(50000)))),
+                );
+            }
+            map
+        });
+        let mut event = Annotated::new(Event {
+            extra: databag,
+            ..Default::default()
+        });
 
-    let databag = Annotated::new({
-        let mut map = Object::new();
-        for idx in 0..100 {
-            map.insert(
-                format!("key_{}", idx),
-                Annotated::new(ExtraValue(Value::String("x".repeat(50000)))),
-            );
-        }
-        map
-    });
-    let mut event = Annotated::new(Event {
-        extra: databag,
-        ..Default::default()
-    });
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        let stripped_extra = SerializableAnnotated(&event.value().unwrap().extra);
 
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    let stripped_extra = SerializableAnnotated(&event.value().unwrap().extra);
+        insta::assert_ron_snapshot!(stripped_extra);
+    }
 
-    assert_ron_snapshot!(stripped_extra);
-}
+    #[test]
+    fn test_tags_stripping() {
+        let mut processor = TrimmingProcessor::new();
 
-#[test]
-fn test_tags_stripping() {
-    use crate::protocol::{Event, TagEntry, Tags};
-    use crate::types::Annotated;
+        let mut event = Annotated::new(Event {
+            tags: Annotated::new(Tags(
+                vec![Annotated::new(TagEntry(
+                    Annotated::new("x".repeat(200)),
+                    Annotated::new("x".repeat(300)),
+                ))]
+                .into(),
+            )),
+            ..Default::default()
+        });
 
-    let mut processor = TrimmingProcessor::new();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        let json = event
+            .value()
+            .unwrap()
+            .tags
+            .payload_to_json_pretty()
+            .unwrap();
 
-    let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(
-            vec![Annotated::new(TagEntry(
-                Annotated::new("x".repeat(200)),
-                Annotated::new("x".repeat(300)),
-            ))]
-            .into(),
-        )),
-        ..Default::default()
-    });
-
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    let json = event
-        .value()
-        .unwrap()
-        .tags
-        .payload_to_json_pretty()
-        .unwrap();
-
-    assert_eq_str!(
-        json,
-        r#"[
+        assert_eq!(
+            json,
+            r#"[
   [
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx..."
   ]
 ]"#
-    );
-}
-
-#[test]
-fn test_databag_state_leak() {
-    use std::iter::repeat;
-
-    use crate::protocol::{Breadcrumb, Event, Exception, Frame, RawStacktrace, Values};
-    use crate::types::{Map, Value};
-
-    let event = Annotated::new(Event {
-        breadcrumbs: Annotated::new(Values::new(
-            repeat(Annotated::new(Breadcrumb {
-                data: {
-                    let mut map = Map::new();
-                    map.insert(
-                        "spamspamspam".to_string(),
-                        Annotated::new(Value::String("blablabla".to_string())),
-                    );
-                    Annotated::new(map)
-                },
-                ..Default::default()
-            }))
-            .take(200)
-            .collect(),
-        )),
-        exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
-            ty: Annotated::new("TypeError".to_string()),
-            value: Annotated::new("important error message".to_string().into()),
-            stacktrace: Annotated::new(
-                RawStacktrace {
-                    frames: Annotated::new(
-                        repeat(Annotated::new(Frame {
-                            function: Annotated::new("importantFunctionName".to_string()),
-                            symbol: Annotated::new("important_symbol".to_string()),
-                            ..Default::default()
-                        }))
-                        .take(200)
-                        .collect(),
-                    ),
-                    ..Default::default()
-                }
-                .into(),
-            ),
-            ..Default::default()
-        })])),
-        ..Default::default()
-    });
-
-    let mut processor = TrimmingProcessor::new();
-    let mut stripped_event = event.clone();
-    process_value(&mut stripped_event, &mut processor, ProcessingState::root()).unwrap();
-
-    assert_eq_str!(
-        event.to_json_pretty().unwrap(),
-        stripped_event.to_json_pretty().unwrap()
-    );
-}
-
-#[test]
-fn test_custom_context_trimming() {
-    use crate::protocol::{Context, ContextInner, Contexts};
-    use crate::types::{Annotated, Object, Value};
-
-    let mut contexts = Object::new();
-    for i in 1..2 {
-        contexts.insert(format!("despacito{}", i), {
-            let mut context = Object::new();
-            context.insert(
-                "foo".to_string(),
-                Annotated::new(Value::String("a".repeat(4000))),
-            );
-            context.insert(
-                "bar".to_string(),
-                Annotated::new(Value::String("a".repeat(5000))),
-            );
-            Annotated::new(ContextInner(Context::Other(context)))
-        });
+        );
     }
 
-    let mut contexts = Annotated::new(Contexts(contexts));
-    let mut processor = TrimmingProcessor::new();
-    process_value(&mut contexts, &mut processor, ProcessingState::root()).unwrap();
+    #[test]
+    fn test_databag_state_leak() {
+        let event = Annotated::new(Event {
+            breadcrumbs: Annotated::new(Values::new(
+                repeat(Annotated::new(Breadcrumb {
+                    data: {
+                        let mut map = Map::new();
+                        map.insert(
+                            "spamspamspam".to_string(),
+                            Annotated::new(Value::String("blablabla".to_string())),
+                        );
+                        Annotated::new(map)
+                    },
+                    ..Default::default()
+                }))
+                .take(200)
+                .collect(),
+            )),
+            exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
+                ty: Annotated::new("TypeError".to_string()),
+                value: Annotated::new("important error message".to_string().into()),
+                stacktrace: Annotated::new(
+                    RawStacktrace {
+                        frames: Annotated::new(
+                            repeat(Annotated::new(Frame {
+                                function: Annotated::new("importantFunctionName".to_string()),
+                                symbol: Annotated::new("important_symbol".to_string()),
+                                ..Default::default()
+                            }))
+                            .take(200)
+                            .collect(),
+                        ),
+                        ..Default::default()
+                    }
+                    .into(),
+                ),
+                ..Default::default()
+            })])),
+            ..Default::default()
+        });
 
-    for i in 1..2 {
-        let other = match contexts
+        let mut processor = TrimmingProcessor::new();
+        let mut stripped_event = event.clone();
+        process_value(&mut stripped_event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(
+            event.to_json_pretty().unwrap(),
+            stripped_event.to_json_pretty().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_custom_context_trimming() {
+        let mut contexts = Object::new();
+        for i in 1..2 {
+            contexts.insert(format!("despacito{}", i), {
+                let mut context = Object::new();
+                context.insert(
+                    "foo".to_string(),
+                    Annotated::new(Value::String("a".repeat(4000))),
+                );
+                context.insert(
+                    "bar".to_string(),
+                    Annotated::new(Value::String("a".repeat(5000))),
+                );
+                Annotated::new(ContextInner(Context::Other(context)))
+            });
+        }
+
+        let mut contexts = Annotated::new(Contexts(contexts));
+        let mut processor = TrimmingProcessor::new();
+        process_value(&mut contexts, &mut processor, ProcessingState::root()).unwrap();
+
+        for i in 1..2 {
+            let other = match contexts
+                .value()
+                .unwrap()
+                .get(&format!("despacito{}", i))
+                .unwrap()
+                .value()
+                .unwrap()
+                .0
+            {
+                Context::Other(ref x) => x,
+                _ => panic!("Context has changed type!"),
+            };
+
+            assert_eq!(
+                other
+                    .get("bar")
+                    .unwrap()
+                    .value()
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .len(),
+                5000
+            );
+            assert_eq!(
+                other
+                    .get("foo")
+                    .unwrap()
+                    .value()
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .len(),
+                3189
+            );
+        }
+    }
+
+    #[test]
+    fn test_extra_trimming_long_arrays() {
+        let mut extra = Object::new();
+        extra.insert("foo".to_string(), {
+            Annotated::new(ExtraValue(Value::Array(
+                repeat(Annotated::new(Value::U64(1)))
+                    .take(200_000)
+                    .collect(),
+            )))
+        });
+
+        let mut event = Annotated::new(Event {
+            extra: Annotated::new(extra),
+            ..Default::default()
+        });
+
+        let mut processor = TrimmingProcessor::new();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let arr = match event
             .value()
             .unwrap()
-            .get(&format!("despacito{}", i))
+            .extra
+            .value()
+            .unwrap()
+            .get("foo")
             .unwrap()
             .value()
             .unwrap()
-            .0
         {
-            Context::Other(ref x) => x,
-            _ => panic!("Context has changed type!"),
+            ExtraValue(Value::Array(x)) => x,
+            x => panic!("Wrong type: {:?}", x),
         };
 
-        assert_eq!(
-            other
-                .get("bar")
-                .unwrap()
-                .value()
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .len(),
-            5000
-        );
-        assert_eq!(
-            other
-                .get("foo")
-                .unwrap()
-                .value()
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .len(),
-            3189
-        );
-    }
-}
-
-#[test]
-fn test_extra_trimming_long_arrays() {
-    use std::iter::repeat;
-
-    use crate::protocol::{Event, ExtraValue};
-    use crate::types::{Annotated, Object, Value};
-
-    let mut extra = Object::new();
-    extra.insert("foo".to_string(), {
-        Annotated::new(ExtraValue(Value::Array(
-            repeat(Annotated::new(Value::U64(1)))
-                .take(200_000)
-                .collect(),
-        )))
-    });
-
-    let mut event = Annotated::new(Event {
-        extra: Annotated::new(extra),
-        ..Default::default()
-    });
-
-    let mut processor = TrimmingProcessor::new();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    let arr = match event
-        .value()
-        .unwrap()
-        .extra
-        .value()
-        .unwrap()
-        .get("foo")
-        .unwrap()
-        .value()
-        .unwrap()
-    {
-        ExtraValue(Value::Array(x)) => x,
-        x => panic!("Wrong type: {:?}", x),
-    };
-
-    // this is larger / 2 for the extra value
-    assert_eq!(arr.len(), 8192);
-}
-
-#[test]
-fn test_newtypes_do_not_add_to_depth() {
-    #[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
-    struct WrappedString(String);
-
-    #[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
-    struct StructChild2 {
-        inner: Annotated<WrappedString>,
+        // this is larger / 2 for the extra value
+        assert_eq!(arr.len(), 8192);
     }
 
-    #[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
-    struct StructChild {
-        inner: Annotated<StructChild2>,
-    }
+    #[test]
+    fn test_newtypes_do_not_add_to_depth() {
+        #[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
+        struct WrappedString(String);
 
-    #[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
-    struct Struct {
-        #[metastructure(bag_size = "small")]
-        inner: Annotated<StructChild>,
-    }
+        #[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
+        struct StructChild2 {
+            inner: Annotated<WrappedString>,
+        }
 
-    let mut value = Annotated::new(Struct {
-        inner: Annotated::new(StructChild {
-            inner: Annotated::new(StructChild2 {
-                inner: Annotated::new(WrappedString("hi".to_string())),
+        #[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
+        struct StructChild {
+            inner: Annotated<StructChild2>,
+        }
+
+        #[derive(Debug, Clone, FromValue, IntoValue, ProcessValue, Empty)]
+        struct Struct {
+            #[metastructure(bag_size = "small")]
+            inner: Annotated<StructChild>,
+        }
+
+        let mut value = Annotated::new(Struct {
+            inner: Annotated::new(StructChild {
+                inner: Annotated::new(StructChild2 {
+                    inner: Annotated::new(WrappedString("hi".to_string())),
+                }),
             }),
-        }),
-    });
+        });
 
-    let mut processor = TrimmingProcessor::new();
-    process_value(&mut value, &mut processor, ProcessingState::root()).unwrap();
+        let mut processor = TrimmingProcessor::new();
+        process_value(&mut value, &mut processor, ProcessingState::root()).unwrap();
 
-    // Ensure stack does not leak with newtypes
-    assert!(processor.bag_size_state.is_empty());
+        // Ensure stack does not leak with newtypes
+        assert!(processor.bag_size_state.is_empty());
 
-    assert_eq_str!(
-        value.to_json().unwrap(),
-        r#"{"inner":{"inner":{"inner":"hi"}}}"#
-    );
-}
-
-#[test]
-fn test_frame_hard_limit() {
-    fn create_frame(filename: &str) -> Annotated<Frame> {
-        Annotated::new(Frame {
-            filename: Annotated::new(filename.into()),
-            ..Default::default()
-        })
+        assert_eq!(
+            value.to_json().unwrap(),
+            r#"{"inner":{"inner":{"inner":"hi"}}}"#
+        );
     }
 
-    let mut frames = Annotated::new(vec![
-        create_frame("foo1.py"),
-        create_frame("foo2.py"),
-        create_frame("foo3.py"),
-        create_frame("foo4.py"),
-        create_frame("foo5.py"),
-    ]);
+    #[test]
+    fn test_frame_hard_limit() {
+        fn create_frame(filename: &str) -> Annotated<Frame> {
+            Annotated::new(Frame {
+                filename: Annotated::new(filename.into()),
+                ..Default::default()
+            })
+        }
 
-    frames
-        .apply(|f, m| {
-            enforce_frame_hard_limit(f, m, 3);
-            Ok(())
-        })
-        .unwrap();
+        let mut frames = Annotated::new(vec![
+            create_frame("foo1.py"),
+            create_frame("foo2.py"),
+            create_frame("foo3.py"),
+            create_frame("foo4.py"),
+            create_frame("foo5.py"),
+        ]);
 
-    let mut expected_meta = Meta::default();
-    expected_meta.set_original_length(Some(5));
+        frames
+            .apply(|f, m| {
+                enforce_frame_hard_limit(f, m, 3);
+                Ok(())
+            })
+            .unwrap();
 
-    assert_eq_dbg!(
-        frames,
-        Annotated(
-            Some(vec![
-                create_frame("foo1.py"),
-                create_frame("foo2.py"),
-                create_frame("foo5.py"),
-            ]),
-            expected_meta
-        )
-    );
-}
+        let mut expected_meta = Meta::default();
+        expected_meta.set_original_length(Some(5));
 
-#[test]
-fn test_slim_frame_data_under_max() {
-    let mut frames = vec![Annotated::new(Frame {
-        filename: Annotated::new("foo".into()),
-        pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-        context_line: Annotated::new("b".to_string()),
-        post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
-        ..Default::default()
-    })];
-
-    let old_frames = frames.clone();
-    slim_frame_data(&mut frames, 4);
-
-    assert_eq_dbg!(frames, old_frames);
-}
-
-#[test]
-fn test_slim_frame_data_over_max() {
-    let mut frames = vec![];
-
-    for n in 0..5 {
-        frames.push(Annotated::new(Frame {
-            filename: Annotated::new(format!("foo {}", n).into()),
-            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-            context_line: Annotated::new("b".to_string()),
-            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
-            ..Default::default()
-        }));
+        assert_eq!(
+            frames,
+            Annotated(
+                Some(vec![
+                    create_frame("foo1.py"),
+                    create_frame("foo2.py"),
+                    create_frame("foo5.py"),
+                ]),
+                expected_meta
+            )
+        );
     }
 
-    slim_frame_data(&mut frames, 4);
+    #[test]
+    fn test_slim_frame_data_under_max() {
+        let mut frames = vec![Annotated::new(Frame {
+            filename: Annotated::new("foo".into()),
+            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+            context_line: Annotated::new("b".to_string()),
+            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+            ..Default::default()
+        })];
 
-    let expected = vec![
-        Annotated::new(Frame {
-            filename: Annotated::new("foo 0".into()),
-            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-            context_line: Annotated::new("b".to_string()),
-            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
-            ..Default::default()
-        }),
-        Annotated::new(Frame {
-            filename: Annotated::new("foo 1".into()),
-            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-            context_line: Annotated::new("b".to_string()),
-            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
-            ..Default::default()
-        }),
-        Annotated::new(Frame {
-            filename: Annotated::new("foo 2".into()),
-            context_line: Annotated::new("b".to_string()),
-            ..Default::default()
-        }),
-        Annotated::new(Frame {
-            filename: Annotated::new("foo 3".into()),
-            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-            context_line: Annotated::new("b".to_string()),
-            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
-            ..Default::default()
-        }),
-        Annotated::new(Frame {
-            filename: Annotated::new("foo 4".into()),
-            pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
-            context_line: Annotated::new("b".to_string()),
-            post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
-            ..Default::default()
-        }),
-    ];
+        let old_frames = frames.clone();
+        slim_frame_data(&mut frames, 4);
 
-    assert_eq_dbg!(frames, expected);
+        assert_eq!(frames, old_frames);
+    }
+
+    #[test]
+    fn test_slim_frame_data_over_max() {
+        let mut frames = vec![];
+
+        for n in 0..5 {
+            frames.push(Annotated::new(Frame {
+                filename: Annotated::new(format!("foo {}", n).into()),
+                pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+                context_line: Annotated::new("b".to_string()),
+                post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+                ..Default::default()
+            }));
+        }
+
+        slim_frame_data(&mut frames, 4);
+
+        let expected = vec![
+            Annotated::new(Frame {
+                filename: Annotated::new("foo 0".into()),
+                pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+                context_line: Annotated::new("b".to_string()),
+                post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+                ..Default::default()
+            }),
+            Annotated::new(Frame {
+                filename: Annotated::new("foo 1".into()),
+                pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+                context_line: Annotated::new("b".to_string()),
+                post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+                ..Default::default()
+            }),
+            Annotated::new(Frame {
+                filename: Annotated::new("foo 2".into()),
+                context_line: Annotated::new("b".to_string()),
+                ..Default::default()
+            }),
+            Annotated::new(Frame {
+                filename: Annotated::new("foo 3".into()),
+                pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+                context_line: Annotated::new("b".to_string()),
+                post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+                ..Default::default()
+            }),
+            Annotated::new(Frame {
+                filename: Annotated::new("foo 4".into()),
+                pre_context: Annotated::new(vec![Annotated::new("a".to_string())]),
+                context_line: Annotated::new("b".to_string()),
+                post_context: Annotated::new(vec![Annotated::new("c".to_string())]),
+                ..Default::default()
+            }),
+        ];
+
+        assert_eq!(frames, expected);
+    }
 }

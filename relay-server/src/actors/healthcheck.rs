@@ -1,10 +1,7 @@
-use std::error::Error;
-use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use actix::SystemService;
-use parking_lot::RwLock;
 use tokio::sync::{mpsc, oneshot};
 
 use relay_config::{Config, RelayMode};
@@ -13,57 +10,9 @@ use relay_statsd::metric;
 use relay_system::{compat, Controller};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
+use crate::service::REGISTRY;
 use crate::statsd::RelayGauges;
-
-lazy_static::lazy_static! {
-    /// Singleton of the `Healthcheck` service.
-    static ref ADDRESS: RwLock<Option<Addr<HealthcheckMessage>>> = RwLock::new(None);
-}
-
-/// Internal wrapper of a message sent through an `Addr` with return channel.
-#[derive(Debug)]
-struct Message<T> {
-    data: T,
-    // TODO(tobias): This is hard-coded to return `bool`.
-    // Might need some associated types to make this work
-    responder: oneshot::Sender<bool>,
-}
-
-/// An error when [sending](Addr::send) a message to a service fails.
-#[derive(Clone, Copy, Debug)]
-pub struct SendError;
-
-impl fmt::Display for SendError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "failed to send message to service")
-    }
-}
-
-impl Error for SendError {}
-
-/// Channel for sending public messages into a service.
-///
-/// To send a message, use [`Addr::send`].
-#[derive(Clone, Debug)]
-pub struct Addr<T> {
-    tx: mpsc::UnboundedSender<Message<T>>,
-}
-
-impl<T> Addr<T> {
-    /// Sends an asynchronous message to the service and waits for the response.
-    ///
-    /// The result of the message does not have to be awaited. The message will be delivered and
-    /// handled regardless. The communication channel with the service is unbounded, so backlogs
-    /// could occur when sending too many messages.
-    ///
-    /// Sending the message can fail with `Err(SendError)` if the service has shut down.
-    pub async fn send(&self, data: T) -> Result<bool, SendError> {
-        let (responder, rx) = oneshot::channel();
-        let message = Message { data, responder };
-        self.tx.send(message).map_err(|_| SendError)?;
-        rx.await.map_err(|_| SendError)
-    }
-}
+use relay_system::{Addr, Service, ServiceMessage};
 
 #[derive(Debug)]
 pub struct Healthcheck {
@@ -71,16 +20,20 @@ pub struct Healthcheck {
     config: Arc<Config>,
 }
 
+impl Service for Healthcheck {
+    type Messages = HealthcheckMessages;
+}
+
 impl Healthcheck {
-    /// Returns the [`Addr`] of the [`Healthcheck`] actor.
+    /// Returns the [`Addr`] of the [`Healthcheck`] service.
     ///
     /// Prior to using this, the service must be started using [`Healthcheck::start`].
     ///
     /// # Panics
     ///
     /// Panics if the service was not started using [`Healthcheck::start`] prior to this being used.
-    pub fn from_registry() -> Addr<HealthcheckMessage> {
-        ADDRESS.read().as_ref().unwrap().clone()
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().healthcheck.clone()
     }
 
     /// Creates a new instance of the Healthcheck service.
@@ -128,11 +81,10 @@ impl Healthcheck {
     }
 
     /// Start this service, returning an [`Addr`] for communication.
-    pub fn start(self) -> Addr<HealthcheckMessage> {
-        let (tx, mut rx) = mpsc::unbounded_channel::<Message<HealthcheckMessage>>();
+    pub fn start(self) -> Addr<Self> {
+        let (tx, mut rx) = mpsc::unbounded_channel::<HealthcheckMessages>();
 
         let addr = Addr { tx };
-        *ADDRESS.write() = Some(addr.clone());
 
         let service = Arc::new(self);
         let main_service = service.clone();
@@ -140,12 +92,7 @@ impl Healthcheck {
             while let Some(message) = rx.recv().await {
                 let service = main_service.clone();
 
-                tokio::spawn(async move {
-                    let response = match message.data {
-                        HealthcheckMessage::Health(data) => service.handle_is_healthy(data).await,
-                    };
-                    message.responder.send(response).ok();
-                });
+                tokio::spawn(async move { service.handle_message(message).await });
             }
         });
 
@@ -162,6 +109,15 @@ impl Healthcheck {
 
         addr
     }
+
+    async fn handle_message(&self, message: HealthcheckMessages) {
+        match message {
+            HealthcheckMessages::IsHealthy(msg, response_tx) => {
+                let response = self.handle_is_healthy(msg).await;
+                response_tx.send(response).ok()
+            }
+        };
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -173,14 +129,17 @@ pub enum IsHealthy {
     Readiness,
 }
 
-/// All the message types which can be sent to the [`Healthcheck`] actor.
-#[derive(Clone, Debug)]
-pub enum HealthcheckMessage {
-    Health(IsHealthy),
+impl ServiceMessage<Healthcheck> for IsHealthy {
+    type Response = bool;
+
+    fn into_messages(self) -> (HealthcheckMessages, oneshot::Receiver<Self::Response>) {
+        let (tx, rx) = oneshot::channel();
+        (HealthcheckMessages::IsHealthy(self, tx), rx)
+    }
 }
 
-impl From<IsHealthy> for HealthcheckMessage {
-    fn from(is_healthy: IsHealthy) -> Self {
-        Self::Health(is_healthy)
-    }
+/// All the message types which can be sent to the [`Healthcheck`] service.
+#[derive(Debug)]
+pub enum HealthcheckMessages {
+    IsHealthy(IsHealthy, oneshot::Sender<bool>),
 }

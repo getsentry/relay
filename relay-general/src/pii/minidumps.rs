@@ -347,8 +347,7 @@ mod tests {
             let mut scrubbed_data = Vec::from(orig_data);
 
             let config = serde_json::from_value::<PiiConfig>(json).expect("invalid config json");
-            let compiled = config.compiled();
-            let processor = PiiAttachmentsProcessor::new(&compiled);
+            let processor = PiiAttachmentsProcessor::new(config.compiled());
             processor
                 .scrub_minidump(filename, scrubbed_data.as_mut_slice())
                 .expect("scrubbing failed");

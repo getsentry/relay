@@ -81,125 +81,131 @@ pub fn normalize_logentry(logentry: &mut LogEntry, meta: &mut Meta) -> Processin
 }
 
 #[cfg(test)]
-use {crate::testutils::assert_eq_dbg, crate::types::Object};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_format_python() {
-    let mut logentry = LogEntry {
-        message: Annotated::new("hello, %s!".to_string().into()),
-        params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
-            "world".to_string(),
-        ))])),
-        ..LogEntry::default()
-    };
+    use crate::types::Object;
 
-    normalize_logentry(&mut logentry, &mut Meta::default());
-    assert_eq_dbg!(logentry.formatted.as_str(), Some("hello, world!"));
-}
+    use super::*;
 
-#[test]
-fn test_format_python_named() {
-    let mut logentry = LogEntry {
-        message: Annotated::new("hello, %(name)s!".to_string().into()),
-        params: Annotated::new(Value::Object({
-            let mut object = Object::new();
-            object.insert(
-                "name".to_string(),
-                Annotated::new(Value::String("world".to_string())),
-            );
-            object
-        })),
-        ..LogEntry::default()
-    };
+    #[test]
+    fn test_format_python() {
+        let mut logentry = LogEntry {
+            message: Annotated::new("hello, %s!".to_string().into()),
+            params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
+                "world".to_string(),
+            ))])),
+            ..LogEntry::default()
+        };
 
-    normalize_logentry(&mut logentry, &mut Meta::default());
-    assert_eq_dbg!(logentry.formatted.as_str(), Some("hello, world!"));
-}
+        normalize_logentry(&mut logentry, &mut Meta::default());
+        assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
+    }
 
-#[test]
-fn test_format_java() {
-    let mut logentry = LogEntry {
-        message: Annotated::new("hello, {}!".to_string().into()),
-        params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
-            "world".to_string(),
-        ))])),
-        ..LogEntry::default()
-    };
+    #[test]
+    fn test_format_python_named() {
+        let mut logentry = LogEntry {
+            message: Annotated::new("hello, %(name)s!".to_string().into()),
+            params: Annotated::new(Value::Object({
+                let mut object = Object::new();
+                object.insert(
+                    "name".to_string(),
+                    Annotated::new(Value::String("world".to_string())),
+                );
+                object
+            })),
+            ..LogEntry::default()
+        };
 
-    normalize_logentry(&mut logentry, &mut Meta::default());
-    assert_eq_dbg!(logentry.formatted.as_str(), Some("hello, world!"));
-}
+        normalize_logentry(&mut logentry, &mut Meta::default());
+        assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
+    }
 
-#[test]
-fn test_format_dotnet() {
-    let mut logentry = LogEntry {
-        message: Annotated::new("hello, {0}!".to_string().into()),
-        params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
-            "world".to_string(),
-        ))])),
-        ..LogEntry::default()
-    };
+    #[test]
+    fn test_format_java() {
+        let mut logentry = LogEntry {
+            message: Annotated::new("hello, {}!".to_string().into()),
+            params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
+                "world".to_string(),
+            ))])),
+            ..LogEntry::default()
+        };
 
-    normalize_logentry(&mut logentry, &mut Meta::default());
-    assert_eq_dbg!(logentry.formatted.as_str(), Some("hello, world!"));
-}
+        normalize_logentry(&mut logentry, &mut Meta::default());
+        assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
+    }
 
-#[test]
-fn test_format_no_params() {
-    let mut logentry = LogEntry {
-        message: Annotated::new("hello, %s!".to_string().into()),
-        ..LogEntry::default()
-    };
+    #[test]
+    fn test_format_dotnet() {
+        let mut logentry = LogEntry {
+            message: Annotated::new("hello, {0}!".to_string().into()),
+            params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
+                "world".to_string(),
+            ))])),
+            ..LogEntry::default()
+        };
 
-    normalize_logentry(&mut logentry, &mut Meta::default());
-    assert_eq_dbg!(logentry.formatted.as_str(), Some("hello, %s!"));
-}
+        normalize_logentry(&mut logentry, &mut Meta::default());
+        assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
+    }
 
-#[test]
-fn test_only_message() {
-    let mut logentry = LogEntry {
-        message: Annotated::new("hello, world!".to_string().into()),
-        ..LogEntry::default()
-    };
+    #[test]
+    fn test_format_no_params() {
+        let mut logentry = LogEntry {
+            message: Annotated::new("hello, %s!".to_string().into()),
+            ..LogEntry::default()
+        };
 
-    normalize_logentry(&mut logentry, &mut Meta::default());
-    assert_eq_dbg!(logentry.message.value(), None);
-    assert_eq_dbg!(logentry.formatted.as_str(), Some("hello, world!"));
-}
+        normalize_logentry(&mut logentry, &mut Meta::default());
+        assert_eq!(logentry.formatted.as_str(), Some("hello, %s!"));
+    }
 
-#[test]
-fn test_message_formatted_equal() {
-    let mut logentry = LogEntry {
-        message: Annotated::new("hello, world!".to_string().into()),
-        formatted: Annotated::new("hello, world!".to_string().into()),
-        ..LogEntry::default()
-    };
+    #[test]
+    fn test_only_message() {
+        let mut logentry = LogEntry {
+            message: Annotated::new("hello, world!".to_string().into()),
+            ..LogEntry::default()
+        };
 
-    normalize_logentry(&mut logentry, &mut Meta::default());
-    assert_eq_dbg!(logentry.message.value(), None);
-    assert_eq_dbg!(logentry.formatted.as_str(), Some("hello, world!"));
-}
+        normalize_logentry(&mut logentry, &mut Meta::default());
+        assert_eq!(logentry.message.value(), None);
+        assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
+    }
 
-#[test]
-fn test_empty_missing_message() {
-    let mut logentry = LogEntry {
-        params: Value::U64(0).into(), // Ensure the logentry is not empty
-        ..LogEntry::default()
-    };
-    let mut meta = Meta::default();
+    #[test]
+    fn test_message_formatted_equal() {
+        let mut logentry = LogEntry {
+            message: Annotated::new("hello, world!".to_string().into()),
+            formatted: Annotated::new("hello, world!".to_string().into()),
+            ..LogEntry::default()
+        };
 
-    assert_eq_dbg!(
-        normalize_logentry(&mut logentry, &mut meta),
-        Err(ProcessingAction::DeleteValueSoft)
-    );
-    assert!(meta.has_errors());
-}
+        normalize_logentry(&mut logentry, &mut Meta::default());
+        assert_eq!(logentry.message.value(), None);
+        assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
+    }
 
-#[test]
-fn test_empty_logentry() {
-    let mut logentry = LogEntry::default();
-    let mut meta = Meta::default();
+    #[test]
+    fn test_empty_missing_message() {
+        let mut logentry = LogEntry {
+            params: Value::U64(0).into(), // Ensure the logentry is not empty
+            ..LogEntry::default()
+        };
+        let mut meta = Meta::default();
 
-    assert_eq_dbg!(normalize_logentry(&mut logentry, &mut meta), Ok(()));
-    assert!(!meta.has_errors());
+        assert_eq!(
+            normalize_logentry(&mut logentry, &mut meta),
+            Err(ProcessingAction::DeleteValueSoft)
+        );
+        assert!(meta.has_errors());
+    }
+
+    #[test]
+    fn test_empty_logentry() {
+        let mut logentry = LogEntry::default();
+        let mut meta = Meta::default();
+
+        assert_eq!(normalize_logentry(&mut logentry, &mut meta), Ok(()));
+        assert!(!meta.has_errors());
+    }
 }

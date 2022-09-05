@@ -4,19 +4,17 @@ use std::str::FromStr;
 use console::Style;
 use dialoguer::Input;
 use failure::Error;
-use lazy_static::lazy_static;
 
 use dialoguer::theme::{ColorfulTheme, Theme};
+use once_cell::sync::Lazy;
 
-lazy_static! {
-    static ref THEME: ColorfulTheme = ColorfulTheme {
-        values_style: Style::new().cyan().dim(),
-        indicator_style: Style::new().cyan().bold(),
-        yes_style: Style::new().cyan().dim(),
-        no_style: Style::new().cyan().dim(),
-        ..ColorfulTheme::default()
-    };
-}
+static THEME: Lazy<ColorfulTheme> = Lazy::new(|| ColorfulTheme {
+    values_style: Style::new().cyan().dim(),
+    indicator_style: Style::new().cyan().bold(),
+    yes_style: Style::new().cyan().dim(),
+    no_style: Style::new().cyan().dim(),
+    ..ColorfulTheme::default()
+});
 
 /// Returns the theme to use.
 pub fn get_theme() -> &'static dyn Theme {

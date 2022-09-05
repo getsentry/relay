@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "22.7.0"
+version = "22.8.0"
 edition = "2018"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -36,15 +36,16 @@ clap = "2.33.1"
 failure = "0.1.8"
 flate2 = "1.0.19"
 fragile = { version = "1.2.1", features = ["slab"] } # used for vendoring sentry-actix
-futures01 = { version = "0.1.28", package = "futures" }
 futures = { version = "0.3", package = "futures", features = ["compat"] }
+futures01 = { version = "0.1.28", package = "futures" }
+hashbrown = "0.12.3"
 itertools = "0.8.2"
 json-forensics = { version = "*", git = "https://github.com/getsentry/rust-json-forensics" }
-lazy_static = "1.4.0"
 listenfd = "0.3.3"
 minidump = { version = "0.10.0", optional = true }
 native-tls = { version = "0.2.4", optional = true }
-parking_lot = "0.10.0"
+once_cell = "1.13.1"
+parking_lot = "0.12.1"
 rdkafka = { version = "0.24", optional = true }
 rdkafka-sys = { version = "2.1.0", optional = true }
 regex = "1.5.5"
@@ -59,6 +60,7 @@ relay-metrics = { path = "../relay-metrics" }
 relay-profiling = { path = "../relay-profiling" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
+relay-replays = { path = "../relay-replays" }
 relay-sampling = { path = "../relay-sampling" }
 relay-statsd = { path = "../relay-statsd" }
 relay-system = { path = "../relay-system" }
@@ -71,7 +73,7 @@ smallvec = { version = "1.4.0", features = ["serde"] }
 symbolic-common = { version = "8.7.2", optional = true, default-features=false }
 symbolic-unreal = { version = "8.7.2", optional = true, default-features=false, features=["serde"] }
 take_mut = "0.2.2"
-tokio = { version = "1.0", features = ["rt-multi-thread"] } # in sync with reqwest
+tokio = { version = "1.0", features = ["rt-multi-thread", "sync"] }
 tokio-timer = "0.2.13"
 url = { version = "2.1.1", features = ["serde"] }
 uuid = { version = "0.8.1", features = ["v5"] }
@@ -81,5 +83,5 @@ zstd = { version = "0.11.2"}
 libc = "0.2.71"
 
 [dev-dependencies]
-insta = "1.1.0"
+insta = "1.19.0"
 relay-test = { path = "../relay-test" }

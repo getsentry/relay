@@ -1,25 +1,29 @@
 //! Utility functions for working with user agents.
+//!
+//! NOTICE:
+//!
+//! Adding user_agent parsing to your module will incur a latency penalty in the test suite.
+//! Because of this some integration tests may fail. To fix this, you will need to add a timeout
+//! to your consumer.
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use uaparser::{Parser, UserAgentParser};
+
+use crate::protocol::{Event, Headers};
 
 #[doc(inline)]
 pub use uaparser::{Device, UserAgent, OS};
 
-lazy_static! {
-    /// The global [`UserAgentParser`] already configured with a user agent database.
-    ///
-    /// For usage, see [`Parser`].
-    static ref UA_PARSER: UserAgentParser = {
-        let ua_regexes = include_bytes!("../uap-core/regexes.yaml");
-        UserAgentParser::from_bytes(ua_regexes).expect(
-            "Could not create UserAgent. \
+/// The global [`UserAgentParser`] already configured with a user agent database.
+///
+/// For usage, see [`Parser`].
+static UA_PARSER: Lazy<UserAgentParser> = Lazy::new(|| {
+    let ua_regexes = include_bytes!("../uap-core/regexes.yaml");
+    UserAgentParser::from_bytes(ua_regexes).expect(
+        "Could not create UserAgent. \
              You are probably using a bad build of 'relay-general'. ",
-        )
-    };
-}
-
-use crate::protocol::{Event, Headers};
+    )
+});
 
 fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
     for item in headers.iter() {
@@ -41,7 +45,7 @@ fn get_user_agent_from_headers(headers: &Headers) -> Option<&str> {
 /// agent parser initializes on-demand when using one of the parse methods. This function forces
 /// initialization at a convenient point without introducing unwanted delays.
 pub fn init_parser() {
-    lazy_static::initialize(&UA_PARSER);
+    Lazy::force(&UA_PARSER);
 }
 
 /// Returns the user agent string from an `event`.

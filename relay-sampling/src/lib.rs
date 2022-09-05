@@ -3,6 +3,7 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
+#![allow(clippy::derive_partial_eq_without_eq)]
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
@@ -846,8 +847,6 @@ mod tests {
     use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 
-    use insta::assert_ron_snapshot;
-
     use relay_general::protocol::{
         Contexts, Csp, DeviceContext, Exception, Headers, IpAddr, JsonLenientString, LenientString,
         LogEntry, OsContext, PairList, Request, TagEntry, Tags, User, Values,
@@ -1623,7 +1622,7 @@ mod tests {
         relay_log::debug!("{:?}", rules);
         assert!(rules.is_ok());
         let rules = rules.unwrap();
-        assert_ron_snapshot!(rules, @r###"
+        insta::assert_ron_snapshot!(rules, @r###"
             [
               EqCondition(
                 op: "eq",
@@ -2119,7 +2118,7 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        assert_ron_snapshot!(dsc, @r###"
+        insta::assert_ron_snapshot!(dsc, @r###"
         {
           "trace_id": "00000000-0000-0000-0000-000000000000",
           "public_key": "abd0f232775f45feab79864e580d160b",
@@ -2142,7 +2141,7 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        assert_ron_snapshot!(dsc, @r###"
+        insta::assert_ron_snapshot!(dsc, @r###"
         {
           "trace_id": "00000000-0000-0000-0000-000000000000",
           "public_key": "abd0f232775f45feab79864e580d160b",
@@ -2166,7 +2165,7 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        assert_ron_snapshot!(dsc, @r###"
+        insta::assert_ron_snapshot!(dsc, @r###"
         {
           "trace_id": "00000000-0000-0000-0000-000000000000",
           "public_key": "abd0f232775f45feab79864e580d160b",

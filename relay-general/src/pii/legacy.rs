@@ -3,9 +3,8 @@
 //! All these configuration options are ignored by the new data scrubbers which operate
 //! solely from the [PiiConfig] rules for the project.
 
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-
-use relay_common::{LazyCellRef, UpsertingLazyCell};
 
 use crate::pii::{convert, PiiConfig};
 
@@ -37,7 +36,7 @@ pub struct DataScrubbingConfig {
     ///
     /// Cached because the conversion process is expensive.
     #[serde(skip)]
-    pub(super) pii_config: UpsertingLazyCell<Option<PiiConfig>>,
+    pub(super) pii_config: OnceCell<Option<PiiConfig>>,
 }
 
 impl DataScrubbingConfig {
@@ -49,7 +48,7 @@ impl DataScrubbingConfig {
             scrub_ip_addresses: false,
             sensitive_fields: vec![],
             scrub_defaults: false,
-            pii_config: UpsertingLazyCell::new(),
+            pii_config: OnceCell::with_value(None),
         }
     }
 
@@ -58,15 +57,17 @@ impl DataScrubbingConfig {
         !self.scrub_data && !self.scrub_ip_addresses
     }
 
-    /// Get the PII config derived from datascrubbing settings. Result is cached in lazycell and
-    /// directly returned on second call.
-    pub fn pii_config(&self) -> LazyCellRef<Option<PiiConfig>> {
+    /// Get the PII config derived from datascrubbing settings.
+    ///
+    /// This can be computationally expensive when called for the first time. The result is cached
+    /// internally and reused on the second call.
+    pub fn pii_config(&self) -> Option<&'_ PiiConfig> {
         self.pii_config
-            .get_or_insert_with(|| self.pii_config_uncached())
+            .get_or_init(|| self.pii_config_uncached())
+            .as_ref()
     }
 
-    /// Like `self.pii_config` but without internal caching. Useful for benchmarks but not much
-    /// else.
+    /// Like [`pii_config`](Self::pii_config) but without internal caching.
     #[inline]
     pub fn pii_config_uncached(&self) -> Option<PiiConfig> {
         convert::to_pii_config(self)

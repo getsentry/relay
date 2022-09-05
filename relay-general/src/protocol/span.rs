@@ -55,9 +55,10 @@ pub struct Span {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::testutils::{assert_eq_dbg, assert_eq_str};
     use chrono::{TimeZone, Utc};
+    use similar_asserts::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_span_serialization() {
@@ -83,9 +84,9 @@ mod tests {
             status: Annotated::new(SpanStatus::Ok),
             ..Default::default()
         });
-        assert_eq_str!(json, span.to_json_pretty().unwrap());
+        assert_eq!(json, span.to_json_pretty().unwrap());
 
         let span_from_string = Annotated::from_json(json).unwrap();
-        assert_eq_dbg!(span, span_from_string);
+        assert_eq!(span, span_from_string);
     }
 }

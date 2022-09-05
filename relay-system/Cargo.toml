@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Foundational system components for Relay's services"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "22.7.0"
+version = "22.8.0"
 edition = "2018"
 license-file = "../LICENSE"
 publish = false
@@ -14,7 +14,7 @@ actix = "0.7.9"
 failure = "0.1.8"
 futures01 = { version = "0.1.28", package = "futures" }
 futures = { version = "0.3", package = "futures", features = ["compat"] }
-lazy_static = "1.4.0"
+once_cell = "1.13.1"
 relay-log = { path = "../relay-log" }
-tokio = { version = "1.0", features = ["rt-multi-thread"] }
+tokio = { version = "1.0", features = ["rt-multi-thread", "sync"] }
 tokio01 = { version = "0.1", package = "tokio" }

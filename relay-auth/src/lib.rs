@@ -2,6 +2,7 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
+#![allow(clippy::derive_partial_eq_without_eq)]
 use std::fmt;
 use std::str::FromStr;
 
@@ -683,217 +684,223 @@ impl RegisterResponse {
     }
 }
 
-#[test]
-fn test_keys() {
-    let sk: SecretKey =
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_keys() {
+        let sk: SecretKey =
         "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
             .parse()
             .unwrap();
-    let pk: PublicKey = "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU"
-        .parse()
-        .unwrap();
+        let pk: PublicKey = "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU"
+            .parse()
+            .unwrap();
 
-    assert_eq!(
-        sk.to_string(),
-        "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU"
-    );
-    assert_eq!(
+        assert_eq!(
+            sk.to_string(),
+            "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU"
+        );
+        assert_eq!(
         format!("{:#}", sk),
         "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
     );
-    assert_eq!(
-        pk.to_string(),
-        "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU"
-    );
+        assert_eq!(
+            pk.to_string(),
+            "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU"
+        );
 
-    assert_eq!(
-        "bad data".parse::<SecretKey>(),
-        Err(KeyParseError::BadEncoding)
-    );
-    assert_eq!("OvXF".parse::<SecretKey>(), Err(KeyParseError::BadKey));
+        assert_eq!(
+            "bad data".parse::<SecretKey>(),
+            Err(KeyParseError::BadEncoding)
+        );
+        assert_eq!("OvXF".parse::<SecretKey>(), Err(KeyParseError::BadKey));
 
-    assert_eq!(
-        "bad data".parse::<PublicKey>(),
-        Err(KeyParseError::BadEncoding)
-    );
-    assert_eq!("OvXF".parse::<PublicKey>(), Err(KeyParseError::BadKey));
-}
+        assert_eq!(
+            "bad data".parse::<PublicKey>(),
+            Err(KeyParseError::BadEncoding)
+        );
+        assert_eq!("OvXF".parse::<PublicKey>(), Err(KeyParseError::BadKey));
+    }
 
-#[test]
-fn test_serializing() {
-    let sk: SecretKey =
+    #[test]
+    fn test_serializing() {
+        let sk: SecretKey =
         "OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oUk5pHZsdnfXNiMWiMLtSE86J3N9Peo5CBP1YQHDUkApQ"
             .parse()
             .unwrap();
-    let pk: PublicKey = "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU"
-        .parse()
+        let pk: PublicKey = "JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU"
+            .parse()
+            .unwrap();
+
+        let sk_json = serde_json::to_string(&sk).unwrap();
+        assert_eq!(sk_json, "\"OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU\"");
+
+        let pk_json = serde_json::to_string(&pk).unwrap();
+        assert_eq!(pk_json, "\"JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU\"");
+
+        assert_eq!(serde_json::from_str::<SecretKey>(&sk_json).unwrap(), sk);
+        assert_eq!(serde_json::from_str::<PublicKey>(&pk_json).unwrap(), pk);
+    }
+
+    #[test]
+    fn test_signatures() {
+        let (sk, pk) = generate_key_pair();
+        let data = b"Hello World!";
+
+        let sig = sk.sign(data);
+        assert!(pk.verify(data, &sig));
+
+        let bad_sig =
+        "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
+        assert!(!pk.verify(data, bad_sig));
+    }
+
+    #[test]
+    fn test_registration() {
+        let max_age = Duration::minutes(15);
+
+        // initial setup
+        let relay_id = generate_relay_id();
+        let (sk, pk) = generate_key_pair();
+
+        // create a register request
+        let request = RegisterRequest::new(&relay_id, &pk);
+
+        // sign it
+        let (request_bytes, request_sig) = sk.pack(&request);
+
+        // attempt to get the data through bootstrap unpacking.
+        let request =
+            RegisterRequest::bootstrap_unpack(&request_bytes, &request_sig, Some(max_age)).unwrap();
+        assert_eq!(request.relay_id(), relay_id);
+        assert_eq!(request.public_key(), &pk);
+
+        let upstream_secret = b"secret";
+
+        // create a challenge
+        let challenge = request.into_challenge(upstream_secret);
+        let challenge_token = challenge.token().to_owned();
+        assert_eq!(challenge.relay_id(), &relay_id);
+        assert!(challenge.token().len() > 40);
+
+        // check the challenge contains the expected info
+        let state = SignedRegisterState(challenge_token.clone());
+        let register_state = state.unpack(upstream_secret, None).unwrap();
+        assert_eq!(register_state.public_key, pk);
+        assert_eq!(register_state.relay_id, relay_id);
+
+        // create a response from the challenge
+        let response = challenge.into_response();
+
+        // sign and unsign it
+        let (response_bytes, response_sig) = sk.pack(&response);
+        let (response, _) = RegisterResponse::unpack(
+            &response_bytes,
+            &response_sig,
+            upstream_secret,
+            Some(max_age),
+        )
         .unwrap();
 
-    let sk_json = serde_json::to_string(&sk).unwrap();
-    assert_eq!(sk_json, "\"OvXFVm1tIUi8xDTuyHX1SSqdMc8nCt2qU9IUaH5p7oU\"");
+        assert_eq!(response.relay_id(), relay_id);
+        assert_eq!(response.token(), challenge_token);
+        assert_eq!(response.version, LATEST_VERSION);
+    }
 
-    let pk_json = serde_json::to_string(&pk).unwrap();
-    assert_eq!(pk_json, "\"JOaR2bHZ31zYjFojC7UhPOidzfT3qOQgT9WEBw1JAKU\"");
+    /// This is a pseudo-test to easily generate the strings used by test_auth.py
+    /// You can copy the output to the top of the test_auth.py when there are changes in the
+    /// exchanged authentication structures.
+    /// It follows test_registration but instead of asserting it prints the strings
+    #[test]
+    fn test_generate_strings_for_test_auth_py() {
+        let max_age = Duration::minutes(15);
+        println!("Generating test data for test_auth.py...");
 
-    assert_eq!(serde_json::from_str::<SecretKey>(&sk_json).unwrap(), sk);
-    assert_eq!(serde_json::from_str::<PublicKey>(&pk_json).unwrap(), pk);
-}
+        // initial setup
+        let relay_id = generate_relay_id();
+        println!("RELAY_ID = b\"{}\"", relay_id);
+        let (sk, pk) = generate_key_pair();
+        println!("RELAY_KEY = b\"{}\"", pk);
 
-#[test]
-fn test_signatures() {
-    let (sk, pk) = generate_key_pair();
-    let data = b"Hello World!";
+        // create a register request
+        let request = RegisterRequest::new(&relay_id, &pk);
+        println!("REQUEST = b'{}'", serde_json::to_string(&request).unwrap());
 
-    let sig = sk.sign(data);
-    assert!(pk.verify(data, &sig));
+        // sign it
+        let (request_bytes, request_sig) = sk.pack(&request);
+        println!("REQUEST_SIG = \"{}\"", request_sig);
 
-    let bad_sig =
-        "jgubwSf2wb2wuiRpgt2H9_bdDSMr88hXLp5zVuhbr65EGkSxOfT5ILIWr623twLgLd0bDgHg6xzOaUCX7XvUCw";
-    assert!(!pk.verify(data, bad_sig));
-}
+        // attempt to get the data through bootstrap unpacking.
+        let request =
+            RegisterRequest::bootstrap_unpack(&request_bytes, &request_sig, Some(max_age)).unwrap();
 
-#[test]
-fn test_registration() {
-    let max_age = Duration::minutes(15);
+        let upstream_secret = b"secret";
 
-    // initial setup
-    let relay_id = generate_relay_id();
-    let (sk, pk) = generate_key_pair();
+        // create a challenge
+        let challenge = request.into_challenge(upstream_secret);
+        let challenge_token = challenge.token().to_owned();
+        println!("TOKEN = \"{}\"", challenge_token);
 
-    // create a register request
-    let request = RegisterRequest::new(&relay_id, &pk);
+        // create a response from the challenge
+        let response = challenge.into_response();
+        let serialized_response = serde_json::to_string(&response).unwrap();
+        let (_, response_sig) = sk.pack(&response);
 
-    // sign it
-    let (request_bytes, request_sig) = sk.pack(&request);
+        println!("RESPONSE = b'{}'", serialized_response);
+        println!("RESPONSE_SIG = \"{}\"", response_sig);
 
-    // attempt to get the data through bootstrap unpacking.
-    let request =
-        RegisterRequest::bootstrap_unpack(&request_bytes, &request_sig, Some(max_age)).unwrap();
-    assert_eq!(request.relay_id(), relay_id);
-    assert_eq!(request.public_key(), &pk);
+        println!("RELAY_VERSION = \"{}\"", &LATEST_VERSION);
+    }
 
-    let upstream_secret = b"secret";
+    /// Test we can still deserialize an old response that does not contain the version
+    #[test]
+    fn test_deserialize_old_response() {
+        let serialized_challenge = "{\"relay_id\":\"6b7d15b8-cee2-4354-9fee-dae7ef43e434\",\"token\":\"eyJ0aW1lc3RhbXAiOjE1OTg5Njc0MzQsInJlbGF5X2lkIjoiNmI3ZDE1YjgtY2VlMi00MzU0LTlmZWUtZGFlN2VmNDNlNDM0IiwicHVibGljX2tleSI6ImtNcEdieWRIWlN2b2h6ZU1sZ2hjV3dIZDhNa3JlS0d6bF9uY2RrWlNPTWciLCJyYW5kIjoiLUViNG9Hal80dUZYOUNRRzFBVmdqTjRmdGxaNU9DSFlNOFl2d1podmlyVXhUY0tFSWYtQzhHaldsZmgwQTNlMzYxWE01dVh0RHhvN00tbWhZeXpWUWcifQ:KJUDXlwvibKNQmex-_Cu1U0FArlmoDkyqP7bYIDGrLXudfjGfCjH-UjNsUHWVDnbM28YdQ-R2MBSyF51aRLQcw\"}";
+        let result: RegisterResponse = serde_json::from_str(serialized_challenge).unwrap();
+        assert_eq!(
+            result.relay_id,
+            Uuid::parse_str("6b7d15b8-cee2-4354-9fee-dae7ef43e434").unwrap()
+        )
+    }
 
-    // create a challenge
-    let challenge = request.into_challenge(upstream_secret);
-    let challenge_token = challenge.token().to_owned();
-    assert_eq!(challenge.relay_id(), &relay_id);
-    assert!(challenge.token().len() > 40);
+    #[test]
+    fn test_relay_version_current() {
+        assert_eq!(
+            env!("CARGO_PKG_VERSION"),
+            RelayVersion::current().to_string()
+        );
+    }
 
-    // check the challenge contains the expected info
-    let state = SignedRegisterState(challenge_token.clone());
-    let register_state = state.unpack(upstream_secret, None).unwrap();
-    assert_eq!(register_state.public_key, pk);
-    assert_eq!(register_state.relay_id, relay_id);
+    #[test]
+    fn test_relay_version_oldest() {
+        // Regression test against unintentional changes.
+        assert_eq!("0.0.0", RelayVersion::oldest().to_string());
+    }
 
-    // create a response from the challenge
-    let response = challenge.into_response();
+    #[test]
+    fn test_relay_version_parse() {
+        assert_eq!(
+            RelayVersion::new(20, 7, 0),
+            "20.7.0-beta.0".parse().unwrap()
+        );
+    }
 
-    // sign and unsign it
-    let (response_bytes, response_sig) = sk.pack(&response);
-    let (response, _) = RegisterResponse::unpack(
-        &response_bytes,
-        &response_sig,
-        upstream_secret,
-        Some(max_age),
-    )
-    .unwrap();
+    #[test]
+    fn test_relay_version_oldest_supported() {
+        assert!(RelayVersion::oldest().supported());
+    }
 
-    assert_eq!(response.relay_id(), relay_id);
-    assert_eq!(response.token(), challenge_token);
-    assert_eq!(response.version, LATEST_VERSION);
-}
-/// This is a pseudo-test to easily generate the strings used by test_auth.py
-/// You can copy the output to the top of the test_auth.py when there are changes in the
-/// exchanged authentication structures.
-/// It follows test_registration but instead of asserting it prints the strings
-#[test]
-fn test_generate_strings_for_test_auth_py() {
-    let max_age = Duration::minutes(15);
-    println!("Generating test data for test_auth.py...");
+    #[test]
+    fn test_relay_version_any_supported() {
+        // Every version must be supported at the moment.
+        // This test can be changed when dropping support for older versions.
+        assert!(RelayVersion::default().supported());
+    }
 
-    // initial setup
-    let relay_id = generate_relay_id();
-    println!("RELAY_ID = b\"{}\"", relay_id);
-    let (sk, pk) = generate_key_pair();
-    println!("RELAY_KEY = b\"{}\"", pk);
-
-    // create a register request
-    let request = RegisterRequest::new(&relay_id, &pk);
-    println!("REQUEST = b'{}'", serde_json::to_string(&request).unwrap());
-
-    // sign it
-    let (request_bytes, request_sig) = sk.pack(&request);
-    println!("REQUEST_SIG = \"{}\"", request_sig);
-
-    // attempt to get the data through bootstrap unpacking.
-    let request =
-        RegisterRequest::bootstrap_unpack(&request_bytes, &request_sig, Some(max_age)).unwrap();
-
-    let upstream_secret = b"secret";
-
-    // create a challenge
-    let challenge = request.into_challenge(upstream_secret);
-    let challenge_token = challenge.token().to_owned();
-    println!("TOKEN = \"{}\"", challenge_token);
-
-    // create a response from the challenge
-    let response = challenge.into_response();
-    let serialized_response = serde_json::to_string(&response).unwrap();
-    let (_, response_sig) = sk.pack(&response);
-
-    println!("RESPONSE = b'{}'", serialized_response);
-    println!("RESPONSE_SIG = \"{}\"", response_sig);
-
-    println!("RELAY_VERSION = \"{}\"", &LATEST_VERSION);
-}
-
-/// Test we can still deserialize an old response that does not contain the version
-#[test]
-fn test_deserialize_old_response() {
-    let serialized_challenge = "{\"relay_id\":\"6b7d15b8-cee2-4354-9fee-dae7ef43e434\",\"token\":\"eyJ0aW1lc3RhbXAiOjE1OTg5Njc0MzQsInJlbGF5X2lkIjoiNmI3ZDE1YjgtY2VlMi00MzU0LTlmZWUtZGFlN2VmNDNlNDM0IiwicHVibGljX2tleSI6ImtNcEdieWRIWlN2b2h6ZU1sZ2hjV3dIZDhNa3JlS0d6bF9uY2RrWlNPTWciLCJyYW5kIjoiLUViNG9Hal80dUZYOUNRRzFBVmdqTjRmdGxaNU9DSFlNOFl2d1podmlyVXhUY0tFSWYtQzhHaldsZmgwQTNlMzYxWE01dVh0RHhvN00tbWhZeXpWUWcifQ:KJUDXlwvibKNQmex-_Cu1U0FArlmoDkyqP7bYIDGrLXudfjGfCjH-UjNsUHWVDnbM28YdQ-R2MBSyF51aRLQcw\"}";
-    let result: RegisterResponse = serde_json::from_str(serialized_challenge).unwrap();
-    assert_eq!(
-        result.relay_id,
-        Uuid::parse_str("6b7d15b8-cee2-4354-9fee-dae7ef43e434").unwrap()
-    )
-}
-
-#[test]
-fn test_relay_version_current() {
-    assert_eq!(
-        env!("CARGO_PKG_VERSION"),
-        RelayVersion::current().to_string()
-    );
-}
-
-#[test]
-fn test_relay_version_oldest() {
-    // Regression test against unintentional changes.
-    assert_eq!("0.0.0", RelayVersion::oldest().to_string());
-}
-
-#[test]
-fn test_relay_version_parse() {
-    assert_eq!(
-        RelayVersion::new(20, 7, 0),
-        "20.7.0-beta.0".parse().unwrap()
-    );
-}
-
-#[test]
-fn test_relay_version_oldest_supported() {
-    assert!(RelayVersion::oldest().supported());
-}
-
-#[test]
-fn test_relay_version_any_supported() {
-    // Every version must be supported at the moment.
-    // This test can be changed when dropping support for older versions.
-    assert!(RelayVersion::default().supported());
-}
-
-#[test]
-fn test_relay_version_from_str() {
-    assert_eq!(RelayVersion::new(20, 7, 0), "20.7.0".parse().unwrap());
+    #[test]
+    fn test_relay_version_from_str() {
+        assert_eq!(RelayVersion::new(20, 7, 0), "20.7.0".parse().unwrap());
+    }
 }

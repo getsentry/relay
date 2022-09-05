@@ -7,30 +7,31 @@
 use actix::prelude::*;
 use futures::channel::oneshot;
 use futures01::prelude::*;
+use once_cell::sync::OnceCell;
 
-lazy_static::lazy_static! {
-    /// Needed so that the System is running by the time RUNTIME is first initialized.
-    static ref ACTIX_SYSTEM: System = System::current();
+/// Custom `tokio` 0.1 runtime.
+///
+/// Needed when sending messages from the new Actors to old Actors to avoid panics when the
+/// channel queues fill up and tasks are being parked.
+static RUNTIME: OnceCell<tokio01::runtime::Runtime> = OnceCell::new();
 
-    /// Custom `tokio` 0.1 runtime.
-    ///
-    /// Needed when sending messages from the new Actors to old Actors to avoid panics when the
-    /// channel queues fill up and tasks are being parked.
-    static ref RUNTIME: tokio01::runtime::Runtime = tokio01::runtime::Builder::new()
-            .core_threads(1)
-            .blocking_threads(1)
-            .after_start(|| System::set_current(ACTIX_SYSTEM.clone()))
-            .build()
-            .unwrap();
-
-    /// Needed so that `EXECUTOR.spawn` can be called [`send`].
-    static ref EXECUTOR: tokio01::runtime::TaskExecutor = RUNTIME.executor();
-}
+/// Needed so that `EXECUTOR.spawn` can be called [`send`].
+static EXECUTOR: OnceCell<tokio01::runtime::TaskExecutor> = OnceCell::new();
 
 /// Initializes the compatibility layer.
 pub(crate) fn init() {
-    lazy_static::initialize(&ACTIX_SYSTEM);
-    lazy_static::initialize(&EXECUTOR);
+    let system = System::current();
+
+    let runtime = RUNTIME.get_or_init(move || {
+        tokio01::runtime::Builder::new()
+            .core_threads(1)
+            .blocking_threads(1)
+            .after_start(move || System::set_current(system.clone()))
+            .build()
+            .unwrap()
+    });
+
+    EXECUTOR.get_or_init(|| runtime.executor());
 }
 
 /// Sends a message to an actor using `actix` 0.7 from a `tokio` 1.0 context.
@@ -53,6 +54,6 @@ where
     let f = futures01::future::lazy(move || addr.send(msg))
         .then(|res| tx.send(res))
         .map_err(|_| ());
-    EXECUTOR.spawn(f);
+    EXECUTOR.get().unwrap().spawn(f);
     rx.await.map_err(|_| MailboxError::Closed)?
 }

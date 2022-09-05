@@ -1,30 +1,20 @@
-use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
+use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
+
+    /// The number of items currently in the garbage disposal queue.
+    ProjectCacheGarbageQueueSize,
 }
 
 impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
-        }
-    }
-}
-
-/// Set metrics used by Relay
-pub enum RelaySets {
-    /// Represents the number of active projects in the current slice of time
-    UniqueProjects,
-}
-
-impl SetMetric for RelaySets {
-    fn name(&self) -> &'static str {
-        match self {
-            RelaySets::UniqueProjects => "unique_projects",
+            RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
         }
     }
 }
@@ -206,9 +196,11 @@ pub enum RelayTimers {
     EventProcessingPii,
     /// Time spent converting the event from its in-memory reprsentation into a JSON string.
     EventProcessingSerialization,
-    /// Time spent between receiving a request in Relay (that is, beginning of request handling) and
-    /// the start of synchronous processing in the EnvelopeProcessor. This metric primarily
-    /// indicates backlog in event processing.
+    /// Time spent between the start of request handling and processing of the envelope.
+    ///
+    /// This includes streaming the request body, scheduling overheads, project config fetching,
+    /// batched requests and congestions in the internal processor. This does not include delays in
+    /// the incoming request (body upload) and skips all envelopes that are fast-rejected.
     EnvelopeWaitTime,
     /// Time in milliseconds spent in synchronous processing of envelopes.
     ///

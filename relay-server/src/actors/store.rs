@@ -1,13 +1,13 @@
-//! This module contains the actor that forwards events and attachments to the Sentry store.
-//! The actor uses kafka topics to forward data to Sentry
+//! This module contains the service that forwards events and attachments to the Sentry store.
+//! The service uses kafka topics to forward data to Sentry
 
 use std::collections::BTreeMap;
-use std::fmt;
 use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
+use once_cell::sync::OnceCell;
 use rdkafka::error::KafkaError;
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
@@ -22,16 +22,12 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
+use relay_system::{Addr, Service, ServiceMessage};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{CaptureErrorContext, ThreadedProducer};
-
-lazy_static::lazy_static! {
-    static ref NAMESPACE_DID: Uuid =
-        Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did");
-}
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -49,51 +45,6 @@ pub enum StoreError {
     InvalidJson(#[cause] serde_json::Error),
     #[fail(display = "failed to store event because event id was missing")]
     NoEventId,
-}
-
-// TODO(tobias): Still need to unify with the message in the Healthcheck actor
-/// Internal wrapper of a message sent through an `StoreAddr` with return channel.
-#[derive(Debug)]
-pub struct StoreMessage<T> {
-    data: T,
-    responder: oneshot::Sender<Result<(), StoreError>>,
-}
-
-/// An error when [sending](StoreAddr::send) a message to a service fails.
-#[derive(Clone, Copy, Debug)]
-pub struct SendError;
-
-impl fmt::Display for SendError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "failed to send message to service")
-    }
-}
-
-impl std::error::Error for SendError {}
-
-// TODO(tobias): Still need to unify with the Addr in the Healthcheck actor
-/// Channel for sending public messages into a service.
-///
-/// To send a message, use [`StoreAddr::send`].
-#[derive(Clone, Debug)]
-pub struct StoreAddr<T> {
-    tx: mpsc::UnboundedSender<StoreMessage<T>>,
-}
-
-impl<T> StoreAddr<T> {
-    /// Sends an asynchronous message to the service and waits for the response.
-    ///
-    /// The result of the message does not have to be awaited. The message will be delivered and
-    /// handled regardless. The communication channel with the service is unbounded, so backlogs
-    /// could occur when sending too many messages.
-    ///
-    /// Sending the message can fail with `Err(SendError)` if the service has shut down.
-    pub async fn send(&self, data: T) -> Result<Result<(), StoreError>, SendError> {
-        let (responder, rx) = oneshot::channel();
-        let message = StoreMessage { data, responder };
-        self.tx.send(message).map_err(|_| SendError)?;
-        rx.await.map_err(|_| SendError)
-    }
 }
 
 type Producer = Arc<ThreadedProducer>;
@@ -130,17 +81,61 @@ impl Producers {
             KafkaTopic::ReplayRecordings => Some(&self.replay_recordings),
         }
     }
+
+    pub fn create(config: &Arc<Config>) -> Result<Self, ServerError> {
+        let mut reused_producers = BTreeMap::new();
+        let producers = Producers {
+            attachments: make_producer(&**config, &mut reused_producers, KafkaTopic::Attachments)?,
+            events: make_producer(&**config, &mut reused_producers, KafkaTopic::Events)?,
+            transactions: make_producer(
+                &**config,
+                &mut reused_producers,
+                KafkaTopic::Transactions,
+            )?,
+            sessions: make_producer(&**config, &mut reused_producers, KafkaTopic::Sessions)?,
+            metrics_sessions: make_producer(
+                &**config,
+                &mut reused_producers,
+                KafkaTopic::MetricsSessions,
+            )?,
+            metrics_transactions: make_producer(
+                &**config,
+                &mut reused_producers,
+                KafkaTopic::MetricsTransactions,
+            )?,
+            profiles: make_producer(&**config, &mut reused_producers, KafkaTopic::Profiles)?,
+            replay_recordings: make_producer(
+                &**config,
+                &mut reused_producers,
+                KafkaTopic::ReplayRecordings,
+            )?,
+            replay_events: make_producer(
+                &**config,
+                &mut reused_producers,
+                KafkaTopic::ReplayEvents,
+            )?,
+        };
+        Ok(producers)
+    }
 }
 
-/// Actor for publishing events to Sentry through kafka topics.
+/// Service for publishing events to Sentry through kafka topics.
 pub struct StoreForwarder {
     config: Arc<Config>,
     producers: Producers,
 }
 
+impl Service for StoreForwarder {
+    type Messages = StoreMessages;
+}
+
 fn make_distinct_id(s: &str) -> Uuid {
+    static NAMESPACE: OnceCell<Uuid> = OnceCell::new();
+    let namespace =
+        NAMESPACE.get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did"));
+
     s.parse()
-        .unwrap_or_else(|_| Uuid::new_v5(&NAMESPACE_DID, s.as_bytes()))
+        .unwrap_or_else(|_| Uuid::new_v5(namespace, s.as_bytes()))
 }
 
 /// Temporary map used to deduplicate kafka producers
@@ -176,7 +171,38 @@ fn make_producer<'a>(
 }
 
 impl StoreForwarder {
-    fn handle_store_evelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
+    pub fn start(self) -> Addr<Self> {
+        relay_log::info!("store forwarder started");
+
+        let (tx, mut rx) = mpsc::unbounded_channel::<StoreMessages>();
+
+        tokio::spawn(async move {
+            while let Some(message) = rx.recv().await {
+                self.handle_message(message);
+            }
+
+            relay_log::info!("store forwarder stopped");
+        });
+
+        Addr { tx }
+    }
+
+    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
+        let producers = Producers::create(&config)?;
+
+        Ok(Self { config, producers })
+    }
+
+    fn handle_message(&self, message: StoreMessages) {
+        match message {
+            StoreMessages::StoreEnvelope(msg, responder_tx) => {
+                let response = self.handle_store_envelope(msg);
+                responder_tx.send(response).ok();
+            }
+        }
+    }
+
+    fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
         let StoreEnvelope {
             envelope,
             start_time,
@@ -312,61 +338,6 @@ impl StoreForwarder {
         }
 
         Ok(())
-    }
-
-    pub fn start(self) -> StoreAddr<StoreEnvelope> {
-        relay_log::info!("store forwarder started");
-
-        let (tx, mut rx) = mpsc::unbounded_channel::<StoreMessage<StoreEnvelope>>();
-
-        let service = Arc::new(self);
-        tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                let service = service.clone();
-
-                tokio::spawn(async move {
-                    let response = service.handle_store_evelope(message.data);
-                    message.responder.send(response).ok();
-                });
-            }
-
-            relay_log::info!("store forwarder stopped");
-        });
-
-        StoreAddr { tx }
-    }
-
-    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-        let mut reused_producers = BTreeMap::new();
-        let producers = Producers {
-            attachments: make_producer(&*config, &mut reused_producers, KafkaTopic::Attachments)?,
-            events: make_producer(&*config, &mut reused_producers, KafkaTopic::Events)?,
-            transactions: make_producer(&*config, &mut reused_producers, KafkaTopic::Transactions)?,
-            sessions: make_producer(&*config, &mut reused_producers, KafkaTopic::Sessions)?,
-            metrics_sessions: make_producer(
-                &*config,
-                &mut reused_producers,
-                KafkaTopic::MetricsSessions,
-            )?,
-            metrics_transactions: make_producer(
-                &*config,
-                &mut reused_producers,
-                KafkaTopic::MetricsTransactions,
-            )?,
-            profiles: make_producer(&*config, &mut reused_producers, KafkaTopic::Profiles)?,
-            replay_recordings: make_producer(
-                &*config,
-                &mut reused_producers,
-                KafkaTopic::ReplayRecordings,
-            )?,
-            replay_events: make_producer(
-                &*config,
-                &mut reused_producers,
-                KafkaTopic::ReplayEvents,
-            )?,
-        };
-
-        Ok(Self { config, producers })
     }
 
     fn produce(&self, topic: KafkaTopic, message: KafkaMessage) -> Result<(), StoreError> {
@@ -1030,12 +1001,27 @@ impl KafkaMessage {
     }
 }
 
-/// Message sent to the StoreForwarder containing an event
+/// Message sent to the [`StoreForwarder`] containing an [`Envelope`].
 #[derive(Clone, Debug)]
 pub struct StoreEnvelope {
     pub envelope: Envelope,
     pub start_time: Instant,
     pub scoping: Scoping,
+}
+
+/// All the message types which can be sent to the [`StoreForwarder`].
+#[derive(Debug)]
+pub enum StoreMessages {
+    StoreEnvelope(StoreEnvelope, oneshot::Sender<Result<(), StoreError>>),
+}
+
+impl ServiceMessage<StoreForwarder> for StoreEnvelope {
+    type Response = Result<(), StoreError>;
+
+    fn into_messages(self) -> (StoreMessages, oneshot::Receiver<Self::Response>) {
+        let (tx, rx) = oneshot::channel();
+        (StoreMessages::StoreEnvelope(self, tx), rx)
+    }
 }
 
 /// Determines if the given item is considered slow.

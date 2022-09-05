@@ -5,7 +5,8 @@ use crate::types::{Annotated, Array, FromValue, Object, Value};
 
 /// Holds information about a single stacktrace frame.
 ///
-/// Each object should contain **at least** a `filename`, `function` or `instruction_addr` attribute. All values are optional, but recommended.
+/// Each object should contain **at least** a `filename`, `function` or `instruction_addr`
+/// attribute. All values are optional, but recommended.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_frame", value_type = "Frame")]
@@ -20,21 +21,19 @@ pub struct Frame {
 
     /// A raw (but potentially truncated) function value.
     ///
-    /// The original function name, if the function name is shortened or demangled. Sentry shows
-    /// the raw function when clicking on the shortened one in the UI.
+    /// The original function name, if the function name is shortened or demangled. Sentry shows the
+    /// raw function when clicking on the shortened one in the UI.
     ///
-    /// If this has the same value as `function` it's best to be omitted.  This
-    /// exists because on many platforms the function itself contains additional
-    /// information like overload specifies or a lot of generics which can make
-    /// it exceed the maximum limit we provide for the field.  In those cases
-    /// then we cannot reliably trim down the function any more at a later point
+    /// If this has the same value as `function` it's best to be omitted.  This exists because on
+    /// many platforms the function itself contains additional information like overload specifies
+    /// or a lot of generics which can make it exceed the maximum limit we provide for the field.
+    /// In those cases then we cannot reliably trim down the function any more at a later point
     /// because the more valuable information has been removed.
     ///
-    /// The logic to be applied is that an intelligently trimmed function name
-    /// should be stored in `function` and the value before trimming is stored
-    /// in this field instead.  However also this field will be capped at 256
-    /// characters at the moment which often means that not the entire original
-    /// value can be stored.
+    /// The logic to be applied is that an intelligently trimmed function name should be stored in
+    /// `function` and the value before trimming is stored in this field instead.  However also this
+    /// field will be capped at 256 characters at the moment which often means that not the entire
+    /// original value can be stored.
     #[metastructure(max_chars = "symbol")]
     #[metastructure(skip_serialization = "empty")]
     pub raw_function: Annotated<String>,
@@ -236,7 +235,8 @@ impl FromValue for FrameVars {
 
 /// A stack trace of a single thread.
 ///
-/// A stack trace contains a list of frames, each with various bits (most optional) describing the context of that frame. Frames should be sorted from oldest to newest.
+/// A stack trace contains a list of frames, each with various bits (most optional) describing the
+/// context of that frame. Frames should be sorted from oldest to newest.
 ///
 /// For the given example program written in Python:
 ///
@@ -286,7 +286,8 @@ impl FromValue for FrameVars {
 /// }
 /// ```
 ///
-/// A minimal native stack trace with register values. Note that the `package` event attribute must be "native" for these frames to be symbolicated.
+/// A minimal native stack trace with register values. Note that the `package` event attribute must
+/// be "native" for these frames to be symbolicated.
 ///
 /// ```json
 /// {
@@ -304,13 +305,15 @@ impl FromValue for FrameVars {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
 pub struct RawStacktrace {
-    /// Required. A non-empty list of stack frames. The list is ordered from caller to callee, or oldest to youngest. The last frame is the one creating the exception.
+    /// Required. A non-empty list of stack frames. The list is ordered from caller to callee, or
+    /// oldest to youngest. The last frame is the one creating the exception.
     #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
     pub frames: Annotated<Array<Frame>>,
 
     /// Register values of the thread (top frame).
     ///
-    /// A map of register names and their values. The values should contain the actual register values of the thread, thus mapping to the last frame in the list.
+    /// A map of register names and their values. The values should contain the actual register
+    /// values of the thread, thus mapping to the last frame in the list.
     pub registers: Annotated<Object<RegVal>>,
 
     /// The language of the stacktrace.
@@ -367,11 +370,14 @@ impl From<Stacktrace> for RawStacktrace {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_frame_roundtrip() {
-    let json = r#"{
+    use super::*;
+
+    #[test]
+    fn test_frame_roundtrip() {
+        let json = r#"{
   "function": "main@8",
   "raw_function": "main",
   "symbol": "_main@8",
@@ -405,66 +411,66 @@ fn test_frame_roundtrip() {
   "stack_start": true,
   "other": "value"
 }"#;
-    let frame = Annotated::new(Frame {
-        function: Annotated::new("main@8".to_string()),
-        raw_function: Annotated::new("main".to_string()),
-        symbol: Annotated::new("_main@8".to_string()),
-        module: Annotated::new("app".to_string()),
-        package: Annotated::new("/my/app".to_string()),
-        filename: Annotated::new("myfile.rs".into()),
-        abs_path: Annotated::new("/path/to".into()),
-        lineno: Annotated::new(2),
-        colno: Annotated::new(42),
-        platform: Annotated::new("rust".to_string()),
-        pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
-        context_line: Annotated::new("unimplemented!()".to_string()),
-        post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
-        in_app: Annotated::new(true),
-        vars: {
-            let mut vars = Object::new();
-            vars.insert(
-                "variable".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            Annotated::new(vars.into())
-        },
-        data: Annotated::new(FrameData {
-            sourcemap: Annotated::new("http://example.com/invalid.map".to_string()),
-            ..Default::default()
-        }),
-        image_addr: Annotated::new(Addr(0x400)),
-        instruction_addr: Annotated::new(Addr(0x404)),
-        addr_mode: Annotated::new("abs".into()),
-        symbol_addr: Annotated::new(Addr(0x404)),
-        trust: Annotated::new("69".into()),
-        lang: Annotated::new("rust".into()),
-        stack_start: Annotated::new(true),
-        other: {
-            let mut vars = Object::new();
-            vars.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            vars
-        },
-    });
+        let frame = Annotated::new(Frame {
+            function: Annotated::new("main@8".to_string()),
+            raw_function: Annotated::new("main".to_string()),
+            symbol: Annotated::new("_main@8".to_string()),
+            module: Annotated::new("app".to_string()),
+            package: Annotated::new("/my/app".to_string()),
+            filename: Annotated::new("myfile.rs".into()),
+            abs_path: Annotated::new("/path/to".into()),
+            lineno: Annotated::new(2),
+            colno: Annotated::new(42),
+            platform: Annotated::new("rust".to_string()),
+            pre_context: Annotated::new(vec![Annotated::new("fn main() {".to_string())]),
+            context_line: Annotated::new("unimplemented!()".to_string()),
+            post_context: Annotated::new(vec![Annotated::new("}".to_string())]),
+            in_app: Annotated::new(true),
+            vars: {
+                let mut vars = Object::new();
+                vars.insert(
+                    "variable".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                Annotated::new(vars.into())
+            },
+            data: Annotated::new(FrameData {
+                sourcemap: Annotated::new("http://example.com/invalid.map".to_string()),
+                ..Default::default()
+            }),
+            image_addr: Annotated::new(Addr(0x400)),
+            instruction_addr: Annotated::new(Addr(0x404)),
+            addr_mode: Annotated::new("abs".into()),
+            symbol_addr: Annotated::new(Addr(0x404)),
+            trust: Annotated::new("69".into()),
+            lang: Annotated::new("rust".into()),
+            stack_start: Annotated::new(true),
+            other: {
+                let mut vars = Object::new();
+                vars.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                vars
+            },
+        });
 
-    assert_eq_dbg!(frame, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, frame.to_json_pretty().unwrap());
-}
+        assert_eq!(frame, Annotated::from_json(json).unwrap());
+        assert_eq!(json, frame.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_frame_default_values() {
-    let json = "{}";
-    let frame = Annotated::new(Frame::default());
+    #[test]
+    fn test_frame_default_values() {
+        let json = "{}";
+        let frame = Annotated::new(Frame::default());
 
-    assert_eq_dbg!(frame, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, frame.to_json_pretty().unwrap());
-}
+        assert_eq!(frame, Annotated::from_json(json).unwrap());
+        assert_eq!(json, frame.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_stacktrace_roundtrip() {
-    let json = r#"{
+    #[test]
+    fn test_stacktrace_roundtrip() {
+        let json = r#"{
   "frames": [
     {
       "function": "foobar"
@@ -480,97 +486,97 @@ fn test_stacktrace_roundtrip() {
   "snapshot": false,
   "other": "value"
 }"#;
-    let stack = Annotated::new(RawStacktrace {
-        frames: Annotated::new(vec![Annotated::new(Frame {
-            function: Annotated::new("foobar".to_string()),
-            ..Default::default()
-        })]),
-        registers: {
-            let mut registers = Object::new();
-            registers.insert("cspr".to_string(), Annotated::new(RegVal(0x2000_0000)));
-            registers.insert("lr".to_string(), Annotated::new(RegVal(0x1_8a31_aadc)));
-            registers.insert("pc".to_string(), Annotated::new(RegVal(0x1_8a31_0ea4)));
-            registers.insert("sp".to_string(), Annotated::new(RegVal(0x1_6fd7_5060)));
-            Annotated::new(registers)
-        },
-        lang: Annotated::new("rust".into()),
-        snapshot: Annotated::new(false),
-        other: {
-            let mut other = Object::new();
-            other.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            other
-        },
-    });
+        let stack = Annotated::new(RawStacktrace {
+            frames: Annotated::new(vec![Annotated::new(Frame {
+                function: Annotated::new("foobar".to_string()),
+                ..Default::default()
+            })]),
+            registers: {
+                let mut registers = Object::new();
+                registers.insert("cspr".to_string(), Annotated::new(RegVal(0x2000_0000)));
+                registers.insert("lr".to_string(), Annotated::new(RegVal(0x1_8a31_aadc)));
+                registers.insert("pc".to_string(), Annotated::new(RegVal(0x1_8a31_0ea4)));
+                registers.insert("sp".to_string(), Annotated::new(RegVal(0x1_6fd7_5060)));
+                Annotated::new(registers)
+            },
+            lang: Annotated::new("rust".into()),
+            snapshot: Annotated::new(false),
+            other: {
+                let mut other = Object::new();
+                other.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                other
+            },
+        });
 
-    assert_eq_dbg!(stack, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, stack.to_json_pretty().unwrap());
-}
+        assert_eq!(stack, Annotated::from_json(json).unwrap());
+        assert_eq!(json, stack.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_stacktrace_default_values() {
-    // This needs an empty frame because "frames" is required
-    let json = r#"{
+    #[test]
+    fn test_stacktrace_default_values() {
+        // This needs an empty frame because "frames" is required
+        let json = r#"{
   "frames": [
     {}
   ]
 }"#;
 
-    let stack = Annotated::new(RawStacktrace {
-        frames: Annotated::new(vec![Annotated::new(Frame::default())]),
-        ..Default::default()
-    });
+        let stack = Annotated::new(RawStacktrace {
+            frames: Annotated::new(vec![Annotated::new(Frame::default())]),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(stack, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, stack.to_json_pretty().unwrap());
-}
+        assert_eq!(stack, Annotated::from_json(json).unwrap());
+        assert_eq!(json, stack.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_frame_vars_null_preserved() {
-    let json = r#"{
+    #[test]
+    fn test_frame_vars_null_preserved() {
+        let json = r#"{
   "vars": {
     "despacito": null
   }
 }"#;
-    let frame = Annotated::new(Frame {
-        vars: Annotated::new({
-            let mut vars = Object::new();
-            vars.insert("despacito".to_string(), Annotated::empty());
-            vars.into()
-        }),
-        ..Default::default()
-    });
+        let frame = Annotated::new(Frame {
+            vars: Annotated::new({
+                let mut vars = Object::new();
+                vars.insert("despacito".to_string(), Annotated::empty());
+                vars.into()
+            }),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(Annotated::from_json(json).unwrap(), frame);
-    assert_eq_str!(json, frame.to_json_pretty().unwrap());
-}
+        assert_eq!(Annotated::from_json(json).unwrap(), frame);
+        assert_eq!(json, frame.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_frame_vars_empty_annotated_is_serialized() {
-    let output = r#"{
+    #[test]
+    fn test_frame_vars_empty_annotated_is_serialized() {
+        let output = r#"{
   "vars": {
     "despacito": null,
     "despacito2": null
   }
 }"#;
-    let frame = Annotated::new(Frame {
-        vars: Annotated::new({
-            let mut vars = Object::new();
-            vars.insert("despacito".to_string(), Annotated::empty());
-            vars.insert("despacito2".to_string(), Annotated::empty());
-            vars.into()
-        }),
-        ..Default::default()
-    });
+        let frame = Annotated::new(Frame {
+            vars: Annotated::new({
+                let mut vars = Object::new();
+                vars.insert("despacito".to_string(), Annotated::empty());
+                vars.insert("despacito2".to_string(), Annotated::empty());
+                vars.into()
+            }),
+            ..Default::default()
+        });
 
-    assert_eq_str!(output, frame.to_json_pretty().unwrap());
-}
+        assert_eq!(output, frame.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_frame_empty_context_lines() {
-    let json = r#"{
+    #[test]
+    fn test_frame_empty_context_lines() {
+        let json = r#"{
   "pre_context": [
     ""
   ],
@@ -580,28 +586,28 @@ fn test_frame_empty_context_lines() {
   ]
 }"#;
 
-    let frame = Annotated::new(Frame {
-        pre_context: Annotated::new(vec![Annotated::new("".to_string())]),
-        context_line: Annotated::new("".to_string()),
-        post_context: Annotated::new(vec![Annotated::new("".to_string())]),
-        ..Frame::default()
-    });
+        let frame = Annotated::new(Frame {
+            pre_context: Annotated::new(vec![Annotated::new("".to_string())]),
+            context_line: Annotated::new("".to_string()),
+            post_context: Annotated::new(vec![Annotated::new("".to_string())]),
+            ..Frame::default()
+        });
 
-    assert_eq_dbg!(frame, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, frame.to_json_pretty().unwrap());
-}
+        assert_eq!(frame, Annotated::from_json(json).unwrap());
+        assert_eq!(json, frame.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_php_frame_vars() {
-    // Buggy PHP SDKs send us this stuff
-    //
-    // Port of https://github.com/getsentry/sentry/commit/73d9a061dcac3ab8c318a09735601a12e81085dd
+    #[test]
+    fn test_php_frame_vars() {
+        // Buggy PHP SDKs send us this stuff
+        //
+        // Port of https://github.com/getsentry/sentry/commit/73d9a061dcac3ab8c318a09735601a12e81085dd
 
-    let input = r#"{
+        let input = r#"{
   "vars": ["foo", "bar", "baz", null]
 }"#;
 
-    let output = r#"{
+        let output = r#"{
   "vars": {
     "0": "foo",
     "1": "bar",
@@ -610,18 +616,19 @@ fn test_php_frame_vars() {
   }
 }"#;
 
-    let frame = Annotated::new(Frame {
-        vars: Annotated::new({
-            let mut vars = Object::new();
-            vars.insert("0".to_string(), Annotated::new("foo".to_string().into()));
-            vars.insert("1".to_string(), Annotated::new("bar".to_string().into()));
-            vars.insert("2".to_string(), Annotated::new("baz".to_string().into()));
-            vars.insert("3".to_string(), Annotated::empty());
-            vars.into()
-        }),
-        ..Default::default()
-    });
+        let frame = Annotated::new(Frame {
+            vars: Annotated::new({
+                let mut vars = Object::new();
+                vars.insert("0".to_string(), Annotated::new("foo".to_string().into()));
+                vars.insert("1".to_string(), Annotated::new("bar".to_string().into()));
+                vars.insert("2".to_string(), Annotated::new("baz".to_string().into()));
+                vars.insert("3".to_string(), Annotated::empty());
+                vars.into()
+            }),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(frame, Annotated::from_json(input).unwrap());
-    assert_eq_str!(output, frame.to_json_pretty().unwrap());
+        assert_eq!(frame, Annotated::from_json(input).unwrap());
+        assert_eq!(output, frame.to_json_pretty().unwrap());
+    }
 }

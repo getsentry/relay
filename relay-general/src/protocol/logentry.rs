@@ -132,11 +132,14 @@ impl FromValue for LogEntry {
 }
 
 #[cfg(test)]
-use crate::testutils::{assert_eq_dbg, assert_eq_str};
+mod tests {
+    use similar_asserts::assert_eq;
 
-#[test]
-fn test_logentry_roundtrip() {
-    let json = r#"{
+    use super::*;
+
+    #[test]
+    fn test_logentry_roundtrip() {
+        let json = r#"{
   "message": "Hello, %s %s!",
   "params": [
     "World",
@@ -145,93 +148,97 @@ fn test_logentry_roundtrip() {
   "other": "value"
 }"#;
 
-    let entry = Annotated::new(LogEntry {
-        message: Annotated::new("Hello, %s %s!".to_string().into()),
-        formatted: Annotated::empty(),
-        params: Annotated::new(Value::Array(vec![
-            Annotated::new(Value::String("World".to_string())),
-            Annotated::new(Value::I64(1)),
-        ])),
-        other: {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_string())),
-            );
-            map
-        },
-    });
+        let entry = Annotated::new(LogEntry {
+            message: Annotated::new("Hello, %s %s!".to_string().into()),
+            formatted: Annotated::empty(),
+            params: Annotated::new(Value::Array(vec![
+                Annotated::new(Value::String("World".to_string())),
+                Annotated::new(Value::I64(1)),
+            ])),
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_string())),
+                );
+                map
+            },
+        });
 
-    assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, entry.to_json_pretty().unwrap());
-}
+        assert_eq!(entry, Annotated::from_json(json).unwrap());
+        assert_eq!(json, entry.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_logentry_from_message() {
-    let input = r#""hi""#;
-    let output = r#"{
+    #[test]
+    fn test_logentry_from_message() {
+        let input = r#""hi""#;
+        let output = r#"{
   "formatted": "hi"
 }"#;
 
-    let entry = Annotated::new(LogEntry {
-        formatted: Annotated::new("hi".to_string().into()),
-        ..Default::default()
-    });
+        let entry = Annotated::new(LogEntry {
+            formatted: Annotated::new("hi".to_string().into()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(entry, Annotated::from_json(input).unwrap());
-    assert_eq_str!(output, entry.to_json_pretty().unwrap());
-}
+        assert_eq!(entry, Annotated::from_json(input).unwrap());
+        assert_eq!(output, entry.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_logentry_empty_params() {
-    let input = r#"{"params":[]}"#;
-    let entry = Annotated::new(LogEntry {
-        params: Annotated::new(Value::Array(vec![])),
-        ..Default::default()
-    });
+    #[test]
+    fn test_logentry_empty_params() {
+        let input = r#"{"params":[]}"#;
+        let entry = Annotated::new(LogEntry {
+            params: Annotated::new(Value::Array(vec![])),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(entry, Annotated::from_json(input).unwrap());
-    assert_eq_str!(input, entry.to_json().unwrap());
-}
+        assert_eq!(entry, Annotated::from_json(input).unwrap());
+        assert_eq!(input, entry.to_json().unwrap());
+    }
 
-#[test]
-fn test_logentry_named_params() {
-    let json = r#"{
+    #[test]
+    fn test_logentry_named_params() {
+        let json = r#"{
   "message": "Hello, %s!",
   "params": {
     "name": "World"
   }
 }"#;
 
-    let entry = Annotated::new(LogEntry {
-        message: Annotated::new("Hello, %s!".to_string().into()),
-        params: Annotated::new(Value::Object({
-            let mut object = Object::new();
-            object.insert(
-                "name".to_string(),
-                Annotated::new(Value::String("World".to_string())),
-            );
-            object
-        })),
-        ..LogEntry::default()
-    });
+        let entry = Annotated::new(LogEntry {
+            message: Annotated::new("Hello, %s!".to_string().into()),
+            params: Annotated::new(Value::Object({
+                let mut object = Object::new();
+                object.insert(
+                    "name".to_string(),
+                    Annotated::new(Value::String("World".to_string())),
+                );
+                object
+            })),
+            ..LogEntry::default()
+        });
 
-    assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
-    assert_eq_str!(json, entry.to_json_pretty().unwrap());
-}
+        assert_eq!(entry, Annotated::from_json(json).unwrap());
+        assert_eq!(json, entry.to_json_pretty().unwrap());
+    }
 
-#[test]
-fn test_logentry_invalid_params() {
-    let json = r#"{
+    #[test]
+    fn test_logentry_invalid_params() {
+        let json = r#"{
   "message": "Hello, %s!",
   "params": 42
 }"#;
 
-    let entry = Annotated::new(LogEntry {
-        message: Annotated::new("Hello, %s!".to_string().into()),
-        params: Annotated::from_error(Error::expected("message parameters"), Some(Value::I64(42))),
-        ..LogEntry::default()
-    });
+        let entry = Annotated::new(LogEntry {
+            message: Annotated::new("Hello, %s!".to_string().into()),
+            params: Annotated::from_error(
+                Error::expected("message parameters"),
+                Some(Value::I64(42)),
+            ),
+            ..LogEntry::default()
+        });
 
-    assert_eq_dbg!(entry, Annotated::from_json(json).unwrap());
+        assert_eq!(entry, Annotated::from_json(json).unwrap());
+    }
 }

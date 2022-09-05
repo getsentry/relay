@@ -1,13 +1,11 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::fmt;
 use std::sync::Arc;
 use std::time::Instant;
 
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::Utc;
-use failure::Fail;
 use futures01::{future, prelude::*, sync::oneshot};
 
 use relay_common::ProjectKey;
@@ -19,44 +17,40 @@ use relay_quotas::Scoping;
 use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{
-    EncodeEnvelope, EnvelopeProcessor, ProcessEnvelope, ProcessMetrics, ProcessingError,
-};
-use crate::actors::project_cache::{
-    CheckEnvelope, GetProjectState, ProjectCache, UpdateRateLimits,
-};
+use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
+use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::service::ServerError;
-use crate::statsd::{RelayHistograms, RelaySets};
-use crate::utils::{self, EnvelopeContext, FutureExt as _};
+use crate::statsd::RelayHistograms;
+use crate::utils::{EnvelopeContext, FutureExt as _};
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{StoreAddr, StoreEnvelope, StoreError, StoreForwarder},
+    crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
     futures::{FutureExt, TryFutureExt},
+    relay_system::Addr as ServiceAddr,
     tokio::runtime::Runtime,
 };
 
-#[derive(Debug, Fail)]
-pub enum QueueEnvelopeError {
-    #[fail(display = "Too many envelopes (event_buffer_size reached)")]
-    TooManyEnvelopes,
-}
-
 /// Error created while handling [`SendEnvelope`].
-#[derive(Debug)]
+#[derive(Debug, failure::Fail)]
 #[allow(clippy::enum_variant_names)]
 pub enum SendEnvelopeError {
     #[cfg(feature = "processing")]
+    #[fail(display = "could not schedule submission of envelope")]
     ScheduleFailed,
     #[cfg(feature = "processing")]
-    StoreFailed(StoreError),
-    EnvelopeBuildFailed(EnvelopeError),
-    BodyEncodingFailed(std::io::Error),
-    UpstreamRequestFailed(UpstreamRequestError),
+    #[fail(display = "could not store envelope")]
+    StoreFailed(#[cause] StoreError),
+    #[fail(display = "could not build envelope for upstream")]
+    EnvelopeBuildFailed(#[cause] EnvelopeError),
+    #[fail(display = "could not encode request body")]
+    BodyEncodingFailed(#[cause] std::io::Error),
+    #[fail(display = "could not send request to upstream")]
+    UpstreamRequestFailed(#[cause] UpstreamRequestError),
 }
 
 /// Either a captured envelope or an error that occured during processing.
@@ -71,6 +65,7 @@ pub struct SendEnvelope {
     pub http_encoding: HttpEncoding,
     pub response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
     pub project_key: ProjectKey,
+    partition_key: Option<String>,
 }
 
 impl UpstreamRequest for SendEnvelope {
@@ -91,6 +86,10 @@ impl UpstreamRequest for SendEnvelope {
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE);
+
+        if let Some(partition_key) = &self.partition_key {
+            builder.header("X-Sentry-Relay-Shard", partition_key);
+        }
 
         let envelope_body = self.envelope_body.clone();
         metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
@@ -151,27 +150,18 @@ impl UpstreamRequest for SendEnvelope {
 
 pub struct EnvelopeManager {
     config: Arc<Config>,
-    active_envelopes: u32,
     captures: BTreeMap<EventId, CapturedEnvelope>,
-    processor: Addr<EnvelopeProcessor>,
     #[cfg(feature = "processing")]
-    store_forwarder: Option<StoreAddr<StoreEnvelope>>,
+    store_forwarder: Option<ServiceAddr<StoreForwarder>>,
     #[cfg(feature = "processing")]
     _runtime: Runtime,
 }
 
 impl EnvelopeManager {
-    pub fn create(
-        config: Arc<Config>,
-        processor: Addr<EnvelopeProcessor>,
-    ) -> Result<Self, ServerError> {
+    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         // Enter the tokio runtime so we can start spawning tasks from the outside.
         #[cfg(feature = "processing")]
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .build()
-            .unwrap();
+        let runtime = crate::utils::tokio_runtime_with_actix();
 
         #[cfg(feature = "processing")]
         let _guard = runtime.enter();
@@ -186,9 +176,7 @@ impl EnvelopeManager {
 
         Ok(EnvelopeManager {
             config,
-            active_envelopes: 0,
             captures: BTreeMap::new(),
-            processor,
             #[cfg(feature = "processing")]
             store_forwarder,
             #[cfg(feature = "processing")]
@@ -196,13 +184,15 @@ impl EnvelopeManager {
         })
     }
 
-    /// Sends an envelope to the upstream or Kafka and handles returned rate limits.
-    fn send_envelope(
+    /// Sends an envelope to the upstream or Kafka.
+    fn submit_envelope(
         &mut self,
         project_key: ProjectKey,
+        partition_key: Option<String>,
         mut envelope: Envelope,
         scoping: Scoping,
         #[allow(unused_variables)] start_time: Instant,
+        context: &mut <Self as Actor>::Context,
     ) -> ResponseFuture<(), SendEnvelopeError> {
         #[cfg(feature = "processing")]
         {
@@ -228,16 +218,8 @@ impl EnvelopeManager {
         }
 
         // if we are in capture mode, we stash away the event instead of forwarding it.
-        if self.config.relay_mode() == RelayMode::Capture {
-            // XXX: this is wrong because captured_events does not take envelopes without
-            // event_id into account.
-            if let Some(event_id) = envelope.event_id() {
-                relay_log::debug!("capturing envelope");
-                self.captures.insert(event_id, Ok(envelope));
-            } else {
-                relay_log::debug!("dropping non event envelope");
-            }
-
+        if Capture::should_capture(&self.config) {
+            context.notify(Capture::accepted(envelope));
             return Box::new(future::ok(()));
         }
 
@@ -263,12 +245,13 @@ impl EnvelopeManager {
             http_encoding: self.config.http_encoding(),
             response_sender: Some(tx),
             project_key,
+            partition_key,
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
             UpstreamRelay::from_registry().do_send(SendRequest(request));
         } else {
-            self.processor.do_send(EncodeEnvelope::new(request));
+            EnvelopeProcessor::from_registry().do_send(EncodeEnvelope::new(request));
         }
 
         Box::new(
@@ -307,324 +290,53 @@ impl Default for EnvelopeManager {
     }
 }
 
-/// Queues an envelope for processing.
-///
-/// Depending on the items in the envelope, there are multiple outcomes:
-///
-/// - Events and event related items, such as attachments, are always queued together. See
-///   [`HandleEnvelope`] for a full description of how queued envelopes are processed by the
-///   `EnvelopeManager`.
-/// - Sessions and Session batches are always queued separately. If they occur in the same envelope
-///   as an event, they are split off.
-/// - Metrics are directly sent to the `EnvelopeProcessor`, bypassing the manager's queue and going
-///   straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
-///
-/// Queueing can fail if the queue exceeds [`Config::envelope_buffer_size`]. In this case, `Err` is
-/// returned and the envelope is not queued. Otherwise, this message responds with `Ok`. If it
-/// contained an event-related item, such as an event payload or an attachment, this contains
-/// `Some(EventId)`.
-pub struct QueueEnvelope {
+/// Sends an envelope to the upstream or Kafka.
+pub struct SubmitEnvelope {
     pub envelope: Envelope,
     pub envelope_context: EnvelopeContext,
-    pub project_key: ProjectKey,
-    pub start_time: Instant,
 }
 
-impl Message for QueueEnvelope {
-    type Result = Result<Option<EventId>, QueueEnvelopeError>;
+impl Message for SubmitEnvelope {
+    type Result = ();
 }
 
-impl Handler<QueueEnvelope> for EnvelopeManager {
-    type Result = Result<Option<EventId>, QueueEnvelopeError>;
+impl Handler<SubmitEnvelope> for EnvelopeManager {
+    type Result = ();
 
-    fn handle(&mut self, message: QueueEnvelope, context: &mut Self::Context) -> Self::Result {
-        metric!(histogram(RelayHistograms::EnvelopeQueueSize) = u64::from(self.active_envelopes));
-
-        metric!(
-            histogram(RelayHistograms::EnvelopeQueueSizePct) = {
-                let queue_size_pct = self.active_envelopes as f32 * 100.0
-                    / self.config.envelope_buffer_size() as f32;
-                queue_size_pct.floor() as u64
-            }
-        );
-
-        let QueueEnvelope {
-            mut envelope,
-            mut envelope_context,
-            project_key,
-            start_time,
-        } = message;
-
-        if self.config.envelope_buffer_size() <= self.active_envelopes {
-            return Err(QueueEnvelopeError::TooManyEnvelopes);
-        }
-
-        let event_id = envelope.event_id();
-
-        // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
-        let mut metric_items = Vec::new();
-        let is_metric = |i: &Item| matches!(i.ty(), ItemType::Metrics | ItemType::MetricBuckets);
-        while let Some(item) = envelope.take_item_by(is_metric) {
-            metric_items.push(item);
-        }
-
-        if !metric_items.is_empty() {
-            relay_log::trace!("sending metrics into processing queue");
-            self.processor.do_send(ProcessMetrics {
-                items: metric_items,
-                project_key,
-                start_time,
-                sent_at: envelope.sent_at(),
-            });
-        }
-
-        // Split the envelope into event-related items and other items. This allows to fast-track:
-        //  1. Envelopes with only session items. They only require rate limiting.
-        //  2. Event envelope processing can bail out if the event is filtered or rate limited,
-        //     since all items depend on this event.
-        if let Some(event_envelope) = envelope.split_by(Item::requires_event) {
-            relay_log::trace!("queueing separate envelope for non-event items");
-
-            // The envelope has been split, so we need to fork the context.
-            envelope_context.update(&envelope);
-            let event_context = EnvelopeContext::from_envelope(&event_envelope);
-
-            self.active_envelopes += 1;
-            context.notify(HandleEnvelope {
-                envelope: event_envelope,
-                envelope_context: event_context,
-                project_key,
-            });
-        }
-
-        if envelope.is_empty() {
-            // The envelope can be empty here if it contained only metrics items which were removed
-            // above. In this case, the envelope was accepted and needs no further queueing.
-            envelope_context.accept();
-        } else {
-            relay_log::trace!("queueing envelope");
-            self.active_envelopes += 1;
-            context.notify(HandleEnvelope {
-                envelope,
-                envelope_context,
-                project_key,
-            });
-        }
-
-        // Actual event handling is performed asynchronously in a separate future. The lifetime of
-        // that future will be tied to the EnvelopeManager's context. This allows to keep the Project
-        // actor alive even if it is cleaned up in the ProjectManager.
-
-        Ok(event_id)
-    }
-}
-
-/// Handles a queued envelope.
-///
-/// 1. Ensures the project state is up-to-date and then validates the envelope against the state and
-///    cached rate limits. See [`CheckEnvelope`] for full information.
-/// 2. Executes dynamic sampling using the sampling project.
-/// 3. Runs the envelope through the [`EnvelopeProcessor`] worker pool, which parses items, applies
-///    normalization, and runs filtering logic.
-/// 4. Sends the envelope to the upstream or stores it in Kafka, depending on the
-///    [`processing`](Config::processing_enabled) flag.
-/// 5. Captures [`Outcome`]s for dropped items and envelopes.
-///
-/// This operation is invoked by [`QueueEnvelope`] for envelopes containing all items except
-/// metrics.
-struct HandleEnvelope {
-    pub envelope: Envelope,
-    pub envelope_context: EnvelopeContext,
-    pub project_key: ProjectKey,
-}
-
-impl Message for HandleEnvelope {
-    type Result = Result<(), ()>;
-}
-
-impl Handler<HandleEnvelope> for EnvelopeManager {
-    type Result = ResponseActFuture<Self, (), ()>;
-
-    fn handle(&mut self, message: HandleEnvelope, _ctx: &mut Self::Context) -> Self::Result {
-        // We measure three timers while handling envelopes, once they have been initially accepted:
-        //
-        // 1. `event.wait_time`: The time we take to get all dependencies for envelopes before they
-        //    actually start processing. This includes scheduling overheads, project config
-        //    fetching, batched requests and congestions in the sync processor arbiter. This does
-        //    not include delays in the incoming request (body upload) and skips all envelopes that
-        //    are fast-rejected.
-        //
-        // 2. `event.processing_time`: The time the sync processor takes to parse the event payload,
-        //    apply normalizations, strip PII and finally re-serialize it into a byte stream. This
-        //    is recorded directly in the EnvelopeProcessor.
-        //
-        // 3. `event.total_time`: The full time an envelope takes from being initially accepted up
-        //    to being sent to the upstream (including delays in the upstream). This can be regarded
-        //    the total time an envelope spent in this Relay, corrected by incoming network delays.
-
-        let processor = self.processor.clone();
-        let capture = self.config.relay_mode() == RelayMode::Capture;
-
-        let HandleEnvelope {
+    fn handle(&mut self, message: SubmitEnvelope, context: &mut Self::Context) -> Self::Result {
+        let SubmitEnvelope {
             envelope,
-            envelope_context,
-            project_key,
+            mut envelope_context,
         } = message;
 
+        let scoping = envelope_context.scoping();
         let start_time = envelope.meta().start_time();
-        let event_id = envelope.event_id();
+        let project_key = envelope.meta().public_key();
 
-        let future = ProjectCache::from_registry()
-            .send(CheckEnvelope::fetched(
-                project_key,
-                envelope,
-                envelope_context,
-            ))
-            .map_err(|_| ProcessingError::ScheduleFailed)
-            .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-            .and_then(move |response| {
-                // Use the project id from the loaded project state to account for redirects.
-                let project_id = response.scoping.project_id.value();
-                metric!(set(RelaySets::UniqueProjects) = project_id as i64);
-
-                let checked = response.result.map_err(ProcessingError::Rejected)?;
-                checked.envelope.ok_or(ProcessingError::RateLimited)
-            })
-            .and_then(move |(envelope, envelope_context)| {
-                // get the state for the current project. we can always fetch the cached version
-                // even if the no_cache flag was passed, as the cache was updated prior in
-                // `CheckEnvelope`.
-                ProjectCache::from_registry()
-                    .send(GetProjectState::new(project_key))
-                    .map_err(|_| ProcessingError::ScheduleFailed)
-                    .and_then(|result| result.map_err(ProcessingError::ProjectFailed))
-                    .map(|state| (envelope, envelope_context, state))
-            })
-            .and_then(|(envelope, envelope_context, project_state)| {
-                // get the state for the sampling project.
-                // TODO: Could this run concurrently with main project cache fetch?
-                if let Some(sampling_project_key) = utils::get_sampling_key(&envelope) {
-                    let future = ProjectCache::from_registry()
-                        .send(GetProjectState::new(sampling_project_key))
-                        .then(move |response| {
-                            Ok(ProcessEnvelope {
-                                envelope,
-                                envelope_context,
-                                project_state,
-                                // ignore all errors and leave envelope unsampled
-                                sampling_project_state: response.ok().and_then(|r| r.ok()),
-                            })
-                        });
-
-                    Box::new(future) as ResponseFuture<_, _>
-                } else {
-                    Box::new(future::ok(ProcessEnvelope {
-                        envelope,
-                        envelope_context,
-                        project_state,
-                        sampling_project_state: None,
-                    }))
+        self.submit_envelope(project_key, None, envelope, scoping, start_time, context)
+            .then(move |result| match result {
+                Ok(_) => {
+                    envelope_context.accept();
+                    Ok(())
                 }
-            })
-            .and_then(move |process_message| {
-                processor
-                    .send(process_message)
-                    .map_err(|_| ProcessingError::ScheduleFailed)
-                    .flatten()
-            })
-            .and_then(move |processed| {
-                // Processing returned new rate limits. Cache them on the project to avoid expensive
-                // processing while the limit is active.
-                let rate_limits = processed.rate_limits;
-                if rate_limits.is_limited() {
-                    let project_cache = ProjectCache::from_registry();
-                    project_cache.do_send(UpdateRateLimits::new(project_key, rate_limits));
+                Err(SendEnvelopeError::UpstreamRequestFailed(e)) if e.is_received() => {
+                    envelope_context.accept();
+                    Ok(())
                 }
-
-                processed.envelope.ok_or(ProcessingError::RateLimited)
-            })
-            .into_actor(self)
-            .and_then(move |(envelope, mut envelope_context), slf, _| {
-                let scoping = envelope_context.scoping();
-                slf.send_envelope(project_key, envelope, scoping, start_time)
-                    .then(move |result| match result {
-                        Ok(_) => {
-                            envelope_context.accept();
-                            Ok(())
-                        }
-                        Err(error) => {
-                            let outcome = Outcome::Invalid(DiscardReason::Internal);
-
-                            Err(match error {
-                                #[cfg(feature = "processing")]
-                                SendEnvelopeError::ScheduleFailed => {
-                                    envelope_context.reject(outcome);
-                                    ProcessingError::ScheduleFailed
-                                }
-
-                                #[cfg(feature = "processing")]
-                                SendEnvelopeError::StoreFailed(e) => {
-                                    envelope_context.reject(outcome);
-                                    ProcessingError::StoreFailed(e)
-                                }
-
-                                SendEnvelopeError::BodyEncodingFailed(e) => {
-                                    envelope_context.reject(outcome);
-                                    ProcessingError::BodyEncodingFailed(e)
-                                }
-
-                                SendEnvelopeError::EnvelopeBuildFailed(e) => {
-                                    envelope_context.reject(outcome);
-                                    ProcessingError::EnvelopeBuildFailed(e)
-                                }
-
-                                SendEnvelopeError::UpstreamRequestFailed(e) => {
-                                    if e.is_received() {
-                                        envelope_context.accept();
-                                    } else {
-                                        envelope_context.reject(outcome);
-                                    }
-
-                                    ProcessingError::UpstreamRequestFailed(e)
-                                }
-                            })
-                        }
-                    })
-                    .into_actor(slf)
-            })
-            .map_err(move |error, slf, _| {
-                // if we are in capture mode, we stash away the event instead of forwarding it.
-                if capture {
-                    // XXX: does not work with envelopes without event_id
-                    if let Some(event_id) = event_id {
-                        relay_log::debug!("capturing failed event {}", event_id);
-                        let msg = LogError(&error).to_string();
-                        slf.captures.insert(event_id, Err(msg));
-                    } else {
-                        relay_log::debug!("dropping failed envelope without event");
-                    }
-                }
-
-                let outcome = error.to_outcome();
-                if let Some(Outcome::Invalid(DiscardReason::Internal)) = outcome {
+                Err(error) => {
                     // Errors are only logged for what we consider an internal discard reason. These
-                    // indicate errors in the infrastructure or implementation bugs. In other cases,
-                    // we "expect" errors and log them as debug level.
+                    // indicate errors in the infrastructure or implementation bugs.
                     relay_log::with_scope(
                         |scope| scope.set_tag("project_key", project_key),
-                        || relay_log::error!("error processing envelope: {}", LogError(&error)),
+                        || relay_log::error!("error sending envelope: {}", LogError(&error)),
                     );
-                } else {
-                    relay_log::debug!("dropped envelope: {}", LogError(&error));
+                    envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
+                    Err(())
                 }
             })
-            .then(move |x, slf, _| {
-                slf.active_envelopes -= 1;
-                fut::result(x)
-            })
-            .drop_guard("process_envelope");
-
-        Box::new(future)
+            .drop_guard("submit_envelope")
+            .into_actor(self)
+            .spawn(context);
     }
 }
 
@@ -632,6 +344,7 @@ impl Handler<HandleEnvelope> for EnvelopeManager {
 ///
 /// Responds with `Err` if there was an error sending some or all of the buckets, containing the
 /// failed buckets.
+#[derive(Debug)]
 pub struct SendMetrics {
     /// The pre-aggregated metric buckets.
     pub buckets: Vec<Bucket>,
@@ -639,16 +352,8 @@ pub struct SendMetrics {
     pub scoping: Scoping,
     /// The project of the metrics.
     pub project_key: ProjectKey,
-}
-
-impl fmt::Debug for SendMetrics {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct(std::any::type_name::<Self>())
-            .field("buckets", &self.buckets)
-            .field("scoping", &self.scoping)
-            .field("project", &format_args!("Addr<Project>"))
-            .finish()
-    }
+    /// The key of the logical partition to send the metrics to.
+    pub partition_key: Option<u64>,
 }
 
 impl Message for SendMetrics {
@@ -658,11 +363,12 @@ impl Message for SendMetrics {
 impl Handler<SendMetrics> for EnvelopeManager {
     type Result = ResponseFuture<(), Vec<Bucket>>;
 
-    fn handle(&mut self, message: SendMetrics, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: SendMetrics, context: &mut Self::Context) -> Self::Result {
         let SendMetrics {
             buckets,
             scoping,
             project_key,
+            partition_key,
         } = message;
 
         let upstream = self.config.upstream_descriptor();
@@ -681,7 +387,14 @@ impl Handler<SendMetrics> for EnvelopeManager {
         envelope.add_item(item);
 
         let future = self
-            .send_envelope(project_key, envelope, scoping, Instant::now())
+            .submit_envelope(
+                project_key,
+                partition_key.map(|x| x.to_string()),
+                envelope,
+                scoping,
+                Instant::now(),
+                context,
+            )
             .map_err(|_| buckets);
 
         Box::new(future)
@@ -703,7 +416,7 @@ impl Message for SendClientReports {
 impl Handler<SendClientReports> for EnvelopeManager {
     type Result = ResponseFuture<(), ()>;
 
-    fn handle(&mut self, message: SendClientReports, _context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: SendClientReports, ctx: &mut Self::Context) -> Self::Result {
         let SendClientReports {
             client_reports,
             scoping,
@@ -725,8 +438,16 @@ impl Handler<SendClientReports> for EnvelopeManager {
             item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
             envelope.add_item(item);
         }
+
         let future = self
-            .send_envelope(scoping.project_key, envelope, scoping, Instant::now())
+            .submit_envelope(
+                scoping.project_key,
+                None,
+                envelope,
+                scoping,
+                Instant::now(),
+                ctx,
+            )
             .map_err(|e| {
                 relay_log::trace!("Failed to send envelope for client report: {:?}", e);
             });
@@ -753,5 +474,67 @@ impl Handler<GetCapturedEnvelope> for EnvelopeManager {
         _context: &mut Self::Context,
     ) -> Self::Result {
         self.captures.get(&message.event_id).cloned()
+    }
+}
+
+/// Inserts an envelope or failure into internal captures.
+///
+/// Can be retrieved using [`GetCapturedEnvelope`]. Use [`Capture::should_capture`] to check whether
+/// the message should even be sent to reduce the overheads.
+pub struct Capture {
+    event_id: Option<EventId>,
+    capture: CapturedEnvelope,
+}
+
+impl Capture {
+    /// Returns `true` if Relay is in capture mode.
+    ///
+    /// The `Capture` message can still be sent and and will be ignored. This function is purely for
+    /// optimization purposes.
+    pub fn should_capture(config: &Config) -> bool {
+        matches!(config.relay_mode(), RelayMode::Capture)
+    }
+
+    /// Captures an accepted envelope.
+    pub fn accepted(envelope: Envelope) -> Self {
+        Self {
+            event_id: envelope.event_id(),
+            capture: Ok(envelope),
+        }
+    }
+
+    /// Captures the error that lead to envelope rejection.
+    pub fn rejected(event_id: Option<EventId>, outcome: &Outcome) -> Self {
+        Self {
+            event_id,
+            capture: Err(outcome.to_string()),
+        }
+    }
+}
+
+impl Message for Capture {
+    type Result = ();
+}
+
+impl Handler<Capture> for EnvelopeManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: Capture, _ctx: &mut Self::Context) -> Self::Result {
+        if let RelayMode::Capture = self.config.relay_mode() {
+            match (msg.event_id, msg.capture) {
+                (Some(event_id), Ok(envelope)) => {
+                    relay_log::debug!("capturing envelope");
+                    self.captures.insert(event_id, Ok(envelope));
+                }
+                (Some(event_id), Err(message)) => {
+                    relay_log::debug!("capturing failed event {}", event_id);
+                    self.captures.insert(event_id, Err(message));
+                }
+
+                // XXX: does not work with envelopes without event_id
+                (None, Ok(_)) => relay_log::debug!("dropping non event envelope"),
+                (None, Err(_)) => relay_log::debug!("dropping failed envelope without event"),
+            }
+        }
     }
 }

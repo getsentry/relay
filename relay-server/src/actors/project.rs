@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -23,9 +23,9 @@ use relay_sampling::SamplingConfig;
 use relay_statsd::metric;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
+use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project_cache::{
-    CheckEnvelopeResponse, CheckedEnvelope, ProjectCache, ProjectError, ProjectStateResponse,
-    UpdateProjectState,
+    AddSamplingState, CheckedEnvelope, ProjectCache, ProjectError, UpdateProjectState,
 };
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
@@ -33,11 +33,11 @@ use crate::metrics_extraction::sessions::SessionMetricsConfig;
 use crate::metrics_extraction::transactions::TransactionMetricsConfig;
 use crate::metrics_extraction::TaggingRule;
 use crate::statsd::RelayCounters;
-use crate::utils::{EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
+use crate::utils::{self, EnvelopeContext, EnvelopeLimiter, ErrorBoundary, Response};
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum Expiry {
+enum Expiry {
     /// The project state is perfectly up to date.
     Updated,
     /// The project state is outdated but events depending on this project state can still be
@@ -45,6 +45,17 @@ pub enum Expiry {
     Stale,
     /// The project state is completely outdated and events need to be buffered up until the new
     /// state has been fetched.
+    Expired,
+}
+
+/// The expiry status of a project state, together with the state itself if it has not expired.
+/// Return value of [`Project::expiry_state`].
+pub enum ExpiryState {
+    /// An up-to-date project state. See [`Expiry::Updated`].
+    Updated(Arc<ProjectState>),
+    /// A stale project state that can still be used. See [`Expiry::Stale`].
+    Stale(Arc<ProjectState>),
+    /// An expired project state that should not be used. See [`Expiry::Expired`].
     Expired,
 }
 
@@ -271,7 +282,7 @@ impl ProjectState {
     }
 
     /// Returns whether this state is outdated and needs to be refetched.
-    pub fn check_expiry(&self, config: &Config) -> Expiry {
+    fn check_expiry(&self, config: &Config) -> Expiry {
         let expiry = match self.project_id {
             None => config.cache_miss_expiry(),
             Some(_) => config.project_cache_expiry(),
@@ -506,9 +517,10 @@ pub struct Project {
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
     state_channel: Option<StateChannel>,
+    pending_validations: VecDeque<(Envelope, EnvelopeContext)>,
+    pending_sampling: VecDeque<ProcessEnvelope>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
-    metrics_allowed: bool,
 }
 
 impl Project {
@@ -520,16 +532,20 @@ impl Project {
             config,
             state: None,
             state_channel: None,
+            pending_validations: VecDeque::new(),
+            pending_sampling: VecDeque::new(),
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
-            metrics_allowed: true,
         }
     }
 
     /// If we know that a project is disabled, disallow metrics, too.
-    fn update_metrics_allowed(&mut self) {
-        if let Some(state) = self.state() {
-            self.metrics_allowed = state.check_disabled(&self.config).is_ok();
+    fn metrics_allowed(&self) -> bool {
+        if let Some(state) = self.valid_state() {
+            state.check_disabled(&self.config).is_ok()
+        } else {
+            // Projects without state go back to the original state of allowing metrics.
+            true
         }
     }
 
@@ -537,14 +553,28 @@ impl Project {
         self.rate_limits.merge(rate_limits);
     }
 
-    /// Returns a reference to the project state if available.
-    pub fn state(&self) -> Option<&ProjectState> {
-        self.state.as_deref()
+    /// Returns the current [`ExpiryState`] for this project.
+    /// If the project state's [`Expiry`] is `Expired`, do not return it.
+    pub fn expiry_state(&self) -> ExpiryState {
+        match self.state {
+            Some(ref state) => match state.check_expiry(self.config.as_ref()) {
+                Expiry::Updated => ExpiryState::Updated(state.clone()),
+                Expiry::Stale => ExpiryState::Stale(state.clone()),
+                Expiry::Expired => ExpiryState::Expired,
+            },
+            None => ExpiryState::Expired,
+        }
     }
 
-    /// Returns a reference to the project state if available.
-    pub fn state_clone(&self) -> Option<Arc<ProjectState>> {
-        self.state.clone()
+    /// Returns the project state if it is not expired.
+    ///
+    /// Convenience wrapper around [`expiry_state`](Self::expiry_state).
+    pub fn valid_state(&self) -> Option<Arc<ProjectState>> {
+        match self.expiry_state() {
+            ExpiryState::Updated(state) => Some(state),
+            ExpiryState::Stale(state) => Some(state),
+            ExpiryState::Expired => None,
+        }
     }
 
     /// The last time the project state was updated
@@ -563,7 +593,7 @@ impl Project {
     ///
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(&mut self, buckets: Vec<Bucket>) {
-        if self.metrics_allowed {
+        if self.metrics_allowed() {
             Aggregator::from_registry()
                 .do_send(relay_metrics::MergeBuckets::new(self.project_key, buckets));
         }
@@ -573,12 +603,26 @@ impl Project {
     ///
     /// The metrics will be keyed underneath this project key.
     pub fn insert_metrics(&mut self, metrics: Vec<Metric>) {
-        if self.metrics_allowed {
+        if self.metrics_allowed() {
             Aggregator::from_registry()
                 .do_send(relay_metrics::InsertMetrics::new(self.project_key, metrics));
         }
     }
 
+    /// Ensures the project state gets updated and returns it once valid.
+    ///
+    /// This first checks if the state needs to be updated. This is the case if the project state
+    /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
+    /// update is already running in the background.
+    ///
+    /// Independent of updating, _stale_ states can still be returned immediately as long as they
+    /// are in the [grace period](Config::project_grace_period). This function returns:
+    ///
+    ///  - [`Response::Reply(Ok)`](Response::Reply) if the state is updated or stale, and `no_cache`
+    ///    was not specified. This case is infallible.
+    ///  - [`Response::Future`] if the state was expired or `no_cache` was specified. This future
+    ///    may fail if the state repeatedly cannot be fetched. The future does not have to be
+    ///    awaited for the update to pass.
     pub fn get_or_fetch_state(
         &mut self,
         mut no_cache: bool,
@@ -596,23 +640,15 @@ impl Project {
             }
         }
 
-        let state = self.state.as_ref();
-        let expiry = state
-            .map(|s| s.check_expiry(&self.config))
-            .unwrap_or(Expiry::Expired);
-
-        let cached_state = match (state, expiry) {
+        let cached_state = match self.expiry_state() {
             // Never use the cached state if `no_cache` is set.
             _ if no_cache => None,
-
             // There is no project state that can be used, fetch a state and return it.
-            (None, _) | (_, Expiry::Expired) => None,
-
+            ExpiryState::Expired => None,
             // The project is semi-outdated, fetch new state but return old one.
-            (Some(state), Expiry::Stale) => Some(state.clone()),
-
+            ExpiryState::Stale(state) => Some(state),
             // The project is not outdated, return early here to jump over fetching logic below.
-            (Some(state), Expiry::Updated) => return Response::ok(state.clone()),
+            ExpiryState::Updated(state) => return Response::ok(state),
         };
 
         let receiver = match self.state_channel {
@@ -649,7 +685,84 @@ impl Project {
         Response::future(future)
     }
 
-    pub fn update_state(&mut self, state_result: Option<ProjectStateResponse>, no_cache: bool) {
+    /// Validates the envelope and submits the envelope to the next stage.
+    ///
+    /// If this project is disabled or rate limited, corresponding items are dropped from the
+    /// envelope. Remaining items in the Envelope are forwarded:
+    ///  - If the envelope needs dynamic sampling, this sends [`AddSamplingState`] to the
+    ///    [`ProjectCache`] to add the required project state.
+    ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
+    fn flush_validation(
+        &mut self,
+        envelope: Envelope,
+        envelope_context: EnvelopeContext,
+        project_state: Arc<ProjectState>,
+    ) {
+        if let Ok(checked) = self.check_envelope(envelope, envelope_context) {
+            if let Some((envelope, envelope_context)) = checked.envelope {
+                let process = ProcessEnvelope {
+                    envelope,
+                    envelope_context,
+                    project_state,
+                    sampling_project_state: None,
+                };
+
+                if let Some(sampling_key) = utils::get_sampling_key(&process.envelope) {
+                    ProjectCache::from_registry()
+                        .do_send(AddSamplingState::new(sampling_key, process));
+                } else {
+                    EnvelopeProcessor::from_registry().do_send(process);
+                }
+            }
+        }
+    }
+
+    /// Enqueues an envelope for validation.
+    ///
+    /// If the project state is up to date, the message will be immediately to the next stage.
+    /// Otherwise, this queues the envelope and flushes it when the project has been updated.
+    ///
+    /// This method will trigger an update of the project state internally if the state is stale or
+    /// outdated.
+    pub fn enqueue_validation(&mut self, envelope: Envelope, context: EnvelopeContext) {
+        match self.get_or_fetch_state(envelope.meta().no_cache()) {
+            Response::Reply(Ok(state)) => self.flush_validation(envelope, context, state),
+            _ => self.pending_validations.push_back((envelope, context)),
+        }
+    }
+
+    /// Adds the project state for dynamic sampling and submits the Envelope for processing.
+    fn flush_sampling(&self, mut message: ProcessEnvelope) {
+        // Intentionally ignore all errors and leave the envelope unsampled.
+        message.sampling_project_state = self.valid_state();
+        EnvelopeProcessor::from_registry().do_send(message);
+    }
+
+    /// Enqueues an envelope for adding a dynamic sampling project state.
+    ///
+    /// If the project state is up to date, the message will be immediately submitted for
+    /// processing. Otherwise, this queues the envelope and flushes it when the project has been
+    /// updated.
+    ///
+    /// This method will trigger an update of the project state internally if the state is stale or
+    /// outdated.
+    pub fn enqueue_sampling(&mut self, message: ProcessEnvelope) {
+        match self.get_or_fetch_state(message.envelope.meta().no_cache()) {
+            Response::Reply(_) => self.flush_sampling(message),
+            Response::Future(_) => self.pending_sampling.push_back(message),
+        }
+    }
+
+    /// Replaces the internal project state with a new one and triggers pending actions.
+    ///
+    /// This flushes pending envelopes from [`ValidateEnvelope`] and [`AddSamplingState`] and
+    /// notifies all pending receivers from [`get_or_fetch_state`](Self::get_or_fetch_state).
+    ///
+    /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
+    /// take precedence.
+    ///
+    /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
+    pub fn update_state(&mut self, state: Arc<ProjectState>, no_cache: bool) {
         let channel = match self.state_channel.take() {
             Some(channel) => channel,
             None => return,
@@ -663,13 +776,21 @@ impl Project {
         }
 
         self.state_channel = None;
-        self.state = state_result.map(|resp| resp.state);
-        self.update_metrics_allowed();
+        self.state = Some(state.clone());
 
-        if let Some(ref state) = self.state {
-            relay_log::debug!("project state {} updated", self.project_key);
-            channel.send(state.clone());
+        // Flush all queued `ValidateEnvelope` messages
+        while let Some((envelope, context)) = self.pending_validations.pop_front() {
+            self.flush_validation(envelope, context, state.clone());
         }
+
+        // Flush all queued `AddSamplingState` messages
+        while let Some(message) = self.pending_sampling.pop_front() {
+            self.flush_sampling(message);
+        }
+
+        // Flush all waiting recipients.
+        relay_log::debug!("project state {} updated", self.project_key);
+        channel.send(state);
     }
 
     fn fetch_state(&mut self, no_cache: bool) {
@@ -681,8 +802,10 @@ impl Project {
     ///
     /// Returns `Some` if the project state has been fetched and contains a project identifier,
     /// otherwise `None`.
+    ///
+    /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
-        let state = self.state()?;
+        let state = self.state.as_deref()?;
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,
@@ -693,24 +816,18 @@ impl Project {
         })
     }
 
-    /// Amends request `Scoping` with information from this project state.
-    ///
-    /// If the project state is loaded, information from the project state is merged into the
-    /// request's scoping. Otherwise, this function returns partial scoping from the `request_meta`.
-    /// See [`RequestMeta::get_partial_scoping`] for more information.
-    fn scope_request(&self, meta: &RequestMeta) -> Scoping {
-        match self.state() {
-            Some(state) => state.scope_request(meta),
-            None => meta.get_partial_scoping(),
-        }
-    }
-
-    fn check_envelope_scoped(
+    pub fn check_envelope(
         &mut self,
         mut envelope: Envelope,
         mut envelope_context: EnvelopeContext,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        if let Some(state) = self.state() {
+        let state = self.valid_state();
+        let mut scoping = envelope_context.scoping();
+
+        if let Some(ref state) = state {
+            scoping = state.scope_request(envelope.meta());
+            envelope_context.scope(scoping);
+
             if let Err(reason) = state.check_request(envelope.meta(), &self.config) {
                 envelope_context.reject(Outcome::Invalid(reason));
                 return Err(reason);
@@ -719,12 +836,11 @@ impl Project {
 
         self.rate_limits.clean_expired();
 
-        let quotas = self.state().map(|s| s.get_quotas()).unwrap_or(&[]);
+        let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let scoping = envelope_context.scoping();
         let (enforcement, rate_limits) = envelope_limiter.enforce(&mut envelope, &scoping)?;
         enforcement.track_outcomes(&envelope, &scoping);
         envelope_context.update(&envelope);
@@ -742,16 +858,61 @@ impl Project {
             rate_limits,
         })
     }
+}
 
-    pub fn check_envelope(
-        &mut self,
-        envelope: Envelope,
-        mut envelope_context: EnvelopeContext,
-    ) -> CheckEnvelopeResponse {
-        let scoping = self.scope_request(envelope.meta());
-        envelope_context.scope(scoping);
+impl Drop for Project {
+    fn drop(&mut self) {
+        let count = self.pending_validations.len() + self.pending_sampling.len();
+        if count > 0 {
+            relay_log::with_scope(
+                |scope| scope.set_tag("project_key", self.project_key),
+                || relay_log::error!("dropped project with {} envelopes", count),
+            );
+        }
+    }
+}
 
-        let result = self.check_envelope_scoped(envelope, envelope_context);
-        CheckEnvelopeResponse { result, scoping }
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use relay_common::{ProjectId, ProjectKey};
+
+    use super::{Config, Project, ProjectState};
+
+    #[test]
+    fn get_state_expired() {
+        for expiry in [9999, 0] {
+            let config = Arc::new(
+                Config::from_json_value(serde_json::json!(
+                    {
+                        "cache": {
+                            "project_expiry": expiry,
+                            "project_grace_period": 0,
+                            "eviction_interval": 9999 // do not evict
+                        }
+                    }
+                ))
+                .unwrap(),
+            );
+
+            // Initialize project with a state
+            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+            let mut project_state = ProjectState::allowed();
+            project_state.project_id = Some(ProjectId::new(123));
+            let mut project = Project::new(project_key, config.clone());
+            project.state = Some(Arc::new(project_state));
+
+            // Direct access should always yield a state:
+            assert!(project.state.is_some());
+
+            if expiry > 0 {
+                // With long expiry, should get a state
+                assert!(project.valid_state().is_some());
+            } else {
+                // With 0 expiry, project should expire immediately. No state can be set.
+                assert!(project.valid_state().is_none());
+            }
+        }
     }
 }

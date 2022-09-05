@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
-use lazy_static::lazy_static;
+use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 use smallvec::SmallVec;
@@ -276,6 +276,35 @@ fn normalize_exceptions(event: &mut Event) -> ProcessingResult {
     Ok(())
 }
 
+/// Process the required stacktraces for light normalization.
+///
+/// The browser extension filter requires the last frame of the stacktrace of the first exception
+/// processed. There's no need to do further processing at this early stage.
+fn light_normalize_stacktraces(event: &mut Event) -> ProcessingResult {
+    match event.exceptions.value_mut() {
+        None => Ok(()),
+        Some(exception) => match exception.values.value_mut() {
+            None => Ok(()),
+            Some(exceptions) => match exceptions.first_mut() {
+                None => Ok(()),
+                Some(first) => normalize_last_stacktrace_frame(first),
+            },
+        },
+    }
+}
+
+fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) -> ProcessingResult {
+    exception.apply(|e, _| {
+        e.stacktrace.apply(|s, _| match s.frames.value_mut() {
+            None => Ok(()),
+            Some(frames) => match frames.last_mut() {
+                None => Ok(()),
+                Some(frame) => frame.apply(stacktrace::process_non_raw_frame),
+            },
+        })
+    })
+}
+
 /// Removes internal tags and adds tags for well-known attributes.
 fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
     let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
@@ -434,7 +463,7 @@ fn normalize_security_report(
         if !headers.contains("User-Agent") {
             headers.insert(
                 HeaderName::new("User-Agent"),
-                Annotated::new(HeaderValue::new(&(*client))),
+                Annotated::new(HeaderValue::new(client)),
             );
         }
     }
@@ -500,6 +529,10 @@ fn normalize_ip_addresses(event: &mut Event, client_ip: Option<&IpAddr>) {
     }
 }
 
+fn normalize_logentry(logentry: &mut Annotated<LogEntry>, meta: &mut Meta) -> ProcessingResult {
+    logentry.apply(|le, _| logentry::normalize_logentry(le, meta))
+}
+
 #[derive(Default, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
@@ -545,6 +578,7 @@ pub fn light_normalize_event(
         })?;
 
         // Default required attributes, even if they have errors
+        normalize_logentry(&mut event.logentry, meta)?;
         normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
         normalize_timestamps(
             event,
@@ -554,6 +588,7 @@ pub fn light_normalize_event(
             config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
+        light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(event); // Measurements are part of the metric extraction
@@ -690,15 +725,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
     }
 
-    fn process_logentry(
-        &mut self,
-        logentry: &mut LogEntry,
-        meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        logentry::normalize_logentry(logentry, meta)
-    }
-
     fn process_exception(
         &mut self,
         exception: &mut Exception,
@@ -707,13 +733,12 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     ) -> ProcessingResult {
         exception.process_child_values(self, state)?;
 
-        lazy_static! {
-            static ref TYPE_VALUE_RE: Regex = Regex::new(r"^(\w+):(.*)$").unwrap();
-        }
+        static TYPE_VALUE_RE: OnceCell<Regex> = OnceCell::new();
+        let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
 
         if exception.ty.value().is_empty() {
             if let Some(value_str) = exception.value.value_mut() {
-                let new_values = TYPE_VALUE_RE
+                let new_values = regex
                     .captures(value_str)
                     .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
 
@@ -819,695 +844,705 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 }
 
 #[cfg(test)]
-use crate::{
-    processor::process_value,
-    protocol::{PairList, TagEntry},
-    testutils::{assert_eq_dbg, get_path, get_value},
-};
-
-#[cfg(test)]
-impl Default for NormalizeProcessor<'_> {
-    fn default() -> Self {
-        NormalizeProcessor::new(Arc::new(StoreConfig::default()), None)
-    }
-}
-
-#[test]
-fn test_handles_type_in_value() {
-    let mut processor = NormalizeProcessor::default();
-
-    let mut exception = Annotated::new(Exception {
-        value: Annotated::new("ValueError: unauthorized".to_string().into()),
-        ..Exception::default()
-    });
-
-    process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-    let exception = exception.value().unwrap();
-    assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
-    assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
-
-    let mut exception = Annotated::new(Exception {
-        value: Annotated::new("ValueError:unauthorized".to_string().into()),
-        ..Exception::default()
-    });
-
-    process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-    let exception = exception.value().unwrap();
-    assert_eq_dbg!(exception.value.as_str(), Some("unauthorized"));
-    assert_eq_dbg!(exception.ty.as_str(), Some("ValueError"));
-}
-
-#[test]
-fn test_rejects_empty_exception_fields() {
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
-
-    let mut exception = Annotated::new(Exception {
-        value: Annotated::new("".to_string().into()),
-        ty: Annotated::new("".to_string()),
-        ..Default::default()
-    });
-
-    process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-    assert!(exception.value().is_none());
-    assert!(exception.meta().has_errors());
-}
-
-#[test]
-fn test_json_value() {
-    let mut processor = NormalizeProcessor::default();
-
-    let mut exception = Annotated::new(Exception {
-        value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
-        ..Exception::default()
-    });
-    process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-    let exception = exception.value().unwrap();
-
-    // Don't split a json-serialized value on the colon
-    assert_eq_dbg!(exception.value.as_str(), Some(r#"{"unauthorized":true}"#));
-    assert_eq_dbg!(exception.ty.value(), None);
-}
-
-#[test]
-fn test_exception_invalid() {
-    let mut processor = NormalizeProcessor::default();
-
-    let mut exception = Annotated::new(Exception::default());
-    process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-
-    let expected = Error::with(ErrorKind::MissingAttribute, |error| {
-        error.insert("attribute", "type or value");
-    });
-
-    assert_eq_dbg!(
-        exception.meta().iter_errors().collect_tuple(),
-        Some((&expected,))
-    );
-}
-
-#[test]
-fn test_geo_from_ip_address() {
-    use crate::protocol::Geo;
-
-    let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-    let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), Some(&lookup));
-
-    let mut user = Annotated::new(User {
-        ip_address: Annotated::new(IpAddr("2.125.160.216".to_string())),
-        ..User::default()
-    });
-
-    process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
-
-    let expected = Annotated::new(Geo {
-        country_code: Annotated::new("GB".to_string()),
-        city: Annotated::new("Boxford".to_string()),
-        region: Annotated::new("United Kingdom".to_string()),
-        ..Geo::default()
-    });
-    assert_eq_dbg!(user.value().unwrap().geo, expected)
-}
-
-#[test]
-fn test_user_ip_from_remote_addr() {
-    let mut event = Annotated::new(Event {
-        request: Annotated::from(Request {
-            env: Annotated::new({
-                let mut map = Object::new();
-                map.insert(
-                    "REMOTE_ADDR".to_string(),
-                    Annotated::new(Value::String("2.125.160.216".to_string())),
-                );
-                map
-            }),
-            ..Request::default()
-        }),
-        platform: Annotated::new("javascript".to_owned()),
-        ..Event::default()
-    });
-
-    let config = StoreConfig::default();
-    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    let ip_addr = get_value!(event.user.ip_address!);
-    assert_eq_dbg!(ip_addr, &IpAddr("2.125.160.216".to_string()));
-}
-
-#[test]
-fn test_user_ip_from_invalid_remote_addr() {
-    let mut event = Annotated::new(Event {
-        request: Annotated::from(Request {
-            env: Annotated::new({
-                let mut map = Object::new();
-                map.insert(
-                    "REMOTE_ADDR".to_string(),
-                    Annotated::new(Value::String("whoops".to_string())),
-                );
-                map
-            }),
-            ..Request::default()
-        }),
-        platform: Annotated::new("javascript".to_owned()),
-        ..Event::default()
-    });
-
-    let config = StoreConfig::default();
-    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    assert_eq_dbg!(Annotated::empty(), event.value().unwrap().user);
-}
-
-#[test]
-fn test_user_ip_from_client_ip_without_auto() {
-    let mut event = Annotated::new(Event {
-        platform: Annotated::new("javascript".to_owned()),
-        ..Default::default()
-    });
-
-    let ip_address = IpAddr::parse("2.125.160.216").unwrap();
-    let config = StoreConfig {
-        client_ip: Some(ip_address.clone()),
-        ..StoreConfig::default()
-    };
-
-    let mut processor = NormalizeProcessor::new(Arc::new(config), None);
-    let config = LightNormalizationConfig {
-        client_ip: Some(&ip_address),
-        ..Default::default()
-    };
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    let ip_addr = get_value!(event.user.ip_address!);
-    assert_eq_dbg!(ip_addr, &IpAddr("2.125.160.216".to_string()));
-}
-
-#[test]
-fn test_user_ip_from_client_ip_with_auto() {
-    let mut event = Annotated::new(Event {
-        user: Annotated::new(User {
-            ip_address: Annotated::new(IpAddr::auto()),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-
-    let ip_address = IpAddr::parse("2.125.160.216").unwrap();
-    let config = StoreConfig {
-        client_ip: Some(ip_address.clone()),
-        ..StoreConfig::default()
-    };
-
-    let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-    let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
-    let config = LightNormalizationConfig {
-        client_ip: Some(&ip_address),
-        ..Default::default()
-    };
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    let user = get_value!(event.user!);
-    let ip_addr = user.ip_address.value().expect("ip address missing");
-
-    assert_eq_dbg!(ip_addr, &IpAddr("2.125.160.216".to_string()));
-    assert!(user.geo.value().is_some());
-}
-
-#[test]
-fn test_user_ip_from_client_ip_without_appropriate_platform() {
-    let mut event = Annotated::new(Event::default());
-
-    let ip_address = IpAddr::parse("2.125.160.216").unwrap();
-    let config = StoreConfig {
-        client_ip: Some(ip_address.clone()),
-        ..StoreConfig::default()
-    };
-
-    let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-    let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
-    let config = LightNormalizationConfig {
-        client_ip: Some(&ip_address),
-        ..Default::default()
-    };
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    let user = get_value!(event.user!);
-    assert!(user.ip_address.value().is_none());
-    assert!(user.geo.value().is_none());
-}
-
-#[test]
-fn test_event_level_defaulted() {
-    let processor = &mut NormalizeProcessor::default();
-    let mut event = Annotated::new(Event::default());
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, processor, ProcessingState::root()).unwrap();
-    assert_eq_dbg!(get_value!(event.level), Some(&Level::Error));
-}
-
-#[test]
-fn test_transaction_level_untouched() {
-    use crate::protocol::{ContextInner, SpanId, TraceId};
+mod tests {
     use chrono::TimeZone;
+    use similar_asserts::assert_eq;
 
-    let processor = &mut NormalizeProcessor::default();
-    let mut event = Annotated::new(Event {
-        ty: Annotated::new(EventType::Transaction),
-        timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
-        start_timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
-        contexts: Annotated::new(Contexts({
-            let mut contexts = Object::new();
-            contexts.insert(
-                "trace".to_owned(),
-                Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                })))),
-            );
-            contexts
-        })),
-        ..Event::default()
-    });
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, processor, ProcessingState::root()).unwrap();
-    assert_eq_dbg!(get_value!(event.level), Some(&Level::Info));
-}
+    use crate::processor::process_value;
+    use crate::protocol::{
+        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
+        Span, SpanId, TagEntry, TraceId, Values,
+    };
+    use crate::testutils::{get_path, get_value};
+    use crate::types::{FromValue, SerializableAnnotated};
 
-#[test]
-fn test_environment_tag_is_moved() {
-    let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(PairList(vec![Annotated::new(TagEntry(
-            Annotated::new("environment".to_string()),
-            Annotated::new("despacito".to_string()),
-        ))]))),
-        ..Event::default()
-    });
+    use super::*;
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    impl Default for NormalizeProcessor<'_> {
+        fn default() -> Self {
+            NormalizeProcessor::new(Arc::new(StoreConfig::default()), None)
+        }
+    }
 
-    let event = event.value().unwrap();
+    #[test]
+    fn test_handles_type_in_value() {
+        let mut processor = NormalizeProcessor::default();
 
-    assert_eq_dbg!(event.environment.as_str(), Some("despacito"));
-    assert_eq_dbg!(event.tags.value(), Some(&Tags(vec![].into())));
-}
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new("ValueError: unauthorized".to_string().into()),
+            ..Exception::default()
+        });
 
-#[test]
-fn test_empty_environment_is_removed_and_overwritten_with_tag() {
-    let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(PairList(vec![Annotated::new(TagEntry(
-            Annotated::new("environment".to_string()),
-            Annotated::new("despacito".to_string()),
-        ))]))),
-        environment: Annotated::new("".to_string()),
-        ..Event::default()
-    });
+        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
+        let exception = exception.value().unwrap();
+        assert_eq!(exception.value.as_str(), Some("unauthorized"));
+        assert_eq!(exception.ty.as_str(), Some("ValueError"));
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new("ValueError:unauthorized".to_string().into()),
+            ..Exception::default()
+        });
 
-    let event = event.value().unwrap();
+        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
+        let exception = exception.value().unwrap();
+        assert_eq!(exception.value.as_str(), Some("unauthorized"));
+        assert_eq!(exception.ty.as_str(), Some("ValueError"));
+    }
 
-    assert_eq_dbg!(event.environment.as_str(), Some("despacito"));
-    assert_eq_dbg!(event.tags.value(), Some(&Tags(vec![].into())));
-}
+    #[test]
+    fn test_rejects_empty_exception_fields() {
+        let mut processor = NormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
 
-#[test]
-fn test_empty_environment_is_removed() {
-    let mut event = Annotated::new(Event {
-        environment: Annotated::new("".to_string()),
-        ..Event::default()
-    });
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new("".to_string().into()),
+            ty: Annotated::new("".to_string()),
+            ..Default::default()
+        });
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-    assert_eq_dbg!(get_value!(event.environment), None);
-}
+        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
+        assert!(exception.value().is_none());
+        assert!(exception.meta().has_errors());
+    }
 
-#[test]
-fn test_none_environment_errors() {
-    let mut event = Annotated::new(Event {
-        environment: Annotated::new("none".to_string()),
-        ..Event::default()
-    });
+    #[test]
+    fn test_json_value() {
+        let mut processor = NormalizeProcessor::default();
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        let mut exception = Annotated::new(Exception {
+            value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
+            ..Exception::default()
+        });
+        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
+        let exception = exception.value().unwrap();
 
-    let environment = get_path!(event.environment!);
-    let expected_original = &Value::String("none".to_string());
+        // Don't split a json-serialized value on the colon
+        assert_eq!(exception.value.as_str(), Some(r#"{"unauthorized":true}"#));
+        assert_eq!(exception.ty.value(), None);
+    }
 
-    assert_eq_dbg!(
-        environment.meta().iter_errors().collect::<Vec<&Error>>(),
-        vec![&Error::new(ErrorKind::InvalidData)],
-    );
-    assert_eq_dbg!(
-        environment.meta().original_value().unwrap(),
-        expected_original
-    );
-    assert_eq_dbg!(environment.value(), None);
-}
+    #[test]
+    fn test_exception_invalid() {
+        let mut processor = NormalizeProcessor::default();
 
-#[test]
-fn test_invalid_release_removed() {
-    use crate::protocol::LenientString;
+        let mut exception = Annotated::new(Exception::default());
+        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
 
-    let mut event = Annotated::new(Event {
-        release: Annotated::new(LenientString("Latest".to_string())),
-        ..Event::default()
-    });
+        let expected = Error::with(ErrorKind::MissingAttribute, |error| {
+            error.insert("attribute", "type or value");
+        });
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(
+            exception.meta().iter_errors().collect_tuple(),
+            Some((&expected,))
+        );
+    }
 
-    let release = get_path!(event.release!);
-    let expected_original = &Value::String("Latest".to_string());
+    #[test]
+    fn test_geo_from_ip_address() {
+        let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let mut processor =
+            NormalizeProcessor::new(Arc::new(StoreConfig::default()), Some(&lookup));
 
-    assert_eq_dbg!(
-        release.meta().iter_errors().collect::<Vec<&Error>>(),
-        vec![&Error::new(ErrorKind::InvalidData)],
-    );
-    assert_eq_dbg!(release.meta().original_value().unwrap(), expected_original);
-    assert_eq_dbg!(release.value(), None);
-}
+        let mut user = Annotated::new(User {
+            ip_address: Annotated::new(IpAddr("2.125.160.216".to_string())),
+            ..User::default()
+        });
 
-#[test]
-fn test_top_level_keys_moved_into_tags() {
-    let mut event = Annotated::new(Event {
-        server_name: Annotated::new("foo".to_string()),
-        site: Annotated::new("foo".to_string()),
-        tags: Annotated::new(Tags(PairList(vec![
-            Annotated::new(TagEntry(
-                Annotated::new("site".to_string()),
-                Annotated::new("old".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("server_name".to_string()),
-                Annotated::new("old".to_string()),
-            )),
-        ]))),
-        ..Event::default()
-    });
+        process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        let expected = Annotated::new(Geo {
+            country_code: Annotated::new("GB".to_string()),
+            city: Annotated::new("Boxford".to_string()),
+            region: Annotated::new("United Kingdom".to_string()),
+            ..Geo::default()
+        });
+        assert_eq!(user.value().unwrap().geo, expected)
+    }
 
-    assert_eq_dbg!(get_value!(event.site), None);
-    assert_eq_dbg!(get_value!(event.server_name), None);
+    #[test]
+    fn test_user_ip_from_remote_addr() {
+        let mut event = Annotated::new(Event {
+            request: Annotated::from(Request {
+                env: Annotated::new({
+                    let mut map = Object::new();
+                    map.insert(
+                        "REMOTE_ADDR".to_string(),
+                        Annotated::new(Value::String("2.125.160.216".to_string())),
+                    );
+                    map
+                }),
+                ..Request::default()
+            }),
+            platform: Annotated::new("javascript".to_owned()),
+            ..Event::default()
+        });
 
-    assert_eq_dbg!(
-        get_value!(event.tags!),
-        &Tags(PairList(vec![
-            Annotated::new(TagEntry(
-                Annotated::new("site".to_string()),
-                Annotated::new("foo".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("server_name".to_string()),
-                Annotated::new("foo".to_string()),
-            )),
-        ]))
-    );
-}
+        let config = StoreConfig::default();
+        let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-#[test]
-fn test_internal_tags_removed() {
-    let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(PairList(vec![
-            Annotated::new(TagEntry(
-                Annotated::new("release".to_string()),
-                Annotated::new("foo".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("dist".to_string()),
-                Annotated::new("foo".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("user".to_string()),
-                Annotated::new("foo".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("filename".to_string()),
-                Annotated::new("foo".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("function".to_string()),
-                Annotated::new("foo".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("something".to_string()),
-                Annotated::new("else".to_string()),
-            )),
-        ]))),
-        ..Event::default()
-    });
+        let ip_addr = get_value!(event.user.ip_address!);
+        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_string()));
+    }
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    #[test]
+    fn test_user_ip_from_invalid_remote_addr() {
+        let mut event = Annotated::new(Event {
+            request: Annotated::from(Request {
+                env: Annotated::new({
+                    let mut map = Object::new();
+                    map.insert(
+                        "REMOTE_ADDR".to_string(),
+                        Annotated::new(Value::String("whoops".to_string())),
+                    );
+                    map
+                }),
+                ..Request::default()
+            }),
+            platform: Annotated::new("javascript".to_owned()),
+            ..Event::default()
+        });
 
-    assert_eq!(get_value!(event.tags!).len(), 1);
-}
+        let config = StoreConfig::default();
+        let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-#[test]
-fn test_empty_tags_removed() {
-    let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(PairList(vec![
-            Annotated::new(TagEntry(
-                Annotated::new("".to_string()),
-                Annotated::new("foo".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
-                Annotated::new("".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("something".to_string()),
-                Annotated::new("else".to_string()),
-            )),
-        ]))),
-        ..Event::default()
-    });
+        assert_eq!(Annotated::empty(), event.value().unwrap().user);
+    }
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    #[test]
+    fn test_user_ip_from_client_ip_without_auto() {
+        let mut event = Annotated::new(Event {
+            platform: Annotated::new("javascript".to_owned()),
+            ..Default::default()
+        });
 
-    assert_eq_dbg!(
-        get_value!(event.tags!),
-        &Tags(PairList(vec![
-            Annotated::new(TagEntry(
-                Annotated::from_error(Error::nonempty(), None),
-                Annotated::new("foo".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
-                Annotated::from_error(Error::nonempty(), None),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("something".to_string()),
-                Annotated::new("else".to_string()),
-            )),
-        ]))
-    );
-}
+        let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        let config = StoreConfig {
+            client_ip: Some(ip_address.clone()),
+            ..StoreConfig::default()
+        };
 
-#[test]
-fn test_tags_deduplicated() {
-    let mut event = Annotated::new(Event {
-        tags: Annotated::new(Tags(PairList(vec![
-            Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
-                Annotated::new("1".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("bar".to_string()),
-                Annotated::new("1".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
-                Annotated::new("2".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("bar".to_string()),
-                Annotated::new("2".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
-                Annotated::new("3".to_string()),
-            )),
-        ]))),
-        ..Event::default()
-    });
+        let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+        let config = LightNormalizationConfig {
+            client_ip: Some(&ip_address),
+            ..Default::default()
+        };
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        let ip_addr = get_value!(event.user.ip_address!);
+        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_string()));
+    }
 
-    // should keep the first occurrence of every tag
-    assert_eq_dbg!(
-        get_value!(event.tags!),
-        &Tags(PairList(vec![
-            Annotated::new(TagEntry(
-                Annotated::new("foo".to_string()),
-                Annotated::new("1".to_string()),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::new("bar".to_string()),
-                Annotated::new("1".to_string()),
-            )),
-        ]))
-    );
-}
+    #[test]
+    fn test_user_ip_from_client_ip_with_auto() {
+        let mut event = Annotated::new(Event {
+            user: Annotated::new(User {
+                ip_address: Annotated::new(IpAddr::auto()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
 
-#[test]
-fn test_user_data_moved() {
-    let mut user = Annotated::new(User {
-        other: {
+        let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        let config = StoreConfig {
+            client_ip: Some(ip_address.clone()),
+            ..StoreConfig::default()
+        };
+
+        let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
+        let config = LightNormalizationConfig {
+            client_ip: Some(&ip_address),
+            ..Default::default()
+        };
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let user = get_value!(event.user!);
+        let ip_addr = user.ip_address.value().expect("ip address missing");
+
+        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_string()));
+        assert!(user.geo.value().is_some());
+    }
+
+    #[test]
+    fn test_user_ip_from_client_ip_without_appropriate_platform() {
+        let mut event = Annotated::new(Event::default());
+
+        let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        let config = StoreConfig {
+            client_ip: Some(ip_address.clone()),
+            ..StoreConfig::default()
+        };
+
+        let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+        let mut processor = NormalizeProcessor::new(Arc::new(config), Some(&geo));
+        let config = LightNormalizationConfig {
+            client_ip: Some(&ip_address),
+            ..Default::default()
+        };
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let user = get_value!(event.user!);
+        assert!(user.ip_address.value().is_none());
+        assert!(user.geo.value().is_none());
+    }
+
+    #[test]
+    fn test_event_level_defaulted() {
+        let processor = &mut NormalizeProcessor::default();
+        let mut event = Annotated::new(Event::default());
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, processor, ProcessingState::root()).unwrap();
+        assert_eq!(get_value!(event.level), Some(&Level::Error));
+    }
+
+    #[test]
+    fn test_transaction_level_untouched() {
+        let processor = &mut NormalizeProcessor::default();
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
+            start_timestamp: Annotated::new(Utc.ymd(1987, 6, 5).and_hms(4, 3, 2).into()),
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "trace".to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
+                        )),
+                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                        op: Annotated::new("http.server".to_owned()),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            ..Event::default()
+        });
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, processor, ProcessingState::root()).unwrap();
+        assert_eq!(get_value!(event.level), Some(&Level::Info));
+    }
+
+    #[test]
+    fn test_environment_tag_is_moved() {
+        let mut event = Annotated::new(Event {
+            tags: Annotated::new(Tags(PairList(vec![Annotated::new(TagEntry(
+                Annotated::new("environment".to_string()),
+                Annotated::new("despacito".to_string()),
+            ))]))),
+            ..Event::default()
+        });
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let event = event.value().unwrap();
+
+        assert_eq!(event.environment.as_str(), Some("despacito"));
+        assert_eq!(event.tags.value(), Some(&Tags(vec![].into())));
+    }
+
+    #[test]
+    fn test_empty_environment_is_removed_and_overwritten_with_tag() {
+        let mut event = Annotated::new(Event {
+            tags: Annotated::new(Tags(PairList(vec![Annotated::new(TagEntry(
+                Annotated::new("environment".to_string()),
+                Annotated::new("despacito".to_string()),
+            ))]))),
+            environment: Annotated::new("".to_string()),
+            ..Event::default()
+        });
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let event = event.value().unwrap();
+
+        assert_eq!(event.environment.as_str(), Some("despacito"));
+        assert_eq!(event.tags.value(), Some(&Tags(vec![].into())));
+    }
+
+    #[test]
+    fn test_empty_environment_is_removed() {
+        let mut event = Annotated::new(Event {
+            environment: Annotated::new("".to_string()),
+            ..Event::default()
+        });
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(get_value!(event.environment), None);
+    }
+
+    #[test]
+    fn test_none_environment_errors() {
+        let mut event = Annotated::new(Event {
+            environment: Annotated::new("none".to_string()),
+            ..Event::default()
+        });
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let environment = get_path!(event.environment!);
+        let expected_original = &Value::String("none".to_string());
+
+        assert_eq!(
+            environment.meta().iter_errors().collect::<Vec<&Error>>(),
+            vec![&Error::new(ErrorKind::InvalidData)],
+        );
+        assert_eq!(
+            environment.meta().original_value().unwrap(),
+            expected_original
+        );
+        assert_eq!(environment.value(), None);
+    }
+
+    #[test]
+    fn test_invalid_release_removed() {
+        let mut event = Annotated::new(Event {
+            release: Annotated::new(LenientString("Latest".to_string())),
+            ..Event::default()
+        });
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let release = get_path!(event.release!);
+        let expected_original = &Value::String("Latest".to_string());
+
+        assert_eq!(
+            release.meta().iter_errors().collect::<Vec<&Error>>(),
+            vec![&Error::new(ErrorKind::InvalidData)],
+        );
+        assert_eq!(release.meta().original_value().unwrap(), expected_original);
+        assert_eq!(release.value(), None);
+    }
+
+    #[test]
+    fn test_top_level_keys_moved_into_tags() {
+        let mut event = Annotated::new(Event {
+            server_name: Annotated::new("foo".to_string()),
+            site: Annotated::new("foo".to_string()),
+            tags: Annotated::new(Tags(PairList(vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("site".to_string()),
+                    Annotated::new("old".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("server_name".to_string()),
+                    Annotated::new("old".to_string()),
+                )),
+            ]))),
+            ..Event::default()
+        });
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(get_value!(event.site), None);
+        assert_eq!(get_value!(event.server_name), None);
+
+        assert_eq!(
+            get_value!(event.tags!),
+            &Tags(PairList(vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("site".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("server_name".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_internal_tags_removed() {
+        let mut event = Annotated::new(Event {
+            tags: Annotated::new(Tags(PairList(vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("release".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("dist".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("user".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("filename".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("function".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("something".to_string()),
+                    Annotated::new("else".to_string()),
+                )),
+            ]))),
+            ..Event::default()
+        });
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(get_value!(event.tags!).len(), 1);
+    }
+
+    #[test]
+    fn test_empty_tags_removed() {
+        let mut event = Annotated::new(Event {
+            tags: Annotated::new(Tags(PairList(vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("".to_string()),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("foo".to_string()),
+                    Annotated::new("".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("something".to_string()),
+                    Annotated::new("else".to_string()),
+                )),
+            ]))),
+            ..Event::default()
+        });
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(
+            get_value!(event.tags!),
+            &Tags(PairList(vec![
+                Annotated::new(TagEntry(
+                    Annotated::from_error(Error::nonempty(), None),
+                    Annotated::new("foo".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("foo".to_string()),
+                    Annotated::from_error(Error::nonempty(), None),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("something".to_string()),
+                    Annotated::new("else".to_string()),
+                )),
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_tags_deduplicated() {
+        let mut event = Annotated::new(Event {
+            tags: Annotated::new(Tags(PairList(vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("foo".to_string()),
+                    Annotated::new("1".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("bar".to_string()),
+                    Annotated::new("1".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("foo".to_string()),
+                    Annotated::new("2".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("bar".to_string()),
+                    Annotated::new("2".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("foo".to_string()),
+                    Annotated::new("3".to_string()),
+                )),
+            ]))),
+            ..Event::default()
+        });
+
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        // should keep the first occurrence of every tag
+        assert_eq!(
+            get_value!(event.tags!),
+            &Tags(PairList(vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("foo".to_string()),
+                    Annotated::new("1".to_string()),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::new("bar".to_string()),
+                    Annotated::new("1".to_string()),
+                )),
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_user_data_moved() {
+        let mut user = Annotated::new(User {
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_owned())),
+                );
+                map
+            },
+            ..User::default()
+        });
+
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
+
+        let user = user.value().unwrap();
+
+        assert_eq!(user.data, {
             let mut map = Object::new();
             map.insert(
                 "other".to_string(),
                 Annotated::new(Value::String("value".to_owned())),
             );
-            map
-        },
-        ..User::default()
-    });
+            Annotated::new(map)
+        });
 
-    let mut processor = NormalizeProcessor::default();
-    process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(user.other, Object::new());
+    }
 
-    let user = user.value().unwrap();
+    #[test]
+    fn test_unknown_debug_image() {
+        let mut event = Annotated::new(Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(DebugImage::Other(Object::default()))]),
+                ..DebugMeta::default()
+            }),
+            ..Event::default()
+        });
 
-    assert_eq_dbg!(user.data, {
-        let mut map = Object::new();
-        map.insert(
-            "other".to_string(),
-            Annotated::new(Value::String("value".to_owned())),
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(
+            get_path!(event.debug_meta!),
+            &Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::from_error(
+                    Error::invalid("unsupported debug image type"),
+                    Some(Value::Object(Object::default())),
+                )]),
+                ..DebugMeta::default()
+            })
         );
-        Annotated::new(map)
-    });
+    }
 
-    assert_eq_dbg!(user.other, Object::new());
-}
+    #[test]
+    fn test_context_line_default() {
+        let mut frame = Annotated::new(Frame {
+            pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
+            post_context: Annotated::new(vec![
+                Annotated::new("".to_string()),
+                Annotated::default(),
+            ]),
+            ..Frame::default()
+        });
 
-#[test]
-fn test_unknown_debug_image() {
-    use crate::protocol::DebugMeta;
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
 
-    let mut event = Annotated::new(Event {
-        debug_meta: Annotated::new(DebugMeta {
-            images: Annotated::new(vec![Annotated::new(DebugImage::Other(Object::default()))]),
-            ..DebugMeta::default()
-        }),
-        ..Event::default()
-    });
+        let frame = frame.value().unwrap();
+        assert_eq!(frame.context_line.as_str(), Some(""));
+    }
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+    #[test]
+    fn test_context_line_retain() {
+        let mut frame = Annotated::new(Frame {
+            pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
+            post_context: Annotated::new(vec![
+                Annotated::new("".to_string()),
+                Annotated::default(),
+            ]),
+            context_line: Annotated::new("some line".to_string()),
+            ..Frame::default()
+        });
 
-    assert_eq_dbg!(
-        get_path!(event.debug_meta!),
-        &Annotated::new(DebugMeta {
-            images: Annotated::new(vec![Annotated::from_error(
-                Error::invalid("unsupported debug image type"),
-                Some(Value::Object(Object::default())),
-            )]),
-            ..DebugMeta::default()
-        })
-    );
-}
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
 
-#[test]
-fn test_context_line_default() {
-    let mut frame = Annotated::new(Frame {
-        pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
-        post_context: Annotated::new(vec![Annotated::new("".to_string()), Annotated::default()]),
-        ..Frame::default()
-    });
+        let frame = frame.value().unwrap();
+        assert_eq!(frame.context_line.as_str(), Some("some line"));
+    }
 
-    let mut processor = NormalizeProcessor::default();
-    process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
+    #[test]
+    fn test_frame_null_context_lines() {
+        let mut frame = Annotated::new(Frame {
+            pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
+            post_context: Annotated::new(vec![
+                Annotated::new("".to_string()),
+                Annotated::default(),
+            ]),
+            ..Frame::default()
+        });
 
-    let frame = frame.value().unwrap();
-    assert_eq_dbg!(frame.context_line.as_str(), Some(""));
-}
+        let mut processor = NormalizeProcessor::default();
+        process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
 
-#[test]
-fn test_context_line_retain() {
-    let mut frame = Annotated::new(Frame {
-        pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
-        post_context: Annotated::new(vec![Annotated::new("".to_string()), Annotated::default()]),
-        context_line: Annotated::new("some line".to_string()),
-        ..Frame::default()
-    });
+        assert_eq!(
+            *get_value!(frame.pre_context!),
+            vec![
+                Annotated::new("".to_string()),
+                Annotated::new("".to_string())
+            ],
+        );
+        assert_eq!(
+            *get_value!(frame.post_context!),
+            vec![
+                Annotated::new("".to_string()),
+                Annotated::new("".to_string())
+            ],
+        );
+    }
 
-    let mut processor = NormalizeProcessor::default();
-    process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
-
-    let frame = frame.value().unwrap();
-    assert_eq_dbg!(frame.context_line.as_str(), Some("some line"));
-}
-
-#[test]
-fn test_frame_null_context_lines() {
-    let mut frame = Annotated::new(Frame {
-        pre_context: Annotated::new(vec![Annotated::default(), Annotated::new("".to_string())]),
-        post_context: Annotated::new(vec![Annotated::new("".to_string()), Annotated::default()]),
-        ..Frame::default()
-    });
-
-    let mut processor = NormalizeProcessor::default();
-    process_value(&mut frame, &mut processor, ProcessingState::root()).unwrap();
-
-    assert_eq_dbg!(
-        *get_value!(frame.pre_context!),
-        vec![
-            Annotated::new("".to_string()),
-            Annotated::new("".to_string())
-        ],
-    );
-    assert_eq_dbg!(
-        *get_value!(frame.post_context!),
-        vec![
-            Annotated::new("".to_string()),
-            Annotated::new("".to_string())
-        ],
-    );
-}
-
-#[test]
-fn test_too_long_tags() {
-    let mut event = Annotated::new(Event {
+    #[test]
+    fn test_too_long_tags() {
+        let mut event = Annotated::new(Event {
         tags: Annotated::new(Tags(PairList(
             vec![Annotated::new(TagEntry(
                 Annotated::new("foobar".to_string()),
@@ -1520,201 +1555,187 @@ fn test_too_long_tags() {
         ..Event::default()
     });
 
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    assert_eq_dbg!(
-        get_value!(event.tags!),
-        &Tags(PairList(vec![
-            Annotated::new(TagEntry(
-                Annotated::new("foobar".to_string()),
-                Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
-            )),
-            Annotated::new(TagEntry(
-                Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
-                Annotated::new("bar".to_string()),
-            )),
-        ]))
-    );
-}
+        assert_eq!(
+            get_value!(event.tags!),
+            &Tags(PairList(vec![
+                Annotated::new(TagEntry(
+                    Annotated::new("foobar".to_string()),
+                    Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
+                )),
+                Annotated::new(TagEntry(
+                    Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None),
+                    Annotated::new("bar".to_string()),
+                )),
+            ]))
+        );
+    }
 
-#[test]
-fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
-    use crate::protocol::Values;
-    use crate::protocol::{Frame, RawStacktrace};
+    #[test]
+    fn test_regression_backfills_abs_path_even_when_moving_stacktrace() {
+        let mut event = Annotated::new(Event {
+            exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
+                ty: Annotated::new("FooDivisionError".to_string()),
+                value: Annotated::new("hi".to_string().into()),
+                ..Exception::default()
+            })])),
+            stacktrace: Annotated::new(
+                RawStacktrace {
+                    frames: Annotated::new(vec![Annotated::new(Frame {
+                        module: Annotated::new("MyModule".to_string()),
+                        filename: Annotated::new("MyFilename".into()),
+                        function: Annotated::new("Void FooBar()".to_string()),
+                        ..Frame::default()
+                    })]),
+                    ..RawStacktrace::default()
+                }
+                .into(),
+            ),
+            ..Event::default()
+        });
 
-    let mut event = Annotated::new(Event {
-        exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
-            ty: Annotated::new("FooDivisionError".to_string()),
-            value: Annotated::new("hi".to_string().into()),
-            ..Exception::default()
-        })])),
-        stacktrace: Annotated::new(
-            RawStacktrace {
+        let mut processor = NormalizeProcessor::default();
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(
+            get_value!(event.exceptions.values[0].stacktrace!),
+            &Stacktrace(RawStacktrace {
                 frames: Annotated::new(vec![Annotated::new(Frame {
                     module: Annotated::new("MyModule".to_string()),
                     filename: Annotated::new("MyFilename".into()),
+                    abs_path: Annotated::new("MyFilename".into()),
                     function: Annotated::new("Void FooBar()".to_string()),
                     ..Frame::default()
                 })]),
                 ..RawStacktrace::default()
-            }
-            .into(),
-        ),
-        ..Event::default()
-    });
-
-    let mut processor = NormalizeProcessor::default();
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    assert_eq_dbg!(
-        get_value!(event.exceptions.values[0].stacktrace!),
-        &Stacktrace(RawStacktrace {
-            frames: Annotated::new(vec![Annotated::new(Frame {
-                module: Annotated::new("MyModule".to_string()),
-                filename: Annotated::new("MyFilename".into()),
-                abs_path: Annotated::new("MyFilename".into()),
-                function: Annotated::new("Void FooBar()".to_string()),
-                ..Frame::default()
-            })]),
-            ..RawStacktrace::default()
-        })
-    );
-}
-
-#[test]
-fn test_parses_sdk_info_from_header() {
-    let mut event = Annotated::new(Event::default());
-    let mut processor = NormalizeProcessor::new(
-        Arc::new(StoreConfig {
-            client: Some("_fooBar/0.0.0".to_string()),
-            ..StoreConfig::default()
-        }),
-        None,
-    );
-
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    assert_eq_dbg!(
-        get_path!(event.client_sdk!),
-        &Annotated::new(ClientSdkInfo {
-            name: Annotated::new("_fooBar".to_string()),
-            version: Annotated::new("0.0.0".to_string()),
-            ..ClientSdkInfo::default()
-        })
-    );
-}
-
-#[test]
-fn test_discards_received() {
-    use crate::types::FromValue;
-    let mut event = Annotated::new(Event {
-        received: FromValue::from_value(Annotated::new(Value::U64(696_969_696_969))),
-        ..Default::default()
-    });
-
-    let mut processor = NormalizeProcessor::default();
-
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    assert_eq_dbg!(get_value!(event.received!), get_value!(event.timestamp!));
-}
-
-#[test]
-fn test_grouping_config() {
-    use crate::protocol::LogEntry;
-    use crate::types::SerializableAnnotated;
-    use insta::assert_ron_snapshot;
-    use serde_json::json;
-
-    let mut event = Annotated::new(Event {
-        logentry: Annotated::from(LogEntry {
-            message: Annotated::new("Hello World!".to_string().into()),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-
-    let mut processor = NormalizeProcessor::new(
-        Arc::new(StoreConfig {
-            grouping_config: Some(json!({
-                "id": "legacy:1234-12-12".to_string(),
-            })),
-            ..Default::default()
-        }),
-        None,
-    );
-
-    let config = LightNormalizationConfig::default();
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-    assert_ron_snapshot!(SerializableAnnotated(&event), {
-        ".event_id" => "[event-id]",
-        ".received" => "[received]",
-        ".timestamp" => "[timestamp]"
-    }, @r###"
-    {
-      "event_id": "[event-id]",
-      "level": "error",
-      "type": "default",
-      "logentry": {
-        "formatted": "Hello World!",
-      },
-      "logger": "",
-      "platform": "other",
-      "timestamp": "[timestamp]",
-      "received": "[received]",
-      "grouping_config": {
-        "id": "legacy:1234-12-12",
-      },
+            })
+        );
     }
-    "###);
-}
 
-#[test]
-fn test_future_timestamp() {
-    use crate::types::SerializableAnnotated;
+    #[test]
+    fn test_parses_sdk_info_from_header() {
+        let mut event = Annotated::new(Event::default());
+        let mut processor = NormalizeProcessor::new(
+            Arc::new(StoreConfig {
+                client: Some("_fooBar/0.0.0".to_string()),
+                ..StoreConfig::default()
+            }),
+            None,
+        );
 
-    use chrono::TimeZone;
-    use insta::assert_ron_snapshot;
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    let mut event = Annotated::new(Event {
-        timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 2, 0).into()),
-        ..Default::default()
-    });
+        assert_eq!(
+            get_path!(event.client_sdk!),
+            &Annotated::new(ClientSdkInfo {
+                name: Annotated::new("_fooBar".to_string()),
+                version: Annotated::new("0.0.0".to_string()),
+                ..ClientSdkInfo::default()
+            })
+        );
+    }
 
-    let received_at = Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0));
-    let max_secs_in_past = Some(30 * 24 * 3600);
-    let max_secs_in_future = Some(60);
+    #[test]
+    fn test_discards_received() {
+        let mut event = Annotated::new(Event {
+            received: FromValue::from_value(Annotated::new(Value::U64(696_969_696_969))),
+            ..Default::default()
+        });
 
-    let mut processor = NormalizeProcessor::new(
-        Arc::new(StoreConfig {
+        let mut processor = NormalizeProcessor::default();
+
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(get_value!(event.received!), get_value!(event.timestamp!));
+    }
+
+    #[test]
+    fn test_grouping_config() {
+        let mut event = Annotated::new(Event {
+            logentry: Annotated::from(LogEntry {
+                message: Annotated::new("Hello World!".to_string().into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let mut processor = NormalizeProcessor::new(
+            Arc::new(StoreConfig {
+                grouping_config: Some(serde_json::json!({
+                    "id": "legacy:1234-12-12".to_string(),
+                })),
+                ..Default::default()
+            }),
+            None,
+        );
+
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
+            ".event_id" => "[event-id]",
+            ".received" => "[received]",
+            ".timestamp" => "[timestamp]"
+        }, @r###"
+        {
+          "event_id": "[event-id]",
+          "level": "error",
+          "type": "default",
+          "logentry": {
+            "formatted": "Hello World!",
+          },
+          "logger": "",
+          "platform": "other",
+          "timestamp": "[timestamp]",
+          "received": "[received]",
+          "grouping_config": {
+            "id": "legacy:1234-12-12",
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_future_timestamp() {
+        let mut event = Annotated::new(Event {
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 2, 0).into()),
+            ..Default::default()
+        });
+
+        let received_at = Some(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0));
+        let max_secs_in_past = Some(30 * 24 * 3600);
+        let max_secs_in_future = Some(60);
+
+        let mut processor = NormalizeProcessor::new(
+            Arc::new(StoreConfig {
+                received_at,
+                max_secs_in_past,
+                max_secs_in_future,
+                ..Default::default()
+            }),
+            None,
+        );
+        let config = LightNormalizationConfig {
             received_at,
             max_secs_in_past,
             max_secs_in_future,
             ..Default::default()
-        }),
-        None,
-    );
-    let config = LightNormalizationConfig {
-        received_at,
-        max_secs_in_past,
-        max_secs_in_future,
-        ..Default::default()
-    };
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        };
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    assert_ron_snapshot!(SerializableAnnotated(&event), {
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
     }, @r###"
     {
@@ -1723,8 +1744,8 @@ fn test_future_timestamp() {
       "type": "default",
       "logger": "",
       "platform": "other",
-      "timestamp": 946857600,
-      "received": 946857600,
+      "timestamp": 946857600.0,
+      "received": 946857600.0,
       "_meta": {
         "timestamp": {
           "": Meta(Some(MetaInner(
@@ -1742,43 +1763,38 @@ fn test_future_timestamp() {
       },
     }
     "###);
-}
+    }
 
-#[test]
-fn test_past_timestamp() {
-    use crate::types::SerializableAnnotated;
+    #[test]
+    fn test_past_timestamp() {
+        let mut event = Annotated::new(Event {
+            timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0).into()),
+            ..Default::default()
+        });
 
-    use chrono::TimeZone;
-    use insta::assert_ron_snapshot;
+        let received_at = Some(Utc.ymd(2000, 3, 3).and_hms(0, 0, 0));
+        let max_secs_in_past = Some(30 * 24 * 3600);
+        let max_secs_in_future = Some(60);
 
-    let mut event = Annotated::new(Event {
-        timestamp: Annotated::new(Utc.ymd(2000, 1, 3).and_hms(0, 0, 0).into()),
-        ..Default::default()
-    });
-
-    let received_at = Some(Utc.ymd(2000, 3, 3).and_hms(0, 0, 0));
-    let max_secs_in_past = Some(30 * 24 * 3600);
-    let max_secs_in_future = Some(60);
-
-    let mut processor = NormalizeProcessor::new(
-        Arc::new(StoreConfig {
+        let mut processor = NormalizeProcessor::new(
+            Arc::new(StoreConfig {
+                received_at,
+                max_secs_in_past,
+                max_secs_in_future,
+                ..Default::default()
+            }),
+            None,
+        );
+        let config = LightNormalizationConfig {
             received_at,
             max_secs_in_past,
             max_secs_in_future,
             ..Default::default()
-        }),
-        None,
-    );
-    let config = LightNormalizationConfig {
-        received_at,
-        max_secs_in_past,
-        max_secs_in_future,
-        ..Default::default()
-    };
-    light_normalize_event(&mut event, &config).unwrap();
-    process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+        };
+        light_normalize_event(&mut event, &config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-    assert_ron_snapshot!(SerializableAnnotated(&event), {
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
     }, @r###"
     {
@@ -1787,8 +1803,8 @@ fn test_past_timestamp() {
       "type": "default",
       "logger": "",
       "platform": "other",
-      "timestamp": 952041600,
-      "received": 952041600,
+      "timestamp": 952041600.0,
+      "received": 952041600.0,
       "_meta": {
         "timestamp": {
           "": Meta(Some(MetaInner(
@@ -1806,42 +1822,39 @@ fn test_past_timestamp() {
       },
     }
     "###);
-}
+    }
 
-#[test]
-fn test_normalize_dist_none() {
-    let mut dist = None;
-    normalize_dist(&mut dist);
-    assert_eq!(dist, None);
-}
+    #[test]
+    fn test_normalize_dist_none() {
+        let mut dist = None;
+        normalize_dist(&mut dist);
+        assert_eq!(dist, None);
+    }
 
-#[test]
-fn test_normalize_dist_empty() {
-    let mut dist = Some("".to_owned());
-    normalize_dist(&mut dist);
-    assert_eq!(dist, None);
-}
+    #[test]
+    fn test_normalize_dist_empty() {
+        let mut dist = Some("".to_owned());
+        normalize_dist(&mut dist);
+        assert_eq!(dist, None);
+    }
 
-#[test]
-fn test_normalize_dist_trim() {
-    let mut dist = Some(" foo  ".to_owned());
-    normalize_dist(&mut dist);
-    assert_eq!(dist.unwrap(), "foo");
-}
+    #[test]
+    fn test_normalize_dist_trim() {
+        let mut dist = Some(" foo  ".to_owned());
+        normalize_dist(&mut dist);
+        assert_eq!(dist.unwrap(), "foo");
+    }
 
-#[test]
-fn test_normalize_dist_whitespace() {
-    let mut dist = Some(" ".to_owned());
-    normalize_dist(&mut dist);
-    assert_eq!(dist.unwrap(), ""); // Not sure if this is what we want
-}
+    #[test]
+    fn test_normalize_dist_whitespace() {
+        let mut dist = Some(" ".to_owned());
+        normalize_dist(&mut dist);
+        assert_eq!(dist.unwrap(), ""); // Not sure if this is what we want
+    }
 
-#[test]
-fn test_computed_measurements() {
-    use crate::types::SerializableAnnotated;
-    use insta::assert_ron_snapshot;
-
-    let json = r#"
+    #[test]
+    fn test_computed_measurements() {
+        let json = r#"
         {
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:05+0100",
@@ -1855,108 +1868,110 @@ fn test_computed_measurements() {
         }
         "#;
 
-    let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-    normalize_measurements(&mut event);
+        normalize_measurements(&mut event);
 
-    assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"{
-  "type": "transaction",
-  "timestamp": 1619420405,
-  "start_timestamp": 1619420400,
-  "measurements": {
-    "frames_frozen": {
-      "value": 2,
-    },
-    "frames_frozen_rate": {
-      "value": 0.5,
-      "unit": "ratio",
-    },
-    "frames_slow": {
-      "value": 1,
-    },
-    "frames_slow_rate": {
-      "value": 0.25,
-      "unit": "ratio",
-    },
-    "frames_total": {
-      "value": 4,
-    },
-    "stall_percentage": {
-      "value": 0.8,
-      "unit": "ratio",
-    },
-    "stall_total_time": {
-      "value": 4000,
-      "unit": "millisecond",
-    },
-  },
-}"###);
-}
-
-#[test]
-fn test_light_normalization_is_idempotent() {
-    use crate::protocol::{ContextInner, Span, SpanId, TraceId};
-    use chrono::TimeZone;
-
-    // get an event, light normalize it. the result of that must be the same as light normalizing it once more
-    let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
-    let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
-    let mut event = Annotated::new(Event {
-        ty: Annotated::new(EventType::Transaction),
-        transaction: Annotated::new("/".to_owned()),
-        timestamp: Annotated::new(end.into()),
-        start_timestamp: Annotated::new(start.into()),
-        contexts: Annotated::new(Contexts({
-            let mut contexts = Object::new();
-            contexts.insert(
-                "trace".to_owned(),
-                Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                })))),
-            );
-            contexts
-        })),
-        spans: Annotated::new(vec![Annotated::new(Span {
-            timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 10).into()),
-            start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
-            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-            span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-
-            ..Default::default()
-        })]),
-        ..Default::default()
-    });
-
-    let config = LightNormalizationConfig::default();
-
-    fn remove_received_from_event(event: &mut Annotated<Event>) -> &mut Annotated<Event> {
-        event
-            .apply(|e, _m| {
-                e.received = Annotated::empty();
-                Ok(())
-            })
-            .unwrap();
-        event
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "frames_frozen": {
+              "value": 2.0,
+            },
+            "frames_frozen_rate": {
+              "value": 0.5,
+              "unit": "ratio",
+            },
+            "frames_slow": {
+              "value": 1.0,
+            },
+            "frames_slow_rate": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "frames_total": {
+              "value": 4.0,
+            },
+            "stall_percentage": {
+              "value": 0.8,
+              "unit": "ratio",
+            },
+            "stall_total_time": {
+              "value": 4000.0,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "###);
     }
 
-    light_normalize_event(&mut event, &config).unwrap();
-    let first = remove_received_from_event(&mut event.clone())
-        .to_json()
-        .unwrap();
-    // Expected some fields (such as timestamps) exist after first light normalization.
+    #[test]
+    fn test_light_normalization_is_idempotent() {
+        // get an event, light normalize it. the result of that must be the same as light normalizing it once more
+        let start = Utc.ymd(2000, 1, 1).and_hms(0, 0, 0);
+        let end = Utc.ymd(2000, 1, 1).and_hms(0, 0, 10);
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/".to_owned()),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert(
+                    "trace".to_owned(),
+                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
+                        trace_id: Annotated::new(TraceId(
+                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
+                        )),
+                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                        op: Annotated::new("http.server".to_owned()),
+                        ..Default::default()
+                    })))),
+                );
+                contexts
+            })),
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 10).into()),
+                start_timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
 
-    light_normalize_event(&mut event, &config).unwrap();
-    let second = remove_received_from_event(&mut event.clone())
-        .to_json()
-        .unwrap();
-    assert_eq!(&first, &second, "idempotency check failed");
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
 
-    light_normalize_event(&mut event, &config).unwrap();
-    let third = remove_received_from_event(&mut event.clone())
-        .to_json()
-        .unwrap();
-    assert_eq!(&second, &third, "idempotency check failed");
+        let config = LightNormalizationConfig::default();
+
+        fn remove_received_from_event(event: &mut Annotated<Event>) -> &mut Annotated<Event> {
+            event
+                .apply(|e, _m| {
+                    e.received = Annotated::empty();
+                    Ok(())
+                })
+                .unwrap();
+            event
+        }
+
+        light_normalize_event(&mut event, &config).unwrap();
+        let first = remove_received_from_event(&mut event.clone())
+            .to_json()
+            .unwrap();
+        // Expected some fields (such as timestamps) exist after first light normalization.
+
+        light_normalize_event(&mut event, &config).unwrap();
+        let second = remove_received_from_event(&mut event.clone())
+            .to_json()
+            .unwrap();
+        assert_eq!(&first, &second, "idempotency check failed");
+
+        light_normalize_event(&mut event, &config).unwrap();
+        let third = remove_received_from_event(&mut event.clone())
+            .to_json()
+            .unwrap();
+        assert_eq!(&second, &third, "idempotency check failed");
+    }
 }
