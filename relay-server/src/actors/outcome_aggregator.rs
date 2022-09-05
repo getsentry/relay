@@ -12,7 +12,7 @@ use relay_config::{Config, EmitOutcomes};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, Controller, Service, ServiceMessage, Shutdown};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::service::REGISTRY;
@@ -87,11 +87,6 @@ impl OutcomeAggregator {
         relay_log::info!("outcome aggregator started");
         let (tx, mut rx) = mpsc::unbounded_channel::<OutcomeAggregatorMessages>();
 
-        if self.mode != AggregationMode::DropEverything && self.flush_interval > 0 {
-            let flush_interval = Duration::from_secs(self.flush_interval);
-            self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(flush_interval)));
-        }
-
         tokio::spawn(async move {
             let mut shutdown_rx = Controller::subscribe_v2().await;
             loop {
@@ -99,11 +94,9 @@ impl OutcomeAggregator {
                     Some(message) = rx.recv() => self.handle_message(message),
                     () = &mut self.flush_handle => self.flush(),
                     _ = shutdown_rx.changed() => {
-                        self.handle_shutdown(shutdown_rx);
-                        break;
+                        self.handle_shutdown(&shutdown_rx.borrow_and_update())
                     },
                     else => break,
-
                 }
             }
             relay_log::info!("outcome aggregator stopped");
@@ -112,11 +105,12 @@ impl OutcomeAggregator {
         Addr { tx }
     }
 
-    fn handle_shutdown(&mut self, mut shutdown_rx: watch::Receiver<Option<Shutdown>>) {
-        let message = shutdown_rx.borrow_and_update();
-        if message.is_some() && message.as_ref().unwrap().timeout.is_some() {
-            self.flush();
-            relay_log::info!("outcome aggregator stopped");
+    fn handle_shutdown(&mut self, message: &Option<Shutdown>) {
+        if let Some(message) = message {
+            if message.timeout.is_some() {
+                self.flush();
+                relay_log::info!("outcome aggregator stopped");
+            }
         }
     }
 
@@ -162,6 +156,11 @@ impl OutcomeAggregator {
         if self.flush_interval == 0 {
             // Flush immediately. This is useful for integration tests.
             self.do_flush();
+        } else if let Either::Left(_) = &self.flush_handle {
+            if self.mode != AggregationMode::DropEverything {
+                let flush_interval = Duration::from_secs(self.flush_interval);
+                self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(flush_interval)));
+            }
         }
     }
 
@@ -208,7 +207,6 @@ impl OutcomeAggregator {
     }
 
     fn flush(&mut self) {
-        // Reset the handle since we want to run the flush in intervals
         let flush_interval = Duration::from_secs(self.flush_interval);
         self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(flush_interval)));
 
