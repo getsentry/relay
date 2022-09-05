@@ -57,7 +57,7 @@ pub struct OutcomeAggregator {
 
 impl OutcomeAggregator {
     pub fn from_registry() -> Addr<Self> {
-        REGISTRY.get().unwrap().outcome_aggregator.clone() // TODO(tobias): Make sure this unwrap is not killing us
+        REGISTRY.get().unwrap().outcome_aggregator.clone()
     }
 
     pub fn new(config: &Config, outcome_producer: Addr<OutcomeProducer>) -> Self {
@@ -81,7 +81,6 @@ impl OutcomeAggregator {
         let (tx, mut rx) = mpsc::unbounded_channel::<OutcomeAggregatorMessages>();
         let tx2 = tx.clone();
         if self.mode != AggregationMode::DropEverything && self.flush_interval > 0 {
-            // Start the first flush
             let flush_interval = Duration::from_secs(self.flush_interval);
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(flush_interval); // TODO(tobias): A bit worried about: "The first tick completes immediately."
