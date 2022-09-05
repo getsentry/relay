@@ -2127,8 +2127,9 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
+    use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
-    use crate::extractors::RequestMeta;
+    use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     use super::*;
 
@@ -2318,8 +2319,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
-    queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
     fn test_client_report_removal() {
         relay_test::setup();
 
