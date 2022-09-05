@@ -30,14 +30,15 @@ use crate::types::{Annotated, Object, Value};
 pub struct Exception {
     /// Exception type, e.g. `ValueError`.
     ///
-    /// At least one of `type` or `value` is required, otherwise the exception is discarded.
-    // (note: requirement checked in checked in StoreNormalizeProcessor)
+    /// At least one of `type` or `value` is required. If neither is provided,
+    /// StoreNormalizeProcessor adds an error to the exception's metadata.
     #[metastructure(field = "type", max_chars = "symbol")]
     pub ty: Annotated<String>,
 
     /// Human readable display value.
     ///
-    /// At least one of `type` or `value` is required, otherwise the exception is discarded.
+    /// At least one of `type` or `value` is required. If neither is provided,
+    /// StoreNormalizeProcessor adds an error to the exception's metadata.
     #[metastructure(max_chars = "message", pii = "true")]
     pub value: Annotated<JsonLenientString>,
 
