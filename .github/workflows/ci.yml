@@ -290,11 +290,6 @@ jobs:
       - name: Install dependencies
         run: pip install -U -r requirements-dev.txt
 
-      - name: Run tests
-        run: pytest tests -n auto -v
-        env:
-          RELAY_VERSION_CHAIN: "20.6.0,latest"
-
   sentry-relay-integration-tests:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
