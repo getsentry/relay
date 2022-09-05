@@ -3,14 +3,16 @@
 
 use std::collections::HashMap;
 use std::net::IpAddr;
+use std::pin::Pin;
 use std::time::Duration;
 
+use futures::future::{self, Either};
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_config::{Config, EmitOutcomes};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, Controller, Service, ServiceMessage};
-use tokio::sync::{mpsc, oneshot};
+use relay_system::{Addr, Controller, Service, ServiceMessage, Shutdown};
+use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::service::REGISTRY;
@@ -53,6 +55,10 @@ pub struct OutcomeAggregator {
     buckets: HashMap<BucketKey, u32>,
     /// The recipient of the aggregated outcomes
     outcome_producer: Addr<OutcomeProducer>,
+
+    // Sleep must be `Box<Pin>` in order for it to be Unpin.
+    // See: https://docs.rs/tokio/1.21.0/tokio/time/struct.Sleep.html#examples
+    flush_handle: Either<future::Pending<()>, Pin<Box<tokio::time::Sleep>>>,
 }
 
 impl OutcomeAggregator {
@@ -73,54 +79,50 @@ impl OutcomeAggregator {
             flush_interval: config.outcome_aggregator().flush_interval,
             buckets: HashMap::new(),
             outcome_producer,
+            flush_handle: Either::Left(future::pending()),
         }
     }
 
     pub fn start(mut self) -> Addr<Self> {
         relay_log::info!("outcome aggregator started");
         let (tx, mut rx) = mpsc::unbounded_channel::<OutcomeAggregatorMessages>();
-        let tx2 = tx.clone();
+
         if self.mode != AggregationMode::DropEverything && self.flush_interval > 0 {
             let flush_interval = Duration::from_secs(self.flush_interval);
-            tokio::spawn(async move {
-                let mut interval = tokio::time::interval(flush_interval); // TODO(tobias): A bit worried about: "The first tick completes immediately."
-                loop {
-                    interval.tick().await;
-                    tx2.send(OutcomeAggregatorMessages::Flush).ok();
-                }
-            });
+            self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(flush_interval)));
         }
 
         tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                self.handle_message(message);
-            }
-
-            relay_log::info!("outcome aggregator stopped");
-        });
-
-        // Handle the shutdown signals
-        let tx3 = tx.clone();
-        tokio::spawn(async move {
             let mut shutdown_rx = Controller::subscribe_v2().await;
+            loop {
+                tokio::select! {
+                    Some(message) = rx.recv() => self.handle_message(message),
+                    () = &mut self.flush_handle => self.flush(),
+                    _ = shutdown_rx.changed() => {
+                        self.handle_shutdown(shutdown_rx);
+                        break;
+                    },
+                    else => break,
 
-            while shutdown_rx.changed().await.is_ok() {
-                let message = shutdown_rx.borrow_and_update();
-                if message.is_some() && message.as_ref().unwrap().timeout.is_some() {
-                    // Flush everything on graceful shutdown
-                    tx3.send(OutcomeAggregatorMessages::Flush).ok();
-                    relay_log::info!("outcome aggregator stopped");
                 }
             }
+            relay_log::info!("outcome aggregator stopped");
         });
 
         Addr { tx }
     }
 
+    fn handle_shutdown(&mut self, mut shutdown_rx: watch::Receiver<Option<Shutdown>>) {
+        let message = shutdown_rx.borrow_and_update();
+        if message.is_some() && message.as_ref().unwrap().timeout.is_some() {
+            self.flush();
+            relay_log::info!("outcome aggregator stopped");
+        }
+    }
+
     fn handle_message(&mut self, message: OutcomeAggregatorMessages) {
         match message {
             OutcomeAggregatorMessages::TrackOutcome(msg) => self.handle_track_outcome(msg),
-            OutcomeAggregatorMessages::Flush => self.flush(),
         }
     }
 
@@ -206,6 +208,10 @@ impl OutcomeAggregator {
     }
 
     fn flush(&mut self) {
+        // Reset the handle since we want to run the flush in intervals
+        let flush_interval = Duration::from_secs(self.flush_interval);
+        self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(flush_interval)));
+
         metric!(timer(RelayTimers::OutcomeAggregatorFlushTime), {
             self.do_flush();
         });
@@ -228,7 +234,6 @@ impl ServiceMessage<OutcomeAggregator> for TrackOutcome {
 
 pub enum OutcomeAggregatorMessages {
     TrackOutcome(TrackOutcome),
-    Flush,
 }
 
 impl Default for OutcomeAggregator {

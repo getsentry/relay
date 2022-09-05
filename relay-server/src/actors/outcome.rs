@@ -10,6 +10,7 @@ use std::convert::TryInto;
 use std::fmt;
 use std::mem;
 use std::net::IpAddr;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -18,6 +19,8 @@ use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::{Fail, ResultExt};
+use futures::future;
+use futures::future::Either;
 #[cfg(feature = "processing")]
 use rdkafka::producer::BaseRecord;
 #[cfg(feature = "processing")]
@@ -476,29 +479,30 @@ pub enum OutcomeError {
 struct HttpOutcomeProducer {
     config: Arc<Config>,
     unsent_outcomes: Vec<TrackRawOutcome>,
-    pending_flush_handle: Option<tokio::task::JoinHandle<()>>,
-    tx: mpsc::UnboundedSender<HttpOutcomeProducerMessages>,
-    rx: mpsc::UnboundedReceiver<HttpOutcomeProducerMessages>,
+    // Sleep must be `Box<Pin>` in order for it to be Unpin.
+    // See: https://docs.rs/tokio/1.21.0/tokio/time/struct.Sleep.html#examples
+    pending_flush_handle: Either<future::Pending<()>, Pin<Box<tokio::time::Sleep>>>,
 }
 
 impl HttpOutcomeProducer {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-        let (tx, rx) = mpsc::unbounded_channel::<HttpOutcomeProducerMessages>();
         Ok(Self {
             config,
             unsent_outcomes: Vec::new(),
-            pending_flush_handle: None,
-            tx,
-            rx,
+            pending_flush_handle: Either::Left(future::pending()),
         })
     }
 
     pub fn start(mut self) -> ServiceAddr<Self> {
-        let tx = self.tx.clone();
+        let (tx, mut rx) = mpsc::unbounded_channel::<HttpOutcomeProducerMessages>();
 
         tokio::spawn(async move {
-            while let Some(message) = self.rx.recv().await {
-                self.handle_message(message);
+            loop {
+                tokio::select! {
+                    Some(message) = rx.recv() => self.handle_message(message),
+                    () = &mut self.pending_flush_handle => self.send_batch(),
+                    else => break,
+                }
             }
         });
 
@@ -508,9 +512,7 @@ impl HttpOutcomeProducer {
 
 impl HttpOutcomeProducer {
     fn send_batch(&mut self) {
-        //the future should be either canceled (if we are called with a full batch)
-        // or already called (if we are called by a timeout)
-        self.pending_flush_handle = None;
+        self.pending_flush_handle = Either::Left(future::pending());
 
         if self.unsent_outcomes.is_empty() {
             relay_log::warn!("unexpected send_batch scheduled with no outcomes to send.");
@@ -541,25 +543,16 @@ impl HttpOutcomeProducer {
         self.unsent_outcomes.push(message);
 
         if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
-            if let Some(pending_flush_handle) = &self.pending_flush_handle {
-                pending_flush_handle.abort();
-            }
-
             self.send_batch();
-        } else if self.pending_flush_handle.is_none() {
+        } else if let Either::Left(_) = &self.pending_flush_handle {
             let timeout = self.config.outcome_batch_interval();
-            let tx = self.tx.clone();
-            self.pending_flush_handle = Some(tokio::spawn(async move {
-                tokio::time::sleep(timeout).await;
-                tx.send(HttpOutcomeProducerMessages::Flush).ok();
-            }));
+            self.pending_flush_handle = Either::Right(Box::pin(tokio::time::sleep(timeout)));
         }
     }
 
     fn handle_message(&mut self, message: HttpOutcomeProducerMessages) {
         match message {
             HttpOutcomeProducerMessages::TrackRawOutcome(msg) => self.send_http_message(msg),
-            HttpOutcomeProducerMessages::Flush => self.send_batch(),
         };
     }
 }
@@ -586,12 +579,14 @@ impl ServiceMessage<HttpOutcomeProducer> for TrackRawOutcome {
 #[derive(Debug)]
 enum HttpOutcomeProducerMessages {
     TrackRawOutcome(TrackRawOutcome),
-    Flush,
 }
 
 struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
+    // Sleep must be `Box<Pin>` in order for it to be Unpin.
+    // See: https://docs.rs/tokio/1.21.0/tokio/time/struct.Sleep.html#examples
+    flush_handle: Either<future::Pending<()>, Pin<Box<tokio::time::Sleep>>>,
 }
 
 impl Service for ClientReportOutcomeProducer {
@@ -601,21 +596,19 @@ impl Service for ClientReportOutcomeProducer {
 impl ClientReportOutcomeProducer {
     pub fn start(mut self) -> ServiceAddr<Self> {
         let (tx, mut rx) = mpsc::unbounded_channel::<ClientReportOutcomeProducerMessages>();
-        let flush_interval = self.flush_interval;
-        let tx2 = tx.clone();
+        if self.flush_interval > Duration::ZERO {
+            self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(self.flush_interval)));
+        }
 
         tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                self.handle_message(message);
+            loop {
+                tokio::select! {
+                    Some(message) = rx.recv() => self.handle_message(message),
+                    () = &mut self.flush_handle => self.flush(),
+                    else => break,
+                }
             }
         });
-
-        if flush_interval > Duration::ZERO {
-            tokio::spawn(async move {
-                tokio::time::sleep(flush_interval).await;
-                tx2.send(ClientReportOutcomeProducerMessages::Flush).ok()
-            });
-        }
 
         ServiceAddr { tx }
     }
@@ -625,7 +618,6 @@ impl ClientReportOutcomeProducer {
             ClientReportOutcomeProducerMessages::TrackOutcome(msg) => {
                 self.handle_track_outcome(msg);
             }
-            ClientReportOutcomeProducerMessages::Flush => self.flush(),
         }
     }
 
@@ -634,6 +626,7 @@ impl ClientReportOutcomeProducer {
             // Use same batch interval as outcome aggregator
             flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
             unsent_reports: BTreeMap::new(),
+            flush_handle: Either::Left(future::pending()),
         }
     }
 
@@ -706,7 +699,6 @@ impl ServiceMessage<ClientReportOutcomeProducer> for TrackOutcome {
 #[derive(Debug)]
 enum ClientReportOutcomeProducerMessages {
     TrackOutcome(TrackOutcome),
-    Flush,
 }
 
 /// A wrapper around producers for the two Kafka topics.
