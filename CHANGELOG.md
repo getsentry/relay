@@ -11,6 +11,7 @@
 - Do not apply rate limits or reject data based on expired project configs. ([#1404](https://github.com/getsentry/relay/pull/1404))
 - Process required stacktraces to fix filtering events originating from browser extensions. ([#1423](https://github.com/getsentry/relay/pull/1423))
 - Fix error message filtering when formatting the message of logentry. ([#1442](https://github.com/getsentry/relay/pull/1442))
+- Document that relay adds an error to the exception's metadata when neither `type` nor `value` are provided in the exception. ([#1452](https://github.com/getsentry/relay/pull/1452))
 
 **Internal**:
 
