@@ -2346,16 +2346,11 @@ mod tests {
         });
 
         let new_envelope = relay_test::with_system(move || {
-            let mut scrub_config = DataScrubbingConfig::default();
+            let mut datascrubbing_settings = DataScrubbingConfig::default();
             // enable all the default scrubbing
-            scrub_config.scrub_data = true;
-            scrub_config.scrub_defaults = true;
-            scrub_config.scrub_ip_addresses = true;
-
-            let mut config = ProjectConfig {
-                datascrubbing_settings: scrub_config,
-                ..Default::default()
-            };
+            datascrubbing_settings.scrub_data = true;
+            datascrubbing_settings.scrub_defaults = true;
+            datascrubbing_settings.scrub_ip_addresses = true;
 
             // Make sure to mask any IP-like looking data
             let pii_config = PiiConfig::from_json(
@@ -2368,7 +2363,12 @@ mod tests {
                 "##,
             )
             .unwrap();
-            config.pii_config = Some(pii_config);
+
+            let config = ProjectConfig {
+                datascrubbing_settings,
+                pii_config: Some(pii_config),
+                ..Default::default()
+            };
 
             let mut project_state = ProjectState::allowed();
             project_state.config = config;
