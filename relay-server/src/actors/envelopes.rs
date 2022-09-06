@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::fmt;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -66,6 +65,7 @@ pub struct SendEnvelope {
     pub http_encoding: HttpEncoding,
     pub response_sender: Option<oneshot::Sender<Result<(), SendEnvelopeError>>>,
     pub project_key: ProjectKey,
+    partition_key: Option<String>,
 }
 
 impl UpstreamRequest for SendEnvelope {
@@ -86,6 +86,10 @@ impl UpstreamRequest for SendEnvelope {
             .header("X-Sentry-Auth", meta.auth_header())
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE);
+
+        if let Some(partition_key) = &self.partition_key {
+            builder.header("X-Sentry-Relay-Shard", partition_key);
+        }
 
         let envelope_body = self.envelope_body.clone();
         metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
@@ -184,6 +188,7 @@ impl EnvelopeManager {
     fn submit_envelope(
         &mut self,
         project_key: ProjectKey,
+        partition_key: Option<String>,
         mut envelope: Envelope,
         scoping: Scoping,
         #[allow(unused_variables)] start_time: Instant,
@@ -240,6 +245,7 @@ impl EnvelopeManager {
             http_encoding: self.config.http_encoding(),
             response_sender: Some(tx),
             project_key,
+            partition_key,
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
@@ -307,7 +313,7 @@ impl Handler<SubmitEnvelope> for EnvelopeManager {
         let start_time = envelope.meta().start_time();
         let project_key = envelope.meta().public_key();
 
-        self.submit_envelope(project_key, envelope, scoping, start_time, context)
+        self.submit_envelope(project_key, None, envelope, scoping, start_time, context)
             .then(move |result| match result {
                 Ok(_) => {
                     envelope_context.accept();
@@ -338,6 +344,7 @@ impl Handler<SubmitEnvelope> for EnvelopeManager {
 ///
 /// Responds with `Err` if there was an error sending some or all of the buckets, containing the
 /// failed buckets.
+#[derive(Debug)]
 pub struct SendMetrics {
     /// The pre-aggregated metric buckets.
     pub buckets: Vec<Bucket>,
@@ -345,16 +352,8 @@ pub struct SendMetrics {
     pub scoping: Scoping,
     /// The project of the metrics.
     pub project_key: ProjectKey,
-}
-
-impl fmt::Debug for SendMetrics {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct(std::any::type_name::<Self>())
-            .field("buckets", &self.buckets)
-            .field("scoping", &self.scoping)
-            .field("project", &format_args!("Addr<Project>"))
-            .finish()
-    }
+    /// The key of the logical partition to send the metrics to.
+    pub partition_key: Option<u64>,
 }
 
 impl Message for SendMetrics {
@@ -369,6 +368,7 @@ impl Handler<SendMetrics> for EnvelopeManager {
             buckets,
             scoping,
             project_key,
+            partition_key,
         } = message;
 
         let upstream = self.config.upstream_descriptor();
@@ -387,7 +387,14 @@ impl Handler<SendMetrics> for EnvelopeManager {
         envelope.add_item(item);
 
         let future = self
-            .submit_envelope(project_key, envelope, scoping, Instant::now(), context)
+            .submit_envelope(
+                project_key,
+                partition_key.map(|x| x.to_string()),
+                envelope,
+                scoping,
+                Instant::now(),
+                context,
+            )
             .map_err(|_| buckets);
 
         Box::new(future)
@@ -433,7 +440,14 @@ impl Handler<SendClientReports> for EnvelopeManager {
         }
 
         let future = self
-            .submit_envelope(scoping.project_key, envelope, scoping, Instant::now(), ctx)
+            .submit_envelope(
+                scoping.project_key,
+                None,
+                envelope,
+                scoping,
+                Instant::now(),
+                ctx,
+            )
             .map_err(|e| {
                 relay_log::trace!("Failed to send envelope for client report: {:?}", e);
             });

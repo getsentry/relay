@@ -1,0 +1,76 @@
+{
+    "type": "replay_event",
+    "replay_start_timestamp": 1661961775.54,
+    "error_ids": [],
+    "trace_ids": [],
+    "urls": [],
+    "replay_id": "74c71922ae80410f9ad4563fa051c177",
+    "segment_id": 6,
+    "platform": "javascript",
+    "event_id": "d88bf2440b7f40f2854165bcb81db8f3",
+    "timestamp": 1661961780.614,
+    "environment": "prod",
+    "release": "frontend@76d8e21fb89c322a41bc3fd23972fab429b25dee",
+    "sdk": {
+        "integrations": [
+            "InboundFilters",
+            "FunctionToString",
+            "TryCatch",
+            "Breadcrumbs",
+            "GlobalHandlers",
+            "LinkedErrors",
+            "Dedupe",
+            "HttpContext",
+            "ExtraErrorData",
+            "BrowserTracing"
+        ],
+        "name": "sentry.javascript.react",
+        "version": "7.11.0",
+        "packages": [
+            {
+                "name": "npm:@sentry/react",
+                "version": "7.11.0"
+            }
+        ]
+    },
+    "tags": {
+        "transaction": "/organizations/:orgId/replays/",
+        "sentry_version": "22.9.0.dev0",
+        "organization": "1",
+        "organization.slug": "sentry",
+        "plan": "am1_business_ent_auf",
+        "plan.name": "Business",
+        "plan.max_members": "null",
+        "plan.total_members": "315",
+        "plan.tier": "am1",
+        "timeOrigin.mode": "timeOrigin"
+    },
+    "user": {
+        "ip_address": "127.1.1.1",
+        "email": "email@sentry.io",
+        "id": 1,
+        "isStaff": false,
+        "name": "First Last"
+    },
+    "contexts": {
+        "trace": {
+            "op": "pageload",
+            "span_id": "96656b785d9f493e",
+            "tags": {
+                "routing.instrumentation": "react-router-v3",
+                "ui.longTaskCount.grouped": "<=1"
+            },
+            "trace_id": "6af20ea8eb1741659686599dc75cc0e1"
+        },
+        "organization": {
+            "id": "1",
+            "slug": "sentry"
+        }
+    },
+    "request": {
+        "url": "https://sentry.io/organizations/sentry/replays/",
+        "headers": {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"
+        }
+    }
+}

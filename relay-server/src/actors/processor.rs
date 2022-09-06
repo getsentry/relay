@@ -885,8 +885,29 @@ impl EnvelopeProcessor {
     /// Remove replays if the feature flag is not enabled
     fn process_replays(&self, state: &mut ProcessEnvelopeState) {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
+        let envelope = &mut state.envelope;
+        let client_addr = envelope.meta().client_addr();
+
         state.envelope.retain_items(|item| match item.ty() {
-            ItemType::ReplayEvent | ItemType::ReplayRecording => replays_enabled,
+            ItemType::ReplayEvent => {
+                if !replays_enabled {
+                    return false;
+                }
+
+                let parsed_replay =
+                    relay_replays::normalize_replay_event(&item.payload(), client_addr);
+                match parsed_replay {
+                    Ok(replay) => {
+                        item.set_payload(ContentType::Json, &replay[..]);
+                        true
+                    }
+                    Err(_) => {
+                        relay_log::debug!("Replay item could not be parsed.");
+                        false
+                    }
+                }
+            }
+            ItemType::ReplayRecording => replays_enabled,
             _ => true,
         });
     }
@@ -2106,8 +2127,9 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
 #[cfg(test)]
 mod tests {
     use chrono::{DateTime, TimeZone, Utc};
+    use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 
-    use crate::extractors::RequestMeta;
+    use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
     use super::*;
 
@@ -2292,6 +2314,96 @@ mod tests {
 
         assert_eq!(new_envelope.len(), 1);
         assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
+    }
+
+    #[test]
+    fn test_browser_version_extraction_with_pii_like_data() {
+        let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
+        let event_id = protocol::EventId::new();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Event);
+            item.set_payload(
+                ContentType::Json,
+                r###"
+                    {
+                        "request": {
+                            "headers": [
+                                ["User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"]
+                            ]
+                        }
+                    }
+                "###,
+            );
+            item
+        });
+
+        let new_envelope = relay_test::with_system(move || {
+            let mut datascrubbing_settings = DataScrubbingConfig::default();
+            // enable all the default scrubbing
+            datascrubbing_settings.scrub_data = true;
+            datascrubbing_settings.scrub_defaults = true;
+            datascrubbing_settings.scrub_ip_addresses = true;
+
+            // Make sure to mask any IP-like looking data
+            let pii_config = PiiConfig::from_json(
+                r##"
+                {
+                    "applications": {
+                        "**": ["@ip:mask"]
+                    }
+                }
+                "##,
+            )
+            .unwrap();
+
+            let config = ProjectConfig {
+                datascrubbing_settings,
+                pii_config: Some(pii_config),
+                ..Default::default()
+            };
+
+            let mut project_state = ProjectState::allowed();
+            project_state.config = config;
+            let envelope_response = processor
+                .process(ProcessEnvelope {
+                    envelope_context: EnvelopeContext::standalone(&envelope),
+                    envelope,
+                    project_state: Arc::new(project_state),
+                    sampling_project_state: None,
+                })
+                .unwrap();
+            envelope_response.envelope.unwrap().0
+        });
+
+        let event_item = new_envelope.items().last().unwrap();
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&event_item.payload()).unwrap();
+        let event = annotated_event.into_value().unwrap();
+        let headers = event
+            .request
+            .into_value()
+            .unwrap()
+            .headers
+            .into_value()
+            .unwrap();
+
+        // IP-like data must be masked
+        assert_eq!(Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"), headers.get_header("User-Agent"));
+        // But we still get correct browser and version number
+        let contexts = event.contexts.into_value().unwrap();
+        let browser = contexts.get("browser").unwrap();
+        assert_eq!(
+            r#"{"name":"Chrome","version":"103.0.0","type":"browser"}"#,
+            browser.to_json().unwrap()
+        );
     }
 
     #[test]

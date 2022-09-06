@@ -10,6 +10,7 @@
 
 - Do not apply rate limits or reject data based on expired project configs. ([#1404](https://github.com/getsentry/relay/pull/1404))
 - Process required stacktraces to fix filtering events originating from browser extensions. ([#1423](https://github.com/getsentry/relay/pull/1423))
+- Fix error message filtering when formatting the message of logentry. ([#1442](https://github.com/getsentry/relay/pull/1442))
 
 **Internal**:
 
@@ -17,6 +18,14 @@
 - Defer dropping of projects to a background thread to speed up project cache eviction. ([#1410](https://github.com/getsentry/relay/pull/1410))
 - Update store service to use generic Addr and minor changes to generic Addr. ([#1415](https://github.com/getsentry/relay/pull/1415))
 - Added new Register for the Services that is initialized later than the current. ([#1421](https://github.com/getsentry/relay/pull/1421))
+- Batch metrics buckets into logical partitions before sending them as envelopes. ([#1440](https://github.com/getsentry/relay/pull/1440))
+- Filter single samples in cocoa profiles and events with no duration in Android profiles. ([#1445](https://github.com/getsentry/relay/pull/1445))
+- Add looser type requirements for the user.id field. ([#1443](https://github.com/getsentry/relay/pull/1443))
+
+**Features**:
+
+- Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
+- Add user-agent parsing to replays processor. ([#1420](https://github.com/getsentry/relay/pull/1420))
 - Improve the release name used when reporting data to Sentry to include both the version and exact build. ([#1428](https://github.com/getsentry/relay/pull/1428))
 
 ## 22.8.0
