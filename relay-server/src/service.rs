@@ -141,18 +141,14 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
-        let runtime = utils::tokio_runtime_with_actix();
-
-        // Enter the tokio runtime so we can start spawning tasks from the outside.
-        let _guard = runtime.enter();
-
         let upstream_relay = UpstreamRelay::new(config.clone());
         registry.set(Arbiter::start(|_| upstream_relay));
 
-        // TODO(tobias): Check if this is good enough or if we want this to have its own tokio runtime?
+        let outcome_runtime = utils::tokio_runtime_with_actix();
+        let guard = outcome_runtime.enter();
         let outcome_producer = OutcomeProducer::create(config.clone())?.start();
-
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
+        drop(guard);
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
@@ -160,6 +156,10 @@ impl ServiceState {
             }
             _ => None,
         };
+
+        // Enter and enter the tokio runtime so we can start spawning tasks from the outside.
+        let main_runtime = utils::tokio_runtime_with_actix();
+        let _guard = main_runtime.enter();
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
@@ -194,7 +194,7 @@ impl ServiceState {
         Ok(ServiceState {
             buffer_guard: buffer,
             config,
-            _runtime: Arc::new(runtime),
+            _runtime: Arc::new(main_runtime),
         })
     }
 
