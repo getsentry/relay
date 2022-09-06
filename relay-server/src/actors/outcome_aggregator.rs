@@ -3,10 +3,8 @@
 
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::pin::Pin;
 use std::time::Duration;
 
-use futures::future::{self, Either};
 use tokio::sync::{mpsc, oneshot};
 
 use relay_common::{DataCategory, UnixTimestamp};
@@ -18,6 +16,7 @@ use relay_system::{Addr, Controller, Service, ServiceMessage, Shutdown};
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::service::REGISTRY;
 use crate::statsd::RelayTimers;
+use crate::utils::SleepHandle;
 
 /// Contains everything to construct a `TrackOutcome`, except quantity
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -57,9 +56,7 @@ pub struct OutcomeAggregator {
     /// The recipient of the aggregated outcomes
     outcome_producer: Addr<OutcomeProducer>,
     /// An optional timeout to the next scheduled flush.
-    // Sleep must be `Box<Pin>` in order for it to be Unpin.
-    // See: https://docs.rs/tokio/1.21.0/tokio/time/struct.Sleep.html#examples
-    flush_handle: Either<future::Pending<()>, Pin<Box<tokio::time::Sleep>>>,
+    flush_handle: SleepHandle,
 }
 
 impl OutcomeAggregator {
@@ -80,7 +77,7 @@ impl OutcomeAggregator {
             flush_interval: config.outcome_aggregator().flush_interval,
             buckets: HashMap::new(),
             outcome_producer,
-            flush_handle: Either::Left(future::pending()),
+            flush_handle: SleepHandle::idle(),
         }
     }
 
@@ -157,14 +154,14 @@ impl OutcomeAggregator {
         if self.flush_interval == 0 {
             // Flush immediately. This is useful for integration tests.
             self.do_flush();
-        } else if let Either::Left(_) = &self.flush_handle {
-            let flush_interval = Duration::from_secs(self.flush_interval);
-            self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(flush_interval)));
+        } else if self.flush_handle.is_idle() {
+            self.flush_handle
+                .set(Duration::from_secs(self.flush_interval));
         }
     }
 
     fn do_flush(&mut self) {
-        self.flush_handle = Either::Left(future::pending());
+        self.flush_handle.reset();
 
         let bucket_interval = self.bucket_interval;
         let outcome_producer = self.outcome_producer.clone();

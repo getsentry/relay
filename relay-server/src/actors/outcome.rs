@@ -10,7 +10,6 @@ use std::convert::TryInto;
 use std::fmt;
 use std::mem;
 use std::net::IpAddr;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -19,7 +18,7 @@ use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::{Fail, ResultExt};
-use futures::future::{self, Either};
+
 #[cfg(feature = "processing")]
 use rdkafka::producer::BaseRecord;
 #[cfg(feature = "processing")]
@@ -45,6 +44,7 @@ use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::service::ServerErrorKind;
 use crate::service::REGISTRY;
 use crate::statsd::RelayCounters;
+use crate::utils::SleepHandle;
 #[cfg(feature = "processing")]
 use crate::utils::{CaptureErrorContext, ThreadedProducer};
 use crate::ServerError;
@@ -478,9 +478,7 @@ pub enum OutcomeError {
 struct HttpOutcomeProducer {
     config: Arc<Config>,
     unsent_outcomes: Vec<TrackRawOutcome>,
-    // Sleep must be `Box<Pin>` in order for it to be Unpin.
-    // See: https://docs.rs/tokio/1.21.0/tokio/time/struct.Sleep.html#examples
-    pending_flush_handle: Either<future::Pending<()>, Pin<Box<tokio::time::Sleep>>>,
+    pending_flush_handle: SleepHandle,
 }
 
 impl HttpOutcomeProducer {
@@ -488,7 +486,7 @@ impl HttpOutcomeProducer {
         Ok(Self {
             config,
             unsent_outcomes: Vec::new(),
-            pending_flush_handle: Either::Left(future::pending()),
+            pending_flush_handle: SleepHandle::idle(),
         })
     }
 
@@ -511,7 +509,7 @@ impl HttpOutcomeProducer {
 
 impl HttpOutcomeProducer {
     fn send_batch(&mut self) {
-        self.pending_flush_handle = Either::Left(future::pending());
+        self.pending_flush_handle.reset();
 
         if self.unsent_outcomes.is_empty() {
             relay_log::warn!("unexpected send_batch scheduled with no outcomes to send.");
@@ -543,9 +541,9 @@ impl HttpOutcomeProducer {
 
         if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
             self.send_batch();
-        } else if let Either::Left(_) = &self.pending_flush_handle {
-            let timeout = self.config.outcome_batch_interval();
-            self.pending_flush_handle = Either::Right(Box::pin(tokio::time::sleep(timeout)));
+        } else if self.pending_flush_handle.is_idle() {
+            self.pending_flush_handle
+                .set(self.config.outcome_batch_interval());
         }
     }
 
@@ -583,9 +581,7 @@ enum HttpOutcomeProducerMessages {
 struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
-    // Sleep must be `Box<Pin>` in order for it to be Unpin.
-    // See: https://docs.rs/tokio/1.21.0/tokio/time/struct.Sleep.html#examples
-    flush_handle: Either<future::Pending<()>, Pin<Box<tokio::time::Sleep>>>,
+    flush_handle: SleepHandle,
 }
 
 impl Service for ClientReportOutcomeProducer {
@@ -622,13 +618,13 @@ impl ClientReportOutcomeProducer {
             // Use same batch interval as outcome aggregator
             flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
             unsent_reports: BTreeMap::new(),
-            flush_handle: Either::Left(future::pending()),
+            flush_handle: SleepHandle::idle(),
         }
     }
 
     fn flush(&mut self) {
         relay_log::trace!("Flushing client reports");
-        self.flush_handle = Either::Left(future::pending());
+        self.flush_handle.reset();
 
         let unsent_reports = mem::take(&mut self.unsent_reports);
         let envelope_manager = EnvelopeManager::from_registry();
@@ -675,8 +671,8 @@ impl ClientReportOutcomeProducer {
         if self.flush_interval == Duration::ZERO {
             // Flush immediately. Useful for integration tests.
             self.flush();
-        } else if let Either::Left(_) = &self.flush_handle {
-            self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(self.flush_interval)));
+        } else if self.flush_handle.is_idle() {
+            self.flush_handle.set(self.flush_interval);
         }
     }
 }
