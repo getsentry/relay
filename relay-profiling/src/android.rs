@@ -203,7 +203,7 @@ fn parse_android_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError>
     }
 
     for transaction in &profile.transactions {
-        if !transaction.clone().valid() {
+        if !transaction.valid() {
             return Err(ProfileError::InvalidTransactionMetadata);
         }
     }

@@ -215,7 +215,7 @@ fn parse_cocoa_profile(payload: &[u8]) -> Result<CocoaProfile, ProfileError> {
     }
 
     for transaction in profile.transactions.iter() {
-        if !transaction.clone().valid() {
+        if !transaction.valid() {
             return Err(ProfileError::InvalidTransactionMetadata);
         }
     }

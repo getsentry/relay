@@ -18,7 +18,7 @@ pub struct TransactionMetadata {
 }
 
 impl TransactionMetadata {
-    pub fn valid(self) -> bool {
+    pub fn valid(&self) -> bool {
         !self.id.is_nil()
             && !self.trace_id.is_nil()
             && !self.name.is_empty()
