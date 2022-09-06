@@ -13,7 +13,7 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use actix::prelude::{Message, SystemService};
+use actix::prelude::SystemService;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
@@ -92,7 +92,7 @@ impl OutcomeId {
     const CLIENT_DISCARD: OutcomeId = OutcomeId(5);
 }
 
-trait TrackOutcomeLike: Message {
+trait TrackOutcomeLike {
     fn reason(&self) -> Option<Cow<str>>;
     fn outcome_id(&self) -> OutcomeId;
 
@@ -138,10 +138,6 @@ impl TrackOutcomeLike for TrackOutcome {
     fn outcome_id(&self) -> OutcomeId {
         self.outcome.to_outcome_id()
     }
-}
-
-impl Message for TrackOutcome {
-    type Result = Result<(), OutcomeError>;
 }
 
 /// Defines the possible outcomes from processing an event.
@@ -458,10 +454,6 @@ impl TrackOutcomeLike for TrackRawOutcome {
     fn outcome_id(&self) -> OutcomeId {
         self.outcome
     }
-}
-
-impl Message for TrackRawOutcome {
-    type Result = Result<(), OutcomeError>;
 }
 
 #[derive(Debug)]

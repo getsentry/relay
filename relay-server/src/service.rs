@@ -132,7 +132,8 @@ impl fmt::Debug for Registry {
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
-    _runtime: Arc<tokio::runtime::Runtime>,
+    _outcome_runtime: Arc<tokio::runtime::Runtime>,
+    _main_runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl ServiceState {
@@ -194,7 +195,8 @@ impl ServiceState {
         Ok(ServiceState {
             buffer_guard: buffer,
             config,
-            _runtime: Arc::new(main_runtime),
+            _outcome_runtime: Arc::new(outcome_runtime),
+            _main_runtime: Arc::new(main_runtime),
         })
     }
 
