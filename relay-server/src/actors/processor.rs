@@ -905,7 +905,7 @@ impl EnvelopeProcessor {
                     }
                     Err(_) => {
                         context.track_outcome(
-                            Outcome::Invalid(DiscardReason::InvalidReplay),
+                            Outcome::Invalid(DiscardReason::InvalidReplayEvent),
                             DataCategory::Replay,
                             1,
                         );

@@ -328,7 +328,7 @@ pub enum DiscardReason {
     InvalidProfile,
 
     // (Relay) We failed to parse the replay so we discard it.
-    InvalidReplay,
+    InvalidReplayEvent,
 }
 
 impl DiscardReason {
@@ -366,7 +366,7 @@ impl DiscardReason {
             DiscardReason::TransactionSampled => "transaction_sampled",
             DiscardReason::EmptyEnvelope => "empty_envelope",
             DiscardReason::InvalidProfile => "invalid_profile",
-            DiscardReason::InvalidReplay => "invalid_replay",
+            DiscardReason::InvalidReplayEvent => "invalid_replay",
         }
     }
 }
