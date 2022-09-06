@@ -21,6 +21,7 @@
 - Batch metrics buckets into logical partitions before sending them as envelopes. ([#1440](https://github.com/getsentry/relay/pull/1440))
 - Filter single samples in cocoa profiles and events with no duration in Android profiles. ([#1445](https://github.com/getsentry/relay/pull/1445))
 - Add looser type requirements for the user.id field. ([#1443](https://github.com/getsentry/relay/pull/1443))
+- Support profiles tagged for many transactions. ([#1444](https://github.com/getsentry/relay/pull/1444))
 
 **Features**:
 
