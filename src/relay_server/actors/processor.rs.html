@@ -2658,6 +2658,7 @@
 <span id="2650">2650</span>
 <span id="2651">2651</span>
 <span id="2652">2652</span>
+<span id="2653">2653</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -3512,6 +3513,7 @@
     <span class="kw">fn</span> <span class="ident">process_profiles</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) {
         <span class="kw">let</span> <span class="ident">profiling_enabled</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">has_feature</span>(<span class="ident">Feature::Profiling</span>);
         <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">envelope_context</span>;
+
         <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">retain_items</span>(<span class="op">|</span><span class="ident">item</span><span class="op">|</span> {
             <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">ty</span>() {
                 <span class="ident">ItemType::Profile</span> =&gt; {
