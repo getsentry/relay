@@ -16,7 +16,7 @@ use serde::{ser::Error, Serialize};
 use tokio::sync::{mpsc, oneshot};
 
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
-use relay_config::{Config, KafkaTopic};
+use relay_config::{Config, KafkaConfig, KafkaTopic};
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
@@ -146,9 +146,17 @@ fn make_producer<'a>(
     reused_producers: &mut ReusedProducersMap<'a>,
     kafka_topic: KafkaTopic,
 ) -> Result<Producer, ServerError> {
-    let (config_name, kafka_config) = config
+    let (config_name, kafka_config) = if let KafkaConfig::Single {
+        config_name,
+        params,
+    } = config
         .kafka_config(kafka_topic)
-        .context(ServerErrorKind::KafkaError)?;
+        .context(ServerErrorKind::KafkaError)?
+    {
+        (config_name, params)
+    } else {
+        todo!()
+    };
 
     if let Some(producer) = reused_producers.get(&config_name) {
         return Ok(Arc::clone(producer));
@@ -348,7 +356,8 @@ impl StoreForwarder {
         );
         let key = message.key();
 
-        let record = BaseRecord::to(self.config.kafka_topic_name(topic))
+        // XXX: Hash the org id and get the shard number
+        let record = BaseRecord::to(self.config.kafka_topic_name(topic, 0))
             .key(&key)
             .payload(&serialized);
 

@@ -23,6 +23,7 @@ use futures01::future::Future;
 use rdkafka::producer::BaseRecord;
 #[cfg(feature = "processing")]
 use rdkafka::ClientConfig as KafkaClientConfig;
+use relay_config::KafkaConfig;
 use serde::{Deserialize, Serialize};
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
@@ -651,13 +652,29 @@ impl KafkaOutcomesProducer {
     /// If the given Kafka configuration parameters are invalid, or an error happens during
     /// connecting during the broker, an error is returned.
     pub fn create(config: &Config) -> Result<Self, ServerError> {
-        let (default_name, default_config) = config
+        let (default_name, default_config) = if let KafkaConfig::Single {
+            config_name,
+            params,
+        } = config
             .kafka_config(KafkaTopic::Outcomes)
-            .context(ServerErrorKind::KafkaError)?;
+            .context(ServerErrorKind::KafkaError)?
+        {
+            (config_name, params)
+        } else {
+            todo!()
+        };
 
-        let (billing_name, billing_config) = config
+        let (billing_name, billing_config) = if let KafkaConfig::Single {
+            config_name,
+            params,
+        } = config
             .kafka_config(KafkaTopic::Outcomes)
-            .context(ServerErrorKind::KafkaError)?;
+            .context(ServerErrorKind::KafkaError)?
+        {
+            (config_name, params)
+        } else {
+            todo!()
+        };
 
         let default = Self::create_producer(default_config)?;
         let billing = if billing_name != default_name {
@@ -768,7 +785,8 @@ impl OutcomeProducer {
             (KafkaTopic::Outcomes, producer.default())
         };
 
-        let record = BaseRecord::to(self.config.kafka_topic_name(topic))
+        // XXX: shard the org and get the appropiet topic from the config
+        let record = BaseRecord::to(self.config.kafka_topic_name(topic, 0))
             .payload(&payload)
             .key(key.as_bytes().as_ref());
 
