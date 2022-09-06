@@ -14,13 +14,12 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use actix::prelude::*;
+use actix::prelude::{Message, SystemService};
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::{Fail, ResultExt};
-use futures::future;
-use futures::future::Either;
+use futures::future::{self, Either};
 #[cfg(feature = "processing")]
 use rdkafka::producer::BaseRecord;
 #[cfg(feature = "processing")]
@@ -38,7 +37,7 @@ use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 use relay_statsd::metric;
-use relay_system::{compat, Addr as ServiceAddr, Service, ServiceMessage};
+use relay_system::{compat, Addr, Service, ServiceMessage};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
@@ -493,7 +492,7 @@ impl HttpOutcomeProducer {
         })
     }
 
-    pub fn start(mut self) -> ServiceAddr<Self> {
+    pub fn start(mut self) -> Addr<Self> {
         let (tx, mut rx) = mpsc::unbounded_channel::<HttpOutcomeProducerMessages>();
 
         tokio::spawn(async move {
@@ -506,7 +505,7 @@ impl HttpOutcomeProducer {
             }
         });
 
-        ServiceAddr { tx }
+        Addr { tx }
     }
 }
 
@@ -594,11 +593,8 @@ impl Service for ClientReportOutcomeProducer {
 }
 
 impl ClientReportOutcomeProducer {
-    pub fn start(mut self) -> ServiceAddr<Self> {
+    pub fn start(mut self) -> Addr<Self> {
         let (tx, mut rx) = mpsc::unbounded_channel::<ClientReportOutcomeProducerMessages>();
-        if self.flush_interval > Duration::ZERO {
-            self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(self.flush_interval)));
-        }
 
         tokio::spawn(async move {
             loop {
@@ -610,7 +606,7 @@ impl ClientReportOutcomeProducer {
             }
         });
 
-        ServiceAddr { tx }
+        Addr { tx }
     }
 
     fn handle_message(&mut self, message: ClientReportOutcomeProducerMessages) {
@@ -632,6 +628,8 @@ impl ClientReportOutcomeProducer {
 
     fn flush(&mut self) {
         relay_log::trace!("Flushing client reports");
+        self.flush_handle = Either::Left(future::pending());
+
         let unsent_reports = mem::take(&mut self.unsent_reports);
         let envelope_manager = EnvelopeManager::from_registry();
         for (scoping, client_reports) in unsent_reports.into_iter() {
@@ -677,6 +675,8 @@ impl ClientReportOutcomeProducer {
         if self.flush_interval == Duration::ZERO {
             // Flush immediately. Useful for integration tests.
             self.flush();
+        } else if let Either::Left(_) = &self.flush_handle {
+            self.flush_handle = Either::Right(Box::pin(tokio::time::sleep(self.flush_interval)));
         }
     }
 }
@@ -769,8 +769,8 @@ impl KafkaOutcomesProducer {
 }
 
 enum ProducerInner {
-    AsClientReports(ServiceAddr<ClientReportOutcomeProducer>),
-    AsHttpOutcomes(ServiceAddr<HttpOutcomeProducer>),
+    AsClientReports(Addr<ClientReportOutcomeProducer>),
+    AsHttpOutcomes(Addr<HttpOutcomeProducer>),
     #[cfg(feature = "processing")]
     AsKafkaOutcomes(KafkaOutcomesProducer),
     Disabled,
@@ -782,8 +782,8 @@ pub struct OutcomeProducer {
 }
 
 impl OutcomeProducer {
-    pub fn from_registry() -> ServiceAddr<Self> {
-        REGISTRY.get().unwrap().outcome_producer.clone() // TODO(tobias): Make sure this unwrap is not killing us
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().outcome_producer.clone()
     }
 
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
@@ -821,7 +821,7 @@ impl OutcomeProducer {
         Ok(Self { config, producer })
     }
 
-    pub fn start(mut self) -> ServiceAddr<Self> {
+    pub fn start(mut self) -> Addr<Self> {
         relay_log::info!("OutcomeProducer started.");
         let (tx, mut rx) = mpsc::unbounded_channel::<OutcomeProducerMessages>();
 
@@ -831,7 +831,7 @@ impl OutcomeProducer {
             }
         });
 
-        ServiceAddr { tx }
+        Addr { tx }
     }
 
     fn handle_message(&mut self, message: OutcomeProducerMessages) {
@@ -955,10 +955,4 @@ impl ServiceMessage<OutcomeProducer> for TrackRawOutcome {
 pub enum OutcomeProducerMessages {
     TrackOutcome(TrackOutcome, oneshot::Sender<Result<(), OutcomeError>>),
     TrackRawOutcome(TrackRawOutcome, oneshot::Sender<Result<(), OutcomeError>>),
-}
-
-impl Default for OutcomeProducer {
-    fn default() -> Self {
-        unimplemented!("register with the SystemRegistry instead")
-    }
 }

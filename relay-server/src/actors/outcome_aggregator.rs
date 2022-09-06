@@ -7,12 +7,13 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use futures::future::{self, Either};
+use tokio::sync::{mpsc, oneshot};
+
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_config::{Config, EmitOutcomes};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, Controller, Service, ServiceMessage, Shutdown};
-use tokio::sync::{mpsc, oneshot};
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::service::REGISTRY;
@@ -55,7 +56,7 @@ pub struct OutcomeAggregator {
     buckets: HashMap<BucketKey, u32>,
     /// The recipient of the aggregated outcomes
     outcome_producer: Addr<OutcomeProducer>,
-
+    /// An optional timeout to the next scheduled flush.
     // Sleep must be `Box<Pin>` in order for it to be Unpin.
     // See: https://docs.rs/tokio/1.21.0/tokio/time/struct.Sleep.html#examples
     flush_handle: Either<future::Pending<()>, Pin<Box<tokio::time::Sleep>>>,
@@ -163,6 +164,8 @@ impl OutcomeAggregator {
     }
 
     fn do_flush(&mut self) {
+        self.flush_handle = Either::Left(future::pending());
+
         let bucket_interval = self.bucket_interval;
         let outcome_producer = self.outcome_producer.clone();
 
@@ -205,8 +208,6 @@ impl OutcomeAggregator {
     }
 
     fn flush(&mut self) {
-        self.flush_handle = Either::Left(future::pending());
-
         metric!(timer(RelayTimers::OutcomeAggregatorFlushTime), {
             self.do_flush();
         });
@@ -227,12 +228,7 @@ impl ServiceMessage<OutcomeAggregator> for TrackOutcome {
     }
 }
 
+#[derive(Debug)]
 pub enum OutcomeAggregatorMessages {
     TrackOutcome(TrackOutcome),
-}
-
-impl Default for OutcomeAggregator {
-    fn default() -> Self {
-        unimplemented!("register with the SystemRegistry instead")
-    }
 }
