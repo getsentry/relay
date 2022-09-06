@@ -852,6 +852,7 @@ impl EnvelopeProcessor {
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         let context = &state.envelope_context;
+
         state.envelope.retain_items(|item| {
             match item.ty() {
                 ItemType::Profile => {
