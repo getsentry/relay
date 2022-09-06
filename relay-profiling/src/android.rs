@@ -89,8 +89,8 @@ impl AndroidProfile {
         Ok(())
     }
 
-    fn set_transaction(&mut self, transaction: TransactionMetadata) {
-        self.transaction_name = transaction.name;
+    fn set_transaction(&mut self, transaction: &TransactionMetadata) {
+        self.transaction_name = transaction.name.clone();
         self.transaction_id = transaction.id;
         self.trace_id = transaction.trace_id;
         self.duration_ns = transaction.relative_end_ns - transaction.relative_start_ns;
@@ -139,7 +139,7 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
     for transaction in &profile.transactions {
         let mut new_profile = profile.clone();
 
-        new_profile.set_transaction(transaction.clone());
+        new_profile.set_transaction(transaction);
         new_profile.transactions.clear();
 
         let android_profile = new_profile.profile.clone();
