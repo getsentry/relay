@@ -324,6 +324,9 @@ pub enum DiscardReason {
     /// (Relay) The profile is parseable but semantically invalid. This could happen if
     /// profiles lack sufficient samples.
     InvalidProfile,
+
+    // (Relay) We failed to parse the replay so we discard it.
+    InvalidReplayEvent,
 }
 
 impl DiscardReason {
@@ -361,6 +364,7 @@ impl DiscardReason {
             DiscardReason::TransactionSampled => "transaction_sampled",
             DiscardReason::EmptyEnvelope => "empty_envelope",
             DiscardReason::InvalidProfile => "invalid_profile",
+            DiscardReason::InvalidReplayEvent => "invalid_replay",
         }
     }
 }
