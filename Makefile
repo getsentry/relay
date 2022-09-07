@@ -38,8 +38,8 @@ wheel: setup-git setup-venv ## build a wheel of the Python library
 	cd py && ../.venv/bin/python setup.py bdist_wheel
 .PHONY: wheel
 
-wheel-manylinux: setup-git ## build manylinux 2014 compatible wheels, you must to have a pre-built image from py/Dockerfile
-	@scripts/docker-build-lib-linux.sh
+wheel-manylinux: setup-git ## build manylinux 2014 compatible wheels. This will build docker image for the requested architecture and cross compile the code inside
+	@scripts/docker-manylinux.sh
 .PHONY: wheel-manylinux
 
 # Tests
