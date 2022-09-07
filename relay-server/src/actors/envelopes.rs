@@ -29,9 +29,9 @@ use crate::utils::{EnvelopeContext, FutureExt as _};
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
+    crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder, StoreMessages},
     futures::{FutureExt, TryFutureExt},
-    relay_system::Addr as ServiceAddr,
+    relay_system::{Addr as ServiceAddr, Service},
     tokio::runtime::Runtime,
 };
 
@@ -152,7 +152,7 @@ pub struct EnvelopeManager {
     config: Arc<Config>,
     captures: BTreeMap<EventId, CapturedEnvelope>,
     #[cfg(feature = "processing")]
-    store_forwarder: Option<ServiceAddr<StoreForwarder>>,
+    store_forwarder: Option<ServiceAddr<StoreMessages>>,
     #[cfg(feature = "processing")]
     _runtime: Runtime,
 }

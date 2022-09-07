@@ -12,12 +12,12 @@ use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
-use relay_system::Addr;
+use relay_system::{Addr, Service};
 use relay_system::{Configure, Controller};
 
 use crate::actors::envelopes::EnvelopeManager;
-use crate::actors::healthcheck::Healthcheck;
-use crate::actors::outcome::OutcomeProducer;
+use crate::actors::healthcheck::{Healthcheck, HealthcheckMessages};
+use crate::actors::outcome::{OutcomeProducer, OutcomeProducerMessages, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_cache::ProjectCache;
@@ -112,9 +112,9 @@ impl From<Context<ServerErrorKind>> for ServerError {
 
 #[derive(Clone)]
 pub struct Registry {
-    pub healthcheck: Addr<Healthcheck>,
-    pub outcome_producer: Addr<OutcomeProducer>,
-    pub outcome_aggregator: Addr<OutcomeAggregator>,
+    pub healthcheck: Addr<HealthcheckMessages>,
+    pub outcome_producer: Addr<OutcomeProducerMessages>,
+    pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: actix::Addr<EnvelopeProcessor>,
 }
 
