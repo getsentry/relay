@@ -2665,6 +2665,11 @@
 <span id="2657">2657</span>
 <span id="2658">2658</span>
 <span id="2659">2659</span>
+<span id="2660">2660</span>
+<span id="2661">2661</span>
+<span id="2662">2662</span>
+<span id="2663">2663</span>
+<span id="2664">2664</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -3553,6 +3558,7 @@
     <span class="doccomment">/// Remove replays if the feature flag is not enabled</span>
     <span class="kw">fn</span> <span class="ident">process_replays</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) {
         <span class="kw">let</span> <span class="ident">replays_enabled</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">project_state</span>.<span class="ident">has_feature</span>(<span class="ident">Feature::Replays</span>);
+        <span class="kw">let</span> <span class="ident">context</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">envelope_context</span>;
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
         <span class="kw">let</span> <span class="ident">client_addr</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client_addr</span>();
 
@@ -3570,7 +3576,11 @@
                         <span class="bool-val">true</span>
                     }
                     <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Replay item could not be parsed.&quot;</span>);
+                        <span class="ident">context</span>.<span class="ident">track_outcome</span>(
+                            <span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::InvalidReplayEvent</span>),
+                            <span class="ident">DataCategory::Replay</span>,
+                            <span class="number">1</span>,
+                        );
                         <span class="bool-val">false</span>
                     }
                 }

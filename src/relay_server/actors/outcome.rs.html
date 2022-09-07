@@ -948,6 +948,10 @@
 <span id="940">940</span>
 <span id="941">941</span>
 <span id="942">942</span>
+<span id="943">943</span>
+<span id="944">944</span>
+<span id="945">945</span>
+<span id="946">946</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks event outcomes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Outcomes describe the final &quot;fate&quot; of an event. As such, for every event exactly one outcome</span>
@@ -1274,6 +1278,9 @@
     <span class="doccomment">/// (Relay) The profile is parseable but semantically invalid. This could happen if</span>
     <span class="doccomment">/// profiles lack sufficient samples.</span>
     <span class="ident">InvalidProfile</span>,
+
+    <span class="comment">// (Relay) We failed to parse the replay so we discard it.</span>
+    <span class="ident">InvalidReplayEvent</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">DiscardReason</span> {
@@ -1311,6 +1318,7 @@
             <span class="ident">DiscardReason::TransactionSampled</span> =&gt; <span class="string">&quot;transaction_sampled&quot;</span>,
             <span class="ident">DiscardReason::EmptyEnvelope</span> =&gt; <span class="string">&quot;empty_envelope&quot;</span>,
             <span class="ident">DiscardReason::InvalidProfile</span> =&gt; <span class="string">&quot;invalid_profile&quot;</span>,
+            <span class="ident">DiscardReason::InvalidReplayEvent</span> =&gt; <span class="string">&quot;invalid_replay&quot;</span>,
         }
     }
 }
