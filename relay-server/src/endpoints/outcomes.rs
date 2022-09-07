@@ -1,4 +1,3 @@
-use actix_web::actix::SystemService;
 use actix_web::HttpResponse;
 use relay_config::EmitOutcomes;
 
@@ -13,7 +12,7 @@ fn send_outcomes(state: CurrentServiceState, body: SignedJson<SendOutcomes>) -> 
 
     let producer = OutcomeProducer::from_registry();
     for outcome in body.inner.outcomes {
-        producer.do_send(outcome);
+        let _ = producer.send(outcome);
     }
 
     HttpResponse::Accepted().json(SendOutcomesResponse {})

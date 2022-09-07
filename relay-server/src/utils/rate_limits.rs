@@ -1,7 +1,5 @@
 use std::fmt::{self, Write};
 
-use actix::SystemService;
-
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
@@ -247,7 +245,7 @@ impl Enforcement {
         for limit in [self.event, self.attachments, self.profiles] {
             if limit.is_active() {
                 let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
-                OutcomeAggregator::from_registry().do_send(TrackOutcome {
+                let _ = OutcomeAggregator::from_registry().send(TrackOutcome {
                     timestamp,
                     scoping: *scoping,
                     outcome: Outcome::RateLimited(limit.reason_code),
