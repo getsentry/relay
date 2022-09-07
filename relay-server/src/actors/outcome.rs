@@ -725,14 +725,14 @@ enum ProducerInner {
 }
 
 #[derive(Debug)]
-pub enum OutcomeProducerMessages {
+pub enum OutcomeProducer {
     TrackOutcome(TrackOutcome),
     TrackRawOutcome(TrackRawOutcome),
 }
 
-impl Interface for OutcomeProducerMessages {}
+impl Interface for OutcomeProducer {}
 
-impl FromMessage<TrackOutcome> for OutcomeProducerMessages {
+impl FromMessage<TrackOutcome> for OutcomeProducer {
     type Response = NoResponse;
 
     fn from_message(message: TrackOutcome, _: ()) -> Self {
@@ -740,7 +740,7 @@ impl FromMessage<TrackOutcome> for OutcomeProducerMessages {
     }
 }
 
-impl FromMessage<TrackRawOutcome> for OutcomeProducerMessages {
+impl FromMessage<TrackRawOutcome> for OutcomeProducer {
     type Response = NoResponse;
 
     fn from_message(message: TrackRawOutcome, _: ()) -> Self {
@@ -748,13 +748,13 @@ impl FromMessage<TrackRawOutcome> for OutcomeProducerMessages {
     }
 }
 
-pub struct OutcomeProducer {
+pub struct OutcomeProducerService {
     config: Arc<Config>,
     producer: ProducerInner,
 }
 
-impl OutcomeProducer {
-    pub fn from_registry() -> Addr<OutcomeProducerMessages> {
+impl OutcomeProducerService {
+    pub fn from_registry() -> Addr<OutcomeProducer> {
         REGISTRY.get().unwrap().outcome_producer.clone()
     }
 
@@ -793,10 +793,10 @@ impl OutcomeProducer {
         Ok(Self { config, producer })
     }
 
-    fn handle_message(&mut self, message: OutcomeProducerMessages) {
+    fn handle_message(&mut self, message: OutcomeProducer) {
         match message {
-            OutcomeProducerMessages::TrackOutcome(msg) => self.handle_track_outcome(msg),
-            OutcomeProducerMessages::TrackRawOutcome(msg) => self.handle_track_raw_outcome(msg),
+            OutcomeProducer::TrackOutcome(msg) => self.handle_track_outcome(msg),
+            OutcomeProducer::TrackRawOutcome(msg) => self.handle_track_raw_outcome(msg),
         }
     }
 
@@ -883,8 +883,8 @@ impl OutcomeProducer {
     }
 }
 
-impl Service for OutcomeProducer {
-    type Interface = OutcomeProducerMessages;
+impl Service for OutcomeProducerService {
+    type Interface = OutcomeProducer;
 
     fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {

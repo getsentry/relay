@@ -11,7 +11,7 @@ use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, Controller, Service, Shutdown};
 
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducerMessages, TrackOutcome};
+use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::service::REGISTRY;
 use crate::statsd::RelayTimers;
 use crate::utils::SleepHandle;
@@ -52,7 +52,7 @@ pub struct OutcomeAggregator {
     /// Mapping from bucket key to quantity.
     buckets: HashMap<BucketKey, u32>,
     /// The recipient of the aggregated outcomes
-    outcome_producer: Addr<OutcomeProducerMessages>,
+    outcome_producer: Addr<OutcomeProducer>,
     /// An optional timeout to the next scheduled flush.
     flush_handle: SleepHandle,
 }
@@ -62,7 +62,7 @@ impl OutcomeAggregator {
         REGISTRY.get().unwrap().outcome_aggregator.clone()
     }
 
-    pub fn new(config: &Config, outcome_producer: Addr<OutcomeProducerMessages>) -> Self {
+    pub fn new(config: &Config, outcome_producer: Addr<OutcomeProducer>) -> Self {
         let mode = match config.emit_outcomes() {
             EmitOutcomes::AsOutcomes => AggregationMode::Lossless,
             EmitOutcomes::AsClientReports => AggregationMode::Lossy,

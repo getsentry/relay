@@ -1,7 +1,7 @@
 use actix_web::HttpResponse;
 use relay_config::EmitOutcomes;
 
-use crate::actors::outcome::{OutcomeProducer, SendOutcomes, SendOutcomesResponse};
+use crate::actors::outcome::{OutcomeProducerService, SendOutcomes, SendOutcomesResponse};
 use crate::extractors::{CurrentServiceState, SignedJson};
 use crate::service::ServiceApp;
 
@@ -10,7 +10,7 @@ fn send_outcomes(state: CurrentServiceState, body: SignedJson<SendOutcomes>) -> 
         return HttpResponse::Forbidden().finish();
     }
 
-    let producer = OutcomeProducer::from_registry();
+    let producer = OutcomeProducerService::from_registry();
     for outcome in body.inner.outcomes {
         producer.send(outcome);
     }

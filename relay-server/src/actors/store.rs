@@ -169,11 +169,11 @@ pub struct StoreEnvelope {
 
 /// Interface of the [`StoreForwarder`].
 #[derive(Debug)]
-pub struct StoreMessages(StoreEnvelope, Sender<Result<(), StoreError>>);
+pub struct Store(StoreEnvelope, Sender<Result<(), StoreError>>);
 
-impl Interface for StoreMessages {}
+impl Interface for Store {}
 
-impl FromMessage<StoreEnvelope> for StoreMessages {
+impl FromMessage<StoreEnvelope> for Store {
     type Response = AsyncResponse<Result<(), StoreError>>;
 
     fn from_message(message: StoreEnvelope, sender: Sender<Result<(), StoreError>>) -> Self {
@@ -182,19 +182,19 @@ impl FromMessage<StoreEnvelope> for StoreMessages {
 }
 
 /// Service for publishing events to Sentry through kafka topics.
-pub struct StoreForwarder {
+pub struct StoreService {
     config: Arc<Config>,
     producers: Producers,
 }
 
-impl StoreForwarder {
+impl StoreService {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let producers = Producers::create(&config)?;
         Ok(Self { config, producers })
     }
 
-    fn handle_message(&self, message: StoreMessages) {
-        let StoreMessages(message, sender) = message;
+    fn handle_message(&self, message: Store) {
+        let Store(message, sender) = message;
         sender.send(self.handle_store_envelope(message));
     }
 
@@ -719,8 +719,8 @@ impl StoreForwarder {
     }
 }
 
-impl Service for StoreForwarder {
-    type Interface = StoreMessages;
+impl Service for StoreService {
+    type Interface = Store;
 
     fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {

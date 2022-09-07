@@ -16,8 +16,8 @@ use relay_system::{Addr, Service};
 use relay_system::{Configure, Controller};
 
 use crate::actors::envelopes::EnvelopeManager;
-use crate::actors::healthcheck::{Healthcheck, HealthcheckMessages};
-use crate::actors::outcome::{OutcomeProducer, OutcomeProducerMessages, TrackOutcome};
+use crate::actors::healthcheck::{Healthcheck, HealthcheckService};
+use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_cache::ProjectCache;
@@ -112,8 +112,8 @@ impl From<Context<ServerErrorKind>> for ServerError {
 
 #[derive(Clone)]
 pub struct Registry {
-    pub healthcheck: Addr<HealthcheckMessages>,
-    pub outcome_producer: Addr<OutcomeProducerMessages>,
+    pub healthcheck: Addr<Healthcheck>,
+    pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: actix::Addr<EnvelopeProcessor>,
 }
@@ -147,7 +147,7 @@ impl ServiceState {
 
         let outcome_runtime = utils::tokio_runtime_with_actix();
         let guard = outcome_runtime.enter();
-        let outcome_producer = OutcomeProducer::create(config.clone())?.start();
+        let outcome_producer = OutcomeProducerService::create(config.clone())?.start();
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
         drop(guard);
 
@@ -171,7 +171,7 @@ impl ServiceState {
         let project_cache = Arbiter::start(|_| project_cache);
         registry.set(project_cache.clone());
 
-        let healthcheck = Healthcheck::new(config.clone()).start();
+        let healthcheck = HealthcheckService::new(config.clone()).start();
         registry.set(RelayCache::new(config.clone()).start());
 
         let aggregator = Aggregator::new(config.aggregator_config(), project_cache.recipient());
