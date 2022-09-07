@@ -4518,6 +4518,7 @@ dependencies = [
  "once_cell",
  "pin-project-lite 0.2.9",
  "socket2 0.4.4",
+ "tokio-macros",
  "winapi 0.3.9",
 ]
 
@@ -4572,6 +4573,17 @@ dependencies = [
  "bytes 0.4.12",
  "futures 0.1.31",
  "log",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9724f9a975fb987ef7a3cd9be0350edcbe130698af5b8f7a631e23d42d052484"
+dependencies = [
+ "proc-macro2 1.0.39",
+ "quote 1.0.18",
+ "syn 1.0.96",
 ]
 
 [[package]]

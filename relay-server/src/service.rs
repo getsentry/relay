@@ -113,6 +113,8 @@ impl From<Context<ServerErrorKind>> for ServerError {
 #[derive(Clone)]
 pub struct Registry {
     pub healthcheck: Addr<Healthcheck>,
+    pub outcome_producer: Addr<OutcomeProducer>,
+    pub outcome_aggregator: Addr<OutcomeAggregator>,
     pub processor: actix::Addr<EnvelopeProcessor>,
 }
 
@@ -130,7 +132,8 @@ impl fmt::Debug for Registry {
 pub struct ServiceState {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
-    _runtime: Arc<tokio::runtime::Runtime>,
+    _outcome_runtime: Arc<tokio::runtime::Runtime>,
+    _main_runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl ServiceState {
@@ -139,20 +142,14 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
-        let runtime = utils::tokio_runtime_with_actix();
-
-        // Enter the tokio runtime so we can start spawning tasks from the outside.
-        let _guard = runtime.enter();
-
         let upstream_relay = UpstreamRelay::new(config.clone());
         registry.set(Arbiter::start(|_| upstream_relay));
 
-        let outcome_producer = OutcomeProducer::create(config.clone())?;
-        let outcome_producer = Arbiter::start(|_| outcome_producer);
-        registry.set(outcome_producer.clone());
-
-        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.recipient());
-        registry.set(outcome_aggregator.start());
+        let outcome_runtime = utils::tokio_runtime_with_actix();
+        let guard = outcome_runtime.enter();
+        let outcome_producer = OutcomeProducer::create(config.clone())?.start();
+        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
+        drop(guard);
 
         let redis_pool = match config.redis() {
             Some(redis_config) if config.processing_enabled() => {
@@ -160,6 +157,10 @@ impl ServiceState {
             }
             _ => None,
         };
+
+        // Enter and enter the tokio runtime so we can start spawning tasks from the outside.
+        let main_runtime = utils::tokio_runtime_with_actix();
+        let _guard = main_runtime.enter();
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
@@ -186,13 +187,16 @@ impl ServiceState {
             .set(Box::new(Registry {
                 processor,
                 healthcheck,
+                outcome_producer,
+                outcome_aggregator,
             }))
             .unwrap();
 
         Ok(ServiceState {
             buffer_guard: buffer,
             config,
-            _runtime: Arc::new(runtime),
+            _outcome_runtime: Arc::new(outcome_runtime),
+            _main_runtime: Arc::new(main_runtime),
         })
     }
 

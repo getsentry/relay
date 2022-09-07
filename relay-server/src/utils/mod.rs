@@ -12,6 +12,7 @@ mod request;
 mod semaphore;
 mod shutdown;
 mod sizes;
+mod sleep_handle;
 mod timer;
 mod tracked_future;
 
@@ -36,6 +37,7 @@ pub use self::request::*;
 pub use self::semaphore::*;
 pub use self::shutdown::*;
 pub use self::sizes::*;
+pub use self::sleep_handle::*;
 pub use self::timer::*;
 pub use self::tracked_future::*;
 
