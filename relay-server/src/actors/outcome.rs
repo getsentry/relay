@@ -18,7 +18,6 @@ use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::{Fail, ResultExt};
-
 #[cfg(feature = "processing")]
 use rdkafka::producer::BaseRecord;
 #[cfg(feature = "processing")]
@@ -878,7 +877,7 @@ impl OutcomeProducer {
                 Self::send_outcome_metric(&message, "kafka");
                 let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
                 if let Err(error) = self.send_kafka_message(kafka_producer, raw_message) {
-                    relay_log::trace!("Failed to send kafka message: {:?}", error);
+                    relay_log::error!("failed to produce outcome: {}", LogError(&error));
                 }
             }
             ProducerInner::AsClientReports(ref producer) => {
@@ -899,7 +898,7 @@ impl OutcomeProducer {
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
                 Self::send_outcome_metric(&message, "kafka");
                 if let Err(error) = self.send_kafka_message(kafka_producer, message) {
-                    relay_log::trace!("Failed to send kafka message: {:?}", error);
+                    relay_log::error!("failed to produce outcome: {}", LogError(&error));
                 }
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
