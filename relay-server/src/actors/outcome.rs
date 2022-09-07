@@ -824,14 +824,8 @@ impl OutcomeProducer {
 
     fn handle_message(&mut self, message: OutcomeProducerMessages) {
         match message {
-            OutcomeProducerMessages::TrackOutcome(msg, response_tx) => {
-                let response = self.handle_track_outcome(msg);
-                response_tx.send(response).ok();
-            }
-            OutcomeProducerMessages::TrackRawOutcome(msg, response_tx) => {
-                let response = self.handle_track_raw_outcome(msg);
-                response_tx.send(response).ok();
-            }
+            OutcomeProducerMessages::TrackOutcome(msg) => self.handle_track_outcome(msg),
+            OutcomeProducerMessages::TrackRawOutcome(msg) => self.handle_track_raw_outcome(msg),
         }
     }
 
@@ -877,42 +871,43 @@ impl OutcomeProducer {
         );
     }
 
-    fn handle_track_outcome(&mut self, message: TrackOutcome) -> Result<(), OutcomeError> {
+    fn handle_track_outcome(&mut self, message: TrackOutcome) {
         match &self.producer {
             #[cfg(feature = "processing")]
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
                 Self::send_outcome_metric(&message, "kafka");
                 let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
-                self.send_kafka_message(kafka_producer, raw_message)
+                if let Err(error) = self.send_kafka_message(kafka_producer, raw_message) {
+                    relay_log::trace!("Failed to send kafka message: {:?}", error);
+                }
             }
             ProducerInner::AsClientReports(ref producer) => {
                 Self::send_outcome_metric(&message, "client_report");
                 let _ = producer.send(message);
-                Ok(())
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
                 Self::send_outcome_metric(&message, "http");
                 let _ = producer.send(TrackRawOutcome::from_outcome(message, &self.config));
-                Ok(())
             }
-            ProducerInner::Disabled => Ok(()),
+            ProducerInner::Disabled => {}
         }
     }
 
-    fn handle_track_raw_outcome(&mut self, message: TrackRawOutcome) -> Result<(), OutcomeError> {
+    fn handle_track_raw_outcome(&mut self, message: TrackRawOutcome) {
         match &self.producer {
             #[cfg(feature = "processing")]
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
                 Self::send_outcome_metric(&message, "kafka");
-                self.send_kafka_message(kafka_producer, message)
+                if let Err(error) = self.send_kafka_message(kafka_producer, message) {
+                    relay_log::trace!("Failed to send kafka message: {:?}", error);
+                }
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
                 Self::send_outcome_metric(&message, "http");
                 let _ = producer.send(message);
-                Ok(())
             }
-            ProducerInner::AsClientReports(_) => Ok(()),
-            ProducerInner::Disabled => Ok(()),
+            ProducerInner::AsClientReports(_) => {}
+            ProducerInner::Disabled => {}
         }
     }
 }
@@ -922,25 +917,27 @@ impl Service for OutcomeProducer {
 }
 
 impl ServiceMessage<OutcomeProducer> for TrackOutcome {
-    type Response = Result<(), OutcomeError>;
+    type Response = ();
 
     fn into_messages(self) -> (OutcomeProducerMessages, oneshot::Receiver<Self::Response>) {
         let (tx, rx) = oneshot::channel();
-        (OutcomeProducerMessages::TrackOutcome(self, tx), rx)
+        tx.send(()).ok();
+        (OutcomeProducerMessages::TrackOutcome(self), rx)
     }
 }
 
 impl ServiceMessage<OutcomeProducer> for TrackRawOutcome {
-    type Response = Result<(), OutcomeError>;
+    type Response = ();
 
     fn into_messages(self) -> (OutcomeProducerMessages, oneshot::Receiver<Self::Response>) {
         let (tx, rx) = oneshot::channel();
-        (OutcomeProducerMessages::TrackRawOutcome(self, tx), rx)
+        tx.send(()).ok();
+        (OutcomeProducerMessages::TrackRawOutcome(self), rx)
     }
 }
 
 #[derive(Debug)]
 pub enum OutcomeProducerMessages {
-    TrackOutcome(TrackOutcome, oneshot::Sender<Result<(), OutcomeError>>),
-    TrackRawOutcome(TrackRawOutcome, oneshot::Sender<Result<(), OutcomeError>>),
+    TrackOutcome(TrackOutcome),
+    TrackRawOutcome(TrackRawOutcome),
 }
