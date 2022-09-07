@@ -151,7 +151,13 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
             if transaction.relative_start_ns <= event_timestamp
                 && event_timestamp <= transaction.relative_end_ns
             {
-                event.time = substract_to_timestamp(event.time, transaction.relative_start_ns);
+                let relative_start = match clock {
+                    Clock::Cpu => Duration::from_millis(transaction.relative_cpu_start_ms),
+                    Clock::Wall | Clock::Dual | Clock::Global => {
+                        Duration::from_nanos(transaction.relative_start_ns)
+                    }
+                };
+                event.time = substract_to_timestamp(event.time, relative_start);
                 true
             } else {
                 false
@@ -173,8 +179,7 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
     Ok(items)
 }
 
-fn substract_to_timestamp(time: Time, relative_start_ns: u64) -> Time {
-    let duration = Duration::from_nanos(relative_start_ns);
+fn substract_to_timestamp(time: Time, duration: Duration) -> Time {
     match time {
         Time::Global(time) => Time::Global(time - duration),
         Time::Monotonic {
@@ -369,7 +374,7 @@ mod tests {
             ),
         ];
         for (clock, timestamp) in timestamps {
-            let result = substract_to_timestamp(timestamp, 50);
+            let result = substract_to_timestamp(timestamp, Duration::from_nanos(50));
             assert_eq!(get_timestamp(clock, now, result), 50);
         }
     }

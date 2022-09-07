@@ -12,9 +12,14 @@ pub struct TransactionMetadata {
 
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub relative_start_ns: u64,
-
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub relative_end_ns: u64,
+
+    // Android might have a CPU clock for the trace
+    #[serde(default, deserialize_with = "deserialize_number_from_string")]
+    pub relative_cpu_start_ms: u64,
+    #[serde(default, deserialize_with = "deserialize_number_from_string")]
+    pub relative_cpu_end_ms: u64,
 }
 
 impl TransactionMetadata {
@@ -38,6 +43,8 @@ mod tests {
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
             relative_start_ns: 1,
             relative_end_ns: 133,
+            relative_cpu_start_ms: 0,
+            relative_cpu_end_ms: 0,
         };
         assert!(metadata.valid());
     }
@@ -50,6 +57,8 @@ mod tests {
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
             relative_start_ns: 1,
             relative_end_ns: 133,
+            relative_cpu_start_ms: 0,
+            relative_cpu_end_ms: 0,
         };
         assert!(!metadata.valid());
     }
