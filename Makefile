@@ -156,6 +156,7 @@ clean-target-dir:
 	@if [ "$$(uname -sm)" = "Darwin arm64" ]; then \
 		echo "Using 'librdkafka' from homebrew to build confluent-kafka"; \
 		export C_INCLUDE_PATH="$$(brew --prefix librdkafka)/include"; \
+		export LDFLAGS="-L$$(brew --prefix librdkafka)/lib"; \
 	fi; \
 	.venv/bin/pip install -U -r requirements-dev.txt
 	# Bump the mtime of an empty file.
