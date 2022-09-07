@@ -41,8 +41,9 @@ enum AggregationMode {
     Lossy,
 }
 
-/// Aggregates outcomes into buckets, and flushes them periodically.
-/// Inspired by [`relay_metrics::Aggregator`].
+/// Aggregates [`Outcome`]s into buckets and flushes them periodically.
+///
+/// This service handles a single message [`TrackOutcome`].
 pub struct OutcomeAggregator {
     mode: AggregationMode,
     /// The width of each aggregated bucket in seconds

@@ -14,6 +14,7 @@ use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::service::REGISTRY;
 use crate::statsd::RelayGauges;
 
+/// Checks whether Relay is alive and healthy based on its variant.
 #[derive(Clone, Copy, Debug)]
 pub enum IsHealthy {
     /// Check if the Relay is alive at all.
@@ -23,7 +24,7 @@ pub enum IsHealthy {
     Readiness,
 }
 
-/// Interface of the [`Healthcheck`] service.
+/// Service interface for the [`IsHealthy`] message.
 pub struct Healthcheck(IsHealthy, Sender<bool>);
 
 impl Interface for Healthcheck {}
@@ -36,6 +37,7 @@ impl FromMessage<IsHealthy> for Healthcheck {
     }
 }
 
+/// Service implementing the [`Healthcheck`] interface.
 #[derive(Debug)]
 pub struct HealthcheckService {
     is_shutting_down: AtomicBool,
@@ -45,11 +47,12 @@ pub struct HealthcheckService {
 impl HealthcheckService {
     /// Returns the [`Addr`] of the [`Healthcheck`] service.
     ///
-    /// Prior to using this, the service must be started using [`Healthcheck::start`].
+    /// Prior to using this, the service must be started using [`HealthcheckService::start`].
     ///
     /// # Panics
     ///
-    /// Panics if the service was not started using [`Healthcheck::start`] prior to this being used.
+    /// Panics if the service was not started using [`HealthcheckService::start`] prior to this
+    /// being used.
     pub fn from_registry() -> Addr<Healthcheck> {
         REGISTRY.get().unwrap().healthcheck.clone()
     }

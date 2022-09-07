@@ -1,8 +1,8 @@
-//! This module contains the actor that tracks event outcomes.
+//! This module contains the actor that tracks outcomes.
 //!
-//! Outcomes describe the final "fate" of an event. As such, for every event exactly one outcome
-//! must be emitted in the entire ingestion pipeline. Since Relay is only one part in this pipeline,
-//! outcomes may not be emitted if the event is accepted.
+//! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
+//! outcome must be emitted in the entire ingestion pipeline. Since Relay is only one part in this
+//! pipeline, outcomes may not be emitted if the item is accepted.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -110,7 +110,7 @@ trait TrackOutcomeLike {
     }
 }
 
-/// Tracks an outcome of an event.
+/// Tracks an [`Outcome`] of an Envelope item.
 ///
 /// See the module level documentation for more information.
 #[derive(Clone, Debug, Hash)]
@@ -383,8 +383,10 @@ impl fmt::Display for DiscardReason {
     }
 }
 
-/// The outcome message is serialized as json and placed on the Kafka topic or in
-/// the http using TrackRawOutcome
+/// Raw representation of an outcome for serialization.
+///
+/// The JSON serialization of this structure is placed on the Kafka topic and used in the HTTP
+/// endpoints. To create a new outcome, use [`TrackOutcome`], instead.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TrackRawOutcome {
     /// The timespan of the event outcome.
@@ -488,6 +490,7 @@ pub enum OutcomeError {
     SerializationError(serde_json::Error),
 }
 
+/// Outcome producer backend via HTTP as [`TrackRawOutcome`].
 struct HttpOutcomeProducer {
     config: Arc<Config>,
     unsent_outcomes: Vec<TrackRawOutcome>,
@@ -559,6 +562,7 @@ impl Service for HttpOutcomeProducer {
     }
 }
 
+/// Outcome producer backend via HTTP as [`ClientReport`].
 struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
@@ -646,7 +650,7 @@ impl Service for ClientReportOutcomeProducer {
     }
 }
 
-/// A wrapper around producers for the two Kafka topics.
+/// Outcomes producer backend for Kafka.
 ///
 /// Internally, this type creates at least one Kafka producer for the cluster of the `outcomes`
 /// topic assignment. If the `outcomes-billing` topic specifies a different cluster, it creates a
@@ -721,6 +725,18 @@ enum ProducerInner {
     Disabled,
 }
 
+/// Produces [`Outcome`]s to a configurable backend.
+///
+/// There are two variants based on the source of outcomes. When logging outcomes, [`TrackOutcome`]
+/// should be heavily preferred. When processing outcomes from endpoints, [`TrackRawOutcome`] can be
+/// used instead.
+///
+/// The backend is configured through the `outcomes` configuration object and can be:
+///
+///  1. Kafka in processing mode
+///  2. Upstream Relay via batch HTTP request in point-of-presence configuration
+///  3. Upstream Relay via client reports in external configuration
+///  4. (default) Disabled
 #[derive(Debug)]
 pub enum OutcomeProducer {
     TrackOutcome(TrackOutcome),
@@ -745,6 +761,7 @@ impl FromMessage<TrackRawOutcome> for OutcomeProducer {
     }
 }
 
+/// Service implementing the [`OutcomeProducer`] interface.
 pub struct OutcomeProducerService {
     config: Arc<Config>,
     producer: ProducerInner,

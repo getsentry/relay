@@ -157,7 +157,7 @@ impl Producers {
     }
 }
 
-/// Message sent to the [`StoreForwarder`] containing an [`Envelope`].
+/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
 #[derive(Clone, Debug)]
 pub struct StoreEnvelope {
     pub envelope: Envelope,
@@ -165,7 +165,7 @@ pub struct StoreEnvelope {
     pub scoping: Scoping,
 }
 
-/// Interface of the [`StoreForwarder`].
+/// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
 pub struct Store(StoreEnvelope, Sender<Result<(), StoreError>>);
 
@@ -179,7 +179,7 @@ impl FromMessage<StoreEnvelope> for Store {
     }
 }
 
-/// Service for publishing events to Sentry through kafka topics.
+/// Service implementing the [`Store`] interface.
 pub struct StoreService {
     config: Arc<Config>,
     producers: Producers,
