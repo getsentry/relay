@@ -914,7 +914,10 @@ pub struct Sharded {
 #[derive(Debug)]
 enum KafkaConfigName<'a> {
     /// The single kafka config name.
-    Single(Option<&'a str>),
+    Single {
+        topic_name: &'a str,
+        kafka_config_name: Option<&'a str>,
+    },
     /// Shard ranges mapped to the proper configs.
     Sharded {
         /// The maximum number of logical shards for this set of configs.
@@ -943,6 +946,8 @@ pub enum KafkaConfig<'a> {
 /// Sharded Kafka config
 #[derive(Debug)]
 pub struct KafkaParams<'a> {
+    /// The topic name to use.
+    pub topic_name: &'a str,
     /// The Kafka config name will be used to produce data.
     pub config_name: Option<&'a str>,
     /// Parameters for the Kafka producer configuration.
@@ -956,34 +961,20 @@ impl From<String> for TopicAssignment {
 }
 
 impl TopicAssignment {
-    /// Get the topic name from this topic assignment.
-    fn topic_name(&self, shard: u64) -> &str {
-        match self {
-            Self::Primary(ref s) => s.as_str(),
-            Self::Secondary(KafkaTopicConfig { ref topic_name, .. }) => topic_name.as_str(),
-            Self::Sharded(Sharded { mapping, .. }) => {
-                let last_shard = mapping
-                    .iter()
-                    .take_while(|(k, _)| *k <= &shard)
-                    .last()
-                    .map(|(_, v)| v);
-
-                last_shard
-                    .expect("The lower range boundery for the requested shard")
-                    .topic_name
-                    .as_str()
-            }
-        }
-    }
-
     /// Get the name of the kafka config to use. `None` means default configuration.
     fn kafka_config_name(&self) -> KafkaConfigName {
         match self {
-            Self::Primary(_) => KafkaConfigName::Single(None),
+            Self::Primary(topic) => KafkaConfigName::Single {
+                topic_name: topic.as_str(),
+                kafka_config_name: None,
+            },
             Self::Secondary(KafkaTopicConfig {
                 ref kafka_config_name,
-                ..
-            }) => KafkaConfigName::Single(Some(kafka_config_name.as_str())),
+                ref topic_name,
+            }) => KafkaConfigName::Single {
+                topic_name: topic_name.as_str(),
+                kafka_config_name: Some(kafka_config_name.as_str()),
+            },
             Self::Sharded(Sharded { mapping, shards }) => {
                 let configs: BTreeMap<_, _> = mapping.iter().map(|(k, v)| (*k, v)).collect();
                 KafkaConfigName::Sharded {
@@ -2026,18 +2017,17 @@ impl Config {
         self.values.processing.max_session_secs_in_past.into()
     }
 
-    /// Topic name and list of Kafka configuration parameters for a given topic.
-    pub fn kafka_topic_name(&self, topic: KafkaTopic, shard: u64) -> &str {
-        self.values.processing.topics.get(topic).topic_name(shard)
-    }
-
     /// Configuration name and list of Kafka configuration parameters for a given topic.
     pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaConfig, ConfigErrorKind> {
         let result = match self.values.processing.topics.get(topic).kafka_config_name() {
-            KafkaConfigName::Single(config) => {
-                if let Some(config_name) = config {
+            KafkaConfigName::Single {
+                topic_name,
+                kafka_config_name,
+            } => {
+                if let Some(config_name) = kafka_config_name {
                     KafkaConfig::Single(KafkaParams {
                         config_name: Some(config_name),
+                        topic_name,
                         params: self
                             .values
                             .processing
@@ -2048,6 +2038,7 @@ impl Config {
                     })
                 } else {
                     KafkaConfig::Single(KafkaParams {
+                        topic_name,
                         config_name: None,
                         params: self.values.processing.kafka_config.as_slice(),
                     })
@@ -2057,6 +2048,7 @@ impl Config {
                 let mut kafka_params = BTreeMap::new();
                 for (shard, kafka_config) in configs {
                     let config = KafkaParams {
+                        topic_name: kafka_config.topic_name.as_str(),
                         config_name: Some(kafka_config.kafka_config_name.as_str()),
                         params: self
                             .values
@@ -2207,12 +2199,7 @@ processing:
 
         let values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
         let metrics_def = values.processing.topics.metrics;
-
         assert!(matches!(metrics_def, TopicAssignment::Sharded { .. }));
-        assert_eq!(metrics_def.topic_name(0), "ingest-metrics-1");
-        assert_eq!(metrics_def.topic_name(24999), "ingest-metrics-1");
-        assert_eq!(metrics_def.topic_name(25003), "ingest-metrics-2");
-        assert_eq!(metrics_def.topic_name(45000), "ingest-metrics-3");
 
         let (shards, mapping) =
             if let TopicAssignment::Sharded(Sharded { shards, mapping }) = metrics_def {
@@ -2220,23 +2207,13 @@ processing:
             } else {
                 unreachable!()
             };
-
         assert_eq!(shards, 65000);
         assert_eq!(3, mapping.len());
-
-        assert_eq!(
-            values.processing.topics.profiles.topic_name(42),
-            "ingest-profiles"
-        );
-        assert_eq!(
-            values.processing.topics.events.topic_name(1234),
-            "ingest-events"
-        );
 
         let kafka_config_profiles = values.processing.topics.events.kafka_config_name();
         assert!(matches!(
             kafka_config_profiles,
-            KafkaConfigName::Single(None)
+            KafkaConfigName::Single { .. }
         ));
     }
 }

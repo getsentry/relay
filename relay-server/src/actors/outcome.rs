@@ -23,7 +23,7 @@ use futures01::future::Future;
 use rdkafka::producer::BaseRecord;
 #[cfg(feature = "processing")]
 use rdkafka::ClientConfig as KafkaClientConfig;
-use relay_config::KafkaConfig;
+use relay_config::{KafkaConfig, KafkaParams};
 use serde::{Deserialize, Serialize};
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
@@ -652,10 +652,11 @@ impl KafkaOutcomesProducer {
     /// If the given Kafka configuration parameters are invalid, or an error happens during
     /// connecting during the broker, an error is returned.
     pub fn create(config: &Config) -> Result<Self, ServerError> {
-        let (default_name, default_config) = if let KafkaConfig::Single {
+        let (default_name, default_config) = if let KafkaConfig::Single(KafkaParams {
             config_name,
             params,
-        } = config
+            ..
+        }) = config
             .kafka_config(KafkaTopic::Outcomes)
             .context(ServerErrorKind::KafkaError)?
         {
@@ -664,10 +665,11 @@ impl KafkaOutcomesProducer {
             todo!()
         };
 
-        let (billing_name, billing_config) = if let KafkaConfig::Single {
+        let (billing_name, billing_config) = if let KafkaConfig::Single(KafkaParams {
             config_name,
             params,
-        } = config
+            ..
+        }) = config
             .kafka_config(KafkaTopic::Outcomes)
             .context(ServerErrorKind::KafkaError)?
         {
@@ -779,14 +781,15 @@ impl OutcomeProducer {
         let key = message.event_id.unwrap_or_else(EventId::new).0;
 
         // Dispatch to the correct topic and cluster based on the kind of outcome.
-        let (topic, producer) = if message.is_billing() {
+        let (_topic, producer) = if message.is_billing() {
             (KafkaTopic::OutcomesBilling, producer.billing())
         } else {
             (KafkaTopic::Outcomes, producer.default())
         };
 
         // XXX: shard the org and get the appropiet topic from the config
-        let record = BaseRecord::to(self.config.kafka_topic_name(topic, 0))
+        // XXX: get the topic name
+        let record = BaseRecord::to("XXXXXXXXXXXXX")
             .payload(&payload)
             .key(key.as_bytes().as_ref());
 
