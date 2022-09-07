@@ -92,7 +92,7 @@
       "trace_id": "4b25bc58f14243d8b208d1e22a054164",
       "name": "example_ios_movies_sources.MoviesViewController",
       "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
-      "relative_start_ns": "0",
+      "relative_start_ns": "2",
       "relative_end_ns": "10"
     },
     {
@@ -100,7 +100,7 @@
       "name": "example_ios_movies_sources.MoviesViewController",
       "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
       "relative_start_ns": "5",
-      "relative_end_ns": "15"
+      "relative_end_ns": "13"
     }
   ]
 }

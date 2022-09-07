@@ -33,22 +33,22 @@
         "id": "7D6DB784-355E-4D7D-BF98-671C69CBCC77",
         "name": "transaction1",
         "trace_id": "7D6DB784-355E-4D7D-BF98-671C69CBCC77",
-        "relative_start_ns": 1,
-        "relative_end_ns": 10
+        "relative_start_ns": 2000000000,
+        "relative_end_ns": 3000000000
       },
       {
         "id": "32CE7631-D653-4C80-AB86-2A31A7994EB1",
         "name": "transaction2",
         "trace_id": "85C85067-D9F8-40E4-8D6F-646911AD015B",
-        "relative_start_ns": "3",
-        "relative_end_ns": "12"
+        "relative_start_ns": "3000000000",
+        "relative_end_ns": "4000000000"
       },
       {
         "id": "94CA7E4F-556B-4CA2-8E02-FB8D8FC65C1A",
         "name": "transaction3",
         "trace_id": "94CA7E4F-556B-4CA2-8E02-FB8D8FC65C1A",
-        "relative_start_ns": 8,
-        "relative_end_ns": 15
+        "relative_start_ns": 4000000000,
+        "relative_end_ns": 8000000000
       }
     ]
 }

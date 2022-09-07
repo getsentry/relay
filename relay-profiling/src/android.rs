@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
@@ -142,16 +143,24 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
         new_profile.set_transaction(transaction);
         new_profile.transactions.clear();
 
-        let android_profile = new_profile.profile.clone();
-        let clock = android_profile.clock;
-        let start_time = android_profile.start_time;
-        let mut events = android_profile.events;
+        let clock = new_profile.profile.clock;
+        let start_time = new_profile.profile.start_time;
 
-        events.retain(|event| {
+        new_profile.profile.events.retain_mut(|event| {
             let event_timestamp = get_timestamp(clock, start_time, event.time);
-            event_timestamp >= transaction.relative_start_ns
+            if transaction.relative_start_ns <= event_timestamp
                 && event_timestamp <= transaction.relative_end_ns
+            {
+                event.time = substract_to_timestamp(event.time, transaction.relative_start_ns);
+                true
+            } else {
+                false
+            }
         });
+
+        if new_profile.profile.events.is_empty() {
+            continue;
+        }
 
         match serde_json::to_vec(&new_profile) {
             Ok(payload) => items.push(payload),
@@ -164,10 +173,53 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
     Ok(items)
 }
 
+fn substract_to_timestamp(time: Time, relative_start_ns: u64) -> Time {
+    let duration = Duration::from_nanos(relative_start_ns);
+    match time {
+        Time::Global(time) => Time::Global(time - duration),
+        Time::Monotonic {
+            cpu: Some(time),
+            wall: None,
+        } => Time::Monotonic {
+            cpu: time
+                .checked_sub(duration)
+                .or_else(|| Some(Duration::default())),
+            wall: None,
+        },
+        Time::Monotonic {
+            wall: Some(time),
+            cpu: None,
+        } => Time::Monotonic {
+            wall: time
+                .checked_sub(duration)
+                .or_else(|| Some(Duration::default())),
+            cpu: None,
+        },
+        Time::Monotonic {
+            cpu: Some(cpu),
+            wall: Some(wall),
+        } => Time::Monotonic {
+            cpu: cpu
+                .checked_sub(duration)
+                .or_else(|| Some(Duration::default())),
+            wall: wall
+                .checked_sub(duration)
+                .or_else(|| Some(Duration::default())),
+        },
+        _ => unimplemented!(),
+    }
+}
+
 fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u64 {
     match (clock, event_time) {
         (Clock::Global, Time::Global(time)) => {
-            time.as_nanos() as u64 - start_time.timestamp_nanos() as u64
+            let time_ns = time.as_nanos() as u64;
+            let start_time_ns = start_time.timestamp_nanos() as u64;
+            if time_ns >= start_time_ns {
+                time.as_nanos() as u64 - start_time.timestamp_nanos() as u64
+            } else {
+                0
+            }
         }
         (
             Clock::Cpu,
@@ -190,7 +242,7 @@ fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u
                 wall: Some(wall),
             },
         ) => wall.as_nanos() as u64,
-        _ => todo!(),
+        _ => unimplemented!(),
     }
 }
 
@@ -226,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_android() {
-        let payload = include_bytes!("../tests/fixtures/profiles/android/valid.json");
+        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
         let profile = parse_android_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
@@ -254,5 +306,71 @@ mod tests {
             include_bytes!("../tests/fixtures/profiles/android/remove_invalid_events.json");
         let data = parse_android_profile(payload);
         assert!(data.is_err());
+    }
+
+    #[test]
+    fn test_expand_multiple_transactions() {
+        let payload =
+            include_bytes!("../tests/fixtures/profiles/android/multiple_transactions.json");
+        let data = expand_android_profile(payload);
+        assert!(data.is_ok());
+        assert_eq!(data.as_ref().unwrap().len(), 3);
+
+        let profile = match parse_android_profile(&data.as_ref().unwrap()[0][..]) {
+            Err(err) => panic!("cannot parse profile: {:?}", err),
+            Ok(profile) => profile,
+        };
+        assert_eq!(
+            profile.transaction_id,
+            "7d6db784355e4d7dbf98671c69cbcc77".parse().unwrap()
+        );
+        assert_eq!(profile.duration_ns, 1000000000);
+        assert_eq!(profile.profile.events.len(), 8453);
+
+        for event in &profile.profile.events {
+            assert!(
+                get_timestamp(
+                    profile.profile.clock,
+                    profile.profile.start_time,
+                    event.time
+                ) < profile.duration_ns
+            );
+        }
+    }
+
+    #[test]
+    fn test_substract_to_timestamp() {
+        let now = Utc::now();
+        let timestamps: Vec<(Clock, Time)> = vec![
+            (
+                Clock::Global,
+                Time::Global(Duration::from_nanos(now.timestamp_nanos() as u64 + 100)),
+            ),
+            (
+                Clock::Cpu,
+                Time::Monotonic {
+                    cpu: Some(Duration::from_nanos(100)),
+                    wall: None,
+                },
+            ),
+            (
+                Clock::Wall,
+                Time::Monotonic {
+                    wall: Some(Duration::from_nanos(100)),
+                    cpu: None,
+                },
+            ),
+            (
+                Clock::Dual,
+                Time::Monotonic {
+                    cpu: Some(Duration::from_nanos(20)),
+                    wall: Some(Duration::from_nanos(100)),
+                },
+            ),
+        ];
+        for (clock, timestamp) in timestamps {
+            let result = substract_to_timestamp(timestamp, 50);
+            assert_eq!(get_timestamp(clock, now, result), 50);
+        }
     }
 }

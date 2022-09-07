@@ -184,9 +184,15 @@ pub fn expand_cocoa_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError
         new_profile.set_transaction(transaction);
         new_profile.transactions.clear();
 
-        new_profile.sampled_profile.samples.retain(|sample| {
-            transaction.relative_start_ns <= sample.relative_timestamp_ns
+        new_profile.sampled_profile.samples.retain_mut(|sample| {
+            if transaction.relative_start_ns <= sample.relative_timestamp_ns
                 && sample.relative_timestamp_ns <= transaction.relative_end_ns
+            {
+                sample.relative_timestamp_ns -= transaction.relative_start_ns;
+                true
+            } else {
+                false
+            }
         });
 
         match serde_json::to_vec(&new_profile) {
@@ -260,7 +266,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_transactions() {
+    fn test_parse_multiple_transactions() {
         let payload = include_bytes!("../tests/fixtures/profiles/cocoa/multiple_transactions.json");
         let data = parse_cocoa_profile(payload);
         assert!(data.is_ok());
@@ -368,7 +374,29 @@ mod tests {
         ]);
 
         let payload = serde_json::to_vec(&profile).unwrap();
-
         assert!(parse_cocoa_profile(&payload[..]).is_err());
+    }
+
+    #[test]
+    fn test_expand_multiple_transactions() {
+        let payload = include_bytes!("../tests/fixtures/profiles/cocoa/multiple_transactions.json");
+        let data = expand_cocoa_profile(payload);
+        assert!(data.is_ok());
+        assert_eq!(data.as_ref().unwrap().len(), 2);
+
+        let profile = match parse_cocoa_profile(&data.as_ref().unwrap()[0][..]) {
+            Err(err) => panic!("cannot parse profile: {:?}", err),
+            Ok(profile) => profile,
+        };
+        assert_eq!(
+            profile.transaction_id,
+            "30976f2ddbe04ac9b6bffe6e35d4710c".parse().unwrap()
+        );
+        assert_eq!(profile.duration_ns, 8);
+        assert_eq!(profile.sampled_profile.samples.len(), 2);
+
+        for sample in &profile.sampled_profile.samples {
+            assert!(sample.relative_timestamp_ns < profile.duration_ns);
+        }
     }
 }
