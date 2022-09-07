@@ -19,11 +19,8 @@ use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::{Fail, ResultExt};
 #[cfg(feature = "processing")]
-use rdkafka::producer::BaseRecord;
-#[cfg(feature = "processing")]
-use rdkafka::ClientConfig as KafkaClientConfig;
-use relay_system::Interface;
-use relay_system::NoResponse;
+use rdkafka::{producer::BaseRecord, ClientConfig as KafkaClientConfig};
+use relay_system::{Interface, NoResponse};
 use serde::{Deserialize, Serialize};
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};

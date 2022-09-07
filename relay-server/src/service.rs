@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::{server, App};
-use failure::ResultExt;
-use failure::{Backtrace, Context, Fail};
+use failure::{Backtrace, Context, Fail, ResultExt};
 use listenfd::ListenFd;
 use once_cell::race::OnceBox;
 
@@ -12,8 +11,7 @@ use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
-use relay_system::{Addr, Service};
-use relay_system::{Configure, Controller};
+use relay_system::{Addr, Configure, Controller, Service};
 
 use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::healthcheck::{Healthcheck, HealthcheckService};

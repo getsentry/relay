@@ -8,9 +8,7 @@ use std::time::Instant;
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
 use once_cell::sync::OnceCell;
-use rdkafka::error::KafkaError;
-use rdkafka::producer::BaseRecord;
-use rdkafka::ClientConfig;
+use rdkafka::{error::KafkaError, producer::BaseRecord, ClientConfig};
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
 
