@@ -836,6 +836,24 @@
 <span id="828">828</span>
 <span id="829">829</span>
 <span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{
@@ -966,6 +984,9 @@
     <span class="doccomment">/// The number of profiles.</span>
     <span class="kw">pub</span> <span class="ident">profile_quantity</span>: <span class="ident">usize</span>,
 
+    <span class="doccomment">/// The number of replays.</span>
+    <span class="kw">pub</span> <span class="ident">replay_quantity</span>: <span class="ident">usize</span>,
+
     <span class="doccomment">/// Indicates that the envelope contains regular attachments that do not create event payloads.</span>
     <span class="kw">pub</span> <span class="ident">has_plain_attachments</span>: <span class="ident">bool</span>,
 }
@@ -998,6 +1019,8 @@
                 <span class="ident">ItemType::Attachment</span> =&gt; <span class="ident">summary</span>.<span class="ident">attachment_quantity</span> <span class="op">+</span><span class="op">=</span> <span class="ident">item</span>.<span class="ident">len</span>().<span class="ident">max</span>(<span class="number">1</span>),
                 <span class="ident">ItemType::Session</span> =&gt; <span class="ident">summary</span>.<span class="ident">session_quantity</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                 <span class="ident">ItemType::Profile</span> =&gt; <span class="ident">summary</span>.<span class="ident">profile_quantity</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+                <span class="ident">ItemType::ReplayEvent</span> =&gt; <span class="ident">summary</span>.<span class="ident">replay_quantity</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
+                <span class="ident">ItemType::ReplayRecording</span> =&gt; <span class="ident">summary</span>.<span class="ident">replay_quantity</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                 <span class="kw">_</span> =&gt; (),
             }
         }
@@ -1072,6 +1095,8 @@
     <span class="ident">sessions</span>: <span class="ident">CategoryLimit</span>,
     <span class="doccomment">/// The combined profile item rate limit.</span>
     <span class="ident">profiles</span>: <span class="ident">CategoryLimit</span>,
+    <span class="doccomment">/// The combined replay item rate limit.</span>
+    <span class="ident">replays</span>: <span class="ident">CategoryLimit</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Enforcement</span> {
@@ -1080,7 +1105,7 @@
     <span class="doccomment">/// Relay generally does not emit outcomes for sessions, so those are skipped.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">track_outcomes</span>(<span class="self">self</span>, <span class="ident">envelope</span>: <span class="kw-2">&amp;</span><span class="ident">Envelope</span>, <span class="ident">scoping</span>: <span class="kw-2">&amp;</span><span class="ident">Scoping</span>) {
         <span class="comment">// Do not report outcomes for sessions.</span>
-        <span class="kw">for</span> <span class="ident">limit</span> <span class="kw">in</span> [<span class="self">self</span>.<span class="ident">event</span>, <span class="self">self</span>.<span class="ident">attachments</span>, <span class="self">self</span>.<span class="ident">profiles</span>] {
+        <span class="kw">for</span> <span class="ident">limit</span> <span class="kw">in</span> [<span class="self">self</span>.<span class="ident">event</span>, <span class="self">self</span>.<span class="ident">attachments</span>, <span class="self">self</span>.<span class="ident">profiles</span>, <span class="self">self</span>.<span class="ident">replays</span>] {
             <span class="kw">if</span> <span class="ident">limit</span>.<span class="ident">is_active</span>() {
                 <span class="kw">let</span> <span class="ident">timestamp</span> <span class="op">=</span> <span class="ident">relay_common::instant_to_date_time</span>(<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">start_time</span>());
                 <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">OutcomeAggregator::from_registry</span>().<span class="ident">send</span>(<span class="ident">TrackOutcome</span> {
@@ -1255,6 +1280,17 @@
                 <span class="ident">profile_limits</span>.<span class="ident">longest</span>(),
             );
             <span class="ident">rate_limits</span>.<span class="ident">merge</span>(<span class="ident">profile_limits</span>);
+        }
+
+        <span class="kw">if</span> <span class="ident">summary</span>.<span class="ident">replay_quantity</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="kw">let</span> <span class="ident">item_scoping</span> <span class="op">=</span> <span class="ident">scoping</span>.<span class="ident">item</span>(<span class="ident">DataCategory::Replay</span>);
+            <span class="kw">let</span> <span class="ident">replay_limits</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">check</span>)(<span class="ident">item_scoping</span>, <span class="ident">summary</span>.<span class="ident">replay_quantity</span>)<span class="question-mark">?</span>;
+            <span class="ident">enforcement</span>.<span class="ident">replays</span> <span class="op">=</span> <span class="ident">CategoryLimit::new</span>(
+                <span class="ident">DataCategory::Replay</span>,
+                <span class="ident">summary</span>.<span class="ident">replay_quantity</span>,
+                <span class="ident">replay_limits</span>.<span class="ident">longest</span>(),
+            );
+            <span class="ident">rate_limits</span>.<span class="ident">merge</span>(<span class="ident">replay_limits</span>);
         }
 
         <span class="prelude-val">Ok</span>((<span class="ident">enforcement</span>, <span class="ident">rate_limits</span>))
