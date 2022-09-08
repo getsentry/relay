@@ -5,6 +5,7 @@
 **Features**:
 
 - Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
+- Add support for Kafka sharding configuration, when one topic can be configured with many kafka clusters ([#1454](https://github.com/getsentry/relay/pull/1454))
 
 **Bug Fixes**:
 
