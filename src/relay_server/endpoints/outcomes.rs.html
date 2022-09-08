@@ -35,7 +35,7 @@
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">actix_web::HttpResponse</span>;
 <span class="kw">use</span> <span class="ident">relay_config::EmitOutcomes</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">OutcomeProducer</span>, <span class="ident">SendOutcomes</span>, <span class="ident">SendOutcomesResponse</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">OutcomeProducerService</span>, <span class="ident">SendOutcomes</span>, <span class="ident">SendOutcomesResponse</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::extractors</span>::{<span class="ident">CurrentServiceState</span>, <span class="ident">SignedJson</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServiceApp</span>;
 
@@ -44,9 +44,9 @@
         <span class="kw">return</span> <span class="ident">HttpResponse::Forbidden</span>().<span class="ident">finish</span>();
     }
 
-    <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">OutcomeProducer::from_registry</span>();
+    <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">OutcomeProducerService::from_registry</span>();
     <span class="kw">for</span> <span class="ident">outcome</span> <span class="kw">in</span> <span class="ident">body</span>.<span class="ident">inner</span>.<span class="ident">outcomes</span> {
-        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">outcome</span>);
+        <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">outcome</span>);
     }
 
     <span class="ident">HttpResponse::Accepted</span>().<span class="ident">json</span>(<span class="ident">SendOutcomesResponse</span> {})

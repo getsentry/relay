@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A message interface for services."><meta name="keywords" content="rust, rustlang, rust-lang, Interface"><title>Interface in relay_system - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../dark.css" disabled><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../storage.js"></script><script defer src="sidebar-items.js"></script><script defer src="../main.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../relay_system/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../relay_system/index.html"><div class="logo-container">
+                    <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
+        </a><h2 class="location"><a href="#">Interface</a></h2><div class="sidebar-elems"><section><div class="block"><h3 class="sidebar-title"><a href="#implementors">Implementors</a></h3></div></section><h2 class="location"><a href="index.html">In relay_system</a></h2></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../relay_system/index.html">
+                        <img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><div id="settings-menu" tabindex="-1">
+                                <a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div>
+                        </div></form></nav></div><section id="main-content" class="content"><div class="main-heading">
+    <h1 class="fqn"><span class="in-band">Trait <a href="index.html">relay_system</a>::<wbr><a class="trait" href="#">Interface</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/relay_system/service.rs.html#105">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><div class="docblock item-decl"><pre class="rust trait"><code>pub trait Interface: <a class="trait" href="https://doc.rust-lang.org/1.63.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'static { }</code></pre></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A message interface for <a href="trait.Service.html">services</a>.</p>
+<p>Most commonly, this interface is an enumeration of messages, but it can also be implemented on a
+single message. For each individual message, this type needs to implement the <a href="trait.FromMessage.html" title="FromMessage"><code>FromMessage</code></a>
+trait.</p>
+<h2 id="implementating-interfaces"><a href="#implementating-interfaces">Implementating Interfaces</a></h2>
+<p>There are three main ways to implement interfaces, which depends on the number of messages and
+their return values. The simplest way is an interface consisting of a <strong>single message</strong> with
+<strong>no return value</strong>. For this case, use the message directly as interface and choose
+<code>NoResponse</code> as response:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">FromMessage</span>, <span class="ident">Interface</span>, <span class="ident">NoResponse</span>};
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MyMessage</span>;
+
+<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">MyMessage</span> {}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">MyMessage</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="self">Self</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
+        <span class="ident">message</span>
+    }
+}</code></pre></div>
+<p>If there is a <strong>single message with a return value</strong>, implement the interface as a wrapper for
+the message and the return <a href="struct.Sender.html" title="Sender"><code>Sender</code></a>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">AsyncResponse</span>, <span class="ident">FromMessage</span>, <span class="ident">Interface</span>, <span class="ident">Sender</span>};
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MyMessage</span>;
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MyInterface</span>(<span class="ident">MyMessage</span>, <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>);
+
+<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">MyInterface</span> {}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">MyMessage</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">MyInterface</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">MyMessage</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span>(<span class="ident">message</span>, <span class="ident">sender</span>)
+    }
+}</code></pre></div>
+<p>Finally, interfaces with <strong>multiple messages</strong> of any kind can most commonly be implemented
+through an enumeration for every message. The variants of messages with return values need a
+<code>Sender</code> again:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">AsyncResponse</span>, <span class="ident">FromMessage</span>, <span class="ident">Interface</span>, <span class="ident">NoResponse</span>, <span class="ident">Sender</span>};
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GetFlag</span>;
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SetFlag</span>(<span class="kw">pub</span> <span class="ident">bool</span>);
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MyInterface</span> {
+    <span class="ident">Get</span>(<span class="ident">GetFlag</span>, <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>),
+    <span class="ident">Set</span>(<span class="ident">SetFlag</span>),
+}
+
+<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">MyInterface</span> {}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">GetFlag</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">MyInterface</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">GetFlag</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::Get</span>(<span class="ident">message</span>, <span class="ident">sender</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">SetFlag</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">MyInterface</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">SetFlag</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::Set</span>(<span class="ident">message</span>)
+    }
+}</code></pre></div>
+<h2 id="requirements"><a href="#requirements">Requirements</a></h2>
+<p>Interfaces are meant to be sent to services via channels. As such, they need to be both <code>Send</code>
+and <code>'static</code>. It is highly encouraged to implement <code>Debug</code> on all interfaces and their
+messages.</p>
+</div></details><h2 id="implementors" class="small-section-header">Implementors<a href="#implementors" class="anchor"></a></h2><div class="item-list" id="implementors-list"></div><script type="text/javascript" src="../implementors/relay_system/service/trait.Interface.js" data-ignore-extern-crates="" async></script></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="relay_system" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>
+</body></html>

@@ -298,7 +298,7 @@
     <span class="doccomment">/// operation to ensure that subsequent outcomes are consistent.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">track_outcome</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">outcome</span>: <span class="ident">Outcome</span>, <span class="ident">category</span>: <span class="ident">DataCategory</span>, <span class="ident">quantity</span>: <span class="ident">usize</span>) {
         <span class="kw">let</span> <span class="ident">outcome_aggregator</span> <span class="op">=</span> <span class="ident">OutcomeAggregator::from_registry</span>();
-        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">outcome_aggregator</span>.<span class="ident">send</span>(<span class="ident">TrackOutcome</span> {
+        <span class="ident">outcome_aggregator</span>.<span class="ident">send</span>(<span class="ident">TrackOutcome</span> {
             <span class="ident">timestamp</span>: <span class="self">self</span>.<span class="ident">received_at</span>,
             <span class="ident">scoping</span>: <span class="self">self</span>.<span class="ident">scoping</span>,
             <span class="ident">outcome</span>,

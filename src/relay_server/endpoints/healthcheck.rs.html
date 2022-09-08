@@ -94,7 +94,7 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServiceApp</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::healthcheck</span>::{<span class="ident">Healthcheck</span>, <span class="ident">IsHealthy</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::healthcheck</span>::{<span class="ident">HealthcheckService</span>, <span class="ident">IsHealthy</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>)]</span>
 <span class="kw">struct</span> <span class="ident">HealthcheckResponse</span> {
@@ -121,7 +121,7 @@
 
 <span class="kw">fn</span> <span class="ident">healthcheck_impl</span>(<span class="ident">message</span>: <span class="ident">IsHealthy</span>) -&gt; <span class="ident">ResponseFuture</span><span class="op">&lt;</span><span class="ident">HttpResponse</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> <span class="kw">async</span> <span class="kw">move</span> {
-        <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">Healthcheck::from_registry</span>();
+        <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">HealthcheckService::from_registry</span>();
         <span class="ident">addr</span>.<span class="ident">send</span>(<span class="ident">message</span>).<span class="kw">await</span>
     };
 

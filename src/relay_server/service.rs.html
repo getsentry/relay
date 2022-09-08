@@ -346,15 +346,12 @@
 <span id="338">338</span>
 <span id="339">339</span>
 <span id="340">340</span>
-<span id="341">341</span>
-<span id="342">342</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">actix_web</span>::{<span class="ident">server</span>, <span class="ident">App</span>};
-<span class="kw">use</span> <span class="ident">failure::ResultExt</span>;
-<span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Backtrace</span>, <span class="ident">Context</span>, <span class="ident">Fail</span>};
+<span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Backtrace</span>, <span class="ident">Context</span>, <span class="ident">Fail</span>, <span class="ident">ResultExt</span>};
 <span class="kw">use</span> <span class="ident">listenfd::ListenFd</span>;
 <span class="kw">use</span> <span class="ident">once_cell::race::OnceBox</span>;
 
@@ -362,12 +359,11 @@
 <span class="kw">use</span> <span class="ident">relay_config::Config</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics::Aggregator</span>;
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
-<span class="kw">use</span> <span class="ident">relay_system::Addr</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Configure</span>, <span class="ident">Controller</span>};
+<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Addr</span>, <span class="ident">Configure</span>, <span class="ident">Controller</span>, <span class="ident">Service</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes::EnvelopeManager</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::healthcheck::Healthcheck</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome::OutcomeProducer</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::healthcheck</span>::{<span class="ident">Healthcheck</span>, <span class="ident">HealthcheckService</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">OutcomeProducer</span>, <span class="ident">OutcomeProducerService</span>, <span class="ident">TrackOutcome</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::processor::EnvelopeProcessor</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::project_cache::ProjectCache</span>;
@@ -464,7 +460,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Registry</span> {
     <span class="kw">pub</span> <span class="ident">healthcheck</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">Healthcheck</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">outcome_producer</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">outcome_aggregator</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeAggregator</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">outcome_aggregator</span>: <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">processor</span>: <span class="ident">actix::Addr</span><span class="op">&lt;</span><span class="ident">EnvelopeProcessor</span><span class="op">&gt;</span>,
 }
 
@@ -497,7 +493,7 @@
 
         <span class="kw">let</span> <span class="ident">outcome_runtime</span> <span class="op">=</span> <span class="ident">utils::tokio_runtime_with_actix</span>();
         <span class="kw">let</span> <span class="ident">guard</span> <span class="op">=</span> <span class="ident">outcome_runtime</span>.<span class="ident">enter</span>();
-        <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="ident">OutcomeProducer::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>.<span class="ident">start</span>();
+        <span class="kw">let</span> <span class="ident">outcome_producer</span> <span class="op">=</span> <span class="ident">OutcomeProducerService::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>.<span class="ident">start</span>();
         <span class="kw">let</span> <span class="ident">outcome_aggregator</span> <span class="op">=</span> <span class="ident">OutcomeAggregator::new</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="ident">outcome_producer</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
         <span class="ident">drop</span>(<span class="ident">guard</span>);
 
@@ -521,7 +517,7 @@
         <span class="kw">let</span> <span class="ident">project_cache</span> <span class="op">=</span> <span class="ident">Arbiter::start</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">project_cache</span>);
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">project_cache</span>.<span class="ident">clone</span>());
 
-        <span class="kw">let</span> <span class="ident">healthcheck</span> <span class="op">=</span> <span class="ident">Healthcheck::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
+        <span class="kw">let</span> <span class="ident">healthcheck</span> <span class="op">=</span> <span class="ident">HealthcheckService::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>();
         <span class="ident">registry</span>.<span class="ident">set</span>(<span class="ident">RelayCache::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>()).<span class="ident">start</span>());
 
         <span class="kw">let</span> <span class="ident">aggregator</span> <span class="op">=</span> <span class="ident">Aggregator::new</span>(<span class="ident">config</span>.<span class="ident">aggregator_config</span>(), <span class="ident">project_cache</span>.<span class="ident">recipient</span>());

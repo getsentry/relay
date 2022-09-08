@@ -1028,16 +1028,6 @@
 <span id="1020">1020</span>
 <span id="1021">1021</span>
 <span id="1022">1022</span>
-<span id="1023">1023</span>
-<span id="1024">1024</span>
-<span id="1025">1025</span>
-<span id="1026">1026</span>
-<span id="1027">1027</span>
-<span id="1028">1028</span>
-<span id="1029">1029</span>
-<span id="1030">1030</span>
-<span id="1031">1031</span>
-<span id="1032">1032</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The service uses kafka topics to forward data to Sentry</span>
 
@@ -1048,12 +1038,9 @@
 <span class="kw">use</span> <span class="ident">bytes::Bytes</span>;
 <span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Fail</span>, <span class="ident">ResultExt</span>};
 <span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
-<span class="kw">use</span> <span class="ident">rdkafka::error::KafkaError</span>;
-<span class="kw">use</span> <span class="ident">rdkafka::producer::BaseRecord</span>;
-<span class="kw">use</span> <span class="ident">rdkafka::ClientConfig</span>;
+<span class="kw">use</span> <span class="ident">rdkafka</span>::{<span class="ident">error::KafkaError</span>, <span class="ident">producer::BaseRecord</span>, <span class="ident">ClientConfig</span>};
 <span class="kw">use</span> <span class="ident">rmp_serde::encode::Error</span> <span class="kw">as</span> <span class="ident">RmpError</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">ser::Error</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">tokio::sync</span>::{<span class="ident">mpsc</span>, <span class="ident">oneshot</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">KafkaTopic</span>};
@@ -1062,7 +1049,7 @@
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">BucketValue</span>, <span class="ident">MetricNamespace</span>, <span class="ident">MetricResourceIdentifier</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas::Scoping</span>;
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Addr</span>, <span class="ident">Service</span>, <span class="ident">ServiceMessage</span>};
+<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">AsyncResponse</span>, <span class="ident">FromMessage</span>, <span class="ident">Interface</span>, <span class="ident">Sender</span>, <span class="ident">Service</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope</span>::{<span class="ident">AttachmentType</span>, <span class="ident">Envelope</span>, <span class="ident">Item</span>, <span class="ident">ItemType</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">ServerError</span>, <span class="ident">ServerErrorKind</span>};
@@ -1088,6 +1075,47 @@
 }
 
 <span class="kw">type</span> <span class="ident">Producer</span> <span class="op">=</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span>;
+
+<span class="doccomment">/// Temporary map used to deduplicate kafka producers</span>
+<span class="kw">type</span> <span class="ident">ReusedProducersMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>, <span class="ident">Producer</span><span class="op">&gt;</span>;
+
+<span class="kw">fn</span> <span class="ident">make_distinct_id</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Uuid</span> {
+    <span class="kw">static</span> <span class="ident">NAMESPACE</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
+    <span class="kw">let</span> <span class="ident">namespace</span> <span class="op">=</span>
+        <span class="ident">NAMESPACE</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Uuid::new_v5</span>(<span class="kw-2">&amp;</span><span class="ident">Uuid::NAMESPACE_URL</span>, <span class="string">b&quot;https://sentry.io/#did&quot;</span>));
+
+    <span class="ident">s</span>.<span class="ident">parse</span>()
+        .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Uuid::new_v5</span>(<span class="ident">namespace</span>, <span class="ident">s</span>.<span class="ident">as_bytes</span>()))
+}
+
+<span class="kw">fn</span> <span class="ident">make_producer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
+    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Config</span>,
+    <span class="ident">reused_producers</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ReusedProducersMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
+    <span class="ident">kafka_topic</span>: <span class="ident">KafkaTopic</span>,
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Producer</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> (<span class="ident">config_name</span>, <span class="ident">kafka_config</span>) <span class="op">=</span> <span class="ident">config</span>
+        .<span class="ident">kafka_config</span>(<span class="ident">kafka_topic</span>)
+        .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>;
+
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">producer</span>) <span class="op">=</span> <span class="ident">reused_producers</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">config_name</span>) {
+        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Arc::clone</span>(<span class="ident">producer</span>));
+    }
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_config</span> <span class="op">=</span> <span class="ident">ClientConfig::new</span>();
+
+    <span class="kw">for</span> <span class="ident">config_p</span> <span class="kw">in</span> <span class="ident">kafka_config</span> {
+        <span class="ident">client_config</span>.<span class="ident">set</span>(<span class="ident">config_p</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(), <span class="ident">config_p</span>.<span class="ident">value</span>.<span class="ident">as_str</span>());
+    }
+
+    <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
+        <span class="ident">client_config</span>
+            .<span class="ident">create_with_context</span>(<span class="ident">CaptureErrorContext</span>)
+            .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>,
+    );
+
+    <span class="ident">reused_producers</span>.<span class="ident">insert</span>(<span class="ident">config_name</span>, <span class="ident">Arc::clone</span>(<span class="kw-2">&amp;</span><span class="ident">producer</span>));
+    <span class="prelude-val">Ok</span>(<span class="ident">producer</span>)
+}
 
 <span class="kw">struct</span> <span class="ident">Producers</span> {
     <span class="ident">events</span>: <span class="ident">Producer</span>,
@@ -1159,87 +1187,43 @@
     }
 }
 
-<span class="doccomment">/// Service for publishing events to Sentry through kafka topics.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StoreForwarder</span> {
+<span class="doccomment">/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StoreEnvelope</span> {
+    <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
+    <span class="kw">pub</span> <span class="ident">start_time</span>: <span class="ident">Instant</span>,
+    <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
+}
+
+<span class="doccomment">/// Service interface for the [`StoreEnvelope`] message.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Store</span>(<span class="ident">StoreEnvelope</span>, <span class="ident">Sender</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span><span class="op">&gt;</span>);
+
+<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">Store</span> {}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">StoreEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Store</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">StoreEnvelope</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span>(<span class="ident">message</span>, <span class="ident">sender</span>)
+    }
+}
+
+<span class="doccomment">/// Service implementing the [`Store`] interface.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StoreService</span> {
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
     <span class="ident">producers</span>: <span class="ident">Producers</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">StoreForwarder</span> {
-    <span class="kw">type</span> <span class="ident">Messages</span> <span class="op">=</span> <span class="ident">StoreMessages</span>;
-}
-
-<span class="kw">fn</span> <span class="ident">make_distinct_id</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Uuid</span> {
-    <span class="kw">static</span> <span class="ident">NAMESPACE</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
-    <span class="kw">let</span> <span class="ident">namespace</span> <span class="op">=</span>
-        <span class="ident">NAMESPACE</span>.<span class="ident">get_or_init</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Uuid::new_v5</span>(<span class="kw-2">&amp;</span><span class="ident">Uuid::NAMESPACE_URL</span>, <span class="string">b&quot;https://sentry.io/#did&quot;</span>));
-
-    <span class="ident">s</span>.<span class="ident">parse</span>()
-        .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Uuid::new_v5</span>(<span class="ident">namespace</span>, <span class="ident">s</span>.<span class="ident">as_bytes</span>()))
-}
-
-<span class="doccomment">/// Temporary map used to deduplicate kafka producers</span>
-<span class="kw">type</span> <span class="ident">ReusedProducersMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>, <span class="ident">Producer</span><span class="op">&gt;</span>;
-
-<span class="kw">fn</span> <span class="ident">make_producer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
-    <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Config</span>,
-    <span class="ident">reused_producers</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ReusedProducersMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
-    <span class="ident">kafka_topic</span>: <span class="ident">KafkaTopic</span>,
-) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Producer</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> (<span class="ident">config_name</span>, <span class="ident">kafka_config</span>) <span class="op">=</span> <span class="ident">config</span>
-        .<span class="ident">kafka_config</span>(<span class="ident">kafka_topic</span>)
-        .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>;
-
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">producer</span>) <span class="op">=</span> <span class="ident">reused_producers</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">config_name</span>) {
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Arc::clone</span>(<span class="ident">producer</span>));
-    }
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_config</span> <span class="op">=</span> <span class="ident">ClientConfig::new</span>();
-
-    <span class="kw">for</span> <span class="ident">config_p</span> <span class="kw">in</span> <span class="ident">kafka_config</span> {
-        <span class="ident">client_config</span>.<span class="ident">set</span>(<span class="ident">config_p</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(), <span class="ident">config_p</span>.<span class="ident">value</span>.<span class="ident">as_str</span>());
-    }
-
-    <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
-        <span class="ident">client_config</span>
-            .<span class="ident">create_with_context</span>(<span class="ident">CaptureErrorContext</span>)
-            .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>,
-    );
-
-    <span class="ident">reused_producers</span>.<span class="ident">insert</span>(<span class="ident">config_name</span>, <span class="ident">Arc::clone</span>(<span class="kw-2">&amp;</span><span class="ident">producer</span>));
-    <span class="prelude-val">Ok</span>(<span class="ident">producer</span>)
-}
-
-<span class="kw">impl</span> <span class="ident">StoreForwarder</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="self">self</span>) -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder started&quot;</span>);
-
-        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">mpsc::unbounded_channel</span>::<span class="op">&lt;</span><span class="ident">StoreMessages</span><span class="op">&gt;</span>();
-
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
-                <span class="self">self</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>);
-            }
-
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder stopped&quot;</span>);
-        });
-
-        <span class="ident">Addr</span> { <span class="ident">tx</span> }
-    }
-
+<span class="kw">impl</span> <span class="ident">StoreService</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">producers</span> <span class="op">=</span> <span class="ident">Producers::create</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>)<span class="question-mark">?</span>;
-
         <span class="prelude-val">Ok</span>(<span class="self">Self</span> { <span class="ident">config</span>, <span class="ident">producers</span> })
     }
 
-    <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">StoreMessages</span>) {
-        <span class="kw">match</span> <span class="ident">message</span> {
-            <span class="ident">StoreMessages::StoreEnvelope</span>(<span class="ident">msg</span>, <span class="ident">responder_tx</span>) =&gt; {
-                <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">handle_store_envelope</span>(<span class="ident">msg</span>);
-                <span class="ident">responder_tx</span>.<span class="ident">send</span>(<span class="ident">response</span>).<span class="ident">ok</span>();
-            }
-        }
+    <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">Store</span>) {
+        <span class="kw">let</span> <span class="ident">Store</span>(<span class="ident">message</span>, <span class="ident">sender</span>) <span class="op">=</span> <span class="ident">message</span>;
+        <span class="ident">sender</span>.<span class="ident">send</span>(<span class="self">self</span>.<span class="ident">handle_store_envelope</span>(<span class="ident">message</span>));
     }
 
     <span class="kw">fn</span> <span class="ident">handle_store_envelope</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">StoreEnvelope</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
@@ -1763,6 +1747,22 @@
     }
 }
 
+<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">StoreService</span> {
+    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">Store</span>;
+
+    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
+        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder started&quot;</span>);
+
+            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
+                <span class="self">self</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>);
+            }
+
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;store forwarder stopped&quot;</span>);
+        });
+    }
+}
+
 <span class="doccomment">/// Common attributes for both standalone attachments and processing-relevant attachments.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
 <span class="kw">struct</span> <span class="ident">ChunkedAttachment</span> {
@@ -1797,6 +1797,7 @@
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip_serializing_if</span> <span class="op">=</span> <span class="string">&quot;Option::is_none&quot;</span>)]</span>
     <span class="ident">rate_limited</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>,
 }
+
 <span class="doccomment">/// attributes for Replay Recordings</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
 <span class="kw">struct</span> <span class="ident">ChunkedReplayRecording</span> {
@@ -1844,6 +1845,7 @@
     <span class="doccomment">/// Attachments that are potentially relevant for processing.</span>
     <span class="ident">attachments</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ChunkedAttachment</span><span class="op">&gt;</span>,
 }
+
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
 <span class="kw">struct</span> <span class="ident">ReplayEventKafkaMessage</span> {
     <span class="doccomment">/// Raw event payload.</span>
@@ -1903,6 +1905,7 @@
     <span class="doccomment">/// the tuple (id, chunk_index) is the unique identifier for a single chunk.</span>
     <span class="ident">chunk_index</span>: <span class="ident">usize</span>,
 }
+
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>)]</span>
 <span class="kw">struct</span> <span class="ident">ReplayRecordingKafkaMessage</span> {
     <span class="doccomment">/// The replay id.</span>
@@ -2038,29 +2041,6 @@
             }
             <span class="kw">_</span> =&gt; <span class="ident">rmp_serde::to_vec_named</span>(<span class="kw-2">&amp;</span><span class="self">self</span>).<span class="ident">map_err</span>(<span class="ident">StoreError::InvalidMsgPack</span>),
         }
-    }
-}
-
-<span class="doccomment">/// Message sent to the [`StoreForwarder`] containing an [`Envelope`].</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StoreEnvelope</span> {
-    <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
-    <span class="kw">pub</span> <span class="ident">start_time</span>: <span class="ident">Instant</span>,
-    <span class="kw">pub</span> <span class="ident">scoping</span>: <span class="ident">Scoping</span>,
-}
-
-<span class="doccomment">/// All the message types which can be sent to the [`StoreForwarder`].</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">StoreMessages</span> {
-    <span class="ident">StoreEnvelope</span>(<span class="ident">StoreEnvelope</span>, <span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span><span class="op">&gt;</span>),
-}
-
-<span class="kw">impl</span> <span class="ident">ServiceMessage</span><span class="op">&lt;</span><span class="ident">StoreForwarder</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">StoreEnvelope</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span>;
-
-    <span class="kw">fn</span> <span class="ident">into_messages</span>(<span class="self">self</span>) -&gt; (<span class="ident">StoreMessages</span>, <span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Response</span><span class="op">&gt;</span>) {
-        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
-        (<span class="ident">StoreMessages::StoreEnvelope</span>(<span class="self">self</span>, <span class="ident">tx</span>), <span class="ident">rx</span>)
     }
 }
 

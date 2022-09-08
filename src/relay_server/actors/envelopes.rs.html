@@ -577,9 +577,9 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">use</span> {
-    <span class="ident"><span class="kw">crate</span>::actors::store</span>::{<span class="ident">StoreEnvelope</span>, <span class="ident">StoreError</span>, <span class="ident">StoreForwarder</span>},
+    <span class="ident"><span class="kw">crate</span>::actors::store</span>::{<span class="ident">Store</span>, <span class="ident">StoreEnvelope</span>, <span class="ident">StoreError</span>, <span class="ident">StoreService</span>},
     <span class="ident">futures</span>::{<span class="ident">FutureExt</span>, <span class="ident">TryFutureExt</span>},
-    <span class="ident">relay_system::Addr</span> <span class="kw">as</span> <span class="ident">ServiceAddr</span>,
+    <span class="ident">relay_system</span>::{<span class="ident">Addr</span> <span class="kw">as</span> <span class="ident">ServiceAddr</span>, <span class="ident">Service</span>},
     <span class="ident">tokio::runtime::Runtime</span>,
 };
 
@@ -700,7 +700,7 @@
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
     <span class="ident">captures</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">EventId</span>, <span class="ident">CapturedEnvelope</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">store_forwarder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ServiceAddr</span><span class="op">&lt;</span><span class="ident">StoreForwarder</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="ident">store_forwarder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ServiceAddr</span><span class="op">&lt;</span><span class="ident">Store</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="ident">_runtime</span>: <span class="ident">Runtime</span>,
 }
@@ -716,7 +716,7 @@
 
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
         <span class="kw">let</span> <span class="ident">store_forwarder</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">processing_enabled</span>() {
-            <span class="kw">let</span> <span class="ident">actor</span> <span class="op">=</span> <span class="ident">StoreForwarder::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">actor</span> <span class="op">=</span> <span class="ident">StoreService::create</span>(<span class="ident">config</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
             <span class="prelude-val">Some</span>(<span class="ident">actor</span>.<span class="ident">start</span>())
         } <span class="kw">else</span> {
             <span class="prelude-val">None</span>
