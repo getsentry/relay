@@ -2061,7 +2061,7 @@ impl Config {
                     kafka_params.insert(shard, config);
                 }
                 KafkaConfig::Sharded {
-                    shards: shards,
+                    shards,
                     configs: kafka_params,
                 }
             }

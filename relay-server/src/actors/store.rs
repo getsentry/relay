@@ -58,7 +58,7 @@ fn make_distinct_id(s: &str) -> Uuid {
         .unwrap_or_else(|_| Uuid::new_v5(namespace, s.as_bytes()))
 }
 
-fn make_producer<'a>(
+pub fn make_producer<'a>(
     config: &'a Config,
     reused_producers: &mut ReusedProducersMap<'a>,
     kafka_topic: KafkaTopic,
@@ -124,7 +124,7 @@ fn make_producer<'a>(
 }
 
 /// This object containes the Kafka producer variants for single and sharded configurations.
-enum Producer {
+pub enum Producer {
     Single {
         topic_name: String,
         producer: Arc<ThreadedProducer>,

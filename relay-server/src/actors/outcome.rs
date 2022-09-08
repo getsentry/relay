@@ -8,6 +8,8 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::fmt;
+#[cfg(feature = "processing")]
+use std::hash::Hasher;
 use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -17,16 +19,18 @@ use actix::prelude::SystemService;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
-use failure::{Fail, ResultExt};
+use failure::Fail;
 #[cfg(feature = "processing")]
-use rdkafka::{producer::BaseRecord, ClientConfig as KafkaClientConfig};
+use fnv::FnvHasher;
+#[cfg(feature = "processing")]
+use rdkafka::producer::BaseRecord;
 use relay_system::{Interface, NoResponse};
 use serde::{Deserialize, Serialize};
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
-use relay_config::{Config, EmitOutcomes};
 #[cfg(feature = "processing")]
-use relay_config::{KafkaConfig, KafkaConfigParam, KafkaParams, KafkaTopic};
+use relay_config::KafkaTopic;
+use relay_config::{Config, EmitOutcomes};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_log::LogError;
@@ -36,14 +40,12 @@ use relay_statsd::metric;
 use relay_system::{compat, Addr, FromMessage, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
-use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
-use crate::service::ServerErrorKind;
+use crate::actors::store::{self, Producer};
+use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::service::REGISTRY;
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
-#[cfg(feature = "processing")]
-use crate::utils::{CaptureErrorContext, ThreadedProducer};
 use crate::ServerError;
 
 /// Defines the structure of the HTTP outcomes requests
@@ -665,8 +667,8 @@ impl Service for ClientReportOutcomeProducer {
 /// producer instance internally.
 #[cfg(feature = "processing")]
 struct KafkaOutcomesProducer {
-    default: ThreadedProducer,
-    billing: Option<ThreadedProducer>,
+    default: Producer,
+    billing: Producer,
 }
 
 #[cfg(feature = "processing")]
@@ -676,57 +678,21 @@ impl KafkaOutcomesProducer {
     /// If the given Kafka configuration parameters are invalid, or an error happens during
     /// connecting during the broker, an error is returned.
     pub fn create(config: &Config) -> Result<Self, ServerError> {
-        let (default_name, default_config) = if let KafkaConfig::Single(KafkaParams {
-            config_name,
-            params,
-            ..
-        }) = config
-            .kafka_config(KafkaTopic::Outcomes)
-            .context(ServerErrorKind::KafkaError)?
-        {
-            (config_name, params)
-        } else {
-            todo!()
+        let mut reused_producers = BTreeMap::new();
+        let producers = KafkaOutcomesProducer {
+            default: store::make_producer(config, &mut reused_producers, KafkaTopic::Outcomes)?,
+            billing: store::make_producer(
+                config,
+                &mut reused_producers,
+                KafkaTopic::OutcomesBilling,
+            )?,
         };
 
-        let (billing_name, billing_config) = if let KafkaConfig::Single(KafkaParams {
-            config_name,
-            params,
-            ..
-        }) = config
-            .kafka_config(KafkaTopic::Outcomes)
-            .context(ServerErrorKind::KafkaError)?
-        {
-            (config_name, params)
-        } else {
-            todo!()
-        };
-
-        let default = Self::create_producer(default_config)?;
-        let billing = if billing_name != default_name {
-            Some(Self::create_producer(billing_config)?)
-        } else {
-            None
-        };
-
-        Ok(Self { default, billing })
-    }
-
-    fn create_producer(params: &[KafkaConfigParam]) -> Result<ThreadedProducer, ServerError> {
-        let mut client_config = KafkaClientConfig::new();
-        for param in params {
-            client_config.set(param.name.as_str(), param.value.as_str());
-        }
-
-        let threaded_producer = client_config
-            .create_with_context(CaptureErrorContext)
-            .context(ServerErrorKind::KafkaError)?;
-
-        Ok(threaded_producer)
+        Ok(producers)
     }
 
     /// Returns the producer for default outcomes.
-    pub fn default(&self) -> &ThreadedProducer {
+    pub fn default(&self) -> &Producer {
         &self.default
     }
 
@@ -734,8 +700,8 @@ impl KafkaOutcomesProducer {
     ///
     /// Note that this may return the same producer instance as [`default`](Self::default) depending
     /// on the configuration.
-    pub fn billing(&self) -> &ThreadedProducer {
-        self.billing.as_ref().unwrap_or(&self.default)
+    pub fn billing(&self) -> &Producer {
+        &self.billing
     }
 }
 
@@ -859,13 +825,42 @@ impl OutcomeProducerService {
             (KafkaTopic::Outcomes, producer.default())
         };
 
-        // XXX: shard the org and get the appropiet topic from the config
-        // XXX: get the topic name
-        let record = BaseRecord::to("XXXXXXXXXXXXX")
-            .payload(&payload)
-            .key(key.as_bytes().as_ref());
+        //XXX: get org id here
+        let organization_id = 0;
+        let result = match producer {
+            Producer::Single {
+                topic_name,
+                producer,
+            } => {
+                let record = BaseRecord::to(topic_name)
+                    .payload(&payload)
+                    .key(key.as_bytes().as_ref());
 
-        match producer.send(record) {
+                producer.send(record)
+            }
+
+            Producer::Sharded { shards, producers } => {
+                let mut hasher = FnvHasher::default();
+                std::hash::Hash::hash(&organization_id, &mut hasher);
+                let org_id_hash = hasher.finish();
+                let shard = org_id_hash % shards;
+
+                // should be ok to unwrap since we MUST have at least one range defined
+                let (topic_name, producer) = producers
+                    .iter()
+                    .take_while(|(k, _)| *k <= &shard)
+                    .last()
+                    .map(|(_, v)| v)
+                    .expect("At least one shard is defined");
+
+                let record = BaseRecord::to(topic_name)
+                    .payload(&payload)
+                    .key(key.as_bytes().as_ref());
+                producer.send(record)
+            }
+        };
+
+        match result {
             Ok(_) => Ok(()),
             Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
         }
