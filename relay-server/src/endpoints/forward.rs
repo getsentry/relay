@@ -21,7 +21,9 @@ use relay_common::GlobMatcher;
 use relay_config::Config;
 use relay_log::LogError;
 
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
+use crate::actors::upstream::{
+    SendRequest, UpstreamRelayService, UpstreamRequest, UpstreamRequestError,
+};
 use crate::body::RequestBody;
 use crate::endpoints::statics;
 use crate::extractors::ForwardedFor;
@@ -261,7 +263,7 @@ pub fn forward_upstream(
                 sender: Some(tx),
             };
 
-            UpstreamRelay::from_registry().do_send(SendRequest(forward_request));
+            UpstreamRelayService::from_registry().do_send(SendRequest(forward_request));
 
             rx.map_err(|_| UpstreamRequestError::ChannelClosed)
                 .flatten()

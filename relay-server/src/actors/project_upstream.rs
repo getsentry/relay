@@ -17,7 +17,7 @@ use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{FetchProjectState, ProjectError, ProjectStateResponse};
-use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelayService};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ErrorBoundary};
 
@@ -217,7 +217,7 @@ impl UpstreamProjectSource {
                 // count number of http requests for project states
                 metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
-                UpstreamRelay::from_registry()
+                UpstreamRelayService::from_registry()
                     .send(SendQuery(query))
                     .map_err(|_| ProjectError::ScheduleFailed)
                     .map(move |response| (channels_batch, response))

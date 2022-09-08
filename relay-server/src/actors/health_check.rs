@@ -10,7 +10,7 @@ use relay_system::{
     compat, Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service,
 };
 
-use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
+use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelayService};
 use crate::service::REGISTRY;
 use crate::statsd::RelayGauges;
 
@@ -68,7 +68,7 @@ impl HealthCheckService {
     }
 
     async fn handle_is_healthy(&self, message: IsHealthy) -> bool {
-        let upstream = UpstreamRelay::from_registry();
+        let upstream = UpstreamRelayService::from_registry();
 
         if self.config.relay_mode() == RelayMode::Managed {
             let fut = compat::send(upstream.clone(), IsNetworkOutage);

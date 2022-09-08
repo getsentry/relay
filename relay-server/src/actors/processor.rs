@@ -40,7 +40,7 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{InsertMetrics, MergeBuckets, ProjectCache};
-use crate::actors::upstream::{SendRequest, UpstreamRelay};
+use crate::actors::upstream::{SendRequest, UpstreamRelayService};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
@@ -2124,7 +2124,7 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
             }
             Ok(envelope_body) => {
                 request.envelope_body = envelope_body;
-                UpstreamRelay::from_registry().do_send(SendRequest(request));
+                UpstreamRelayService::from_registry().do_send(SendRequest(request));
             }
         }
     }

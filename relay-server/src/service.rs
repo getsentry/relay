@@ -20,7 +20,7 @@ use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
-use crate::actors::upstream::UpstreamRelay;
+use crate::actors::upstream::UpstreamRelayService;
 use crate::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
@@ -142,7 +142,7 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
-        let upstream_relay = UpstreamRelay::new(config.clone());
+        let upstream_relay = UpstreamRelayService::new(config.clone());
         registry.set(Arbiter::start(|_| upstream_relay));
 
         let outcome_runtime = utils::tokio_runtime_with_actix();

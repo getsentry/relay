@@ -30,6 +30,7 @@ use actix_web::http::{header, Method};
 use failure::Fail;
 use futures01::{future, prelude::*, sync::oneshot};
 use itertools::Itertools;
+use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
@@ -365,7 +366,21 @@ fn handle_response(
     Box::new(future)
 }
 
-pub struct UpstreamRelay {
+// All the private and public messages that the UpstreamRelay can handle
+pub enum UpstreamRelay {
+    Authenticate(Authenticate), // This is a private message so might need to be handled differently
+    IsAuthenticated(IsAuthenticated, Sender<bool>),
+    IsNetworkOutage(IsNetworkOutage, Sender<bool>),
+    PumpHttpMessageQueue(PumpHttpMessageQueue), // This might be replaced by something totally different
+    ScheduleConnectionCheck(ScheduleConnectionCheck),
+    BSendRequest(BSendRequest),                   // Rename this eventually
+    TrackedFutureFinished(TrackedFutureFinished), // Other end of the message queue also will/can be reworked
+    BSendQuery(BSendQuery, Sender<()>), // This is something extra special will need to be tackled differently‡
+}
+
+impl Interface for UpstreamRelay {}
+
+pub struct UpstreamRelayService {
     /// backoff policy for the registration messages
     auth_backoff: RetryBackoff,
     auth_state: AuthState,
@@ -385,7 +400,7 @@ pub struct UpstreamRelay {
     reqwest_runtime: tokio::runtime::Runtime,
 }
 
-impl UpstreamRelay {
+impl UpstreamRelayService {
     /// Creates a new `UpstreamRelay` instance.
     pub fn new(config: Arc<Config>) -> Self {
         let reqwest_runtime = tokio::runtime::Builder::new_multi_thread()
@@ -408,7 +423,7 @@ impl UpstreamRelay {
             .build()
             .unwrap();
 
-        UpstreamRelay {
+        UpstreamRelayService {
             auth_backoff: RetryBackoff::new(config.http_max_retry_interval()),
             auth_state: AuthState::Unknown,
             outage_backoff: RetryBackoff::new(config.http_max_retry_interval()),
@@ -671,7 +686,7 @@ impl UpstreamRelay {
         send_result: Result<Response, UpstreamRequestError>,
         ctx: &mut Context<Self>,
     ) {
-        UpstreamRelay::meter_result(send_start, &request, &send_result);
+        UpstreamRelayService::meter_result(send_start, &request, &send_result);
         if matches!(send_result, Err(ref err) if err.is_network_error()) {
             self.handle_network_error(ctx);
 
@@ -749,9 +764,145 @@ impl UpstreamRelay {
 
         Box::new(future)
     }
+
+    // TODO: Think about how we gonna refactor all this logic
+
+    fn handle_authenticate(&mut self, ctx: &mut Self::Context) -> ResponseActFuture<Self, (), ()> {
+        // detect incorrect authentication requests, if we detect them we have a programming error
+        if let Some(auth_state_error) = self.get_auth_state_error() {
+            relay_log::error!("{}", auth_state_error);
+            return Box::new(fut::err(()));
+        }
+
+        let credentials = match self.config.credentials() {
+            Some(x) => x,
+            None => return Box::new(fut::err(())),
+        };
+
+        relay_log::info!(
+            "registering with upstream ({})",
+            self.config.upstream_descriptor()
+        );
+
+        self.auth_state = if self.auth_state.is_authenticated() {
+            AuthState::Renewing
+        } else {
+            AuthState::Registering
+        };
+
+        let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
+        let interval = self.auth_backoff.next_backoff();
+
+        let future = self
+            .enqueue_query(request, ctx)
+            .into_actor(self)
+            .and_then(|challenge, slf, ctx| {
+                relay_log::debug!("got register challenge (token = {})", challenge.token());
+                let challenge_response = challenge.into_response();
+
+                relay_log::debug!("sending register challenge response");
+                slf.enqueue_query(challenge_response, ctx).into_actor(slf)
+            })
+            .map(|_, slf, ctx| {
+                relay_log::info!("relay successfully registered with upstream");
+                slf.auth_state = AuthState::Registered;
+                slf.auth_backoff.reset();
+
+                if let Some(renew_interval) = slf.renew_auth_interval() {
+                    ctx.notify_later(Authenticate, renew_interval);
+                }
+
+                // Resume sending queued requests if we suspended due to dropped authentication
+                ctx.notify(PumpHttpMessageQueue);
+            })
+            .map_err(move |err, slf, ctx| {
+                relay_log::error!("authentication encountered error: {}", LogError(&err));
+
+                if err.is_permanent_rejection() {
+                    slf.auth_state = AuthState::Denied;
+                    return;
+                }
+
+                // If the authentication request fails due to any reason other than a network error,
+                // go back to `Registering` which indicates that this Relay is not authenticated.
+                // Note that network errors are handled separately by the generic response handler.
+                if !err.is_network_error() {
+                    slf.auth_state = AuthState::Registering;
+                }
+
+                // Even on network errors, retry authentication independently.
+                relay_log::debug!(
+                    "scheduling authentication retry in {} seconds",
+                    interval.as_secs()
+                );
+                ctx.notify_later(Authenticate, interval);
+            });
+
+        Box::new(future)
+    }
+
+    fn handle_is_authenticated(&mut self) -> bool {
+        self.auth_state.is_authenticated()
+    }
+
+    fn handle_is_network_outage(&mut self) -> bool {
+        self.is_network_outage()
+    }
+
+    fn handle_pump_http_message_queue(&mut self, ctx: &mut Self::Context) {
+        // Skip sending requests while not ready. As soon as the Upstream becomes ready through
+        // authentication, `PumpHttpMessageQueue` will be emitted again.
+        if !self.is_ready() {
+            return;
+        }
+
+        // we are authenticated and there is no network outage, go ahead with the messages
+        while self.num_inflight_requests < self.max_inflight_requests {
+            if let Some(msg) = self.high_prio_requests.pop_back() {
+                self.send_request(msg, ctx);
+            } else if let Some(msg) = self.low_prio_requests.pop_back() {
+                self.send_request(msg, ctx);
+            } else {
+                break; // no more messages to send at this time stop looping
+            }
+        }
+    }
+
+    fn handle_schedule_connection_check(&mut self, ctx: &mut Self::Context) {
+        self.schedule_connection_check(ctx);
+    }
+
+    // TODO: Needs to be reworked
+    fn handle_bsend_request(&mut self, msg: SendRequest<T>, ctx: &mut Self::Context) {
+        self.enqueue(EnqueuedRequest::new(msg.0), ctx, EnqueuePosition::Front);
+    }
+
+    fn handle(&mut self, ctx: &mut Self::Context) {
+        // an HTTP request has finished update the inflight requests and pump the message queue
+        self.num_inflight_requests -= 1;
+        ctx.notify(PumpHttpMessageQueue)
+    }
+
+    fn handle_bsend_query(
+        &mut self,
+        message: SendQuery<T>,
+        ctx: &mut Self::Context,
+    ) -> Self::Result {
+        self.enqueue_query(message.0, ctx)
+    }
 }
 
-impl Actor for UpstreamRelay {
+impl Service for UpstreamRelayService {
+    type Interface = UpstreamRelay;
+
+    fn spawn_handler(self, rx: relay_system::Receiver<Self::Interface>) {
+        // Want to have 2 tokio loops here, one that handles the messages
+        // And a second one that concurrently deals out the packages
+        todo!()
+    }
+}
+
+impl Actor for UpstreamRelayService {
     type Context = Context<Self>;
 
     fn started(&mut self, context: &mut Self::Context) {
@@ -770,17 +921,25 @@ impl Actor for UpstreamRelay {
     }
 }
 
-impl Supervised for UpstreamRelay {}
+impl Supervised for UpstreamRelayService {}
 
-impl SystemService for UpstreamRelay {}
+impl SystemService for UpstreamRelayService {}
 
-impl Default for UpstreamRelay {
+impl Default for UpstreamRelayService {
     fn default() -> Self {
         unimplemented!("register with the SystemRegistry instead")
     }
 }
 
-struct Authenticate;
+pub struct Authenticate; // TODO: Fix this eventually
+
+impl FromMessage<Authenticate> for UpstreamRelay {
+    type Response = NoResponse;
+
+    fn from_message(message: Authenticate, _: ()) -> Self {
+        Self::Authenticate(message)
+    }
+}
 
 impl Message for Authenticate {
     type Result = Result<(), ()>;
@@ -795,7 +954,7 @@ impl Message for Authenticate {
 ///
 /// **Note:** Relay has retry functionality, outside this actor, that periodically sends Authenticate
 /// messages until successful Authentication with the upstream server was achieved.
-impl Handler<Authenticate> for UpstreamRelay {
+impl Handler<Authenticate> for UpstreamRelayService {
     type Result = ResponseActFuture<Self, (), ()>;
 
     fn handle(&mut self, _msg: Authenticate, ctx: &mut Self::Context) -> Self::Result {
@@ -875,6 +1034,14 @@ impl Handler<Authenticate> for UpstreamRelay {
 
 pub struct IsAuthenticated;
 
+impl FromMessage<IsAuthenticated> for UpstreamRelay {
+    type Response = AsyncResponse<bool>;
+
+    fn from_message(message: IsAuthenticated, sender: Sender<bool>) -> Self {
+        Self::IsAuthenticated(message, sender)
+    }
+}
+
 impl Message for IsAuthenticated {
     type Result = bool;
 }
@@ -883,7 +1050,7 @@ impl Message for IsAuthenticated {
 /// state of authentication with the upstream sever.
 ///
 /// Currently it is only used by the HealthCheck actor.
-impl Handler<IsAuthenticated> for UpstreamRelay {
+impl Handler<IsAuthenticated> for UpstreamRelayService {
     type Result = bool;
 
     fn handle(&mut self, _msg: IsAuthenticated, _ctx: &mut Self::Context) -> Self::Result {
@@ -897,12 +1064,20 @@ impl Message for IsNetworkOutage {
     type Result = bool;
 }
 
+impl FromMessage<IsNetworkOutage> for UpstreamRelay {
+    type Response = AsyncResponse<bool>;
+
+    fn from_message(message: IsNetworkOutage, sender: Sender<bool>) -> Self {
+        Self::IsNetworkOutage(message, sender)
+    }
+}
+
 /// The `IsNetworkOutage` message is an internal Relay message that is used to
 /// query the current state of network connection with the upstream server.
 ///
 /// Currently it is only used by the HealthCheck actor to emit the
 /// `upstream.network_outage` metric.
-impl Handler<IsNetworkOutage> for UpstreamRelay {
+impl Handler<IsNetworkOutage> for UpstreamRelayService {
     type Result = bool;
 
     fn handle(&mut self, _msg: IsNetworkOutage, _ctx: &mut Self::Context) -> Self::Result {
@@ -911,10 +1086,18 @@ impl Handler<IsNetworkOutage> for UpstreamRelay {
 }
 
 /// Message send to drive the HttpMessage queue
-struct PumpHttpMessageQueue;
+pub struct PumpHttpMessageQueue; // TODO: Approach this differently
 
 impl Message for PumpHttpMessageQueue {
     type Result = ();
+}
+
+impl FromMessage<PumpHttpMessageQueue> for UpstreamRelay {
+    type Response = NoResponse;
+
+    fn from_message(message: PumpHttpMessageQueue, _: ()) -> Self {
+        Self::PumpHttpMessageQueue(message)
+    }
 }
 
 /// The `PumpHttpMessageQueue` is an internal Relay message that is used to drive the
@@ -926,7 +1109,7 @@ impl Message for PumpHttpMessageQueue {
 ///
 /// `PumpHttpMessageQueue` will end up sending messages over HTTP only when there are free
 /// connections available.
-impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
+impl Handler<PumpHttpMessageQueue> for UpstreamRelayService {
     type Result = ();
 
     fn handle(&mut self, _msg: PumpHttpMessageQueue, ctx: &mut Self::Context) -> Self::Result {
@@ -949,13 +1132,21 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelay {
     }
 }
 
-struct ScheduleConnectionCheck;
+pub struct ScheduleConnectionCheck; // TODO: Approach this differently
 
 impl Message for ScheduleConnectionCheck {
     type Result = ();
 }
 
-impl Handler<ScheduleConnectionCheck> for UpstreamRelay {
+impl FromMessage<ScheduleConnectionCheck> for UpstreamRelay {
+    type Response = NoResponse;
+
+    fn from_message(message: ScheduleConnectionCheck, _: ()) -> Self {
+        Self::ScheduleConnectionCheck(message)
+    }
+}
+
+impl Handler<ScheduleConnectionCheck> for UpstreamRelayService {
     type Result = ();
 
     fn handle(&mut self, _msg: ScheduleConnectionCheck, ctx: &mut Self::Context) -> Self::Result {
@@ -1007,10 +1198,10 @@ impl UpstreamRequest for GetHealthCheck {
         Box::new(future.then(|result| {
             if matches!(result, Err(err) if err.is_network_error()) {
                 // still network error, schedule another attempt
-                UpstreamRelay::from_registry().do_send(ScheduleConnectionCheck);
+                UpstreamRelayService::from_registry().do_send(ScheduleConnectionCheck);
             } else {
                 // resume normal messages
-                UpstreamRelay::from_registry().do_send(PumpHttpMessageQueue);
+                UpstreamRelayService::from_registry().do_send(PumpHttpMessageQueue);
             }
 
             Ok(())
@@ -1090,6 +1281,17 @@ pub trait UpstreamRequest: Send {
         -> ResponseFuture<(), ()>;
 }
 
+// TODO: This needs to be reworked
+pub struct BSendRequest(Box<dyn UpstreamRequest>);
+
+impl FromMessage<BSendRequest> for UpstreamRelay {
+    type Response = NoResponse;
+
+    fn from_message(message: BSendRequest, _: ()) -> Self {
+        Self::BSendRequest(message)
+    }
+}
+
 pub struct SendRequest<T: UpstreamRequest>(pub T);
 
 impl<T> Message for SendRequest<T>
@@ -1099,7 +1301,7 @@ where
     type Result = ();
 }
 
-impl<T> Handler<SendRequest<T>> for UpstreamRelay
+impl<T> Handler<SendRequest<T>> for UpstreamRelayService
 where
     T: UpstreamRequest + 'static,
 {
@@ -1107,6 +1309,14 @@ where
 
     fn handle(&mut self, msg: SendRequest<T>, ctx: &mut Self::Context) -> Self::Result {
         self.enqueue(EnqueuedRequest::new(msg.0), ctx, EnqueuePosition::Front);
+    }
+}
+
+impl FromMessage<TrackedFutureFinished> for UpstreamRelay {
+    type Response = NoResponse;
+
+    fn from_message(message: TrackedFutureFinished, _: ()) -> Self {
+        Self::TrackedFutureFinished(message)
     }
 }
 
@@ -1125,7 +1335,7 @@ where
 /// the mpsc channel or this handler, it would have not dealt with dropped futures.
 /// Weather the added complexity of this design is justified by being able to handle dropped
 /// futures is not clear to me (RaduW) at this moment.
-impl Handler<TrackedFutureFinished> for UpstreamRelay {
+impl Handler<TrackedFutureFinished> for UpstreamRelayService {
     type Result = ();
     /// handle notifications received from the tracked future stream
     fn handle(&mut self, _item: TrackedFutureFinished, ctx: &mut Self::Context) {
@@ -1153,7 +1363,19 @@ pub trait UpstreamQuery: Serialize + Send + 'static {
     }
 }
 
-pub struct SendQuery<T: UpstreamQuery>(pub T);
+// TODO: Ask about this, how and if we get this to work
+//pub struct BSendQuery(Box<dyn UpstreamQuery<Response = Box<dyn DeserializeOwned>>>);
+pub struct BSendQuery();
+
+impl FromMessage<BSendQuery> for UpstreamRelay {
+    type Response = AsyncResponse<()>;
+
+    fn from_message(message: BSendQuery, sender: Sender<()>) -> Self {
+        Self::BSendQuery(message, sender)
+    }
+}
+
+pub struct SendQuery<T: UpstreamQuery>(pub T); // box dyn
 
 impl<T: UpstreamQuery> Message for SendQuery<T> {
     type Result = Result<T::Response, UpstreamRequestError>;
@@ -1229,7 +1451,7 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
 ///
 /// The handler ensures that Relay is authenticated with the upstream server, adds the message
 /// to one of the message queues.
-impl<T: UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelay {
+impl<T: UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelayService {
     type Result = ResponseFuture<T::Response, UpstreamRequestError>;
 
     fn handle(&mut self, message: SendQuery<T>, ctx: &mut Self::Context) -> Self::Result {

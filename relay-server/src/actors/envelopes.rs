@@ -19,7 +19,9 @@ use relay_statsd::metric;
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
 use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
+use crate::actors::upstream::{
+    SendRequest, UpstreamRelayService, UpstreamRequest, UpstreamRequestError,
+};
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
@@ -249,7 +251,7 @@ impl EnvelopeManager {
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
-            UpstreamRelay::from_registry().do_send(SendRequest(request));
+            UpstreamRelayService::from_registry().do_send(SendRequest(request));
         } else {
             EnvelopeProcessor::from_registry().do_send(EncodeEnvelope::new(request));
         }

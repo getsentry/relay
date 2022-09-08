@@ -17,7 +17,7 @@ use relay_common::RetryBackoff;
 use relay_config::{Config, RelayInfo};
 use relay_log::LogError;
 
-use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelayService};
 use crate::utils::{self, ApiErrorResponse, Response};
 
 #[derive(Fail, Debug)]
@@ -151,7 +151,7 @@ impl RelayCache {
             relay_ids: channels.keys().cloned().collect(),
         };
 
-        UpstreamRelay::from_registry()
+        UpstreamRelayService::from_registry()
             .send(SendQuery(request))
             .map_err(|_| KeyError::ScheduleFailed)
             .into_actor(self)
