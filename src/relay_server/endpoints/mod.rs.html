@@ -60,7 +60,7 @@
 <span class="kw">mod</span> <span class="ident">envelope</span>;
 <span class="kw">mod</span> <span class="ident">events</span>;
 <span class="kw">mod</span> <span class="ident">forward</span>;
-<span class="kw">mod</span> <span class="ident">healthcheck</span>;
+<span class="kw">mod</span> <span class="ident">health_check</span>;
 <span class="kw">mod</span> <span class="ident">minidump</span>;
 <span class="kw">mod</span> <span class="ident">outcomes</span>;
 <span class="kw">mod</span> <span class="ident">project_configs</span>;
@@ -73,7 +73,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">configure_app</span>(<span class="ident">app</span>: <span class="ident">ServiceApp</span>) -&gt; <span class="ident">ServiceApp</span> {
     <span class="ident">app</span>
         <span class="comment">// Internal routes pointing to /api/relay</span>
-        .<span class="ident">configure</span>(<span class="ident">healthcheck::configure_app</span>)
+        .<span class="ident">configure</span>(<span class="ident">health_check::configure_app</span>)
         .<span class="ident">configure</span>(<span class="ident">events::configure_app</span>)
         .<span class="ident">handler</span>(<span class="string">&quot;/api/relay&quot;</span>, <span class="ident">statics::not_found</span>)
         <span class="comment">// Web API routes pointing to /api/0</span>

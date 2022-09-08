@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/healthcheck.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>healthcheck.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/health_check.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>health_check.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../relay_server/index.html"><div class="logo-container">
@@ -142,58 +142,70 @@
 <span id="134">134</span>
 <span id="135">135</span>
 <span id="136">136</span>
-<span id="137">137</span>
-<span id="138">138</span>
-<span id="139">139</span>
-<span id="140">140</span>
-<span id="141">141</span>
-<span id="142">142</span>
-<span id="143">143</span>
-<span id="144">144</span>
-<span id="145">145</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">Ordering</span>};
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
 <span class="kw">use</span> <span class="ident">actix::SystemService</span>;
-<span class="kw">use</span> <span class="ident">tokio::sync</span>::{<span class="ident">mpsc</span>, <span class="ident">oneshot</span>};
 
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">RelayMode</span>};
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">AcceptsMetrics</span>, <span class="ident">Aggregator</span>};
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">compat</span>, <span class="ident">Controller</span>};
+<span class="kw">use</span> <span class="ident">relay_system</span>::{
+    <span class="ident">compat</span>, <span class="ident">Addr</span>, <span class="ident">AsyncResponse</span>, <span class="ident">Controller</span>, <span class="ident">FromMessage</span>, <span class="ident">Interface</span>, <span class="ident">Sender</span>, <span class="ident">Service</span>,
+};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">IsAuthenticated</span>, <span class="ident">IsNetworkOutage</span>, <span class="ident">UpstreamRelay</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::REGISTRY</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayGauges</span>;
-<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Addr</span>, <span class="ident">Service</span>, <span class="ident">ServiceMessage</span>};
 
+<span class="doccomment">/// Checks whether Relay is alive and healthy based on its variant.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">IsHealthy</span> {
+    <span class="doccomment">/// Check if the Relay is alive at all.</span>
+    <span class="ident">Liveness</span>,
+    <span class="doccomment">/// Check if the Relay is in a state where the load balancer should route traffic to it (i.e.</span>
+    <span class="doccomment">/// it&#39;s both live/alive and not too busy).</span>
+    <span class="ident">Readiness</span>,
+}
+
+<span class="doccomment">/// Service interface for the [`IsHealthy`] message.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">HealthCheck</span>(<span class="ident">IsHealthy</span>, <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>);
+
+<span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">HealthCheck</span> {}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">IsHealthy</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HealthCheck</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">AsyncResponse</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">IsHealthy</span>, <span class="ident">sender</span>: <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span>(<span class="ident">message</span>, <span class="ident">sender</span>)
+    }
+}
+
+<span class="doccomment">/// Service implementing the [`HealthCheck`] interface.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Healthcheck</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">HealthCheckService</span> {
     <span class="ident">is_shutting_down</span>: <span class="ident">AtomicBool</span>,
     <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">Healthcheck</span> {
-    <span class="kw">type</span> <span class="ident">Messages</span> <span class="op">=</span> <span class="ident">HealthcheckMessages</span>;
-}
-
-<span class="kw">impl</span> <span class="ident">Healthcheck</span> {
-    <span class="doccomment">/// Returns the [`Addr`] of the [`Healthcheck`] service.</span>
+<span class="kw">impl</span> <span class="ident">HealthCheckService</span> {
+    <span class="doccomment">/// Returns the [`Addr`] of the [`HealthCheck`] service.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// Prior to using this, the service must be started using [`Healthcheck::start`].</span>
+    <span class="doccomment">/// Prior to using this, the service must be started using [`HealthCheckService::start`].</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// Panics if the service was not started using [`Healthcheck::start`] prior to this being used.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">healthcheck</span>.<span class="ident">clone</span>()
+    <span class="doccomment">/// Panics if the service was not started using [`HealthCheckService::start`] prior to this</span>
+    <span class="doccomment">/// being used.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">HealthCheck</span><span class="op">&gt;</span> {
+        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">health_check</span>.<span class="ident">clone</span>()
     }
 
-    <span class="doccomment">/// Creates a new instance of the Healthcheck service.</span>
+    <span class="doccomment">/// Creates a new instance of the HealthCheck service.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The service does not run. To run the service, use [`start`](Self::start).</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Healthcheck</span> {
+        <span class="ident">HealthCheckService</span> {
             <span class="ident">is_shutting_down</span>: <span class="ident">AtomicBool::new</span>(<span class="bool-val">false</span>),
             <span class="ident">config</span>,
         }
@@ -233,18 +245,23 @@
         }
     }
 
-    <span class="doccomment">/// Start this service, returning an [`Addr`] for communication.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="self">self</span>) -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">mpsc::unbounded_channel</span>::<span class="op">&lt;</span><span class="ident">HealthcheckMessages</span><span class="op">&gt;</span>();
+    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">HealthCheck</span>) {
+        <span class="kw">let</span> <span class="ident">HealthCheck</span>(<span class="ident">message</span>, <span class="ident">sender</span>) <span class="op">=</span> <span class="ident">message</span>;
+        <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">handle_is_healthy</span>(<span class="ident">message</span>).<span class="kw">await</span>;
+        <span class="ident">sender</span>.<span class="ident">send</span>(<span class="ident">response</span>);
+    }
+}
 
-        <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">Addr</span> { <span class="ident">tx</span> };
+<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">HealthCheckService</span> {
+    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">HealthCheck</span>;
 
+    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
         <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="self">self</span>);
+
         <span class="kw">let</span> <span class="ident">main_service</span> <span class="op">=</span> <span class="ident">service</span>.<span class="ident">clone</span>();
         <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
             <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">message</span>) <span class="op">=</span> <span class="ident">rx</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
                 <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">main_service</span>.<span class="ident">clone</span>();
-
                 <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> { <span class="ident">service</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>).<span class="kw">await</span> });
             }
         });
@@ -259,42 +276,7 @@
                 }
             }
         });
-
-        <span class="ident">addr</span>
     }
-
-    <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">HealthcheckMessages</span>) {
-        <span class="kw">match</span> <span class="ident">message</span> {
-            <span class="ident">HealthcheckMessages::IsHealthy</span>(<span class="ident">msg</span>, <span class="ident">response_tx</span>) =&gt; {
-                <span class="kw">let</span> <span class="ident">response</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">handle_is_healthy</span>(<span class="ident">msg</span>).<span class="kw">await</span>;
-                <span class="ident">response_tx</span>.<span class="ident">send</span>(<span class="ident">response</span>).<span class="ident">ok</span>()
-            }
-        };
-    }
-}
-
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">IsHealthy</span> {
-    <span class="doccomment">/// Check if the Relay is alive at all.</span>
-    <span class="ident">Liveness</span>,
-    <span class="doccomment">/// Check if the Relay is in a state where the load balancer should route traffic to it (i.e.</span>
-    <span class="doccomment">/// it&#39;s both live/alive and not too busy).</span>
-    <span class="ident">Readiness</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">ServiceMessage</span><span class="op">&lt;</span><span class="ident">Healthcheck</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">IsHealthy</span> {
-    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">bool</span>;
-
-    <span class="kw">fn</span> <span class="ident">into_messages</span>(<span class="self">self</span>) -&gt; (<span class="ident">HealthcheckMessages</span>, <span class="ident">oneshot::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Response</span><span class="op">&gt;</span>) {
-        <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">oneshot::channel</span>();
-        (<span class="ident">HealthcheckMessages::IsHealthy</span>(<span class="self">self</span>, <span class="ident">tx</span>), <span class="ident">rx</span>)
-    }
-}
-
-<span class="doccomment">/// All the message types which can be sent to the [`Healthcheck`] service.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">HealthcheckMessages</span> {
-    <span class="ident">IsHealthy</span>(<span class="ident">IsHealthy</span>, <span class="ident">oneshot::Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>),
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="relay_server" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.63.0 (4b91a6ea7 2022-08-08)" ></div>

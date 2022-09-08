@@ -1792,7 +1792,7 @@
         );
 
         <span class="ident">ctx</span>.<span class="ident">run_later</span>(<span class="ident">next_backoff</span>, <span class="op">|</span><span class="ident">slf</span>, <span class="ident">ctx</span><span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">EnqueuedRequest::new</span>(<span class="ident">GetHealthcheck</span>);
+            <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">EnqueuedRequest::new</span>(<span class="ident">GetHealthCheck</span>);
             <span class="ident">slf</span>.<span class="ident">enqueue</span>(<span class="ident">request</span>, <span class="ident">ctx</span>, <span class="ident">EnqueuePosition::Front</span>);
         });
     }
@@ -2250,9 +2250,9 @@
 }
 
 <span class="doccomment">/// Checks the status of the network connection with the upstream server</span>
-<span class="kw">struct</span> <span class="ident">GetHealthcheck</span>;
+<span class="kw">struct</span> <span class="ident">GetHealthCheck</span>;
 
-<span class="kw">impl</span> <span class="ident">UpstreamRequest</span> <span class="kw">for</span> <span class="ident">GetHealthcheck</span> {
+<span class="kw">impl</span> <span class="ident">UpstreamRequest</span> <span class="kw">for</span> <span class="ident">GetHealthCheck</span> {
     <span class="kw">fn</span> <span class="ident">method</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Method</span> {
         <span class="ident">Method::GET</span>
     }
