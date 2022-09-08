@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::service::ServiceApp;
 
-use crate::actors::healthcheck::{Healthcheck, IsHealthy};
+use crate::actors::healthcheck::{HealthcheckService, IsHealthy};
 
 #[derive(Serialize)]
 struct HealthcheckResponse {
@@ -34,7 +34,7 @@ impl HealthcheckResponse {
 
 fn healthcheck_impl(message: IsHealthy) -> ResponseFuture<HttpResponse, Error> {
     let fut = async move {
-        let addr = Healthcheck::from_registry();
+        let addr = HealthcheckService::from_registry();
         addr.send(message).await
     };
 
