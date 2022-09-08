@@ -118,9 +118,9 @@ impl std::error::Error for SendError {}
 
 /// Response behavior of an [`Interface`] message.
 ///
-/// The action type defines the response behavior of a service, such as asynchronous responses
-/// or fire-and-forget without responding. [`FromMessage`] implementations declare this behavior
-/// on the interface.
+/// It defines how a service handles and responds to interface messages, such as through
+/// asynchronous responses or fire-and-forget without responding. [`FromMessage`] implementations
+/// declare this behavior on the interface.
 ///
 /// See [`FromMessage`] for more information on how to use this trait.
 pub trait MessageResponse {
@@ -176,6 +176,8 @@ impl<T> fmt::Debug for Sender<T> {
 
 impl<T> Sender<T> {
     /// Sends the response value and closes the [`Request`].
+    ///
+    /// This silenly drops the value if the request has been dropped.
     pub fn send(self, value: T) {
         self.0.send(value).ok();
     }
@@ -349,7 +351,7 @@ impl<I: Interface> Addr<I> {
 /// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
 pub type Receiver<I> = mpsc::UnboundedReceiver<I>;
 
-/// Creates an unbounded channel for communicating with a [`Service`] without backpressure.
+/// Creates an unbounded channel for communicating with a [`Service`].
 ///
 /// The `Addr` as the sending part provides public access to the service, while the `Receiver`
 /// should remain internal to the service.
@@ -373,7 +375,7 @@ pub fn channel<I: Interface>() -> (Addr<I>, Receiver<I>) {
 ///
 /// The standard way to implement services is through the `run` function. It receives an inbound
 /// channel for all messages sent through the service's address. Note that this function is
-/// synchronous, so that this needs to spawn a task internally.
+/// synchronous, so that this needs to spawn at least one task internally:
 ///
 /// ```no_run
 /// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service};
