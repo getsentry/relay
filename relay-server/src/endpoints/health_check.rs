@@ -1,4 +1,5 @@
-//! A simple healthcheck endpoint for the relay.
+//! A simple health check endpoint for the relay.
+
 use ::actix::prelude::*;
 use actix_web::{Error, HttpResponse};
 use futures::{FutureExt, TryFutureExt};
@@ -7,14 +8,14 @@ use serde::Serialize;
 
 use crate::service::ServiceApp;
 
-use crate::actors::healthcheck::{HealthcheckService, IsHealthy};
+use crate::actors::health_check::{HealthCheckService, IsHealthy};
 
 #[derive(Serialize)]
-struct HealthcheckResponse {
+struct HealthCheckResponse {
     is_healthy: bool,
 }
 
-impl HealthcheckResponse {
+impl HealthCheckResponse {
     fn healthy() -> Self {
         Self { is_healthy: true }
     }
@@ -32,9 +33,9 @@ impl HealthcheckResponse {
     }
 }
 
-fn healthcheck_impl(message: IsHealthy) -> ResponseFuture<HttpResponse, Error> {
+fn health_check_impl(message: IsHealthy) -> ResponseFuture<HttpResponse, Error> {
     let fut = async move {
-        let addr = HealthcheckService::from_registry();
+        let addr = HealthCheckService::from_registry();
         addr.send(message).await
     };
 
@@ -46,34 +47,34 @@ fn healthcheck_impl(message: IsHealthy) -> ResponseFuture<HttpResponse, Error> {
                 if !is_healthy {
                     Err(())
                 } else {
-                    Ok(HealthcheckResponse::healthy().into_response())
+                    Ok(HealthCheckResponse::healthy().into_response())
                 }
             })
-            .or_else(|()| Ok(HealthcheckResponse::unhealthy().into_response())),
+            .or_else(|()| Ok(HealthCheckResponse::unhealthy().into_response())),
     )
 }
 
-fn readiness_healthcheck(_: ()) -> ResponseFuture<HttpResponse, Error> {
-    healthcheck_impl(IsHealthy::Readiness)
+fn readiness_health_check(_: ()) -> ResponseFuture<HttpResponse, Error> {
+    health_check_impl(IsHealthy::Readiness)
 }
 
-fn liveness_healthcheck(_: ()) -> ResponseFuture<HttpResponse, Error> {
-    healthcheck_impl(IsHealthy::Liveness)
+fn liveness_health_check(_: ()) -> ResponseFuture<HttpResponse, Error> {
+    health_check_impl(IsHealthy::Liveness)
 }
 
 pub fn configure_app(app: ServiceApp) -> ServiceApp {
     app.resource("/api/relay/healthcheck/ready/", |r| {
         r.name("internal-healthcheck-ready");
-        r.get().with(readiness_healthcheck);
+        r.get().with(readiness_health_check);
     })
     .resource("/api/relay/healthcheck/live/", |r| {
         r.name("internal-healthcheck-live");
-        r.get().with(liveness_healthcheck);
+        r.get().with(liveness_health_check);
     })
     // live check is also used to check network connectivity by downstream relays.
     // It must have the same url as Sentry (hence two urls doing the same thing)
     .resource("/api/0/relays/live/", |r| {
         r.name("external-healthcheck-live");
-        r.get().with(liveness_healthcheck);
+        r.get().with(liveness_health_check);
     })
 }

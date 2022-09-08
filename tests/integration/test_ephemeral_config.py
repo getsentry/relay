@@ -80,7 +80,7 @@ def test_store_via_ephemeral_relay(
         {},
         version,
     )
-    relay.wait_relay_healthcheck()
+    relay.wait_relay_health_check()
     print(mode)
     if mode == "managed":
         project_config["config"]["trustedRelays"] = list(relay.iter_public_keys())
