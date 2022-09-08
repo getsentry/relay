@@ -111,7 +111,7 @@ impl HealthcheckService {
 impl Service for HealthcheckService {
     type Interface = Healthcheck;
 
-    fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let service = Arc::new(self);
 
         let main_service = service.clone();

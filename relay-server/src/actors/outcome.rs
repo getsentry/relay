@@ -549,7 +549,7 @@ impl HttpOutcomeProducer {
 impl Service for HttpOutcomeProducer {
     type Interface = TrackRawOutcome;
 
-    fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -637,7 +637,7 @@ impl ClientReportOutcomeProducer {
 impl Service for ClientReportOutcomeProducer {
     type Interface = TrackOutcome;
 
-    fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -900,7 +900,7 @@ impl OutcomeProducerService {
 impl Service for OutcomeProducerService {
     type Interface = OutcomeProducer;
 
-    fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             relay_log::info!("OutcomeProducer started.");
             while let Some(message) = rx.recv().await {

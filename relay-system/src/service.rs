@@ -347,7 +347,7 @@ impl<I: Interface> Addr<I> {
 ///
 /// This channel is meant to be polled in a [`Service`].
 ///
-/// Instances are created automatically when [running](Service::run) a service, or can be
+/// Instances are created automatically when [spawning](Service::spawn_handler) a service, or can be
 /// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
 pub type Receiver<I> = mpsc::UnboundedReceiver<I>;
 
@@ -397,7 +397,7 @@ pub fn channel<I: Interface>() -> (Addr<I>, Receiver<I>) {
 /// impl Service for MyService {
 ///     type Interface = MyMessage;
 ///
-///     fn run(self, mut rx: Receiver<Self::Interface>) {
+///     fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
 ///         tokio::spawn(async move {
 ///             while let Some(message) = rx.recv().await {
 ///                 // handle the message
@@ -415,16 +415,16 @@ pub trait Service: Sized {
     /// can be handled by this service.
     type Interface: Interface;
 
-    /// Runs the service's accept loop.
+    /// Spawns a task to handle service messages.
     ///
-    /// Receives an inbound channel for all messages sent through the service's address. Note
+    /// Receives an inbound channel for all messages sent through the service's [`Addr`]. Note
     /// that this function is synchronous, so that this needs to spawn a task internally.
-    fn run(self, rx: Receiver<Self::Interface>);
+    fn spawn_handler(self, rx: Receiver<Self::Interface>);
 
-    /// Starts the service with its accept loop and returns an address to send messages in.
+    /// Starts the service in the current runtime and returns an address for it.
     fn start(self) -> Addr<Self::Interface> {
         let (addr, rx) = channel();
-        self.run(rx);
+        self.spawn_handler(rx);
         addr
     }
 }

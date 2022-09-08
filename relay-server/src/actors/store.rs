@@ -720,7 +720,7 @@ impl StoreService {
 impl Service for StoreService {
     type Interface = Store;
 
-    fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             relay_log::info!("store forwarder started");
 
