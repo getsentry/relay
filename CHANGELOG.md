@@ -19,7 +19,10 @@
 - Update store service to use generic Addr and minor changes to generic Addr. ([#1415](https://github.com/getsentry/relay/pull/1415))
 - Added new Register for the Services that is initialized later than the current. ([#1421](https://github.com/getsentry/relay/pull/1421))
 - Batch metrics buckets into logical partitions before sending them as envelopes. ([#1440](https://github.com/getsentry/relay/pull/1440))
+- Filter single samples in cocoa profiles and events with no duration in Android profiles. ([#1445](https://github.com/getsentry/relay/pull/1445))
 - Add looser type requirements for the user.id field. ([#1443](https://github.com/getsentry/relay/pull/1443))
+- Add InvalidReplayEvent outcome. ([#1455](https://github.com/getsentry/relay/pull/1455))
+- Add replay and replay-recording rate limiter. ([#1456](https://github.com/getsentry/relay/pull/1456))
 
 **Features**:
 

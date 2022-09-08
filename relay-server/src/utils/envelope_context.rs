@@ -97,7 +97,7 @@ impl EnvelopeContext {
     /// operation to ensure that subsequent outcomes are consistent.
     pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
         let outcome_aggregator = OutcomeAggregator::from_registry();
-        outcome_aggregator.do_send(TrackOutcome {
+        let _ = outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at,
             scoping: self.scoping,
             outcome,
