@@ -25,11 +25,11 @@ pub enum IsHealthy {
 }
 
 /// Service interface for the [`IsHealthy`] message.
-pub struct Healthcheck(IsHealthy, Sender<bool>);
+pub struct HealthCheck(IsHealthy, Sender<bool>);
 
-impl Interface for Healthcheck {}
+impl Interface for HealthCheck {}
 
-impl FromMessage<IsHealthy> for Healthcheck {
+impl FromMessage<IsHealthy> for HealthCheck {
     type Response = AsyncResponse<bool>;
 
     fn from_message(message: IsHealthy, sender: Sender<bool>) -> Self {
@@ -37,31 +37,31 @@ impl FromMessage<IsHealthy> for Healthcheck {
     }
 }
 
-/// Service implementing the [`Healthcheck`] interface.
+/// Service implementing the [`HealthCheck`] interface.
 #[derive(Debug)]
-pub struct HealthcheckService {
+pub struct HealthCheckService {
     is_shutting_down: AtomicBool,
     config: Arc<Config>,
 }
 
-impl HealthcheckService {
-    /// Returns the [`Addr`] of the [`Healthcheck`] service.
+impl HealthCheckService {
+    /// Returns the [`Addr`] of the [`HealthCheck`] service.
     ///
-    /// Prior to using this, the service must be started using [`HealthcheckService::start`].
+    /// Prior to using this, the service must be started using [`HealthCheckService::start`].
     ///
     /// # Panics
     ///
-    /// Panics if the service was not started using [`HealthcheckService::start`] prior to this
+    /// Panics if the service was not started using [`HealthCheckService::start`] prior to this
     /// being used.
-    pub fn from_registry() -> Addr<Healthcheck> {
-        REGISTRY.get().unwrap().healthcheck.clone()
+    pub fn from_registry() -> Addr<HealthCheck> {
+        REGISTRY.get().unwrap().health_check.clone()
     }
 
-    /// Creates a new instance of the Healthcheck service.
+    /// Creates a new instance of the HealthCheck service.
     ///
     /// The service does not run. To run the service, use [`start`](Self::start).
     pub fn new(config: Arc<Config>) -> Self {
-        HealthcheckService {
+        HealthCheckService {
             is_shutting_down: AtomicBool::new(false),
             config,
         }
@@ -101,15 +101,15 @@ impl HealthcheckService {
         }
     }
 
-    async fn handle_message(&self, message: Healthcheck) {
-        let Healthcheck(message, sender) = message;
+    async fn handle_message(&self, message: HealthCheck) {
+        let HealthCheck(message, sender) = message;
         let response = self.handle_is_healthy(message).await;
         sender.send(response);
     }
 }
 
-impl Service for HealthcheckService {
-    type Interface = Healthcheck;
+impl Service for HealthCheckService {
+    type Interface = HealthCheck;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let service = Arc::new(self);

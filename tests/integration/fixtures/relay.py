@@ -96,7 +96,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         options=None,
         prepare=None,
         external=None,
-        wait_healthcheck=True,
+        wait_health_check=True,
         static_relays=None,
         version="latest",
     ):
@@ -172,8 +172,8 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             version,
         )
 
-        if wait_healthcheck:
-            relay.wait_relay_healthcheck()
+        if wait_health_check:
+            relay.wait_relay_health_check()
 
         return relay
 
