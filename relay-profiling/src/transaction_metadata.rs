@@ -28,6 +28,7 @@ impl TransactionMetadata {
             && !self.trace_id.is_nil()
             && !self.name.is_empty()
             && self.relative_start_ns < self.relative_end_ns
+            && self.relative_cpu_start_ms <= self.relative_cpu_end_ms
     }
 }
 
