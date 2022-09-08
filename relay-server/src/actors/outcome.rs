@@ -806,6 +806,7 @@ impl OutcomeProducerService {
     fn send_kafka_message(
         &self,
         producer: &KafkaOutcomesProducer,
+        organization_id: u64,
         message: TrackRawOutcome,
     ) -> Result<(), OutcomeError> {
         relay_log::trace!("Tracking kafka outcome: {:?}", message);
@@ -825,8 +826,6 @@ impl OutcomeProducerService {
             (KafkaTopic::Outcomes, producer.default())
         };
 
-        //XXX: get org id here
-        let organization_id = 0;
         let result = match producer {
             Producer::Single {
                 topic_name,
@@ -880,8 +879,11 @@ impl OutcomeProducerService {
             #[cfg(feature = "processing")]
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
                 Self::send_outcome_metric(&message, "kafka");
+                let organization_id = message.scoping.organization_id;
                 let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
-                if let Err(error) = self.send_kafka_message(kafka_producer, raw_message) {
+                if let Err(error) =
+                    self.send_kafka_message(kafka_producer, organization_id, raw_message)
+                {
                     relay_log::error!("failed to produce outcome: {}", LogError(&error));
                 }
             }
@@ -902,7 +904,8 @@ impl OutcomeProducerService {
             #[cfg(feature = "processing")]
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
                 Self::send_outcome_metric(&message, "kafka");
-                if let Err(error) = self.send_kafka_message(kafka_producer, message) {
+                let sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
+                if let Err(error) = self.send_kafka_message(kafka_producer, sharding_id, message) {
                     relay_log::error!("failed to produce outcome: {}", LogError(&error));
                 }
             }
