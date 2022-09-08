@@ -1,40 +1,38 @@
 #!/usr/bin/env bash
-
 set -e
 
-IMAGE=${IMAGE:-quay.io/pypa/manylinux2014_x86_64}
-TARGET=${TARGET:-aarch64}
-TARGET_LINKER=$(echo $TARGET | tr '[:lower:]' '[:upper:]')
-DEFAULT_BUILDER_NAME="relay-cabi-builder-${TARGET}:latest"
-BUILDER_NAME="${BUILDER_NAME:-${DEFAULT_BUILDER_NAME}}"
-USER_ID=$(id -u)
-GROUP_ID=$(id -g)
+if [ -z "$TARGET" ]; then
+    echo "TARGET is not set"
+    exit 1
+fi
 
+case "$(uname -m)" in
+  arm64) HOST_ARCH="aarch64" ;;
+  *) HOST_ARCH="$(uname -m)"
+esac
+
+# Set cargo build arguments
+TARGET_LINKER="CARGO_TARGET_$(echo $TARGET | tr '[:lower:]' '[:upper:]')_UNKNOWN_LINUX_GNU_LINKER"
+if [[ "$HOST_ARCH" != "$TARGET" ]]; then
+  CARGO_BUILD_TARGET="${TARGET}-unknown-linux-gnu"
+  export ${TARGET_LINKER}="${TARGET}-linux-gnu-gcc"
+fi
 
 # Build docker image with all dependencies for cross compilation
-docker build --build-arg=TARGET=${TARGET} --build-arg=IMAGE=${IMAGE} --file py/Dockerfile -t ${BUILDER_NAME} py/
-
-# Set additional env variables if the image is for another target
-# It means we must cross compile
-if [[ $IMAGE != *"${TARGET}"* ]]; then
-  export "CARGO_TARGET_${TARGET_LINKER}_UNKNOWN_LINUX_GNU_LINKER"="${TARGET}-linux-gnu-gcc"
-  export CARGO_BUILD_TARGET="${TARGET}-unknown-linux-gnu"
-fi
+BUILDER_NAME="${BUILDER_NAME:-relay-cabi-builder-${TARGET}}"
+docker build --build-arg TARGET=${TARGET} -t ${BUILDER_NAME} py/
 
 # run the cross compilation
 docker run \
   --rm \
   -w "/work" \
   -v "$(pwd):/work" \
-  -e "CARGO_TARGET_${TARGET_LINKER}_UNKNOWN_LINUX_GNU_LINKER" \
+  -e ${TARGET_LINKER} \
   -e CARGO_BUILD_TARGET \
-  $BUILDER_NAME \
+  ${BUILDER_NAME} \
   bash -c 'cargo build -p relay-cabi --release'
 
-# Fix permissions for shared directories before manylinux run
-sudo chown -R ${USER_ID}:${GROUP_ID} target/
-
-# craete a wheel for the correct architecture
+# create a wheel for the correct architecture
 docker run \
   --rm \
   -w /work/py \
@@ -45,4 +43,6 @@ docker run \
   sh manylinux.sh
 
 # Fix permissions for shared directories
+USER_ID=$(id -u)
+GROUP_ID=$(id -g)
 sudo chown -R ${USER_ID}:${GROUP_ID} target/
