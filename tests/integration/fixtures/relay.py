@@ -6,6 +6,7 @@ import stat
 import requests
 import subprocess
 
+import yaml
 import pytest
 
 from . import SentryLike
@@ -133,7 +134,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
                 default_opts.setdefault(key, {}).update(options[key])
 
         dir = config_dir("relay")
-        dir.join("config.yml").write(json.dumps(default_opts))
+        dir.join("config.yml").write(yaml.dump(default_opts))
 
         output = subprocess.check_output(
             relay_bin + ["-c", str(dir), "credentials", "generate"]
