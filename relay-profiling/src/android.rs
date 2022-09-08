@@ -221,7 +221,7 @@ fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u
             let time_ns = time.as_nanos() as u64;
             let start_time_ns = start_time.timestamp_nanos() as u64;
             if time_ns >= start_time_ns {
-                time.as_nanos() as u64 - start_time.timestamp_nanos() as u64
+                time_ns - start_time_ns
             } else {
                 0
             }
