@@ -252,7 +252,7 @@ impl Enforcement {
         for limit in [self.event, self.attachments, self.profiles, self.replays] {
             if limit.is_active() {
                 let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
-                let _ = OutcomeAggregator::from_registry().send(TrackOutcome {
+                OutcomeAggregator::from_registry().send(TrackOutcome {
                     timestamp,
                     scoping: *scoping,
                     outcome: Outcome::RateLimited(limit.reason_code),

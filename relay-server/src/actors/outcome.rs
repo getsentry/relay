@@ -1,8 +1,8 @@
-//! This module contains the actor that tracks event outcomes.
+//! This module contains the actor that tracks outcomes.
 //!
-//! Outcomes describe the final "fate" of an event. As such, for every event exactly one outcome
-//! must be emitted in the entire ingestion pipeline. Since Relay is only one part in this pipeline,
-//! outcomes may not be emitted if the event is accepted.
+//! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
+//! outcome must be emitted in the entire ingestion pipeline. Since Relay is only one part in this
+//! pipeline, outcomes may not be emitted if the item is accepted.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -19,11 +19,9 @@ use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::{Fail, ResultExt};
 #[cfg(feature = "processing")]
-use rdkafka::producer::BaseRecord;
-#[cfg(feature = "processing")]
-use rdkafka::ClientConfig as KafkaClientConfig;
+use rdkafka::{producer::BaseRecord, ClientConfig as KafkaClientConfig};
+use relay_system::{Interface, NoResponse};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, oneshot};
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
 use relay_config::{Config, EmitOutcomes};
@@ -35,7 +33,7 @@ use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 use relay_statsd::metric;
-use relay_system::{compat, Addr, Service, ServiceMessage};
+use relay_system::{compat, Addr, FromMessage, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
@@ -92,9 +90,13 @@ impl OutcomeId {
 }
 
 trait TrackOutcomeLike {
+    /// TODO: Doc
     fn reason(&self) -> Option<Cow<str>>;
+
+    /// TODO: Doc
     fn outcome_id(&self) -> OutcomeId;
 
+    /// TODO: Doc
     fn tag_name(&self) -> &'static str {
         match self.outcome_id() {
             OutcomeId::ACCEPTED => "accepted",
@@ -108,7 +110,7 @@ trait TrackOutcomeLike {
     }
 }
 
-/// Tracks an outcome of an event.
+/// Tracks an [`Outcome`] of an Envelope item.
 ///
 /// See the module level documentation for more information.
 #[derive(Clone, Debug, Hash)]
@@ -136,6 +138,16 @@ impl TrackOutcomeLike for TrackOutcome {
 
     fn outcome_id(&self) -> OutcomeId {
         self.outcome.to_outcome_id()
+    }
+}
+
+impl Interface for TrackOutcome {}
+
+impl FromMessage<Self> for TrackOutcome {
+    type Response = NoResponse;
+
+    fn from_message(message: Self, _: ()) -> Self {
+        message
     }
 }
 
@@ -375,8 +387,10 @@ impl fmt::Display for DiscardReason {
     }
 }
 
-/// The outcome message is serialized as json and placed on the Kafka topic or in
-/// the http using TrackRawOutcome
+/// Raw representation of an outcome for serialization.
+///
+/// The JSON serialization of this structure is placed on the Kafka topic and used in the HTTP
+/// endpoints. To create a new outcome, use [`TrackOutcome`], instead.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TrackRawOutcome {
     /// The timespan of the event outcome.
@@ -459,6 +473,16 @@ impl TrackOutcomeLike for TrackRawOutcome {
     }
 }
 
+impl Interface for TrackRawOutcome {}
+
+impl FromMessage<Self> for TrackRawOutcome {
+    type Response = NoResponse;
+
+    fn from_message(message: Self, _: ()) -> Self {
+        message
+    }
+}
+
 #[derive(Debug)]
 #[cfg_attr(feature = "processing", derive(Fail))]
 pub enum OutcomeError {
@@ -470,6 +494,7 @@ pub enum OutcomeError {
     SerializationError(serde_json::Error),
 }
 
+/// Outcome producer backend via HTTP as [`TrackRawOutcome`].
 struct HttpOutcomeProducer {
     config: Arc<Config>,
     unsent_outcomes: Vec<TrackRawOutcome>,
@@ -485,24 +510,6 @@ impl HttpOutcomeProducer {
         })
     }
 
-    pub fn start(mut self) -> Addr<Self> {
-        let (tx, mut rx) = mpsc::unbounded_channel::<HttpOutcomeProducerMessages>();
-
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    () = &mut self.pending_flush_handle => self.send_batch(),
-                    else => break,
-                }
-            }
-        });
-
-        Addr { tx }
-    }
-}
-
-impl HttpOutcomeProducer {
     fn send_batch(&mut self) {
         self.pending_flush_handle.reset();
 
@@ -530,7 +537,7 @@ impl HttpOutcomeProducer {
         });
     }
 
-    fn send_http_message(&mut self, message: TrackRawOutcome) {
+    fn handle_message(&mut self, message: TrackRawOutcome) {
         relay_log::trace!("Batching outcome");
         self.unsent_outcomes.push(message);
 
@@ -541,73 +548,32 @@ impl HttpOutcomeProducer {
                 .set(self.config.outcome_batch_interval());
         }
     }
-
-    fn handle_message(&mut self, message: HttpOutcomeProducerMessages) {
-        match message {
-            HttpOutcomeProducerMessages::TrackRawOutcome(msg) => self.send_http_message(msg),
-        };
-    }
 }
 
 impl Service for HttpOutcomeProducer {
-    type Messages = HttpOutcomeProducerMessages;
-}
+    type Interface = TrackRawOutcome;
 
-impl ServiceMessage<HttpOutcomeProducer> for TrackRawOutcome {
-    type Response = ();
-
-    fn into_messages(
-        self,
-    ) -> (
-        HttpOutcomeProducerMessages,
-        oneshot::Receiver<Self::Response>,
-    ) {
-        let (tx, rx) = oneshot::channel();
-        tx.send(()).ok();
-        (HttpOutcomeProducerMessages::TrackRawOutcome(self), rx)
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    Some(message) = rx.recv() => self.handle_message(message),
+                    () = &mut self.pending_flush_handle => self.send_batch(),
+                    else => break,
+                }
+            }
+        });
     }
 }
 
-#[derive(Debug)]
-enum HttpOutcomeProducerMessages {
-    TrackRawOutcome(TrackRawOutcome),
-}
-
+/// Outcome producer backend via HTTP as [`ClientReport`].
 struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
     flush_handle: SleepHandle,
 }
 
-impl Service for ClientReportOutcomeProducer {
-    type Messages = ClientReportOutcomeProducerMessages;
-}
-
 impl ClientReportOutcomeProducer {
-    pub fn start(mut self) -> Addr<Self> {
-        let (tx, mut rx) = mpsc::unbounded_channel::<ClientReportOutcomeProducerMessages>();
-
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    () = &mut self.flush_handle => self.flush(),
-                    else => break,
-                }
-            }
-        });
-
-        Addr { tx }
-    }
-
-    fn handle_message(&mut self, message: ClientReportOutcomeProducerMessages) {
-        match message {
-            ClientReportOutcomeProducerMessages::TrackOutcome(msg) => {
-                self.handle_track_outcome(msg);
-            }
-        }
-    }
-
     fn create(config: &Config) -> Self {
         Self {
             // Use same batch interval as outcome aggregator
@@ -631,7 +597,7 @@ impl ClientReportOutcomeProducer {
         }
     }
 
-    fn handle_track_outcome(&mut self, msg: TrackOutcome) {
+    fn handle_message(&mut self, msg: TrackOutcome) {
         let mut client_report = ClientReport {
             timestamp: Some(UnixTimestamp::from_secs(
                 msg.timestamp.timestamp().try_into().unwrap_or(0),
@@ -672,27 +638,23 @@ impl ClientReportOutcomeProducer {
     }
 }
 
-impl ServiceMessage<ClientReportOutcomeProducer> for TrackOutcome {
-    type Response = ();
+impl Service for ClientReportOutcomeProducer {
+    type Interface = TrackOutcome;
 
-    fn into_messages(
-        self,
-    ) -> (
-        ClientReportOutcomeProducerMessages,
-        oneshot::Receiver<Self::Response>,
-    ) {
-        let (tx, rx) = oneshot::channel();
-        tx.send(()).ok();
-        (ClientReportOutcomeProducerMessages::TrackOutcome(self), rx)
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    Some(message) = rx.recv() => self.handle_message(message),
+                    () = &mut self.flush_handle => self.flush(),
+                    else => break,
+                }
+            }
+        });
     }
 }
 
-#[derive(Debug)]
-enum ClientReportOutcomeProducerMessages {
-    TrackOutcome(TrackOutcome),
-}
-
-/// A wrapper around producers for the two Kafka topics.
+/// Outcomes producer backend for Kafka.
 ///
 /// Internally, this type creates at least one Kafka producer for the cluster of the `outcomes`
 /// topic assignment. If the `outcomes-billing` topic specifies a different cluster, it creates a
@@ -760,20 +722,57 @@ impl KafkaOutcomesProducer {
 }
 
 enum ProducerInner {
-    AsClientReports(Addr<ClientReportOutcomeProducer>),
-    AsHttpOutcomes(Addr<HttpOutcomeProducer>),
+    AsClientReports(Addr<TrackOutcome>),
+    AsHttpOutcomes(Addr<TrackRawOutcome>),
     #[cfg(feature = "processing")]
     AsKafkaOutcomes(KafkaOutcomesProducer),
     Disabled,
 }
 
-pub struct OutcomeProducer {
+/// Produces [`Outcome`]s to a configurable backend.
+///
+/// There are two variants based on the source of outcomes. When logging outcomes, [`TrackOutcome`]
+/// should be heavily preferred. When processing outcomes from endpoints, [`TrackRawOutcome`] can be
+/// used instead.
+///
+/// The backend is configured through the `outcomes` configuration object and can be:
+///
+///  1. Kafka in processing mode
+///  2. Upstream Relay via batch HTTP request in point-of-presence configuration
+///  3. Upstream Relay via client reports in external configuration
+///  4. (default) Disabled
+#[derive(Debug)]
+pub enum OutcomeProducer {
+    TrackOutcome(TrackOutcome),
+    TrackRawOutcome(TrackRawOutcome),
+}
+
+impl Interface for OutcomeProducer {}
+
+impl FromMessage<TrackOutcome> for OutcomeProducer {
+    type Response = NoResponse;
+
+    fn from_message(message: TrackOutcome, _: ()) -> Self {
+        Self::TrackOutcome(message)
+    }
+}
+
+impl FromMessage<TrackRawOutcome> for OutcomeProducer {
+    type Response = NoResponse;
+
+    fn from_message(message: TrackRawOutcome, _: ()) -> Self {
+        Self::TrackRawOutcome(message)
+    }
+}
+
+/// Service implementing the [`OutcomeProducer`] interface.
+pub struct OutcomeProducerService {
     config: Arc<Config>,
     producer: ProducerInner,
 }
 
-impl OutcomeProducer {
-    pub fn from_registry() -> Addr<Self> {
+impl OutcomeProducerService {
+    pub fn from_registry() -> Addr<OutcomeProducer> {
         REGISTRY.get().unwrap().outcome_producer.clone()
     }
 
@@ -812,23 +811,10 @@ impl OutcomeProducer {
         Ok(Self { config, producer })
     }
 
-    pub fn start(mut self) -> Addr<Self> {
-        relay_log::info!("OutcomeProducer started.");
-        let (tx, mut rx) = mpsc::unbounded_channel::<OutcomeProducerMessages>();
-
-        tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                self.handle_message(message);
-            }
-        });
-
-        Addr { tx }
-    }
-
-    fn handle_message(&mut self, message: OutcomeProducerMessages) {
+    fn handle_message(&mut self, message: OutcomeProducer) {
         match message {
-            OutcomeProducerMessages::TrackOutcome(msg) => self.handle_track_outcome(msg),
-            OutcomeProducerMessages::TrackRawOutcome(msg) => self.handle_track_raw_outcome(msg),
+            OutcomeProducer::TrackOutcome(msg) => self.handle_track_outcome(msg),
+            OutcomeProducer::TrackRawOutcome(msg) => self.handle_track_raw_outcome(msg),
         }
     }
 
@@ -886,13 +872,13 @@ impl OutcomeProducer {
             }
             ProducerInner::AsClientReports(ref producer) => {
                 Self::send_outcome_metric(&message, "client_report");
-                let _ = producer.send(message);
+                producer.send(message);
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
                 Self::send_outcome_metric(&message, "http");
-                let _ = producer.send(TrackRawOutcome::from_outcome(message, &self.config));
+                producer.send(TrackRawOutcome::from_outcome(message, &self.config));
             }
-            ProducerInner::Disabled => {}
+            ProducerInner::Disabled => (),
         }
     }
 
@@ -907,40 +893,24 @@ impl OutcomeProducer {
             }
             ProducerInner::AsHttpOutcomes(ref producer) => {
                 Self::send_outcome_metric(&message, "http");
-                let _ = producer.send(message);
+                producer.send(message);
             }
-            ProducerInner::AsClientReports(_) => {}
-            ProducerInner::Disabled => {}
+            ProducerInner::AsClientReports(_) => (),
+            ProducerInner::Disabled => (),
         }
     }
 }
 
-impl Service for OutcomeProducer {
-    type Messages = OutcomeProducerMessages;
-}
+impl Service for OutcomeProducerService {
+    type Interface = OutcomeProducer;
 
-impl ServiceMessage<OutcomeProducer> for TrackOutcome {
-    type Response = ();
-
-    fn into_messages(self) -> (OutcomeProducerMessages, oneshot::Receiver<Self::Response>) {
-        let (tx, rx) = oneshot::channel();
-        tx.send(()).ok();
-        (OutcomeProducerMessages::TrackOutcome(self), rx)
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            relay_log::info!("OutcomeProducer started.");
+            while let Some(message) = rx.recv().await {
+                self.handle_message(message);
+            }
+            relay_log::info!("OutcomeProducer stopped.");
+        });
     }
-}
-
-impl ServiceMessage<OutcomeProducer> for TrackRawOutcome {
-    type Response = ();
-
-    fn into_messages(self) -> (OutcomeProducerMessages, oneshot::Receiver<Self::Response>) {
-        let (tx, rx) = oneshot::channel();
-        tx.send(()).ok();
-        (OutcomeProducerMessages::TrackRawOutcome(self), rx)
-    }
-}
-
-#[derive(Debug)]
-pub enum OutcomeProducerMessages {
-    TrackOutcome(TrackOutcome),
-    TrackRawOutcome(TrackRawOutcome),
 }

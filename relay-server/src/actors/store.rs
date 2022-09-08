@@ -8,12 +8,9 @@ use std::time::Instant;
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
 use once_cell::sync::OnceCell;
-use rdkafka::error::KafkaError;
-use rdkafka::producer::BaseRecord;
-use rdkafka::ClientConfig;
+use rdkafka::{error::KafkaError, producer::BaseRecord, ClientConfig};
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
-use tokio::sync::{mpsc, oneshot};
 
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
 use relay_config::{Config, KafkaTopic};
@@ -22,7 +19,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, Service, ServiceMessage};
+use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
@@ -48,6 +45,47 @@ pub enum StoreError {
 }
 
 type Producer = Arc<ThreadedProducer>;
+
+/// Temporary map used to deduplicate kafka producers
+type ReusedProducersMap<'a> = BTreeMap<Option<&'a str>, Producer>;
+
+fn make_distinct_id(s: &str) -> Uuid {
+    static NAMESPACE: OnceCell<Uuid> = OnceCell::new();
+    let namespace =
+        NAMESPACE.get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did"));
+
+    s.parse()
+        .unwrap_or_else(|_| Uuid::new_v5(namespace, s.as_bytes()))
+}
+
+fn make_producer<'a>(
+    config: &'a Config,
+    reused_producers: &mut ReusedProducersMap<'a>,
+    kafka_topic: KafkaTopic,
+) -> Result<Producer, ServerError> {
+    let (config_name, kafka_config) = config
+        .kafka_config(kafka_topic)
+        .context(ServerErrorKind::KafkaError)?;
+
+    if let Some(producer) = reused_producers.get(&config_name) {
+        return Ok(Arc::clone(producer));
+    }
+
+    let mut client_config = ClientConfig::new();
+
+    for config_p in kafka_config {
+        client_config.set(config_p.name.as_str(), config_p.value.as_str());
+    }
+
+    let producer = Arc::new(
+        client_config
+            .create_with_context(CaptureErrorContext)
+            .context(ServerErrorKind::KafkaError)?,
+    );
+
+    reused_producers.insert(config_name, Arc::clone(&producer));
+    Ok(producer)
+}
 
 struct Producers {
     events: Producer,
@@ -119,87 +157,43 @@ impl Producers {
     }
 }
 
-/// Service for publishing events to Sentry through kafka topics.
-pub struct StoreForwarder {
+/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
+#[derive(Clone, Debug)]
+pub struct StoreEnvelope {
+    pub envelope: Envelope,
+    pub start_time: Instant,
+    pub scoping: Scoping,
+}
+
+/// Service interface for the [`StoreEnvelope`] message.
+#[derive(Debug)]
+pub struct Store(StoreEnvelope, Sender<Result<(), StoreError>>);
+
+impl Interface for Store {}
+
+impl FromMessage<StoreEnvelope> for Store {
+    type Response = AsyncResponse<Result<(), StoreError>>;
+
+    fn from_message(message: StoreEnvelope, sender: Sender<Result<(), StoreError>>) -> Self {
+        Self(message, sender)
+    }
+}
+
+/// Service implementing the [`Store`] interface.
+pub struct StoreService {
     config: Arc<Config>,
     producers: Producers,
 }
 
-impl Service for StoreForwarder {
-    type Messages = StoreMessages;
-}
-
-fn make_distinct_id(s: &str) -> Uuid {
-    static NAMESPACE: OnceCell<Uuid> = OnceCell::new();
-    let namespace =
-        NAMESPACE.get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did"));
-
-    s.parse()
-        .unwrap_or_else(|_| Uuid::new_v5(namespace, s.as_bytes()))
-}
-
-/// Temporary map used to deduplicate kafka producers
-type ReusedProducersMap<'a> = BTreeMap<Option<&'a str>, Producer>;
-
-fn make_producer<'a>(
-    config: &'a Config,
-    reused_producers: &mut ReusedProducersMap<'a>,
-    kafka_topic: KafkaTopic,
-) -> Result<Producer, ServerError> {
-    let (config_name, kafka_config) = config
-        .kafka_config(kafka_topic)
-        .context(ServerErrorKind::KafkaError)?;
-
-    if let Some(producer) = reused_producers.get(&config_name) {
-        return Ok(Arc::clone(producer));
-    }
-
-    let mut client_config = ClientConfig::new();
-
-    for config_p in kafka_config {
-        client_config.set(config_p.name.as_str(), config_p.value.as_str());
-    }
-
-    let producer = Arc::new(
-        client_config
-            .create_with_context(CaptureErrorContext)
-            .context(ServerErrorKind::KafkaError)?,
-    );
-
-    reused_producers.insert(config_name, Arc::clone(&producer));
-    Ok(producer)
-}
-
-impl StoreForwarder {
-    pub fn start(self) -> Addr<Self> {
-        relay_log::info!("store forwarder started");
-
-        let (tx, mut rx) = mpsc::unbounded_channel::<StoreMessages>();
-
-        tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                self.handle_message(message);
-            }
-
-            relay_log::info!("store forwarder stopped");
-        });
-
-        Addr { tx }
-    }
-
+impl StoreService {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let producers = Producers::create(&config)?;
-
         Ok(Self { config, producers })
     }
 
-    fn handle_message(&self, message: StoreMessages) {
-        match message {
-            StoreMessages::StoreEnvelope(msg, responder_tx) => {
-                let response = self.handle_store_envelope(msg);
-                responder_tx.send(response).ok();
-            }
-        }
+    fn handle_message(&self, message: Store) {
+        let Store(message, sender) = message;
+        sender.send(self.handle_store_envelope(message));
     }
 
     fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
@@ -723,6 +717,22 @@ impl StoreForwarder {
     }
 }
 
+impl Service for StoreService {
+    type Interface = Store;
+
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            relay_log::info!("store forwarder started");
+
+            while let Some(message) = rx.recv().await {
+                self.handle_message(message);
+            }
+
+            relay_log::info!("store forwarder stopped");
+        });
+    }
+}
+
 /// Common attributes for both standalone attachments and processing-relevant attachments.
 #[derive(Debug, Serialize)]
 struct ChunkedAttachment {
@@ -757,6 +767,7 @@ struct ChunkedAttachment {
     #[serde(skip_serializing_if = "Option::is_none")]
     rate_limited: Option<bool>,
 }
+
 /// attributes for Replay Recordings
 #[derive(Debug, Serialize)]
 struct ChunkedReplayRecording {
@@ -804,6 +815,7 @@ struct EventKafkaMessage {
     /// Attachments that are potentially relevant for processing.
     attachments: Vec<ChunkedAttachment>,
 }
+
 #[derive(Clone, Debug, Serialize)]
 struct ReplayEventKafkaMessage {
     /// Raw event payload.
@@ -863,6 +875,7 @@ struct ReplayRecordingChunkKafkaMessage {
     /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
     chunk_index: usize,
 }
+
 #[derive(Debug, Serialize)]
 struct ReplayRecordingKafkaMessage {
     /// The replay id.
@@ -998,29 +1011,6 @@ impl KafkaMessage {
             }
             _ => rmp_serde::to_vec_named(&self).map_err(StoreError::InvalidMsgPack),
         }
-    }
-}
-
-/// Message sent to the [`StoreForwarder`] containing an [`Envelope`].
-#[derive(Clone, Debug)]
-pub struct StoreEnvelope {
-    pub envelope: Envelope,
-    pub start_time: Instant,
-    pub scoping: Scoping,
-}
-
-/// All the message types which can be sent to the [`StoreForwarder`].
-#[derive(Debug)]
-pub enum StoreMessages {
-    StoreEnvelope(StoreEnvelope, oneshot::Sender<Result<(), StoreError>>),
-}
-
-impl ServiceMessage<StoreForwarder> for StoreEnvelope {
-    type Response = Result<(), StoreError>;
-
-    fn into_messages(self) -> (StoreMessages, oneshot::Receiver<Self::Response>) {
-        let (tx, rx) = oneshot::channel();
-        (StoreMessages::StoreEnvelope(self, tx), rx)
     }
 }
 

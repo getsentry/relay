@@ -2,37 +2,58 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use actix::SystemService;
-use tokio::sync::{mpsc, oneshot};
 
 use relay_config::{Config, RelayMode};
 use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
-use relay_system::{compat, Controller};
+use relay_system::{
+    compat, Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service,
+};
 
 use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::service::REGISTRY;
 use crate::statsd::RelayGauges;
-use relay_system::{Addr, Service, ServiceMessage};
 
+/// Checks whether Relay is alive and healthy based on its variant.
+#[derive(Clone, Copy, Debug)]
+pub enum IsHealthy {
+    /// Check if the Relay is alive at all.
+    Liveness,
+    /// Check if the Relay is in a state where the load balancer should route traffic to it (i.e.
+    /// it's both live/alive and not too busy).
+    Readiness,
+}
+
+/// Service interface for the [`IsHealthy`] message.
+pub struct Healthcheck(IsHealthy, Sender<bool>);
+
+impl Interface for Healthcheck {}
+
+impl FromMessage<IsHealthy> for Healthcheck {
+    type Response = AsyncResponse<bool>;
+
+    fn from_message(message: IsHealthy, sender: Sender<bool>) -> Self {
+        Self(message, sender)
+    }
+}
+
+/// Service implementing the [`Healthcheck`] interface.
 #[derive(Debug)]
-pub struct Healthcheck {
+pub struct HealthcheckService {
     is_shutting_down: AtomicBool,
     config: Arc<Config>,
 }
 
-impl Service for Healthcheck {
-    type Messages = HealthcheckMessages;
-}
-
-impl Healthcheck {
+impl HealthcheckService {
     /// Returns the [`Addr`] of the [`Healthcheck`] service.
     ///
-    /// Prior to using this, the service must be started using [`Healthcheck::start`].
+    /// Prior to using this, the service must be started using [`HealthcheckService::start`].
     ///
     /// # Panics
     ///
-    /// Panics if the service was not started using [`Healthcheck::start`] prior to this being used.
-    pub fn from_registry() -> Addr<Self> {
+    /// Panics if the service was not started using [`HealthcheckService::start`] prior to this
+    /// being used.
+    pub fn from_registry() -> Addr<Healthcheck> {
         REGISTRY.get().unwrap().healthcheck.clone()
     }
 
@@ -40,7 +61,7 @@ impl Healthcheck {
     ///
     /// The service does not run. To run the service, use [`start`](Self::start).
     pub fn new(config: Arc<Config>) -> Self {
-        Healthcheck {
+        HealthcheckService {
             is_shutting_down: AtomicBool::new(false),
             config,
         }
@@ -80,18 +101,23 @@ impl Healthcheck {
         }
     }
 
-    /// Start this service, returning an [`Addr`] for communication.
-    pub fn start(self) -> Addr<Self> {
-        let (tx, mut rx) = mpsc::unbounded_channel::<HealthcheckMessages>();
+    async fn handle_message(&self, message: Healthcheck) {
+        let Healthcheck(message, sender) = message;
+        let response = self.handle_is_healthy(message).await;
+        sender.send(response);
+    }
+}
 
-        let addr = Addr { tx };
+impl Service for HealthcheckService {
+    type Interface = Healthcheck;
 
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let service = Arc::new(self);
+
         let main_service = service.clone();
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 let service = main_service.clone();
-
                 tokio::spawn(async move { service.handle_message(message).await });
             }
         });
@@ -106,40 +132,5 @@ impl Healthcheck {
                 }
             }
         });
-
-        addr
     }
-
-    async fn handle_message(&self, message: HealthcheckMessages) {
-        match message {
-            HealthcheckMessages::IsHealthy(msg, response_tx) => {
-                let response = self.handle_is_healthy(msg).await;
-                response_tx.send(response).ok()
-            }
-        };
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum IsHealthy {
-    /// Check if the Relay is alive at all.
-    Liveness,
-    /// Check if the Relay is in a state where the load balancer should route traffic to it (i.e.
-    /// it's both live/alive and not too busy).
-    Readiness,
-}
-
-impl ServiceMessage<Healthcheck> for IsHealthy {
-    type Response = bool;
-
-    fn into_messages(self) -> (HealthcheckMessages, oneshot::Receiver<Self::Response>) {
-        let (tx, rx) = oneshot::channel();
-        (HealthcheckMessages::IsHealthy(self, tx), rx)
-    }
-}
-
-/// All the message types which can be sent to the [`Healthcheck`] service.
-#[derive(Debug)]
-pub enum HealthcheckMessages {
-    IsHealthy(IsHealthy, oneshot::Sender<bool>),
 }

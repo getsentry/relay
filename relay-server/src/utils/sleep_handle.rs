@@ -34,8 +34,8 @@ impl SleepHandle {
 impl Future for SleepHandle {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        match unsafe { &mut self.get_unchecked_mut().0 } {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        match &mut self.0 {
             Some(sleep) => Pin::new(sleep).poll(cx),
             None => Poll::Pending,
         }

@@ -5,13 +5,11 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::Duration;
 
-use tokio::sync::{mpsc, oneshot};
-
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_config::{Config, EmitOutcomes};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, Controller, Service, ServiceMessage, Shutdown};
+use relay_system::{Addr, Controller, Service, Shutdown};
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::service::REGISTRY;
@@ -43,8 +41,9 @@ enum AggregationMode {
     Lossy,
 }
 
-/// Aggregates outcomes into buckets, and flushes them periodically.
-/// Inspired by [`relay_metrics::Aggregator`].
+/// Aggregates [`Outcome`]s into buckets and flushes them periodically.
+///
+/// This service handles a single message [`TrackOutcome`].
 pub struct OutcomeAggregator {
     mode: AggregationMode,
     /// The width of each aggregated bucket in seconds
@@ -60,7 +59,7 @@ pub struct OutcomeAggregator {
 }
 
 impl OutcomeAggregator {
-    pub fn from_registry() -> Addr<Self> {
+    pub fn from_registry() -> Addr<TrackOutcome> {
         REGISTRY.get().unwrap().outcome_aggregator.clone()
     }
 
@@ -81,40 +80,12 @@ impl OutcomeAggregator {
         }
     }
 
-    pub fn start(mut self) -> Addr<Self> {
-        relay_log::info!("outcome aggregator started");
-        let (tx, mut rx) = mpsc::unbounded_channel::<OutcomeAggregatorMessages>();
-
-        tokio::spawn(async move {
-            let mut shutdown_rx = Controller::subscribe_v2().await;
-            loop {
-                tokio::select! {
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    () = &mut self.flush_handle => self.flush(),
-                    _ = shutdown_rx.changed() => {
-                        self.handle_shutdown(&shutdown_rx.borrow_and_update())
-                    },
-                    else => break,
-                }
-            }
-            relay_log::info!("outcome aggregator stopped");
-        });
-
-        Addr { tx }
-    }
-
     fn handle_shutdown(&mut self, message: &Option<Shutdown>) {
         if let Some(message) = message {
             if message.timeout.is_some() {
                 self.flush();
                 relay_log::info!("outcome aggregator stopped");
             }
-        }
-    }
-
-    fn handle_message(&mut self, message: OutcomeAggregatorMessages) {
-        match message {
-            OutcomeAggregatorMessages::TrackOutcome(msg) => self.handle_track_outcome(msg),
         }
     }
 
@@ -134,7 +105,7 @@ impl OutcomeAggregator {
 
         if let Some(event_id) = event_id {
             relay_log::trace!("Forwarding outcome without aggregation: {}", event_id);
-            let _ = self.outcome_producer.send(msg);
+            self.outcome_producer.send(msg);
             return;
         }
 
@@ -187,7 +158,7 @@ impl OutcomeAggregator {
             };
 
             relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
-            let _ = outcome_producer.send(outcome);
+            outcome_producer.send(outcome);
         }
     }
 
@@ -212,20 +183,23 @@ impl OutcomeAggregator {
 }
 
 impl Service for OutcomeAggregator {
-    type Messages = OutcomeAggregatorMessages;
-}
+    type Interface = TrackOutcome;
 
-impl ServiceMessage<OutcomeAggregator> for TrackOutcome {
-    type Response = ();
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            let mut shutdown = Controller::subscribe_v2().await;
+            relay_log::info!("outcome aggregator started");
 
-    fn into_messages(self) -> (OutcomeAggregatorMessages, oneshot::Receiver<Self::Response>) {
-        let (tx, rx) = oneshot::channel();
-        tx.send(()).ok();
-        (OutcomeAggregatorMessages::TrackOutcome(self), rx)
+            loop {
+                tokio::select! {
+                    Some(message) = rx.recv() => self.handle_track_outcome(message),
+                    () = &mut self.flush_handle => self.flush(),
+                    _ = shutdown.changed() => self.handle_shutdown(&shutdown.borrow_and_update()),
+                    else => break,
+                }
+            }
+
+            relay_log::info!("outcome aggregator stopped");
+        });
     }
-}
-
-#[derive(Debug)]
-pub enum OutcomeAggregatorMessages {
-    TrackOutcome(TrackOutcome),
 }
