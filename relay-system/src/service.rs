@@ -152,10 +152,10 @@ impl<T> fmt::Debug for Request<T> {
 impl<T> Future for Request<T> {
     type Output = Result<T, SendError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> std::task::Poll<Self::Output> {
-        // Pinning is structural for the wrapped oneshot receiver, it implements `Unpin`.
-        // See: https://doc.rust-lang.org/stable/std/pin/index.html#pinning-is-structural-for-field
-        unsafe { self.map_unchecked_mut(|r| &mut r.0).poll(cx) }.map(|r| r.map_err(|_| SendError))
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> std::task::Poll<Self::Output> {
+        Pin::new(&mut self.0)
+            .poll(cx)
+            .map(|r| r.map_err(|_| SendError))
     }
 }
 
