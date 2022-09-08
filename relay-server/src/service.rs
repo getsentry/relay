@@ -14,7 +14,7 @@ use relay_redis::RedisPool;
 use relay_system::{Addr, Configure, Controller, Service};
 
 use crate::actors::envelopes::EnvelopeManager;
-use crate::actors::healthcheck::{Healthcheck, HealthcheckService};
+use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::EnvelopeProcessor;
@@ -110,7 +110,7 @@ impl From<Context<ServerErrorKind>> for ServerError {
 
 #[derive(Clone)]
 pub struct Registry {
-    pub healthcheck: Addr<Healthcheck>,
+    pub health_check: Addr<HealthCheck>,
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: actix::Addr<EnvelopeProcessor>,
@@ -119,7 +119,9 @@ pub struct Registry {
 impl fmt::Debug for Registry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Registry")
-            .field("healthcheck", &self.healthcheck)
+            .field("health_check", &self.health_check)
+            .field("outcome_producer", &self.outcome_producer)
+            .field("outcome_aggregator", &self.outcome_aggregator)
             .field("processor", &format_args!("Addr<Processor>"))
             .finish()
     }
@@ -169,7 +171,7 @@ impl ServiceState {
         let project_cache = Arbiter::start(|_| project_cache);
         registry.set(project_cache.clone());
 
-        let healthcheck = HealthcheckService::new(config.clone()).start();
+        let health_check = HealthCheckService::new(config.clone()).start();
         registry.set(RelayCache::new(config.clone()).start());
 
         let aggregator = Aggregator::new(config.aggregator_config(), project_cache.recipient());
@@ -184,7 +186,7 @@ impl ServiceState {
         REGISTRY
             .set(Box::new(Registry {
                 processor,
-                healthcheck,
+                health_check,
                 outcome_producer,
                 outcome_aggregator,
             }))
