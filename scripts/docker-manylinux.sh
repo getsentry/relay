@@ -1,21 +1,16 @@
 #!/usr/bin/env bash
-set -e
+set -xe
 
 if [ -z "$TARGET" ]; then
     echo "TARGET is not set"
     exit 1
 fi
 
-case "$(uname -m)" in
-  arm64) HOST_ARCH="aarch64" ;;
-  *) HOST_ARCH="$(uname -m)"
-esac
-
-# Set cargo build arguments
 TARGET_LINKER="CARGO_TARGET_$(echo $TARGET | tr '[:lower:]' '[:upper:]')_UNKNOWN_LINUX_GNU_LINKER"
-if [[ "$HOST_ARCH" != "$TARGET" ]]; then
-  CARGO_BUILD_TARGET="${TARGET}-unknown-linux-gnu"
-  export ${TARGET_LINKER}="${TARGET}-linux-gnu-gcc"
+# Set cargo build arguments
+if [[ "x86_64" != "$TARGET" ]]; then
+  export CARGO_BUILD_TARGET="${TARGET}-unknown-linux-gnu"
+  export "${TARGET_LINKER}"="${TARGET}-linux-gnu-gcc"
 fi
 
 # Build docker image with all dependencies for cross compilation
@@ -27,10 +22,10 @@ docker run \
   --rm \
   -w "/work" \
   -v "$(pwd):/work" \
-  -e ${TARGET_LINKER} \
+  -e $TARGET_LINKER \
   -e CARGO_BUILD_TARGET \
   ${BUILDER_NAME} \
-  bash -c 'cargo build -p relay-cabi --release'
+  bash -c "echo \$${TARGET_LINKER} && cargo build -p relay-cabi --release"
 
 # create a wheel for the correct architecture
 docker run \

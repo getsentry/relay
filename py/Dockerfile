@@ -10,7 +10,7 @@ RUN yum -y update \
     && if [ ${TARGET} != "i686" ] && [ "$(uname -m)" != ${TARGET} ]; then \
     yum install -y dnf epel-release \
     && yum install -y "binutils-${TARGET}-linux-gnu" "gcc-${TARGET}-linux-gnu" "gcc-c++-${TARGET}-linux-gnu" \
-    && dnf --forcearch "${TARGET}" --release 7 install -y gcc glibc glibc-devel --installroot "/usr/${TARGET}-linux-gnu/sys-root/" || true \
+    && dnf --nogpgcheck --forcearch "${TARGET}" --release 7 install -y gcc glibc glibc-devel --installroot "/usr/${TARGET}-linux-gnu/sys-root/" || true \
     && ln -s "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so.1" "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so"; \
     elif [ ${TARGET} == "i686" ]; then \
     yum install -t -y glibc-devel.i686 libgcc.i686 \
