@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -xe
+set -e
 
 if [ -z "$TARGET" ]; then
     echo "TARGET is not set"
@@ -25,7 +25,7 @@ docker run \
   -e $TARGET_LINKER \
   -e CARGO_BUILD_TARGET \
   ${BUILDER_NAME} \
-  bash -c "echo \$${TARGET_LINKER} && cargo build -p relay-cabi --release"
+  bash -c 'cargo build -p relay-cabi --release'
 
 # create a wheel for the correct architecture
 docker run \
