@@ -42,13 +42,13 @@ def test_readiness(mini_sentry, relay):
     mini_sentry.app.view_functions["check_challenge"] = failing_check_challenge
 
     try:
-        relay = relay(mini_sentry, wait_healthcheck=False)
+        relay = relay(mini_sentry, wait_health_check=False)
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
         assert response.status_code == 503
 
         mini_sentry.app.view_functions["check_challenge"] = original_check_challenge
 
-        relay.wait_relay_healthcheck()
+        relay.wait_relay_health_check()
         response = relay.get("/api/relay/healthcheck/ready/")
         assert response.status_code == 200
     finally:
@@ -61,7 +61,7 @@ def test_readiness_flag(mini_sentry, relay):
 
     try:
         relay = relay(
-            mini_sentry, {"auth": {"ready": "always"}}, wait_healthcheck=False
+            mini_sentry, {"auth": {"ready": "always"}}, wait_health_check=False
         )
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
         assert response.status_code == 200
@@ -74,7 +74,9 @@ def test_readiness_proxy(mini_sentry, relay):
     mini_sentry.app.view_functions["check_challenge"] = failing_check_challenge
 
     try:
-        relay = relay(mini_sentry, {"relay": {"mode": "proxy"}}, wait_healthcheck=False)
+        relay = relay(
+            mini_sentry, {"relay": {"mode": "proxy"}}, wait_health_check=False
+        )
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
         assert response.status_code == 200
     finally:
@@ -87,7 +89,7 @@ def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
         relay = relay(
             mini_sentry,
             {"aggregator": {"max_total_bucket_bytes": 0}},
-            wait_healthcheck=False,
+            wait_health_check=False,
         )
 
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
