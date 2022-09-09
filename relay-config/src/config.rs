@@ -141,6 +141,9 @@ pub enum ConfigErrorKind {
     /// The user referenced a kafka config name that does not exist.
     #[fail(display = "unknown kafka config name")]
     UnknownKafkaConfigName,
+    /// The user did not configure 0 shard
+    #[fail(display = "invalid kafka shard configuration: must have shard with index 0")]
+    InvalidKafkaShard,
 }
 
 enum ConfigFormat {
@@ -2045,6 +2048,10 @@ impl Config {
                 }
             }
             KafkaConfigName::Sharded { shards, configs } => {
+                // quick fail if the config does not contain shard 0
+                if !configs.contains_key(&0) {
+                    return Err(ConfigErrorKind::InvalidKafkaShard);
+                }
                 let mut kafka_params = BTreeMap::new();
                 for (shard, kafka_config) in configs {
                     let config = KafkaParams {
