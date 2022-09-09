@@ -1,4 +1,4 @@
-FROM quay.io/pypa/manylinux2014_x86_64
+FROM amd64/centos:7
 
 # This must be lower case - used in the paths and packages names
 ARG TARGET
