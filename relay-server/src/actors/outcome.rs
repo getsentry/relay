@@ -681,7 +681,7 @@ impl KafkaOutcomesProducer {
             .context(ServerErrorKind::KafkaError)?;
 
         let (billing_name, billing_config) = config
-            .kafka_config(KafkaTopic::Outcomes)
+            .kafka_config(KafkaTopic::OutcomesBilling)
             .context(ServerErrorKind::KafkaError)?;
 
         let default = Self::create_producer(default_config)?;
