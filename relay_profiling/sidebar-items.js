@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":[["ProfileError",""]],"fn":[["parse_profile",""]]};
+window.SIDEBAR_ITEMS = {"enum":[["ProfileError",""]],"fn":[["expand_profile",""]]};
