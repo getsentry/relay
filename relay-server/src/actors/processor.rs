@@ -872,6 +872,7 @@ impl EnvelopeProcessor {
                     }
                 }
                 Err(err) => {
+                    println!("{:#?}", err);
                     context.track_outcome(
                         outcome_from_profile_error(err),
                         DataCategory::Profile,
