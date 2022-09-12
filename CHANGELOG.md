@@ -24,6 +24,7 @@
 - Add looser type requirements for the user.id field. ([#1443](https://github.com/getsentry/relay/pull/1443))
 - Add InvalidReplayEvent outcome. ([#1455](https://github.com/getsentry/relay/pull/1455))
 - Add replay and replay-recording rate limiter. ([#1456](https://github.com/getsentry/relay/pull/1456))
+- Support profiles tagged for many transactions. ([#1444](https://github.com/getsentry/relay/pull/1444))
 
 **Features**:
 
