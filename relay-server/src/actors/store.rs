@@ -118,7 +118,7 @@ pub fn make_producer<'a>(
                 reused_producers.insert(kafka_params.config_name, Arc::clone(&producer));
                 producers.insert(shard, (kafka_params.topic_name.to_string(), producer));
             }
-            Ok(Producer::Sharded { shards, producers })
+            Ok(Producer::Sharded(Sharded { shards, producers }))
         }
     }
 }
@@ -129,10 +129,38 @@ pub enum Producer {
         topic_name: String,
         producer: Arc<ThreadedProducer>,
     },
-    Sharded {
-        shards: u64,
-        producers: BTreeMap<u64, (String, Arc<ThreadedProducer>)>,
-    },
+    Sharded(Sharded),
+}
+
+/// Sharded producer configuration.
+pub struct Sharded {
+    /// The maximum number of shards for this producer.
+    shards: u64,
+    /// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is
+    /// the inclusive beginning of the range.
+    producers: BTreeMap<u64, (String, Arc<ThreadedProducer>)>,
+}
+
+impl Sharded {
+    /// Returns topic name and the Kafka producer based on the provided sharding key.
+    pub fn get_producer(&self, sharding_key: u64) -> (&str, Arc<ThreadedProducer>) {
+        let mut hasher = FnvHasher::default();
+        std::hash::Hash::hash(&sharding_key, &mut hasher);
+        let org_id_hash = hasher.finish();
+        let shard = org_id_hash % self.shards;
+
+        // Safety:
+        // We always have at least 1 shard so it's safe to unwrap this value.
+        let (topic_name, producer) = self
+            .producers
+            .iter()
+            .take_while(|(k, _)| *k <= &shard)
+            .last()
+            .map(|(_, v)| v)
+            .expect("At least one shard is defined");
+
+        (topic_name, producer.clone())
+    }
 }
 
 impl Producer {
@@ -156,20 +184,8 @@ impl Producer {
                     .map_err(|(kafka_error, _message)| StoreError::SendFailed(kafka_error))?;
             }
 
-            Self::Sharded { shards, producers } => {
-                let mut hasher = FnvHasher::default();
-                std::hash::Hash::hash(&organization_id, &mut hasher);
-                let org_id_hash = hasher.finish();
-                let shard = org_id_hash % shards;
-
-                // should be ok to unwrap since we MUST have at least one range defined
-                let (topic_name, producer) = producers
-                    .iter()
-                    .take_while(|(k, _)| *k <= &shard)
-                    .last()
-                    .map(|(_, v)| v)
-                    .expect("At least one shard is defined");
-
+            Self::Sharded(sharded) => {
+                let (topic_name, producer) = sharded.get_producer(organization_id);
                 let record = BaseRecord::to(topic_name).key(&key).payload(&serialized);
                 producer
                     .send(record)

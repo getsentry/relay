@@ -8,8 +8,6 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::fmt;
-#[cfg(feature = "processing")]
-use std::hash::Hasher;
 use std::mem;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -20,8 +18,6 @@ use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::Fail;
-#[cfg(feature = "processing")]
-use fnv::FnvHasher;
 #[cfg(feature = "processing")]
 use rdkafka::producer::BaseRecord;
 use relay_system::{Interface, NoResponse};
@@ -838,20 +834,8 @@ impl OutcomeProducerService {
                 producer.send(record)
             }
 
-            Producer::Sharded { shards, producers } => {
-                let mut hasher = FnvHasher::default();
-                std::hash::Hash::hash(&organization_id, &mut hasher);
-                let org_id_hash = hasher.finish();
-                let shard = org_id_hash % shards;
-
-                // should be ok to unwrap since we MUST have at least one range defined
-                let (topic_name, producer) = producers
-                    .iter()
-                    .take_while(|(k, _)| *k <= &shard)
-                    .last()
-                    .map(|(_, v)| v)
-                    .expect("At least one shard is defined");
-
+            Producer::Sharded(sharded) => {
+                let (topic_name, producer) = sharded.get_producer(organization_id);
                 let record = BaseRecord::to(topic_name)
                     .payload(&payload)
                     .key(key.as_bytes().as_ref());
