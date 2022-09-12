@@ -8,7 +8,7 @@ use relay_general::protocol::{Addr, EventId};
 use crate::error::ProfileError;
 use crate::native_debug_image::NativeDebugImage;
 use crate::transaction_metadata::TransactionMetadata;
-use crate::utils::{deserialize_number_from_string, is_zero};
+use crate::utils::deserialize_number_from_string;
 use crate::Platform;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -150,19 +150,6 @@ struct SampleProfile {
     release: String,
     timestamp: DateTime<Utc>,
 
-    #[serde(
-        default,
-        deserialize_with = "deserialize_number_from_string",
-        skip_serializing_if = "is_zero"
-    )]
-    duration_ns: u64,
-    #[serde(default, skip_serializing_if = "EventId::is_nil")]
-    trace_id: EventId,
-    #[serde(default, skip_serializing_if = "EventId::is_nil")]
-    transaction_id: EventId,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    transaction_name: String,
-
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     transactions: Vec<TransactionMetadata>,
 }
@@ -181,17 +168,6 @@ impl SampleProfile {
             Platform::Node => self.runtime.is_some(),
             _ => true,
         }
-    }
-
-    fn set_transaction(&mut self, transaction: &TransactionMetadata) {
-        self.transaction_name = transaction.name.clone();
-        self.transaction_id = transaction.id;
-        self.trace_id = transaction.trace_id;
-        self.duration_ns = transaction.relative_end_ns - transaction.relative_start_ns;
-    }
-
-    fn has_transaction_metadata(&self) -> bool {
-        !self.transaction_name.is_empty() && self.duration_ns > 0
     }
 
     /// Removes a sample when it's the only sample on its thread
@@ -227,21 +203,11 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
 
     let mut items: Vec<Vec<u8>> = Vec::new();
 
-    if profile.transactions.is_empty() && profile.has_transaction_metadata() {
-        match serde_json::to_vec(&profile) {
-            Ok(payload) => items.push(payload),
-            Err(_) => {
-                return Err(ProfileError::CannotSerializePayload);
-            }
-        };
-        return Ok(items);
-    }
-
     for transaction in &profile.transactions {
         let mut new_profile = profile.clone();
 
-        new_profile.set_transaction(transaction);
         new_profile.transactions.clear();
+        new_profile.transactions.push(transaction.clone());
 
         new_profile.profile.samples.retain_mut(|sample| {
             if transaction.relative_start_ns <= sample.relative_timestamp_ns
@@ -275,7 +241,7 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::NotEnoughSamples);
     }
 
-    if profile.transactions.is_empty() && !profile.has_transaction_metadata() {
+    if profile.transactions.is_empty() {
         return Err(ProfileError::NoTransactionAssociated);
     }
 
@@ -343,7 +309,6 @@ mod tests {
                 name: "iOS".to_string(),
                 version: "16.0".to_string(),
             },
-            duration_ns: 1337,
             environment: "testing".to_string(),
             platform: Platform::Cocoa,
             event_id: EventId::new(),
@@ -353,9 +318,6 @@ mod tests {
                 stacks: Vec::new(),
                 thread_metadata: HashMap::new(),
             },
-            trace_id: EventId::new(),
-            transaction_id: EventId::new(),
-            transaction_name: "test".to_string(),
             transactions: Vec::new(),
             release: "1.0 (9999)".to_string(),
         }
@@ -438,23 +400,27 @@ mod tests {
     fn test_expand_multiple_transactions() {
         let payload =
             include_bytes!("../tests/fixtures/profiles/sample/multiple_transactions.json");
+
         let data = expand_sample_profile(payload);
         assert!(data.is_ok());
         assert_eq!(data.as_ref().unwrap().len(), 2);
 
-        let profile = match parse_profile(&data.as_ref().unwrap()[0][..]) {
+        let original_profile = match parse_profile(payload) {
+            Err(err) => panic!("cannot parse profile: {:?}", err),
+            Ok(profile) => profile,
+        };
+        let expanded_profile = match parse_profile(&data.as_ref().unwrap()[0][..]) {
             Err(err) => panic!("cannot parse profile: {:?}", err),
             Ok(profile) => profile,
         };
         assert_eq!(
-            profile.transaction_id,
-            "30976f2ddbe04ac9b6bffe6e35d4710c".parse().unwrap()
+            original_profile.transactions[0],
+            expanded_profile.transactions[0]
         );
-        assert_eq!(profile.duration_ns, 50000000);
-        assert_eq!(profile.profile.samples.len(), 4);
+        assert_eq!(expanded_profile.profile.samples.len(), 4);
 
-        for sample in &profile.profile.samples {
-            assert!(sample.relative_timestamp_ns < profile.duration_ns);
+        for sample in &expanded_profile.profile.samples {
+            assert!(sample.relative_timestamp_ns < expanded_profile.transactions[0].duration_ns());
         }
     }
 }

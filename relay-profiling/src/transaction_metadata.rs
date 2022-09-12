@@ -4,7 +4,7 @@ use relay_general::protocol::EventId;
 
 use crate::utils::deserialize_number_from_string;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct TransactionMetadata {
     pub id: EventId,
     pub name: String,
@@ -29,6 +29,10 @@ impl TransactionMetadata {
             && !self.name.is_empty()
             && self.relative_start_ns < self.relative_end_ns
             && self.relative_cpu_start_ms <= self.relative_cpu_end_ms
+    }
+
+    pub fn duration_ns(&self) -> u64 {
+        self.relative_end_ns - self.relative_start_ns
     }
 }
 

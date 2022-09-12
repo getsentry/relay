@@ -94,7 +94,7 @@ impl AndroidProfile {
         self.transaction_name = transaction.name.clone();
         self.transaction_id = transaction.id;
         self.trace_id = transaction.trace_id;
-        self.duration_ns = transaction.relative_end_ns - transaction.relative_start_ns;
+        self.duration_ns = transaction.duration_ns();
     }
 
     fn has_transaction_metadata(&self) -> bool {
