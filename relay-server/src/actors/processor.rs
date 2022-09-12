@@ -855,7 +855,7 @@ impl EnvelopeProcessor {
         let context = &state.envelope_context;
 
         if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
-            if profiling_enabled {
+            if !profiling_enabled {
                 return;
             }
 
