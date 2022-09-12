@@ -867,7 +867,7 @@ impl EnvelopeProcessor {
 
         while let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
             match relay_profiling::expand_profile(&item.payload()[..]) {
-                Ok(payloads) => new_profiles.extend(payloads),
+                Ok(mut payloads) => new_profiles.append(&mut payloads),
                 Err(err) => {
                     context.track_outcome(
                         outcome_from_profile_error(err),
