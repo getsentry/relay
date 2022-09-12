@@ -2,7 +2,7 @@
 //! The service uses kafka topics to forward data to Sentry
 
 use std::collections::BTreeMap;
-use std::hash::Hasher;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -118,7 +118,7 @@ pub fn make_producer<'a>(
                 reused_producers.insert(kafka_params.config_name, Arc::clone(&producer));
                 producers.insert(shard, (kafka_params.topic_name.to_string(), producer));
             }
-            Ok(Producer::Sharded(Sharded { shards, producers }))
+            Ok(Producer::Sharded(ShardedProducer { shards, producers }))
         }
     }
 }
@@ -129,11 +129,11 @@ pub enum Producer {
         topic_name: String,
         producer: Arc<ThreadedProducer>,
     },
-    Sharded(Sharded),
+    Sharded(ShardedProducer),
 }
 
 /// Sharded producer configuration.
-pub struct Sharded {
+pub struct ShardedProducer {
     /// The maximum number of shards for this producer.
     shards: u64,
     /// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is
@@ -141,13 +141,13 @@ pub struct Sharded {
     producers: BTreeMap<u64, (String, Arc<ThreadedProducer>)>,
 }
 
-impl Sharded {
+impl ShardedProducer {
     /// Returns topic name and the Kafka producer based on the provided sharding key.
-    pub fn get_producer(&self, sharding_key: u64) -> (&str, Arc<ThreadedProducer>) {
+    pub fn get_producer(&self, sharding_key: impl Hash) -> (&str, Arc<ThreadedProducer>) {
         let mut hasher = FnvHasher::default();
-        std::hash::Hash::hash(&sharding_key, &mut hasher);
-        let org_id_hash = hasher.finish();
-        let shard = org_id_hash % self.shards;
+        Hash::hash(&sharding_key, &mut hasher);
+        let hashed = hasher.finish();
+        let shard = hashed % self.shards;
 
         // Safety:
         // We always have at least 1 shard so it's safe to unwrap this value.
@@ -172,28 +172,19 @@ impl Producer {
             variant = message.variant()
         );
         let key = message.key();
-
-        match self {
+        let (topic_name, producer) = match self {
             Self::Single {
                 topic_name,
                 producer,
-            } => {
-                let record = BaseRecord::to(topic_name).key(&key).payload(&serialized);
-                producer
-                    .send(record)
-                    .map_err(|(kafka_error, _message)| StoreError::SendFailed(kafka_error))?;
-            }
+            } => (topic_name.as_str(), Arc::clone(producer)),
 
-            Self::Sharded(sharded) => {
-                let (topic_name, producer) = sharded.get_producer(organization_id);
-                let record = BaseRecord::to(topic_name).key(&key).payload(&serialized);
-                producer
-                    .send(record)
-                    .map_err(|(kafka_error, _message)| StoreError::SendFailed(kafka_error))?;
-            }
-        }
+            Self::Sharded(sharded) => sharded.get_producer(organization_id),
+        };
+        let record = BaseRecord::to(topic_name).key(&key).payload(&serialized);
 
-        Ok(())
+        producer
+            .send(record)
+            .map_err(|(kafka_error, _message)| StoreError::SendFailed(kafka_error))
     }
 }
 
