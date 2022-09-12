@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use relay_general::protocol::EventId;
 
-use crate::cocoa::NativeDebugImage;
+use crate::native_debug_image::NativeDebugImage;
 use crate::ProfileError;
 
 #[derive(Debug, Deserialize, Serialize)]
