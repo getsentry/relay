@@ -41,21 +41,17 @@
         "relative_timestamp_ns": "40500500"
       }
     ],
-    "stacks": [
+    "frames": [
       {
-        "frames": [
-          {
-            "instruction_addr": "0xa722447ffffffffc"
-          }
-        ]
+        "instruction_addr": "0xa722447ffffffffc"
       },
       {
-        "frames": [
-          {
-            "instruction_addr": "0x442e4b81f5031e58"
-          }
-        ]
+        "instruction_addr": "0x442e4b81f5031e58"
       }
+    ],
+    "stacks": [
+      [0],
+      [1]
     ],
     "thread_metadata": {
       "1": {

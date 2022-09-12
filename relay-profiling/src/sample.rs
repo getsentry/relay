@@ -53,22 +53,10 @@ struct QueueMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct Stack {
-    frames: Vec<Frame>,
-}
-
-impl Stack {
-    fn strip_pointer_authentication_code(&mut self, addr: u64) {
-        for frame in &mut self.frames {
-            frame.strip_pointer_authentication_code(addr);
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 struct Profile {
     samples: Vec<Sample>,
-    stacks: Vec<Stack>,
+    stacks: Vec<Vec<u32>>,
+    frames: Vec<Frame>,
     thread_metadata: HashMap<String, ThreadMetadata>,
 
     // cocoa only
@@ -83,8 +71,8 @@ impl Profile {
             (Platform::Cocoa, "arm64") | (Platform::Cocoa, "arm64e") => 0x0000000FFFFFFFFF,
             _ => return,
         };
-        for stack in &mut self.stacks {
-            stack.strip_pointer_authentication_code(addr);
+        for frame in &mut self.frames {
+            frame.strip_pointer_authentication_code(addr);
         }
     }
 }
@@ -316,6 +304,7 @@ mod tests {
                 queue_metadata: Some(HashMap::new()),
                 samples: Vec::new(),
                 stacks: Vec::new(),
+                frames: Vec::new(),
                 thread_metadata: HashMap::new(),
             },
             transactions: Vec::new(),
@@ -327,7 +316,7 @@ mod tests {
     fn test_filter_samples() {
         let mut profile = generate_profile();
 
-        profile.profile.stacks.push(Stack { frames: Vec::new() });
+        profile.profile.stacks.push(Vec::new());
         profile.profile.samples.extend(vec![
             Sample {
                 stack_id: 0,
@@ -364,7 +353,7 @@ mod tests {
     fn test_parse_profile_with_all_samples_filtered() {
         let mut profile = generate_profile();
 
-        profile.profile.stacks.push(Stack { frames: Vec::new() });
+        profile.profile.stacks.push(Vec::new());
         profile.profile.samples.extend(vec![
             Sample {
                 stack_id: 0,

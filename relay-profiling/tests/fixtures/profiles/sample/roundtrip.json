@@ -42,19 +42,15 @@
       }
     ],
     "stacks": [
+      [0],
+      [1]
+    ],
+    "frames": [
       {
-        "frames": [
-          {
-            "instruction_addr": "0xa722447ffffffffc"
-          }
-        ]
+        "instruction_addr": "0xa722447ffffffffc"
       },
       {
-        "frames": [
-          {
-            "instruction_addr": "0x442e4b81f5031e58"
-          }
-        ]
+        "instruction_addr": "0x442e4b81f5031e58"
       }
     ],
     "thread_metadata": {
