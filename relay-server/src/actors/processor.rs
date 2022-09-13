@@ -850,16 +850,16 @@ impl EnvelopeProcessor {
 
     /// Remove profiles if the feature flag is not enabled
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        if !self.config.processing_enabled() {
+            return;
+        }
+
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         let envelope = &mut state.envelope;
         let context = &state.envelope_context;
 
         if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
-            if profiling_enabled {
-                return;
-            }
-
-            if !self.config.processing_enabled() {
+            if !profiling_enabled {
                 return;
             }
 
