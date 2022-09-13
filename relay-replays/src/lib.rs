@@ -82,12 +82,12 @@ struct ReplayInput {
     #[serde(default)]
     user: User,
     #[serde(default)]
-    requests: Requests,
+    request: Request,
 }
 
 impl ReplayInput {
     fn set_user_agent_meta(&mut self) {
-        let user_agent = &self.requests.headers.user_agent;
+        let user_agent = &self.request.headers.user_agent;
 
         let ua = user_agent::parse_user_agent(user_agent);
         let browser_struct = VersionedMeta {
@@ -155,7 +155,7 @@ struct User {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
-struct Requests {
+struct Request {
     url: Option<String>,
     headers: Headers,
 }
