@@ -292,7 +292,7 @@
 <span class="doccomment">//!     &quot;urls&quot;: [&quot;https://sentry.io&quot;],</span>
 <span class="doccomment">//!     &quot;error_ids&quot;: [&quot;d2132d31b39445f1938d7e21b6bf0ec4&quot;],</span>
 <span class="doccomment">//!     &quot;trace_ids&quot;: [&quot;63c5b0f895441a94340183c5f1e74cd4&quot;],</span>
-<span class="doccomment">//!     &quot;requests&quot;: {</span>
+<span class="doccomment">//!     &quot;request&quot;: {</span>
 <span class="doccomment">//!         &quot;headers&quot;: {&quot;User-Agent&quot;: &quot;Mozilla/5.0...&quot;}</span>
 <span class="doccomment">//!     },</span>
 <span class="doccomment">//! }</span>
@@ -317,7 +317,7 @@
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">replay_input</span>: <span class="ident">ReplayInput</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="ident">replay_bytes</span>)<span class="question-mark">?</span>;
 
-    <span class="comment">// Set user-agent metadata from requests object.</span>
+    <span class="comment">// Set user-agent metadata from request object.</span>
     <span class="ident">replay_input</span>.<span class="ident">set_user_agent_meta</span>();
 
     <span class="comment">// Set user ip-address if needed.</span>
@@ -354,12 +354,12 @@
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="ident">user</span>: <span class="ident">User</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-    <span class="ident">requests</span>: <span class="ident">Requests</span>,
+    <span class="ident">request</span>: <span class="ident">Request</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ReplayInput</span> {
     <span class="kw">fn</span> <span class="ident">set_user_agent_meta</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="kw">let</span> <span class="ident">user_agent</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">requests</span>.<span class="ident">headers</span>.<span class="ident">user_agent</span>;
+        <span class="kw">let</span> <span class="ident">user_agent</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">request</span>.<span class="ident">headers</span>.<span class="ident">user_agent</span>;
 
         <span class="kw">let</span> <span class="ident">ua</span> <span class="op">=</span> <span class="ident">user_agent::parse_user_agent</span>(<span class="ident">user_agent</span>);
         <span class="kw">let</span> <span class="ident">browser_struct</span> <span class="op">=</span> <span class="ident">VersionedMeta</span> {
@@ -427,7 +427,7 @@
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
-<span class="kw">struct</span> <span class="ident">Requests</span> {
+<span class="kw">struct</span> <span class="ident">Request</span> {
     <span class="ident">url</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">headers</span>: <span class="ident">Headers</span>,
 }
@@ -501,7 +501,7 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_set_user_agent_meta_no_requests</span>() {
+    <span class="kw">fn</span> <span class="ident">test_set_user_agent_meta_no_request</span>() {
         <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/replay_no_requests.json&quot;</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">replay_input</span>: <span class="ident">ReplayInput</span> <span class="op">=</span> <span class="ident">serde_json::from_slice</span>(<span class="ident">payload</span>).<span class="ident">unwrap</span>();
         <span class="ident">replay_input</span>.<span class="ident">set_user_agent_meta</span>();
