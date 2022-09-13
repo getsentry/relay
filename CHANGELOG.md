@@ -5,6 +5,8 @@
 **Features**:
 
 - Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
+- Add user-agent parsing to replays processor. ([#1420](https://github.com/getsentry/relay/pull/1420))
+- Improve the release name used when reporting data to Sentry to include both the version and exact build. ([#1428](https://github.com/getsentry/relay/pull/1428))
 
 **Bug Fixes**:
 
@@ -25,12 +27,7 @@
 - Add InvalidReplayEvent outcome. ([#1455](https://github.com/getsentry/relay/pull/1455))
 - Add replay and replay-recording rate limiter. ([#1456](https://github.com/getsentry/relay/pull/1456))
 - Support profiles tagged for many transactions. ([#1444](https://github.com/getsentry/relay/pull/1444)), ([#1463](https://github.com/getsentry/relay/pull/1463)), ([#1464](https://github.com/getsentry/relay/pull/1464))
-
-**Features**:
-
-- Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
-- Add user-agent parsing to replays processor. ([#1420](https://github.com/getsentry/relay/pull/1420))
-- Improve the release name used when reporting data to Sentry to include both the version and exact build. ([#1428](https://github.com/getsentry/relay/pull/1428))
+- Track metrics for changes to the transaction name and DSC propagations. ([#1466](https://github.com/getsentry/relay/pull/1466))
 
 ## 22.8.0
 
