@@ -850,37 +850,36 @@ impl EnvelopeProcessor {
 
     /// Remove profiles if the feature flag is not enabled
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        if !self.config.processing_enabled() {
+            return;
+        }
+
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+        let envelope = &mut state.envelope;
         let context = &state.envelope_context;
 
-        state.envelope.retain_items(|item| {
-            match item.ty() {
-                ItemType::Profile => {
-                    if !profiling_enabled {
-                        return false;
-                    }
-                    if self.config.processing_enabled() {
-                        match relay_profiling::parse_profile(&item.payload()) {
-                            Ok(payload) => {
-                                item.set_payload(ContentType::Json, &payload[..]);
-                                return true;
-                            }
-                            Err(err) => {
-                                context.track_outcome(
-                                    outcome_from_profile_error(err),
-                                    DataCategory::Profile,
-                                    1,
-                                );
-
-                                return false;
-                            }
-                        }
-                    }
-                    true
-                }
-                _ => true, // Keep all other item types
+        if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
+            if !profiling_enabled {
+                return;
             }
-        });
+
+            match relay_profiling::expand_profile(&item.payload()[..]) {
+                Ok(payloads) => {
+                    for payload in payloads.iter() {
+                        let mut item = Item::new(ItemType::Profile);
+                        item.set_payload(ContentType::Json, &payload[..]);
+                        envelope.add_item(item);
+                    }
+                }
+                Err(err) => {
+                    context.track_outcome(
+                        outcome_from_profile_error(err),
+                        DataCategory::Profile,
+                        1,
+                    );
+                }
+            }
+        }
     }
 
     /// Remove replays if the feature flag is not enabled
