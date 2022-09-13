@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use crate::processor::ProcessValue;
+use crate::protocol::Timestamp;
 use crate::types::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerialization, Value};
 
 /// Describes how the name of the transaction was determined.
@@ -108,6 +109,21 @@ impl IntoValue for TransactionSource {
 
 impl ProcessValue for TransactionSource {}
 
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct TransactionNameChange {
+    /// Describes how the name of the previous transaction was determined.
+    pub source: Annotated<TransactionSource>,
+
+    /// The number of propagations from the start of the transactions to this change.
+    pub propagations: Annotated<u64>,
+
+    /// Timestamp when the transaction name was changed.
+    ///
+    /// This adheres to the event timestamp specification.
+    pub timestamp: Annotated<Timestamp>,
+}
+
 /// Additional information about the name of the transaction.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -123,6 +139,12 @@ pub struct TransactionInfo {
     /// This value will only be set if the transaction name was modified during event processing.
     #[metastructure(max_chars = "culprit", trim_whitespace = "true")]
     pub original: Annotated<String>,
+
+    /// A list of changes prior to the final transaction name.
+    pub changes: Annotated<Vec<Annotated<TransactionNameChange>>>,
+
+    /// The total number of propagations during the transaction.
+    pub propagations: Annotated<u64>,
 }
 
 #[cfg(test)]
