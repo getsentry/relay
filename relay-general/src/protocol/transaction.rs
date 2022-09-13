@@ -29,6 +29,21 @@ pub enum TransactionSource {
     Other(String),
 }
 
+impl TransactionSource {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Custom => "custom",
+            Self::Url => "url",
+            Self::Route => "route",
+            Self::View => "view",
+            Self::Component => "component",
+            Self::Task => "task",
+            Self::Unknown => "unknown",
+            Self::Other(ref s) => s,
+        }
+    }
+}
+
 impl FromStr for TransactionSource {
     type Err = std::convert::Infallible;
 
@@ -48,16 +63,7 @@ impl FromStr for TransactionSource {
 
 impl fmt::Display for TransactionSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Custom => write!(f, "custom"),
-            Self::Url => write!(f, "url"),
-            Self::Route => write!(f, "route"),
-            Self::View => write!(f, "view"),
-            Self::Component => write!(f, "component"),
-            Self::Task => write!(f, "task"),
-            Self::Unknown => write!(f, "unknown"),
-            Self::Other(s) => write!(f, "{}", s),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 
