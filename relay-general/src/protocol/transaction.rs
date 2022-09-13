@@ -158,6 +158,7 @@ pub struct TransactionInfo {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{TimeZone, Utc};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -174,13 +175,27 @@ mod tests {
     #[test]
     fn test_transaction_info_roundtrip() {
         let json = r#"{
-  "source": "url",
-  "original": "/auth/login/john123/"
+  "source": "route",
+  "original": "/auth/login/john123/",
+  "changes": [
+    {
+      "source": "url",
+      "propagations": 1,
+      "timestamp": 946684800.0
+    }
+  ],
+  "propagations": 2
 }"#;
 
         let info = Annotated::new(TransactionInfo {
-            source: Annotated::new(TransactionSource::Url),
+            source: Annotated::new(TransactionSource::Route),
             original: Annotated::new("/auth/login/john123/".to_owned()),
+            changes: Annotated::new(vec![Annotated::new(TransactionNameChange {
+                source: Annotated::new(TransactionSource::Url),
+                propagations: Annotated::new(1),
+                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            })]),
+            propagations: Annotated::new(2),
         });
 
         assert_eq!(info, Annotated::from_json(json).unwrap());
