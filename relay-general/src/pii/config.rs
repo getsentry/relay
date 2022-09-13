@@ -11,7 +11,22 @@ use crate::processor::SelectorSpec;
 
 /// A regex pattern for text replacement.
 #[derive(Clone)]
-pub struct Pattern(pub Regex);
+pub struct Pattern(Regex);
+
+impl Pattern {
+    pub fn new(s: &str, case_insensitive: bool) -> Result<Self, regex::Error> {
+        let regex = RegexBuilder::new(s)
+            .size_limit(262_144)
+            .case_insensitive(case_insensitive)
+            .build()?;
+
+        Ok(Self(regex))
+    }
+
+    pub fn regex(&self) -> &Regex {
+        &self.0
+    }
+}
 
 impl Deref for Pattern {
     type Target = Regex;
@@ -42,11 +57,8 @@ impl Serialize for Pattern {
 impl<'de> Deserialize<'de> for Pattern {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(deserializer)?;
-        let pattern = RegexBuilder::new(&raw)
-            .size_limit(262_144)
-            .build()
-            .map_err(Error::custom)?;
-        Ok(Pattern(pattern))
+        let pattern = Pattern::new(&raw, false).map_err(Error::custom)?;
+        Ok(pattern)
     }
 }
 

@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use once_cell::sync::Lazy;
-use regex::RegexBuilder;
 
 use crate::pii::{
     DataScrubbingConfig, Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType, Vars,
@@ -70,12 +69,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
                 "strip-fields".to_owned(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
-                        key_pattern: Pattern(
-                            RegexBuilder::new(&key_pattern)
-                                .case_insensitive(true)
-                                .build()
-                                .unwrap(),
-                        ),
+                        key_pattern: Pattern::new(&key_pattern, true).unwrap(), // FIXME: no more unwrap
                     }),
                     redaction: Redaction::Replace("[Filtered]".to_owned().into()),
                 },
