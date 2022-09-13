@@ -20,7 +20,7 @@
 //!     "urls": ["https://sentry.io"],
 //!     "error_ids": ["d2132d31b39445f1938d7e21b6bf0ec4"],
 //!     "trace_ids": ["63c5b0f895441a94340183c5f1e74cd4"],
-//!     "requests": {
+//!     "request": {
 //!         "headers": {"User-Agent": "Mozilla/5.0..."}
 //!     },
 //! }
@@ -45,7 +45,7 @@ pub fn normalize_replay_event(
 ) -> Result<Vec<u8>, Error> {
     let mut replay_input: ReplayInput = serde_json::from_slice(replay_bytes)?;
 
-    // Set user-agent metadata from requests object.
+    // Set user-agent metadata from request object.
     replay_input.set_user_agent_meta();
 
     // Set user ip-address if needed.
@@ -229,7 +229,7 @@ mod tests {
     }
 
     #[test]
-    fn test_set_user_agent_meta_no_requests() {
+    fn test_set_user_agent_meta_no_request() {
         let payload = include_bytes!("../tests/fixtures/replay_no_requests.json");
         let mut replay_input: ReplayInput = serde_json::from_slice(payload).unwrap();
         replay_input.set_user_agent_meta();
