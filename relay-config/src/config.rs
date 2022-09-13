@@ -967,11 +967,8 @@ impl From<String> for TopicAssignment {
 }
 
 impl TopicAssignment {
-    /// Get the name of the kafka config to use. `None` means default configuration.
-    fn kafka_config_name<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Result<KafkaConfig<'_>, ConfigErrorKind> {
+    /// Get the kafka config for the current topic assignment.
+    fn kafka_config<'a>(&'a self, config: &'a Config) -> Result<KafkaConfig<'_>, ConfigErrorKind> {
         let kafka_config = match self {
             Self::Primary(topic_name) => KafkaConfig::Single(KafkaParams {
                 topic_name,
@@ -2054,11 +2051,7 @@ impl Config {
 
     /// Configuration name and list of Kafka configuration parameters for a given topic.
     pub fn kafka_config(&self, topic: KafkaTopic) -> Result<KafkaConfig, ConfigErrorKind> {
-        self.values
-            .processing
-            .topics
-            .get(topic)
-            .kafka_config_name(self)
+        self.values.processing.topics.get(topic).kafka_config(self)
     }
 
     /// Redis servers to connect to, for rate limiting.
@@ -2153,6 +2146,7 @@ cache:
         ));
     }
 
+    /// Make sure we can parse the processing config properlu
     #[test]
     fn test_kafka_config_parsing() {
         let yaml = r###"
@@ -2189,7 +2183,11 @@ processing:
 "###;
 
         let values: ConfigValues = serde_yaml::from_str(yaml).unwrap();
-        let metrics_def = values.processing.topics.metrics;
+        let c = Config {
+            values,
+            ..Default::default()
+        };
+        let metrics_def = &c.values.processing.topics.metrics;
         assert!(matches!(metrics_def, TopicAssignment::Sharded { .. }));
 
         let (shards, mapping) =
@@ -2198,7 +2196,15 @@ processing:
             } else {
                 unreachable!()
             };
-        assert_eq!(shards, 65000);
+        assert_eq!(shards, &65000);
         assert_eq!(3, mapping.len());
+
+        let events = &c.values.processing.topics.events;
+        assert!(matches!(events, TopicAssignment::Primary(_)));
+
+        let events_config = events
+            .kafka_config(&c)
+            .expect("Kafka config for events topic");
+        assert!(matches!(events_config, KafkaConfig::Single(_)));
     }
 }

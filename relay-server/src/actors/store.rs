@@ -143,7 +143,7 @@ pub struct ShardedProducer {
 
 impl ShardedProducer {
     /// Returns topic name and the Kafka producer based on the provided sharding key.
-    pub fn get_producer(&self, sharding_key: impl Hash) -> (&str, Arc<ThreadedProducer>) {
+    pub fn get_producer(&self, sharding_key: impl Hash) -> (&str, &ThreadedProducer) {
         let mut hasher = FnvHasher::default();
         Hash::hash(&sharding_key, &mut hasher);
         let hashed = hasher.finish();
@@ -159,7 +159,7 @@ impl ShardedProducer {
             .map(|(_, v)| v)
             .expect("At least one shard is defined");
 
-        (topic_name, producer.clone())
+        (topic_name, producer)
     }
 }
 
@@ -176,7 +176,7 @@ impl Producer {
             Self::Single {
                 topic_name,
                 producer,
-            } => (topic_name.as_str(), Arc::clone(producer)),
+            } => (topic_name.as_str(), producer.as_ref()),
 
             Self::Sharded(sharded) => sharded.get_producer(organization_id),
         };
