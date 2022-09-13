@@ -24,7 +24,7 @@ def generate_replay_sdk_event():
             "email": "user@site.com",
             "ip_address": "192.168.11.12",
         },
-        "requests": {
+        "request": {
             "url": None,
             "headers": {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
@@ -78,10 +78,10 @@ def test_replay_event_with_processing(
     assert parsed_replay["user"]["username"] == replay["user"]["username"]
     assert parsed_replay["user"]["email"] == replay["user"]["email"]
     assert parsed_replay["user"]["ip_address"] == replay["user"]["ip_address"]
-    assert parsed_replay["requests"]["url"] == replay["requests"]["url"]
+    assert parsed_replay["request"]["url"] == replay["request"]["url"]
     assert (
-        parsed_replay["requests"]["headers"]["User-Agent"]
-        == replay["requests"]["headers"]["User-Agent"]
+        parsed_replay["request"]["headers"]["User-Agent"]
+        == replay["request"]["headers"]["User-Agent"]
     )
 
     # Round to account for float imprecision. Not a big deal. Decimals
