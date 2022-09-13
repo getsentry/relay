@@ -150,10 +150,7 @@ pub fn expand_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
                     Platform::Typescript => parse_typescript_profile(payload),
                     _ => Err(ProfileError::PlatformNotSupported),
                 };
-                match payload {
-                    Ok(payload) => Ok(vec![payload]),
-                    Err(err) => Err(err),
-                }
+                Ok(vec![payload?])
             }
         },
     }

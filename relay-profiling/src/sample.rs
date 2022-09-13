@@ -176,7 +176,7 @@ impl SampleProfile {
     fn remove_single_samples_per_thread(&mut self) {
         let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
 
-        for sample in self.profile.samples.iter() {
+        for sample in &self.profile.samples {
             *sample_count_by_thread_id
                 .entry(sample.thread_id)
                 .or_default() += 1;
