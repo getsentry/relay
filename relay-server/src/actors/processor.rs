@@ -863,11 +863,11 @@ impl EnvelopeProcessor {
         }
 
         let context = &state.envelope_context;
-        let new_profiles: &mut Vec<Vec<u8>> = &mut Vec::new();
+        let mut new_profiles = Vec::new();
 
         while let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
             match relay_profiling::expand_profile(&item.payload()[..]) {
-                Ok(mut payloads) => new_profiles.append(&mut payloads),
+                Ok(payloads) => new_profiles.extend(payloads),
                 Err(err) => {
                     context.track_outcome(
                         outcome_from_profile_error(err),
@@ -878,7 +878,7 @@ impl EnvelopeProcessor {
             }
         }
 
-        for payload in new_profiles.iter() {
+        for payload in new_profiles {
             let mut item = Item::new(ItemType::Profile);
             item.set_payload(ContentType::Json, &payload[..]);
             envelope.add_item(item);
