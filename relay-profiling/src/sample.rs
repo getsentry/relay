@@ -13,12 +13,26 @@ use crate::Platform;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Frame {
-    instruction_addr: Addr,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    instruction_addr: Option<Addr>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    line: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    file: Option<String>,
 }
 
 impl Frame {
-    fn strip_pointer_authentication_code(&mut self, addr: u64) {
-        self.instruction_addr = Addr(self.instruction_addr.0 & addr);
+    fn valid(&self) -> bool {
+        self.instruction_addr.is_some()
+            || (self.name.is_some() && self.line.is_some() && self.file.is_some())
+    }
+
+    fn strip_pointer_authentication_code(&mut self, pac_code: u64) {
+        if let Some(address) = self.instruction_addr {
+            self.instruction_addr = Some(Addr(address.0 & pac_code));
+        }
     }
 }
 
@@ -229,15 +243,15 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::NotEnoughSamples);
     }
 
+    profile
+        .transactions
+        .retain(|transaction| transaction.valid());
+
     if profile.transactions.is_empty() {
         return Err(ProfileError::NoTransactionAssociated);
     }
 
-    for transaction in profile.transactions.iter() {
-        if !transaction.valid() {
-            return Err(ProfileError::InvalidTransactionMetadata);
-        }
-    }
+    profile.profile.frames.retain(|frame| frame.valid());
 
     profile.strip_pointer_authentication_code();
 
