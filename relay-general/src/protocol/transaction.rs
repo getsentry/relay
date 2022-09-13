@@ -118,10 +118,10 @@ impl ProcessValue for TransactionSource {}
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TransactionNameChange {
-    /// Describes how the name of the previous transaction was determined.
+    /// Describes how the previous transaction name was determined.
     pub source: Annotated<TransactionSource>,
 
-    /// The number of propagations from the start of the transactions to this change.
+    /// The number of propagations from the start of the transaction to this change.
     pub propagations: Annotated<u64>,
 
     /// Timestamp when the transaction name was changed.
@@ -147,6 +147,9 @@ pub struct TransactionInfo {
     pub original: Annotated<String>,
 
     /// A list of changes prior to the final transaction name.
+    ///
+    /// This list must be empty if the transaction name is set at the beginning of the transaction
+    /// and never changed. There is no placeholder entry for the initial transaction name.
     pub changes: Annotated<Vec<Annotated<TransactionNameChange>>>,
 
     /// The total number of propagations during the transaction.

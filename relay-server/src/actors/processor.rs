@@ -392,16 +392,14 @@ fn track_sampling_metrics(
             sdk_version = sdk_version,
         );
 
-        let percentage = (change as f64) / (total as f64);
-        if percentage > 0.0 {
-            metric!(
-                histogram(RelayHistograms::DynamicSamplingPropagationPercentage) = percentage,
-                source = source,
-                platform = platform,
-                sdk_name = sdk_name,
-                sdk_version = sdk_version,
-            );
-        }
+        let percentage = ((change as f64) / (total as f64)).min(1.0);
+        metric!(
+            histogram(RelayHistograms::DynamicSamplingPropagationPercentage) = percentage,
+            source = source,
+            platform = platform,
+            sdk_name = sdk_name,
+            sdk_version = sdk_version,
+        );
     }
 
     if let (Some(&start), Some(&change), Some(&end)) = (
@@ -409,18 +407,20 @@ fn track_sampling_metrics(
         last_change.and_then(|c| c.timestamp.value()),
         event.timestamp.value(),
     ) {
-        let delay_ms = (change - start).num_milliseconds().unsigned_abs();
-        metric!(
-            histogram(RelayHistograms::DynamicSamplingChangeDuration) = delay_ms,
-            source = source,
-            platform = platform,
-            sdk_name = sdk_name,
-            sdk_version = sdk_version,
-        );
+        let delay_ms = (change - start).num_milliseconds();
+        if delay_ms >= 0 {
+            metric!(
+                histogram(RelayHistograms::DynamicSamplingChangeDuration) = delay_ms as u64,
+                source = source,
+                platform = platform,
+                sdk_name = sdk_name,
+                sdk_version = sdk_version,
+            );
+        }
 
         let duration_ms = (end - start).num_milliseconds() as f64;
-        let percentage = (delay_ms as f64) / duration_ms;
-        if percentage > 0.0 {
+        if delay_ms >= 0 && duration_ms >= 0.0 {
+            let percentage = ((delay_ms as f64) / duration_ms).min(1.0);
             metric!(
                 histogram(RelayHistograms::DynamicSamplingChangePercentage) = percentage,
                 source = source,
