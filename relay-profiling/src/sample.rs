@@ -198,6 +198,9 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
 
     let mut items: Vec<Vec<u8>> = Vec::new();
 
+    // As we're getting one profile for multiple transactions and our backend doesn't support this,
+    // we need to duplicate the profile to have one profile for one transaction, filter the samples
+    // to match the transaction bounds and generate a new profile ID.
     for transaction in &profile.transactions {
         let mut new_profile = profile.clone();
 
