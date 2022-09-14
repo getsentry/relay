@@ -17,16 +17,16 @@ use actix::prelude::SystemService;
 use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
-use failure::{Fail, ResultExt};
+use failure::Fail;
 #[cfg(feature = "processing")]
-use rdkafka::{producer::BaseRecord, ClientConfig as KafkaClientConfig};
+use rdkafka::producer::BaseRecord;
 use relay_system::{Interface, NoResponse};
 use serde::{Deserialize, Serialize};
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
-use relay_config::{Config, EmitOutcomes};
 #[cfg(feature = "processing")]
-use relay_config::{KafkaConfigParam, KafkaTopic};
+use relay_config::KafkaTopic;
+use relay_config::{Config, EmitOutcomes};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_log::LogError;
@@ -36,14 +36,12 @@ use relay_statsd::metric;
 use relay_system::{compat, Addr, FromMessage, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
-use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
-use crate::service::ServerErrorKind;
+use crate::actors::store::{self, Producer};
+use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::service::REGISTRY;
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
-#[cfg(feature = "processing")]
-use crate::utils::{CaptureErrorContext, ThreadedProducer};
 use crate::ServerError;
 
 /// Defines the structure of the HTTP outcomes requests
@@ -665,8 +663,8 @@ impl Service for ClientReportOutcomeProducer {
 /// producer instance internally.
 #[cfg(feature = "processing")]
 struct KafkaOutcomesProducer {
-    default: ThreadedProducer,
-    billing: Option<ThreadedProducer>,
+    default: Producer,
+    billing: Producer,
 }
 
 #[cfg(feature = "processing")]
@@ -676,39 +674,21 @@ impl KafkaOutcomesProducer {
     /// If the given Kafka configuration parameters are invalid, or an error happens during
     /// connecting during the broker, an error is returned.
     pub fn create(config: &Config) -> Result<Self, ServerError> {
-        let (default_name, default_config) = config
-            .kafka_config(KafkaTopic::Outcomes)
-            .context(ServerErrorKind::KafkaError)?;
-
-        let (billing_name, billing_config) = config
-            .kafka_config(KafkaTopic::OutcomesBilling)
-            .context(ServerErrorKind::KafkaError)?;
-
-        let default = Self::create_producer(default_config)?;
-        let billing = if billing_name != default_name {
-            Some(Self::create_producer(billing_config)?)
-        } else {
-            None
+        let mut reused_producers = BTreeMap::new();
+        let producers = KafkaOutcomesProducer {
+            default: store::make_producer(config, &mut reused_producers, KafkaTopic::Outcomes)?,
+            billing: store::make_producer(
+                config,
+                &mut reused_producers,
+                KafkaTopic::OutcomesBilling,
+            )?,
         };
 
-        Ok(Self { default, billing })
-    }
-
-    fn create_producer(params: &[KafkaConfigParam]) -> Result<ThreadedProducer, ServerError> {
-        let mut client_config = KafkaClientConfig::new();
-        for param in params {
-            client_config.set(param.name.as_str(), param.value.as_str());
-        }
-
-        let threaded_producer = client_config
-            .create_with_context(CaptureErrorContext)
-            .context(ServerErrorKind::KafkaError)?;
-
-        Ok(threaded_producer)
+        Ok(producers)
     }
 
     /// Returns the producer for default outcomes.
-    pub fn default(&self) -> &ThreadedProducer {
+    pub fn default(&self) -> &Producer {
         &self.default
     }
 
@@ -716,8 +696,8 @@ impl KafkaOutcomesProducer {
     ///
     /// Note that this may return the same producer instance as [`default`](Self::default) depending
     /// on the configuration.
-    pub fn billing(&self) -> &ThreadedProducer {
-        self.billing.as_ref().unwrap_or(&self.default)
+    pub fn billing(&self) -> &Producer {
+        &self.billing
     }
 }
 
@@ -822,6 +802,7 @@ impl OutcomeProducerService {
     fn send_kafka_message(
         &self,
         producer: &KafkaOutcomesProducer,
+        organization_id: u64,
         message: TrackRawOutcome,
     ) -> Result<(), OutcomeError> {
         relay_log::trace!("Tracking kafka outcome: {:?}", message);
@@ -835,17 +816,34 @@ impl OutcomeProducerService {
         let key = message.event_id.unwrap_or_else(EventId::new).0;
 
         // Dispatch to the correct topic and cluster based on the kind of outcome.
-        let (topic, producer) = if message.is_billing() {
+        let (_topic, producer) = if message.is_billing() {
             (KafkaTopic::OutcomesBilling, producer.billing())
         } else {
             (KafkaTopic::Outcomes, producer.default())
         };
 
-        let record = BaseRecord::to(self.config.kafka_topic_name(topic))
-            .payload(&payload)
-            .key(key.as_bytes().as_ref());
+        let result = match producer {
+            Producer::Single {
+                topic_name,
+                producer,
+            } => {
+                let record = BaseRecord::to(topic_name)
+                    .payload(&payload)
+                    .key(key.as_bytes().as_ref());
 
-        match producer.send(record) {
+                producer.send(record)
+            }
+
+            Producer::Sharded(sharded) => {
+                let (topic_name, producer) = sharded.get_producer(organization_id);
+                let record = BaseRecord::to(topic_name)
+                    .payload(&payload)
+                    .key(key.as_bytes().as_ref());
+                producer.send(record)
+            }
+        };
+
+        match result {
             Ok(_) => Ok(()),
             Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
         }
@@ -865,8 +863,11 @@ impl OutcomeProducerService {
             #[cfg(feature = "processing")]
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
                 Self::send_outcome_metric(&message, "kafka");
+                let organization_id = message.scoping.organization_id;
                 let raw_message = TrackRawOutcome::from_outcome(message, &self.config);
-                if let Err(error) = self.send_kafka_message(kafka_producer, raw_message) {
+                if let Err(error) =
+                    self.send_kafka_message(kafka_producer, organization_id, raw_message)
+                {
                     relay_log::error!("failed to produce outcome: {}", LogError(&error));
                 }
             }
@@ -887,7 +888,8 @@ impl OutcomeProducerService {
             #[cfg(feature = "processing")]
             ProducerInner::AsKafkaOutcomes(ref kafka_producer) => {
                 Self::send_outcome_metric(&message, "kafka");
-                if let Err(error) = self.send_kafka_message(kafka_producer, message) {
+                let sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
+                if let Err(error) = self.send_kafka_message(kafka_producer, sharding_id, message) {
                     relay_log::error!("failed to produce outcome: {}", LogError(&error));
                 }
             }
