@@ -14,7 +14,8 @@ use actix_web::http::{HeaderMap, Method};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use failure::Fail;
-use futures01::{future, prelude::*, sync::oneshot};
+use futures::compat::Future01CompatExt;
+use futures01::{prelude::*, sync::oneshot};
 use once_cell::sync::Lazy;
 
 use relay_common::GlobMatcher;
@@ -194,7 +195,7 @@ impl UpstreamRequest for ForwardRequest {
     fn respond(
         &mut self,
         result: Result<Response, UpstreamRequestError>,
-    ) -> ResponseFuture<(), ()> {
+    ) -> std::pin::Pin<Box<(dyn futures::Future<Output = Result<(), ()>> + 'static)>> {
         let sender = self.sender.take();
 
         match result {
@@ -213,13 +214,13 @@ impl UpstreamRequest for ForwardRequest {
                         Ok(())
                     });
 
-                Box::new(future)
+                Box::pin(future.compat())
             }
             Err(e) => {
                 if let Some(sender) = sender {
                     sender.send(Err(e)).ok();
                 }
-                Box::new(future::err(()))
+                Box::pin(futures::future::err(()))
             }
         }
     }

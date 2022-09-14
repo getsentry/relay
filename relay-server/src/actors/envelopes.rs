@@ -6,6 +6,7 @@ use std::time::Instant;
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::Utc;
+use futures::compat::Future01CompatExt;
 use futures01::{future, prelude::*, sync::oneshot};
 
 use relay_common::ProjectKey;
@@ -101,7 +102,9 @@ impl UpstreamRequest for SendEnvelope {
     fn respond(
         &mut self,
         result: Result<Response, UpstreamRequestError>,
-    ) -> ResponseFuture<(), ()> {
+    ) -> std::pin::Pin<
+        std::boxed::Box<(dyn futures::Future<Output = std::result::Result<(), ()>> + 'static)>,
+    > {
         let sender = self.response_sender.take();
 
         match result {
@@ -119,7 +122,7 @@ impl UpstreamRequest for SendEnvelope {
                         Ok(())
                     });
 
-                Box::new(future)
+                Box::pin(future.compat())
             }
             Err(error) => {
                 match error {
@@ -144,7 +147,7 @@ impl UpstreamRequest for SendEnvelope {
                         }
                     }
                 };
-                Box::new(future::err(()))
+                Box::pin(futures::future::err(()))
             }
         }
     }
