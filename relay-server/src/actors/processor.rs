@@ -1642,7 +1642,8 @@ impl EnvelopeProcessor {
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
-            if let Some(config) = config.datascrubbing_settings.pii_config() {
+            let pii_config = config.datascrubbing_settings.pii_config()?;
+            if let Some(config) = pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;

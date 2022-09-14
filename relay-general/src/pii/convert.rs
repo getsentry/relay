@@ -25,7 +25,7 @@ static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
         .unwrap()
 });
 
-pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
+pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Result<Option<PiiConfig>, ()> {
     let mut custom_rules = BTreeMap::new();
     let mut applied_rules = Vec::new();
     let mut applications = BTreeMap::new();
@@ -69,7 +69,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
                 "strip-fields".to_owned(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
-                        key_pattern: Pattern::new(&key_pattern, true).unwrap(), // FIXME: no more unwrap
+                        key_pattern: Pattern::new(&key_pattern, true).map_err(|_| ())?,
                     }),
                     redaction: Redaction::Replace("[Filtered]".to_owned().into()),
                 },
@@ -80,7 +80,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
     }
 
     if applied_rules.is_empty() && applications.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     let mut conjunctions = vec![
@@ -110,12 +110,12 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiCo
         applications.insert(applied_selector, applied_rules);
     }
 
-    Some(PiiConfig {
+    Ok(Some(PiiConfig {
         rules: custom_rules,
         vars: Vars::default(),
         applications,
         ..Default::default()
-    })
+    }))
 }
 
 #[cfg(test)]
@@ -134,7 +134,7 @@ mod tests {
     use super::to_pii_config as to_pii_config_impl;
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
-        let rv = to_pii_config_impl(datascrubbing_config);
+        let rv = to_pii_config_impl(datascrubbing_config).unwrap();
         if let Some(ref config) = rv {
             let roundtrip: PiiConfig =
                 serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
@@ -280,14 +280,15 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_sensitive_fields_too_large() {
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let result = to_pii_config_impl(&DataScrubbingConfig {
             sensitive_fields: vec!["fieldy_field"]
-                .repeat(999999)
+                .repeat(999)
                 .into_iter()
                 .map(|x| x.to_string())
                 .collect(),
             ..simple_enabled_config()
         });
+        assert!(result.is_err());
     }
 
     #[test]

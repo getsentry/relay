@@ -36,7 +36,7 @@ pub struct DataScrubbingConfig {
     ///
     /// Cached because the conversion process is expensive.
     #[serde(skip)]
-    pub(super) pii_config: OnceCell<Option<PiiConfig>>,
+    pub(super) pii_config: OnceCell<Result<Option<PiiConfig>, ()>>,
 }
 
 impl DataScrubbingConfig {
@@ -48,7 +48,7 @@ impl DataScrubbingConfig {
             scrub_ip_addresses: false,
             sensitive_fields: vec![],
             scrub_defaults: false,
-            pii_config: OnceCell::with_value(None),
+            pii_config: OnceCell::with_value(Ok(None)),
         }
     }
 
@@ -61,7 +61,7 @@ impl DataScrubbingConfig {
     ///
     /// This can be computationally expensive when called for the first time. The result is cached
     /// internally and reused on the second call.
-    pub fn pii_config(&self) -> Option<&'_ PiiConfig> {
+    pub fn pii_config(&self) -> Result<&'_ Option<PiiConfig>, &()> {
         self.pii_config
             .get_or_init(|| self.pii_config_uncached())
             .as_ref()
@@ -69,7 +69,7 @@ impl DataScrubbingConfig {
 
     /// Like [`pii_config`](Self::pii_config) but without internal caching.
     #[inline]
-    pub fn pii_config_uncached(&self) -> Option<PiiConfig> {
+    pub fn pii_config_uncached(&self) -> Result<Option<PiiConfig>, ()> {
         convert::to_pii_config(self)
     }
 }
