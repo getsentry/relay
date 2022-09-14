@@ -922,6 +922,8 @@
 <span id="914">914</span>
 <span id="915">915</span>
 <span id="916">916</span>
+<span id="917">917</span>
+<span id="918">918</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one</span>
@@ -941,16 +943,16 @@
 <span class="kw">use</span> <span class="ident">actix_web::http::Method</span>;
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">SecondsFormat</span>, <span class="ident">Utc</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Fail</span>, <span class="ident">ResultExt</span>};
+<span class="kw">use</span> <span class="ident">failure::Fail</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">rdkafka</span>::{<span class="ident">producer::BaseRecord</span>, <span class="ident">ClientConfig</span> <span class="kw">as</span> <span class="ident">KafkaClientConfig</span>};
+<span class="kw">use</span> <span class="ident">rdkafka::producer::BaseRecord</span>;
 <span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Interface</span>, <span class="ident">NoResponse</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">DataCategory</span>, <span class="ident">ProjectId</span>, <span class="ident">UnixTimestamp</span>};
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">EmitOutcomes</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">KafkaConfigParam</span>, <span class="ident">KafkaTopic</span>};
+<span class="kw">use</span> <span class="ident">relay_config::KafkaTopic</span>;
+<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">EmitOutcomes</span>};
 <span class="kw">use</span> <span class="ident">relay_filter::FilterStatKey</span>;
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="ident">ClientReport</span>, <span class="ident">DiscardedEvent</span>, <span class="ident">EventId</span>};
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
@@ -960,14 +962,12 @@
 <span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">compat</span>, <span class="ident">Addr</span>, <span class="ident">FromMessage</span>, <span class="ident">Service</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendClientReports</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">SendQuery</span>, <span class="ident">UpstreamQuery</span>, <span class="ident">UpstreamRelay</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::ServerErrorKind</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::store</span>::{<span class="self">self</span>, <span class="ident">Producer</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::upstream</span>::{<span class="ident">SendQuery</span>, <span class="ident">UpstreamQuery</span>, <span class="ident">UpstreamRelay</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service::REGISTRY</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils::SleepHandle</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">CaptureErrorContext</span>, <span class="ident">ThreadedProducer</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::ServerError</span>;
 
 <span class="doccomment">/// Defines the structure of the HTTP outcomes requests</span>
@@ -1589,8 +1589,8 @@
 <span class="doccomment">/// producer instance internally.</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
 <span class="kw">struct</span> <span class="ident">KafkaOutcomesProducer</span> {
-    <span class="ident">default</span>: <span class="ident">ThreadedProducer</span>,
-    <span class="ident">billing</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span>,
+    <span class="ident">default</span>: <span class="ident">Producer</span>,
+    <span class="ident">billing</span>: <span class="ident">Producer</span>,
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
@@ -1600,39 +1600,21 @@
     <span class="doccomment">/// If the given Kafka configuration parameters are invalid, or an error happens during</span>
     <span class="doccomment">/// connecting during the broker, an error is returned.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">default_name</span>, <span class="ident">default_config</span>) <span class="op">=</span> <span class="ident">config</span>
-            .<span class="ident">kafka_config</span>(<span class="ident">KafkaTopic::Outcomes</span>)
-            .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>;
-
-        <span class="kw">let</span> (<span class="ident">billing_name</span>, <span class="ident">billing_config</span>) <span class="op">=</span> <span class="ident">config</span>
-            .<span class="ident">kafka_config</span>(<span class="ident">KafkaTopic::OutcomesBilling</span>)
-            .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>;
-
-        <span class="kw">let</span> <span class="ident">default</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::create_producer</span>(<span class="ident">default_config</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">billing</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">billing_name</span> <span class="op">!</span><span class="op">=</span> <span class="ident">default_name</span> {
-            <span class="prelude-val">Some</span>(<span class="ident"><span class="self">Self</span>::create_producer</span>(<span class="ident">billing_config</span>)<span class="question-mark">?</span>)
-        } <span class="kw">else</span> {
-            <span class="prelude-val">None</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reused_producers</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
+        <span class="kw">let</span> <span class="ident">producers</span> <span class="op">=</span> <span class="ident">KafkaOutcomesProducer</span> {
+            <span class="ident">default</span>: <span class="ident">store::make_producer</span>(<span class="ident">config</span>, <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>, <span class="ident">KafkaTopic::Outcomes</span>)<span class="question-mark">?</span>,
+            <span class="ident">billing</span>: <span class="ident">store::make_producer</span>(
+                <span class="ident">config</span>,
+                <span class="kw-2">&amp;mut</span> <span class="ident">reused_producers</span>,
+                <span class="ident">KafkaTopic::OutcomesBilling</span>,
+            )<span class="question-mark">?</span>,
         };
 
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span> { <span class="ident">default</span>, <span class="ident">billing</span> })
-    }
-
-    <span class="kw">fn</span> <span class="ident">create_producer</span>(<span class="ident">params</span>: <span class="kw-2">&amp;</span>[<span class="ident">KafkaConfigParam</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_config</span> <span class="op">=</span> <span class="ident">KafkaClientConfig::new</span>();
-        <span class="kw">for</span> <span class="ident">param</span> <span class="kw">in</span> <span class="ident">params</span> {
-            <span class="ident">client_config</span>.<span class="ident">set</span>(<span class="ident">param</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(), <span class="ident">param</span>.<span class="ident">value</span>.<span class="ident">as_str</span>());
-        }
-
-        <span class="kw">let</span> <span class="ident">threaded_producer</span> <span class="op">=</span> <span class="ident">client_config</span>
-            .<span class="ident">create_with_context</span>(<span class="ident">CaptureErrorContext</span>)
-            .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>;
-
-        <span class="prelude-val">Ok</span>(<span class="ident">threaded_producer</span>)
+        <span class="prelude-val">Ok</span>(<span class="ident">producers</span>)
     }
 
     <span class="doccomment">/// Returns the producer for default outcomes.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">ThreadedProducer</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">Producer</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">default</span>
     }
 
@@ -1640,8 +1622,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that this may return the same producer instance as [`default`](Self::default) depending</span>
     <span class="doccomment">/// on the configuration.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">billing</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">ThreadedProducer</span> {
-        <span class="self">self</span>.<span class="ident">billing</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">default</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">billing</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">Producer</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">billing</span>
     }
 }
 
@@ -1746,6 +1728,7 @@
     <span class="kw">fn</span> <span class="ident">send_kafka_message</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">producer</span>: <span class="kw-2">&amp;</span><span class="ident">KafkaOutcomesProducer</span>,
+        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
         <span class="ident">message</span>: <span class="ident">TrackRawOutcome</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">OutcomeError</span><span class="op">&gt;</span> {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Tracking kafka outcome: {:?}&quot;</span>, <span class="ident">message</span>);
@@ -1759,17 +1742,34 @@
         <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">event_id</span>.<span class="ident">unwrap_or_else</span>(<span class="ident">EventId::new</span>).<span class="number">0</span>;
 
         <span class="comment">// Dispatch to the correct topic and cluster based on the kind of outcome.</span>
-        <span class="kw">let</span> (<span class="ident">topic</span>, <span class="ident">producer</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">is_billing</span>() {
+        <span class="kw">let</span> (<span class="ident">_topic</span>, <span class="ident">producer</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">is_billing</span>() {
             (<span class="ident">KafkaTopic::OutcomesBilling</span>, <span class="ident">producer</span>.<span class="ident">billing</span>())
         } <span class="kw">else</span> {
             (<span class="ident">KafkaTopic::Outcomes</span>, <span class="ident">producer</span>.<span class="ident">default</span>())
         };
 
-        <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord::to</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">kafka_topic_name</span>(<span class="ident">topic</span>))
-            .<span class="ident">payload</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>)
-            .<span class="ident">key</span>(<span class="ident">key</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ref</span>());
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">producer</span> {
+            <span class="ident">Producer::Single</span> {
+                <span class="ident">topic_name</span>,
+                <span class="ident">producer</span>,
+            } =&gt; {
+                <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord::to</span>(<span class="ident">topic_name</span>)
+                    .<span class="ident">payload</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>)
+                    .<span class="ident">key</span>(<span class="ident">key</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ref</span>());
 
-        <span class="kw">match</span> <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">record</span>) {
+                <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">record</span>)
+            }
+
+            <span class="ident">Producer::Sharded</span>(<span class="ident">sharded</span>) =&gt; {
+                <span class="kw">let</span> (<span class="ident">topic_name</span>, <span class="ident">producer</span>) <span class="op">=</span> <span class="ident">sharded</span>.<span class="ident">get_producer</span>(<span class="ident">organization_id</span>);
+                <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord::to</span>(<span class="ident">topic_name</span>)
+                    .<span class="ident">payload</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>)
+                    .<span class="ident">key</span>(<span class="ident">key</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ref</span>());
+                <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">record</span>)
+            }
+        };
+
+        <span class="kw">match</span> <span class="ident">result</span> {
             <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
             <span class="prelude-val">Err</span>((<span class="ident">kafka_error</span>, <span class="ident">_message</span>)) =&gt; <span class="prelude-val">Err</span>(<span class="ident">OutcomeError::SendFailed</span>(<span class="ident">kafka_error</span>)),
         }
@@ -1789,8 +1789,11 @@
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">kafka_producer</span>) =&gt; {
                 <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;kafka&quot;</span>);
+                <span class="kw">let</span> <span class="ident">organization_id</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">scoping</span>.<span class="ident">organization_id</span>;
                 <span class="kw">let</span> <span class="ident">raw_message</span> <span class="op">=</span> <span class="ident">TrackRawOutcome::from_outcome</span>(<span class="ident">message</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>);
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">send_kafka_message</span>(<span class="ident">kafka_producer</span>, <span class="ident">raw_message</span>) {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span>
+                    <span class="self">self</span>.<span class="ident">send_kafka_message</span>(<span class="ident">kafka_producer</span>, <span class="ident">organization_id</span>, <span class="ident">raw_message</span>)
+                {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
                 }
             }
@@ -1811,7 +1814,8 @@
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident">ProducerInner::AsKafkaOutcomes</span>(<span class="kw-2">ref</span> <span class="ident">kafka_producer</span>) =&gt; {
                 <span class="ident"><span class="self">Self</span>::send_outcome_metric</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>, <span class="string">&quot;kafka&quot;</span>);
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">send_kafka_message</span>(<span class="ident">kafka_producer</span>, <span class="ident">message</span>) {
+                <span class="kw">let</span> <span class="ident">sharding_id</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">org_id</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">message</span>.<span class="ident">project_id</span>.<span class="ident">value</span>());
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">send_kafka_message</span>(<span class="ident">kafka_producer</span>, <span class="ident">sharding_id</span>, <span class="ident">message</span>) {
                     <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to produce outcome: {}&quot;</span>, <span class="ident">LogError</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>));
                 }
             }

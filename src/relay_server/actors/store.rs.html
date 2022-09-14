@@ -1028,22 +1028,159 @@
 <span id="1020">1020</span>
 <span id="1021">1021</span>
 <span id="1022">1022</span>
+<span id="1023">1023</span>
+<span id="1024">1024</span>
+<span id="1025">1025</span>
+<span id="1026">1026</span>
+<span id="1027">1027</span>
+<span id="1028">1028</span>
+<span id="1029">1029</span>
+<span id="1030">1030</span>
+<span id="1031">1031</span>
+<span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
+<span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
+<span id="1058">1058</span>
+<span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
+<span id="1073">1073</span>
+<span id="1074">1074</span>
+<span id="1075">1075</span>
+<span id="1076">1076</span>
+<span id="1077">1077</span>
+<span id="1078">1078</span>
+<span id="1079">1079</span>
+<span id="1080">1080</span>
+<span id="1081">1081</span>
+<span id="1082">1082</span>
+<span id="1083">1083</span>
+<span id="1084">1084</span>
+<span id="1085">1085</span>
+<span id="1086">1086</span>
+<span id="1087">1087</span>
+<span id="1088">1088</span>
+<span id="1089">1089</span>
+<span id="1090">1090</span>
+<span id="1091">1091</span>
+<span id="1092">1092</span>
+<span id="1093">1093</span>
+<span id="1094">1094</span>
+<span id="1095">1095</span>
+<span id="1096">1096</span>
+<span id="1097">1097</span>
+<span id="1098">1098</span>
+<span id="1099">1099</span>
+<span id="1100">1100</span>
+<span id="1101">1101</span>
+<span id="1102">1102</span>
+<span id="1103">1103</span>
+<span id="1104">1104</span>
+<span id="1105">1105</span>
+<span id="1106">1106</span>
+<span id="1107">1107</span>
+<span id="1108">1108</span>
+<span id="1109">1109</span>
+<span id="1110">1110</span>
+<span id="1111">1111</span>
+<span id="1112">1112</span>
+<span id="1113">1113</span>
+<span id="1114">1114</span>
+<span id="1115">1115</span>
+<span id="1116">1116</span>
+<span id="1117">1117</span>
+<span id="1118">1118</span>
+<span id="1119">1119</span>
+<span id="1120">1120</span>
+<span id="1121">1121</span>
+<span id="1122">1122</span>
+<span id="1123">1123</span>
+<span id="1124">1124</span>
+<span id="1125">1125</span>
+<span id="1126">1126</span>
+<span id="1127">1127</span>
+<span id="1128">1128</span>
+<span id="1129">1129</span>
+<span id="1130">1130</span>
+<span id="1131">1131</span>
+<span id="1132">1132</span>
+<span id="1133">1133</span>
+<span id="1134">1134</span>
+<span id="1135">1135</span>
+<span id="1136">1136</span>
+<span id="1137">1137</span>
+<span id="1138">1138</span>
+<span id="1139">1139</span>
+<span id="1140">1140</span>
+<span id="1141">1141</span>
+<span id="1142">1142</span>
+<span id="1143">1143</span>
+<span id="1144">1144</span>
+<span id="1145">1145</span>
+<span id="1146">1146</span>
+<span id="1147">1147</span>
+<span id="1148">1148</span>
+<span id="1149">1149</span>
+<span id="1150">1150</span>
+<span id="1151">1151</span>
+<span id="1152">1152</span>
+<span id="1153">1153</span>
+<span id="1154">1154</span>
+<span id="1155">1155</span>
+<span id="1156">1156</span>
+<span id="1157">1157</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.</span>
 <span class="doccomment">//! The service uses kafka topics to forward data to Sentry</span>
 
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
+<span class="kw">use</span> <span class="ident">std::hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>};
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
 
 <span class="kw">use</span> <span class="ident">bytes::Bytes</span>;
 <span class="kw">use</span> <span class="ident">failure</span>::{<span class="ident">Fail</span>, <span class="ident">ResultExt</span>};
+<span class="kw">use</span> <span class="ident">fnv::FnvHasher</span>;
 <span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
 <span class="kw">use</span> <span class="ident">rdkafka</span>::{<span class="ident">error::KafkaError</span>, <span class="ident">producer::BaseRecord</span>, <span class="ident">ClientConfig</span>};
 <span class="kw">use</span> <span class="ident">rmp_serde::encode::Error</span> <span class="kw">as</span> <span class="ident">RmpError</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">ser::Error</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">UnixTimestamp</span>, <span class="ident">Uuid</span>};
-<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">KafkaTopic</span>};
+<span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">KafkaConfig</span>, <span class="ident">KafkaParams</span>, <span class="ident">KafkaTopic</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{<span class="self">self</span>, <span class="ident">EventId</span>, <span class="ident">SessionAggregates</span>, <span class="ident">SessionStatus</span>, <span class="ident">SessionUpdate</span>};
 <span class="kw">use</span> <span class="ident">relay_log::LogError</span>;
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">BucketValue</span>, <span class="ident">MetricNamespace</span>, <span class="ident">MetricResourceIdentifier</span>};
@@ -1074,10 +1211,8 @@
     <span class="ident">NoEventId</span>,
 }
 
-<span class="kw">type</span> <span class="ident">Producer</span> <span class="op">=</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span>;
-
 <span class="doccomment">/// Temporary map used to deduplicate kafka producers</span>
-<span class="kw">type</span> <span class="ident">ReusedProducersMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>, <span class="ident">Producer</span><span class="op">&gt;</span>;
+<span class="kw">type</span> <span class="ident">ReusedProducersMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>, <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
 <span class="kw">fn</span> <span class="ident">make_distinct_id</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Uuid</span> {
     <span class="kw">static</span> <span class="ident">NAMESPACE</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">Uuid</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
@@ -1088,33 +1223,134 @@
         .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Uuid::new_v5</span>(<span class="ident">namespace</span>, <span class="ident">s</span>.<span class="ident">as_bytes</span>()))
 }
 
-<span class="kw">fn</span> <span class="ident">make_producer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_producer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
     <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Config</span>,
     <span class="ident">reused_producers</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ReusedProducersMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
     <span class="ident">kafka_topic</span>: <span class="ident">KafkaTopic</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Producer</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> (<span class="ident">config_name</span>, <span class="ident">kafka_config</span>) <span class="op">=</span> <span class="ident">config</span>
-        .<span class="ident">kafka_config</span>(<span class="ident">kafka_topic</span>)
-        .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>;
-
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">producer</span>) <span class="op">=</span> <span class="ident">reused_producers</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">config_name</span>) {
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Arc::clone</span>(<span class="ident">producer</span>));
-    }
-
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">client_config</span> <span class="op">=</span> <span class="ident">ClientConfig::new</span>();
+    <span class="kw">match</span> <span class="ident">config</span>
+        .<span class="ident">kafka_config</span>(<span class="ident">kafka_topic</span>)
+        .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>
+    {
+        <span class="ident">KafkaConfig::Single</span>(<span class="ident">KafkaParams</span> {
+            <span class="ident">topic_name</span>,
+            <span class="ident">config_name</span>,
+            <span class="ident">params</span>,
+        }) =&gt; {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">producer</span>) <span class="op">=</span> <span class="ident">reused_producers</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">config_name</span>) {
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Producer::Single</span> {
+                    <span class="ident">topic_name</span>: <span class="ident">topic_name</span>.<span class="ident">to_string</span>(),
+                    <span class="ident">producer</span>: <span class="ident">Arc::clone</span>(<span class="ident">producer</span>),
+                });
+            }
 
-    <span class="kw">for</span> <span class="ident">config_p</span> <span class="kw">in</span> <span class="ident">kafka_config</span> {
-        <span class="ident">client_config</span>.<span class="ident">set</span>(<span class="ident">config_p</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(), <span class="ident">config_p</span>.<span class="ident">value</span>.<span class="ident">as_str</span>());
+            <span class="kw">for</span> <span class="ident">config_p</span> <span class="kw">in</span> <span class="ident">params</span> {
+                <span class="ident">client_config</span>.<span class="ident">set</span>(<span class="ident">config_p</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(), <span class="ident">config_p</span>.<span class="ident">value</span>.<span class="ident">as_str</span>());
+            }
+
+            <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
+                <span class="ident">client_config</span>
+                    .<span class="ident">create_with_context</span>(<span class="ident">CaptureErrorContext</span>)
+                    .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>,
+            );
+
+            <span class="ident">reused_producers</span>.<span class="ident">insert</span>(<span class="ident">config_name</span>, <span class="ident">Arc::clone</span>(<span class="kw-2">&amp;</span><span class="ident">producer</span>));
+            <span class="prelude-val">Ok</span>(<span class="ident">Producer::Single</span> {
+                <span class="ident">topic_name</span>: <span class="ident">topic_name</span>.<span class="ident">to_string</span>(),
+                <span class="ident">producer</span>,
+            })
+        }
+        <span class="ident">KafkaConfig::Sharded</span> { <span class="ident">shards</span>, <span class="ident">configs</span> } =&gt; {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">producers</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
+            <span class="kw">for</span> (<span class="ident">shard</span>, <span class="ident">kafka_params</span>) <span class="kw">in</span> <span class="ident">configs</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">producer</span>) <span class="op">=</span> <span class="ident">reused_producers</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">kafka_params</span>.<span class="ident">config_name</span>) {
+                    <span class="kw">let</span> <span class="ident">cached_producer</span> <span class="op">=</span> <span class="ident">Arc::clone</span>(<span class="ident">producer</span>);
+                    <span class="ident">producers</span>.<span class="ident">insert</span>(
+                        <span class="ident">shard</span>,
+                        (<span class="ident">kafka_params</span>.<span class="ident">topic_name</span>.<span class="ident">to_string</span>(), <span class="ident">cached_producer</span>),
+                    );
+                    <span class="kw">continue</span>;
+                }
+                <span class="kw">for</span> <span class="ident">config_p</span> <span class="kw">in</span> <span class="ident">kafka_params</span>.<span class="ident">params</span> {
+                    <span class="ident">client_config</span>.<span class="ident">set</span>(<span class="ident">config_p</span>.<span class="ident">name</span>.<span class="ident">as_str</span>(), <span class="ident">config_p</span>.<span class="ident">value</span>.<span class="ident">as_str</span>());
+                }
+                <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
+                    <span class="ident">client_config</span>
+                        .<span class="ident">create_with_context</span>(<span class="ident">CaptureErrorContext</span>)
+                        .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>,
+                );
+                <span class="ident">reused_producers</span>.<span class="ident">insert</span>(<span class="ident">kafka_params</span>.<span class="ident">config_name</span>, <span class="ident">Arc::clone</span>(<span class="kw-2">&amp;</span><span class="ident">producer</span>));
+                <span class="ident">producers</span>.<span class="ident">insert</span>(<span class="ident">shard</span>, (<span class="ident">kafka_params</span>.<span class="ident">topic_name</span>.<span class="ident">to_string</span>(), <span class="ident">producer</span>));
+            }
+            <span class="prelude-val">Ok</span>(<span class="ident">Producer::Sharded</span>(<span class="ident">ShardedProducer</span> { <span class="ident">shards</span>, <span class="ident">producers</span> }))
+        }
     }
+}
 
-    <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="ident">Arc::new</span>(
-        <span class="ident">client_config</span>
-            .<span class="ident">create_with_context</span>(<span class="ident">CaptureErrorContext</span>)
-            .<span class="ident">context</span>(<span class="ident">ServerErrorKind::KafkaError</span>)<span class="question-mark">?</span>,
-    );
+<span class="doccomment">/// This object containes the Kafka producer variants for single and sharded configurations.</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Producer</span> {
+    <span class="ident">Single</span> {
+        <span class="ident">topic_name</span>: <span class="ident">String</span>,
+        <span class="ident">producer</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span>,
+    },
+    <span class="ident">Sharded</span>(<span class="ident">ShardedProducer</span>),
+}
 
-    <span class="ident">reused_producers</span>.<span class="ident">insert</span>(<span class="ident">config_name</span>, <span class="ident">Arc::clone</span>(<span class="kw-2">&amp;</span><span class="ident">producer</span>));
-    <span class="prelude-val">Ok</span>(<span class="ident">producer</span>)
+<span class="doccomment">/// Sharded producer configuration.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ShardedProducer</span> {
+    <span class="doccomment">/// The maximum number of shards for this producer.</span>
+    <span class="ident">shards</span>: <span class="ident">u64</span>,
+    <span class="doccomment">/// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is</span>
+    <span class="doccomment">/// the inclusive beginning of the range.</span>
+    <span class="ident">producers</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">u64</span>, (<span class="ident">String</span>, <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ThreadedProducer</span><span class="op">&gt;</span>)<span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">ShardedProducer</span> {
+    <span class="doccomment">/// Returns topic name and the Kafka producer based on the provided sharding key.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_producer</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">sharding_key</span>: <span class="kw">impl</span> <span class="ident">Hash</span>) -&gt; (<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="ident">ThreadedProducer</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hasher</span> <span class="op">=</span> <span class="ident">FnvHasher::default</span>();
+        <span class="ident">Hash::hash</span>(<span class="kw-2">&amp;</span><span class="ident">sharding_key</span>, <span class="kw-2">&amp;mut</span> <span class="ident">hasher</span>);
+        <span class="kw">let</span> <span class="ident">hashed</span> <span class="op">=</span> <span class="ident">hasher</span>.<span class="ident">finish</span>();
+        <span class="kw">let</span> <span class="ident">shard</span> <span class="op">=</span> <span class="ident">hashed</span> <span class="op">%</span> <span class="self">self</span>.<span class="ident">shards</span>;
+
+        <span class="comment">// Safety:</span>
+        <span class="comment">// We always have at least 1 shard so it&#39;s safe to unwrap this value.</span>
+        <span class="kw">let</span> (<span class="ident">topic_name</span>, <span class="ident">producer</span>) <span class="op">=</span> <span class="self">self</span>
+            .<span class="ident">producers</span>
+            .<span class="ident">iter</span>()
+            .<span class="ident">take_while</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="kw-2">*</span><span class="ident">k</span> <span class="op">&lt;</span><span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">shard</span>)
+            .<span class="ident">last</span>()
+            .<span class="ident">map</span>(<span class="op">|</span>(<span class="kw">_</span>, <span class="ident">v</span>)<span class="op">|</span> <span class="ident">v</span>)
+            .<span class="ident">expect</span>(<span class="string">&quot;At least one shard is defined&quot;</span>);
+
+        (<span class="ident">topic_name</span>, <span class="ident">producer</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Producer</span> {
+    <span class="doccomment">/// Sends the message to Kafka using correct producer for the current topic.</span>
+    <span class="kw">fn</span> <span class="ident">send</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">organization_id</span>: <span class="ident">u64</span>, <span class="ident">message</span>: <span class="ident">KafkaMessage</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">serialized</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">serialize</span>()<span class="question-mark">?</span>;
+        <span class="macro">metric!</span>(
+            <span class="ident">histogram</span>(<span class="ident">RelayHistograms::KafkaMessageSize</span>) <span class="op">=</span> <span class="ident">serialized</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>,
+            <span class="ident">variant</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">variant</span>()
+        );
+        <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">key</span>();
+        <span class="kw">let</span> (<span class="ident">topic_name</span>, <span class="ident">producer</span>) <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span> {
+            <span class="ident"><span class="self">Self</span>::Single</span> {
+                <span class="ident">topic_name</span>,
+                <span class="ident">producer</span>,
+            } =&gt; (<span class="ident">topic_name</span>.<span class="ident">as_str</span>(), <span class="ident">producer</span>.<span class="ident">as_ref</span>()),
+
+            <span class="ident"><span class="self">Self</span>::Sharded</span>(<span class="ident">sharded</span>) =&gt; <span class="ident">sharded</span>.<span class="ident">get_producer</span>(<span class="ident">organization_id</span>),
+        };
+        <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord::to</span>(<span class="ident">topic_name</span>).<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>).<span class="ident">payload</span>(<span class="kw-2">&amp;</span><span class="ident">serialized</span>);
+
+        <span class="ident">producer</span>
+            .<span class="ident">send</span>(<span class="ident">record</span>)
+            .<span class="ident">map_err</span>(<span class="op">|</span>(<span class="ident">kafka_error</span>, <span class="ident">_message</span>)<span class="op">|</span> <span class="ident">StoreError::SendFailed</span>(<span class="ident">kafka_error</span>))
+    }
 }
 
 <span class="kw">struct</span> <span class="ident">Producers</span> {
@@ -1130,7 +1366,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Producers</span> {
-    <span class="doccomment">/// Get a producer by KafkaTopic value</span>
+    <span class="doccomment">/// Get a producer by KafkaTopic value.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">kafka_topic</span>: <span class="ident">KafkaTopic</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Producer</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="ident">kafka_topic</span> {
             <span class="ident">KafkaTopic::Attachments</span> =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">attachments</span>),
@@ -1232,7 +1468,6 @@
             <span class="ident">start_time</span>,
             <span class="ident">scoping</span>,
         } <span class="op">=</span> <span class="ident">message</span>;
-
         <span class="kw">let</span> <span class="ident">retention</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">retention</span>();
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">client</span>();
         <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">envelope</span>.<span class="ident">event_id</span>();
@@ -1259,6 +1494,7 @@
                     <span class="macro">debug_assert!</span>(<span class="ident">topic</span> <span class="op">==</span> <span class="ident">KafkaTopic::Attachments</span>);
                     <span class="kw">let</span> <span class="ident">attachment</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">produce_attachment_chunks</span>(
                         <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
                         <span class="ident">scoping</span>.<span class="ident">project_id</span>,
                         <span class="ident">item</span>,
                     )<span class="question-mark">?</span>;
@@ -1268,6 +1504,7 @@
                     <span class="macro">debug_assert!</span>(<span class="ident">topic</span> <span class="op">==</span> <span class="ident">KafkaTopic::Attachments</span>);
                     <span class="self">self</span>.<span class="ident">produce_user_report</span>(
                         <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
                         <span class="ident">scoping</span>.<span class="ident">project_id</span>,
                         <span class="ident">start_time</span>,
                         <span class="ident">item</span>,
@@ -1299,6 +1536,7 @@
                 <span class="ident">ItemType::ReplayRecording</span> =&gt; {
                     <span class="kw">let</span> <span class="ident">replay_recording</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">produce_replay_recording_chunks</span>(
                         <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
                         <span class="ident">scoping</span>.<span class="ident">project_id</span>,
                         <span class="ident">item</span>,
                     )<span class="question-mark">?</span>;
@@ -1311,7 +1549,11 @@
                             <span class="ident">replay_recording</span>,
                         });
 
-                    <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::ReplayRecordings</span>, <span class="ident">replay_recording_message</span>)<span class="question-mark">?</span>;
+                    <span class="self">self</span>.<span class="ident">produce</span>(
+                        <span class="ident">KafkaTopic::ReplayRecordings</span>,
+                        <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
+                        <span class="ident">replay_recording_message</span>,
+                    )<span class="question-mark">?</span>;
                     <span class="macro">metric!</span>(
                         <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                         <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;replay_recording&quot;</span>
@@ -1319,6 +1561,7 @@
                 }
                 <span class="ident">ItemType::ReplayEvent</span> =&gt; <span class="self">self</span>.<span class="ident">produce_replay_event</span>(
                     <span class="ident">event_id</span>.<span class="ident">ok_or</span>(<span class="ident">StoreError::NoEventId</span>)<span class="question-mark">?</span>,
+                    <span class="ident">scoping</span>.<span class="ident">organization_id</span>,
                     <span class="ident">scoping</span>.<span class="ident">project_id</span>,
                     <span class="ident">start_time</span>,
                     <span class="ident">retention</span>,
@@ -1339,7 +1582,7 @@
                 <span class="ident">attachments</span>,
             });
 
-            <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">event_message</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">scoping</span>.<span class="ident">organization_id</span>, <span class="ident">event_message</span>)<span class="question-mark">?</span>;
             <span class="macro">metric!</span>(
                 <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                 <span class="ident">event_type</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">event_item</span>.<span class="ident">ty</span>().<span class="ident">to_string</span>()
@@ -1353,7 +1596,7 @@
                     <span class="ident">attachment</span>,
                 });
 
-                <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
+                <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">scoping</span>.<span class="ident">organization_id</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
                 <span class="macro">metric!</span>(
                     <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
                     <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;attachment&quot;</span>
@@ -1364,22 +1607,14 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">produce</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>, <span class="ident">message</span>: <span class="ident">KafkaMessage</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">serialized</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">serialize</span>()<span class="question-mark">?</span>;
-        <span class="macro">metric!</span>(
-            <span class="ident">histogram</span>(<span class="ident">RelayHistograms::KafkaMessageSize</span>) <span class="op">=</span> <span class="ident">serialized</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>,
-            <span class="ident">variant</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">variant</span>()
-        );
-        <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">key</span>();
-
-        <span class="kw">let</span> <span class="ident">record</span> <span class="op">=</span> <span class="ident">BaseRecord::to</span>(<span class="self">self</span>.<span class="ident">config</span>.<span class="ident">kafka_topic_name</span>(<span class="ident">topic</span>))
-            .<span class="ident">key</span>(<span class="kw-2">&amp;</span><span class="ident">key</span>)
-            .<span class="ident">payload</span>(<span class="kw-2">&amp;</span><span class="ident">serialized</span>);
-
+    <span class="kw">fn</span> <span class="ident">produce</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">topic</span>: <span class="ident">KafkaTopic</span>,
+        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
+        <span class="ident">message</span>: <span class="ident">KafkaMessage</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">producer</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">producers</span>.<span class="ident">get</span>(<span class="ident">topic</span>) {
-            <span class="ident">producer</span>
-                .<span class="ident">send</span>(<span class="ident">record</span>)
-                .<span class="ident">map_err</span>(<span class="op">|</span>(<span class="ident">kafka_error</span>, <span class="ident">_message</span>)<span class="op">|</span> <span class="ident">StoreError::SendFailed</span>(<span class="ident">kafka_error</span>))<span class="question-mark">?</span>;
+            <span class="ident">producer</span>.<span class="ident">send</span>(<span class="ident">organization_id</span>, <span class="ident">message</span>)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -1388,6 +1623,7 @@
     <span class="kw">fn</span> <span class="ident">produce_attachment_chunks</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">event_id</span>: <span class="ident">EventId</span>,
+        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
         <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
         <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ChunkedAttachment</span>, <span class="ident">StoreError</span><span class="op">&gt;</span> {
@@ -1410,7 +1646,7 @@
                 <span class="ident">id</span>: <span class="ident">id</span>.<span class="ident">clone</span>(),
                 <span class="ident">chunk_index</span>,
             });
-            <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::Attachments</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::Attachments</span>, <span class="ident">organization_id</span>, <span class="ident">attachment_message</span>)<span class="question-mark">?</span>;
             <span class="ident">offset</span> <span class="op">+</span><span class="op">=</span> <span class="ident">chunk_size</span>;
             <span class="ident">chunk_index</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
         }
@@ -1437,6 +1673,7 @@
     <span class="kw">fn</span> <span class="ident">produce_user_report</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">event_id</span>: <span class="ident">EventId</span>,
+        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
         <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
         <span class="ident">start_time</span>: <span class="ident">Instant</span>,
         <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
@@ -1448,7 +1685,7 @@
             <span class="ident">start_time</span>: <span class="ident">UnixTimestamp::from_instant</span>(<span class="ident">start_time</span>).<span class="ident">as_secs</span>(),
         });
 
-        <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::Attachments</span>, <span class="ident">message</span>)
+        <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::Attachments</span>, <span class="ident">organization_id</span>, <span class="ident">message</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">produce_sessions</span>(
@@ -1539,25 +1776,25 @@
             <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">exited</span> <span class="op">&gt;</span> <span class="number">0</span> {
                 <span class="ident">message</span>.<span class="ident">errors</span> <span class="op">=</span> <span class="number">0</span>;
                 <span class="ident">message</span>.<span class="ident">quantity</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">exited</span>;
-                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">org_id</span>, <span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
             }
             <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">errored</span> <span class="op">&gt;</span> <span class="number">0</span> {
                 <span class="ident">message</span>.<span class="ident">errors</span> <span class="op">=</span> <span class="number">1</span>;
                 <span class="ident">message</span>.<span class="ident">status</span> <span class="op">=</span> <span class="ident">SessionStatus::Errored</span>;
                 <span class="ident">message</span>.<span class="ident">quantity</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">errored</span>;
-                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">org_id</span>, <span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
             }
             <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">abnormal</span> <span class="op">&gt;</span> <span class="number">0</span> {
                 <span class="ident">message</span>.<span class="ident">errors</span> <span class="op">=</span> <span class="number">1</span>;
                 <span class="ident">message</span>.<span class="ident">status</span> <span class="op">=</span> <span class="ident">SessionStatus::Abnormal</span>;
                 <span class="ident">message</span>.<span class="ident">quantity</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">abnormal</span>;
-                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
+                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">org_id</span>, <span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>;
             }
             <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">crashed</span> <span class="op">&gt;</span> <span class="number">0</span> {
                 <span class="ident">message</span>.<span class="ident">errors</span> <span class="op">=</span> <span class="number">1</span>;
                 <span class="ident">message</span>.<span class="ident">status</span> <span class="op">=</span> <span class="ident">SessionStatus::Crashed</span>;
                 <span class="ident">message</span>.<span class="ident">quantity</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">crashed</span>;
-                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">message</span>)<span class="question-mark">?</span>;
+                <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">org_id</span>, <span class="ident">message</span>)<span class="question-mark">?</span>;
             }
         }
         <span class="prelude-val">Ok</span>(())
@@ -1571,33 +1808,41 @@
         <span class="ident">client</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>,
         <span class="ident">session</span>: <span class="ident">SessionUpdate</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">send_session_message</span>(<span class="ident">SessionKafkaMessage</span> {
+        <span class="self">self</span>.<span class="ident">send_session_message</span>(
             <span class="ident">org_id</span>,
-            <span class="ident">project_id</span>,
-            <span class="ident">session_id</span>: <span class="ident">session</span>.<span class="ident">session_id</span>,
-            <span class="ident">distinct_id</span>: <span class="ident">session</span>
-                .<span class="ident">distinct_id</span>
-                .<span class="ident">as_deref</span>()
-                .<span class="ident">map</span>(<span class="ident">make_distinct_id</span>)
-                .<span class="ident">unwrap_or_default</span>(),
-            <span class="ident">quantity</span>: <span class="number">1</span>,
-            <span class="ident">seq</span>: <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">init</span> { <span class="number">0</span> } <span class="kw">else</span> { <span class="ident">session</span>.<span class="ident">sequence</span> },
-            <span class="ident">received</span>: <span class="ident">protocol::datetime_to_timestamp</span>(<span class="ident">session</span>.<span class="ident">timestamp</span>),
-            <span class="ident">started</span>: <span class="ident">protocol::datetime_to_timestamp</span>(<span class="ident">session</span>.<span class="ident">started</span>),
-            <span class="ident">duration</span>: <span class="ident">session</span>.<span class="ident">duration</span>,
-            <span class="ident">status</span>: <span class="ident">session</span>.<span class="ident">status</span>,
-            <span class="ident">errors</span>: <span class="ident">session</span>
-                .<span class="ident">errors</span>
-                .<span class="ident">min</span>(<span class="ident">u16::max_value</span>().<span class="ident">into</span>())
-                .<span class="ident">max</span>((<span class="ident">session</span>.<span class="ident">status</span> <span class="op">==</span> <span class="ident">SessionStatus::Crashed</span>) <span class="kw">as</span> <span class="kw">_</span>) <span class="kw">as</span> <span class="kw">_</span>,
-            <span class="ident">release</span>: <span class="ident">session</span>.<span class="ident">attributes</span>.<span class="ident">release</span>,
-            <span class="ident">environment</span>: <span class="ident">session</span>.<span class="ident">attributes</span>.<span class="ident">environment</span>,
-            <span class="ident">sdk</span>: <span class="ident">client</span>.<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
-            <span class="ident">retention_days</span>: <span class="ident">event_retention</span>,
-        })
+            <span class="ident">SessionKafkaMessage</span> {
+                <span class="ident">org_id</span>,
+                <span class="ident">project_id</span>,
+                <span class="ident">session_id</span>: <span class="ident">session</span>.<span class="ident">session_id</span>,
+                <span class="ident">distinct_id</span>: <span class="ident">session</span>
+                    .<span class="ident">distinct_id</span>
+                    .<span class="ident">as_deref</span>()
+                    .<span class="ident">map</span>(<span class="ident">make_distinct_id</span>)
+                    .<span class="ident">unwrap_or_default</span>(),
+                <span class="ident">quantity</span>: <span class="number">1</span>,
+                <span class="ident">seq</span>: <span class="kw">if</span> <span class="ident">session</span>.<span class="ident">init</span> { <span class="number">0</span> } <span class="kw">else</span> { <span class="ident">session</span>.<span class="ident">sequence</span> },
+                <span class="ident">received</span>: <span class="ident">protocol::datetime_to_timestamp</span>(<span class="ident">session</span>.<span class="ident">timestamp</span>),
+                <span class="ident">started</span>: <span class="ident">protocol::datetime_to_timestamp</span>(<span class="ident">session</span>.<span class="ident">started</span>),
+                <span class="ident">duration</span>: <span class="ident">session</span>.<span class="ident">duration</span>,
+                <span class="ident">status</span>: <span class="ident">session</span>.<span class="ident">status</span>,
+                <span class="ident">errors</span>: <span class="ident">session</span>
+                    .<span class="ident">errors</span>
+                    .<span class="ident">min</span>(<span class="ident">u16::max_value</span>().<span class="ident">into</span>())
+                    .<span class="ident">max</span>((<span class="ident">session</span>.<span class="ident">status</span> <span class="op">==</span> <span class="ident">SessionStatus::Crashed</span>) <span class="kw">as</span> <span class="kw">_</span>)
+                    <span class="kw">as</span> <span class="kw">_</span>,
+                <span class="ident">release</span>: <span class="ident">session</span>.<span class="ident">attributes</span>.<span class="ident">release</span>,
+                <span class="ident">environment</span>: <span class="ident">session</span>.<span class="ident">attributes</span>.<span class="ident">environment</span>,
+                <span class="ident">sdk</span>: <span class="ident">client</span>.<span class="ident">map</span>(<span class="ident">str::to_owned</span>),
+                <span class="ident">retention_days</span>: <span class="ident">event_retention</span>,
+            },
+        )
     }
 
-    <span class="kw">fn</span> <span class="ident">send_metric_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">MetricKafkaMessage</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">send_metric_message</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
+        <span class="ident">message</span>: <span class="ident">MetricKafkaMessage</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">mri</span> <span class="op">=</span> <span class="ident">MetricResourceIdentifier::parse</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>.<span class="ident">name</span>);
         <span class="kw">let</span> <span class="ident">topic</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">mri</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">mri</span><span class="op">|</span> <span class="ident">mri</span>.<span class="ident">namespace</span>) {
             <span class="prelude-val">Ok</span>(<span class="ident">MetricNamespace::Transactions</span>) =&gt; <span class="ident">KafkaTopic::MetricsTransactions</span>,
@@ -1616,7 +1861,7 @@
         };
 
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending metric message to kafka&quot;</span>);
-        <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">KafkaMessage::Metric</span>(<span class="ident">message</span>))<span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">topic</span>, <span class="ident">organization_id</span>, <span class="ident">KafkaMessage::Metric</span>(<span class="ident">message</span>))<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
             <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
             <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;metric&quot;</span>
@@ -1633,22 +1878,33 @@
         <span class="kw">let</span> <span class="ident">payload</span> <span class="op">=</span> <span class="ident">item</span>.<span class="ident">payload</span>();
 
         <span class="kw">for</span> <span class="ident">bucket</span> <span class="kw">in</span> <span class="ident">Bucket::parse_all</span>(<span class="kw-2">&amp;</span><span class="ident">payload</span>).<span class="ident">unwrap_or_default</span>() {
-            <span class="self">self</span>.<span class="ident">send_metric_message</span>(<span class="ident">MetricKafkaMessage</span> {
+            <span class="self">self</span>.<span class="ident">send_metric_message</span>(
                 <span class="ident">org_id</span>,
-                <span class="ident">project_id</span>,
-                <span class="ident">name</span>: <span class="ident">bucket</span>.<span class="ident">name</span>,
-                <span class="ident">value</span>: <span class="ident">bucket</span>.<span class="ident">value</span>,
-                <span class="ident">timestamp</span>: <span class="ident">bucket</span>.<span class="ident">timestamp</span>,
-                <span class="ident">tags</span>: <span class="ident">bucket</span>.<span class="ident">tags</span>,
-            })<span class="question-mark">?</span>;
+                <span class="ident">MetricKafkaMessage</span> {
+                    <span class="ident">org_id</span>,
+                    <span class="ident">project_id</span>,
+                    <span class="ident">name</span>: <span class="ident">bucket</span>.<span class="ident">name</span>,
+                    <span class="ident">value</span>: <span class="ident">bucket</span>.<span class="ident">value</span>,
+                    <span class="ident">timestamp</span>: <span class="ident">bucket</span>.<span class="ident">timestamp</span>,
+                    <span class="ident">tags</span>: <span class="ident">bucket</span>.<span class="ident">tags</span>,
+                },
+            )<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">send_session_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">SessionKafkaMessage</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">send_session_message</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
+        <span class="ident">message</span>: <span class="ident">SessionKafkaMessage</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">StoreError</span><span class="op">&gt;</span> {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending session item to kafka&quot;</span>);
-        <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::Sessions</span>, <span class="ident">KafkaMessage::Session</span>(<span class="ident">message</span>))<span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">produce</span>(
+            <span class="ident">KafkaTopic::Sessions</span>,
+            <span class="ident">organization_id</span>,
+            <span class="ident">KafkaMessage::Session</span>(<span class="ident">message</span>),
+        )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
             <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
             <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;session&quot;</span>
@@ -1672,7 +1928,11 @@
             <span class="ident">payload</span>: <span class="ident">item</span>.<span class="ident">payload</span>(),
         };
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending profile to Kafka&quot;</span>);
-        <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::Profiles</span>, <span class="ident">KafkaMessage::Profile</span>(<span class="ident">message</span>))<span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">produce</span>(
+            <span class="ident">KafkaTopic::Profiles</span>,
+            <span class="ident">organization_id</span>,
+            <span class="ident">KafkaMessage::Profile</span>(<span class="ident">message</span>),
+        )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
             <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
             <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;profile&quot;</span>
@@ -1683,6 +1943,7 @@
     <span class="kw">fn</span> <span class="ident">produce_replay_event</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
+        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
         <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
         <span class="ident">start_time</span>: <span class="ident">Instant</span>,
         <span class="ident">retention_days</span>: <span class="ident">u16</span>,
@@ -1696,7 +1957,11 @@
             <span class="ident">payload</span>: <span class="ident">item</span>.<span class="ident">payload</span>(),
         };
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;Sending replay event to Kafka&quot;</span>);
-        <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::ReplayEvents</span>, <span class="ident">KafkaMessage::ReplayEvent</span>(<span class="ident">message</span>))<span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">produce</span>(
+            <span class="ident">KafkaTopic::ReplayEvents</span>,
+            <span class="ident">organization_id</span>,
+            <span class="ident">KafkaMessage::ReplayEvent</span>(<span class="ident">message</span>),
+        )<span class="question-mark">?</span>;
         <span class="macro">metric!</span>(
             <span class="ident">counter</span>(<span class="ident">RelayCounters::ProcessingMessageProduced</span>) <span class="op">+</span><span class="op">=</span> <span class="number">1</span>,
             <span class="ident">event_type</span> <span class="op">=</span> <span class="string">&quot;replay_event&quot;</span>
@@ -1707,6 +1972,7 @@
     <span class="kw">fn</span> <span class="ident">produce_replay_recording_chunks</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">replay_id</span>: <span class="ident">EventId</span>,
+        <span class="ident">organization_id</span>: <span class="ident">u64</span>,
         <span class="ident">project_id</span>: <span class="ident">ProjectId</span>,
         <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">Item</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ChunkedReplayRecording</span>, <span class="ident">StoreError</span><span class="op">&gt;</span> {
@@ -1731,7 +1997,11 @@
                     <span class="ident">id</span>: <span class="ident">id</span>.<span class="ident">clone</span>(),
                     <span class="ident">chunk_index</span>,
                 });
-            <span class="self">self</span>.<span class="ident">produce</span>(<span class="ident">KafkaTopic::ReplayRecordings</span>, <span class="ident">replay_recording_chunk_message</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">produce</span>(
+                <span class="ident">KafkaTopic::ReplayRecordings</span>,
+                <span class="ident">organization_id</span>,
+                <span class="ident">replay_recording_chunk_message</span>,
+            )<span class="question-mark">?</span>;
             <span class="ident">offset</span> <span class="op">+</span><span class="op">=</span> <span class="ident">chunk_size</span>;
             <span class="ident">chunk_index</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
         }
