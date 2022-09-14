@@ -52,10 +52,6 @@ struct Sample {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct ThreadMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    is_main: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    is_active: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     priority: Option<u32>,
@@ -237,22 +233,21 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
     let mut profile: SampleProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
+    profile
+        .transactions
+        .retain(|transaction| transaction.valid() && transaction.thread_id > 0);
+
+    if profile.transactions.is_empty() {
+        return Err(ProfileError::NoTransactionAssociated);
+    }
+
     profile.remove_single_samples_per_thread();
 
     if profile.profile.samples.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
     }
 
-    profile
-        .transactions
-        .retain(|transaction| transaction.valid());
-
-    if profile.transactions.is_empty() {
-        return Err(ProfileError::NoTransactionAssociated);
-    }
-
     profile.profile.frames.retain(|frame| frame.valid());
-
     profile.strip_pointer_authentication_code();
 
     Ok(profile)

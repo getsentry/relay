@@ -54,8 +54,7 @@
     ],
     "thread_metadata": {
       "1": {
-        "priority": 31,
-        "is_main": true
+        "priority": 31
       },
       "2": {}
     },

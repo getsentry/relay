@@ -55,8 +55,7 @@
     ],
     "thread_metadata": {
       "1": {
-        "priority": 31,
-        "is_main": true
+        "priority": 31
       },
       "2": {}
     },
@@ -88,6 +87,7 @@
       "name": "example_ios_movies_sources.MoviesViewController",
       "trace_id": "4b25bc58f14243d8b208d1e22a054164",
       "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
+      "thread_id": "259",
       "relative_start_ns": "500500",
       "relative_end_ns": "50500500"
     }
