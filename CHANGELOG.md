@@ -26,6 +26,7 @@
 - Add InvalidReplayEvent outcome. ([#1455](https://github.com/getsentry/relay/pull/1455))
 - Add replay and replay-recording rate limiter. ([#1456](https://github.com/getsentry/relay/pull/1456))
 - Support profiles tagged for many transactions. ([#1444](https://github.com/getsentry/relay/pull/1444)), ([#1463](https://github.com/getsentry/relay/pull/1463)), ([#1464](https://github.com/getsentry/relay/pull/1464))
+- Track metrics for changes to the transaction name and DSC propagations. ([#1466](https://github.com/getsentry/relay/pull/1466))
 
 **Features**:
 
