@@ -561,7 +561,7 @@ pub struct EnvelopeProcessorService {
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
-    pub fn foo(config: Arc<Config>, _redis: Option<RedisPool>) -> Result<Self, ServerError> {
+    pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> Result<Self, ServerError> {
         #[cfg(feature = "processing")]
         {
             let geoip_lookup = match config.geoip_path() {
@@ -572,38 +572,15 @@ impl EnvelopeProcessorService {
             let rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
-            Ok(Self::new(config)
-                .with_rate_limiter(rate_limiter)
-                .with_geoip_lookup(geoip_lookup))
+            Ok(Self {
+                config,
+                rate_limiter,
+                geoip_lookup,
+            })
         }
 
         #[cfg(not(feature = "processing"))]
-        Ok(Self::new(config))
-    }
-
-    #[inline]
-    fn new(config: Arc<Config>) -> Self {
-        Self {
-            config,
-            #[cfg(feature = "processing")]
-            rate_limiter: None,
-            #[cfg(feature = "processing")]
-            geoip_lookup: None,
-        }
-    }
-
-    #[cfg(feature = "processing")]
-    #[inline]
-    fn with_rate_limiter(mut self, rate_limiter: Option<RedisRateLimiter>) -> Self {
-        self.rate_limiter = rate_limiter;
-        self
-    }
-
-    #[cfg(feature = "processing")]
-    #[inline]
-    fn with_geoip_lookup(mut self, geoip_lookup: Option<GeoIpLookup>) -> Self {
-        self.geoip_lookup = geoip_lookup;
-        self
+        Ok(Self { config })
     }
 
     /// Returns Ok(true) if attributes were modified.
@@ -1171,7 +1148,7 @@ impl EnvelopeProcessorService {
     /// this includes cases where a single attachment file exceeds the maximum file size. This is in
     /// line with the behavior of the envelope endpoint.
     ///
-    /// After this, the `EnvelopeProcessorService` should be able to process the envelope the same
+    /// After this, [`EnvelopeProcessorService`] should be able to process the envelope the same
     /// way it processes any other envelopes.
     #[cfg(feature = "processing")]
     fn expand_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
@@ -2408,11 +2385,21 @@ mod tests {
         result.expect("event_from_attachments");
     }
 
+    fn create_test_processor(config: Config) -> EnvelopeProcessorService {
+        EnvelopeProcessorService {
+            config: Arc::new(config),
+            #[cfg(feature = "processing")]
+            rate_limiter: None,
+            #[cfg(feature = "processing")]
+            geoip_lookup: None,
+        }
+    }
+
     #[test]
     #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
     queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
     fn test_user_report_invalid() {
-        let processor = EnvelopeProcessorService::new(Arc::new(Default::default()));
+        let processor = create_test_processor(Default::default());
         let event_id = protocol::EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -2455,7 +2442,7 @@ mod tests {
     #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
     queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
     fn test_browser_version_extraction_with_pii_like_data() {
-        let processor = EnvelopeProcessorService::new(Arc::new(Default::default()));
+        let processor = create_test_processor(Default::default());
         let event_id = protocol::EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -2557,7 +2544,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = EnvelopeProcessorService::new(Arc::new(config));
+        let processor = create_test_processor(config);
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -2608,7 +2595,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = EnvelopeProcessorService::new(Arc::new(config));
+        let processor = create_test_processor(config);
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -2665,7 +2652,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = EnvelopeProcessorService::new(Arc::new(config));
+        let processor = create_test_processor(config);
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -2791,7 +2778,7 @@ mod tests {
 
     /// This is a stand-in test to assert panicking behavior for spawn_blocking.
     ///
-    /// The `EnvelopeProcessorService` relies on tokio to restart the worker threads for blocking
+    /// [`EnvelopeProcessorService`] relies on tokio to restart the worker threads for blocking
     /// tasks if there is a panic during processing. Tokio does not explicitly mention this behavior
     /// in documentation, though the `spawn_blocking` contract suggests that this is intentional.
     ///

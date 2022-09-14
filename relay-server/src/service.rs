@@ -163,7 +163,7 @@ impl ServiceState {
         let _guard = main_runtime.enter();
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-        let processor = EnvelopeProcessorService::foo(config.clone(), redis_pool.clone())?.start();
+        let processor = EnvelopeProcessorService::new(config.clone(), redis_pool.clone())?.start();
         let envelope_manager = EnvelopeManager::create(config.clone())?;
         registry.set(Arbiter::start(|_| envelope_manager));
 
