@@ -32,7 +32,7 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, ReasonCode};
 use relay_redis::RedisPool;
-use relay_sampling::RuleId;
+use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
@@ -45,7 +45,7 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::service::{ServerError, REGISTRY};
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
 };
@@ -255,10 +255,11 @@ struct ProcessEnvelopeState {
 }
 
 impl ProcessEnvelopeState {
-    /// Returns whether any item in the envelope creates an event.
+    /// Returns whether any item in the envelope creates an event in any relay.
     ///
     /// This is used to branch into the processing pipeline. If this function returns false, only
-    /// rate limits are executed.
+    /// rate limits are executed. If this function returns true, an event is created either in the
+    /// current relay or in an upstream processing relay.
     fn creates_event(&self) -> bool {
         self.envelope.items().any(Item::creates_event)
     }
@@ -342,6 +343,94 @@ fn outcome_from_profile_error(err: relay_profiling::ProfileError) -> Outcome {
         _ => DiscardReason::ProcessProfile,
     };
     Outcome::Invalid(discard_reason)
+}
+
+fn track_sampling_metrics(
+    project_state: &ProjectState,
+    context: &DynamicSamplingContext,
+    event: &Event,
+) {
+    // We only collect this metric for the root transaction event, so ignore secondary projects.
+    if !project_state.is_matching_key(context.public_key) {
+        return;
+    }
+
+    let transaction_info = match event.transaction_info.value() {
+        Some(info) => info,
+        None => return,
+    };
+
+    let changes = match transaction_info.changes.value() {
+        Some(value) => value.as_slice(),
+        None => return,
+    };
+
+    let last_change = changes.last().and_then(|a| a.value());
+    let source = event.get_transaction_source().as_str();
+    let platform = event.platform.as_str().unwrap_or("other");
+    let sdk_name = event.sdk_name();
+    let sdk_version = event.sdk_version();
+
+    metric!(
+        histogram(RelayHistograms::DynamicSamplingChanges) = changes.len() as u64,
+        source = source,
+        platform = platform,
+        sdk_name = sdk_name,
+        sdk_version = sdk_version,
+    );
+
+    if let Some(&total) = transaction_info.propagations.value() {
+        // If there was no change, there were no propagations that happened with a wrong name.
+        let change = last_change
+            .and_then(|c| c.propagations.value())
+            .map_or(0, |v| *v);
+
+        metric!(
+            histogram(RelayHistograms::DynamicSamplingPropagationCount) = change,
+            source = source,
+            platform = platform,
+            sdk_name = sdk_name,
+            sdk_version = sdk_version,
+        );
+
+        let percentage = ((change as f64) / (total as f64)).min(1.0);
+        metric!(
+            histogram(RelayHistograms::DynamicSamplingPropagationPercentage) = percentage,
+            source = source,
+            platform = platform,
+            sdk_name = sdk_name,
+            sdk_version = sdk_version,
+        );
+    }
+
+    if let (Some(&start), Some(&change), Some(&end)) = (
+        event.start_timestamp.value(),
+        last_change.and_then(|c| c.timestamp.value()),
+        event.timestamp.value(),
+    ) {
+        let delay_ms = (change - start).num_milliseconds();
+        if delay_ms >= 0 {
+            metric!(
+                histogram(RelayHistograms::DynamicSamplingChangeDuration) = delay_ms as u64,
+                source = source,
+                platform = platform,
+                sdk_name = sdk_name,
+                sdk_version = sdk_version,
+            );
+        }
+
+        let duration_ms = (end - start).num_milliseconds() as f64;
+        if delay_ms >= 0 && duration_ms >= 0.0 {
+            let percentage = ((delay_ms as f64) / duration_ms).min(1.0);
+            metric!(
+                histogram(RelayHistograms::DynamicSamplingChangePercentage) = percentage,
+                source = source,
+                platform = platform,
+                sdk_name = sdk_name,
+                sdk_version = sdk_version,
+            );
+        }
+    }
 }
 
 /// Synchronous service for processing envelopes.
@@ -850,27 +939,24 @@ impl EnvelopeProcessor {
 
     /// Remove profiles if the feature flag is not enabled
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+        let envelope = &mut state.envelope;
+
+        envelope.retain_items(|item| match item.ty() {
+            ItemType::Profile => profiling_enabled,
+            _ => true,
+        });
+
         if !self.config.processing_enabled() {
             return;
         }
 
-        let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-        let envelope = &mut state.envelope;
         let context = &state.envelope_context;
+        let mut new_profiles = Vec::new();
 
-        if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
-            if !profiling_enabled {
-                return;
-            }
-
+        while let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
             match relay_profiling::expand_profile(&item.payload()[..]) {
-                Ok(payloads) => {
-                    for payload in payloads.iter() {
-                        let mut item = Item::new(ItemType::Profile);
-                        item.set_payload(ContentType::Json, &payload[..]);
-                        envelope.add_item(item);
-                    }
-                }
+                Ok(payloads) => new_profiles.extend(payloads),
                 Err(err) => {
                     context.track_outcome(
                         outcome_from_profile_error(err),
@@ -879,6 +965,12 @@ impl EnvelopeProcessor {
                     );
                 }
             }
+        }
+
+        for payload in new_profiles {
+            let mut item = Item::new(ItemType::Profile);
+            item.set_payload(ContentType::Json, &payload[..]);
+            envelope.add_item(item);
         }
     }
 
@@ -1625,6 +1717,10 @@ impl EnvelopeProcessor {
                 }
             );
             state.transaction_metrics_extracted = true;
+
+            if let Some(context) = state.envelope.sampling_context() {
+                track_sampling_metrics(&state.project_state, context, event);
+            }
         }
         Ok(())
     }
@@ -1790,6 +1886,10 @@ impl EnvelopeProcessor {
         self.process_replays(state);
 
         if state.creates_event() {
+            // Some envelopes only create events in processing relays; for example, unreal events.
+            // This makes it possible to get in this code block while not really having an event in
+            // the envelope.
+
             if_processing!({
                 self.expand_unreal(state)?;
             });

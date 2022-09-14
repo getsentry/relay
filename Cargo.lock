@@ -3455,6 +3455,7 @@ dependencies = [
  "clap",
  "failure",
  "flate2",
+ "fnv",
  "fragile",
  "futures 0.1.31",
  "futures 0.3.21",

@@ -560,6 +560,26 @@ impl Event {
             .map(|m| m.contains_key(module_name))
             .unwrap_or(false)
     }
+
+    pub fn sdk_name(&self) -> &str {
+        if let Some(client_sdk) = self.client_sdk.value() {
+            if let Some(name) = client_sdk.name.as_str() {
+                return name;
+            }
+        }
+
+        "unknown"
+    }
+
+    pub fn sdk_version(&self) -> &str {
+        if let Some(client_sdk) = self.client_sdk.value() {
+            if let Some(version) = client_sdk.version.as_str() {
+                return version;
+            }
+        }
+
+        "unknown"
+    }
 }
 
 #[cfg(test)]
