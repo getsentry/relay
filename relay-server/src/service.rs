@@ -17,7 +17,7 @@ use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
-use crate::actors::processor::EnvelopeProcessor;
+use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
 use crate::actors::upstream::UpstreamRelay;
@@ -113,7 +113,7 @@ pub struct Registry {
     pub health_check: Addr<HealthCheck>,
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
-    pub processor: actix::Addr<EnvelopeProcessor>,
+    pub processor: Addr<EnvelopeProcessor>,
 }
 
 impl fmt::Debug for Registry {
@@ -163,7 +163,7 @@ impl ServiceState {
         let _guard = main_runtime.enter();
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-        let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
+        let processor = EnvelopeProcessorService::foo(config.clone(), redis_pool.clone())?.start();
         let envelope_manager = EnvelopeManager::create(config.clone())?;
         registry.set(Arbiter::start(|_| envelope_manager));
 

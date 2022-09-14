@@ -6,7 +6,7 @@ use std::net;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use actix::prelude::*;
+use actix::SystemService;
 use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
@@ -14,9 +14,10 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
 use serde_json::Value as SerdeValue;
+use tokio::sync::Semaphore;
 
 use relay_auth::RelayVersion;
-use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
+use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
@@ -34,6 +35,7 @@ use relay_quotas::{DataCategory, RateLimits, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
+use relay_system::{Addr, FromMessage, NoResponse, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -433,55 +435,150 @@ fn track_sampling_metrics(
     }
 }
 
-/// Synchronous service for processing envelopes.
-pub struct EnvelopeProcessor {
-    config: Arc<Config>,
-    #[cfg(feature = "processing")]
-    rate_limiter: Option<RedisRateLimiter>,
-    #[cfg(feature = "processing")]
-    geoip_lookup: Option<Arc<GeoIpLookup>>,
+/// Response of the [`ProcessEnvelope`] message.
+#[cfg_attr(not(feature = "processing"), allow(dead_code))]
+pub struct ProcessEnvelopeResponse {
+    /// The processed envelope.
+    ///
+    /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
+    /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
+    /// to be dropped, this is `None`.
+    pub envelope: Option<(Envelope, EnvelopeContext)>,
+
+    /// All rate limits that have been applied on the envelope.
+    pub rate_limits: RateLimits,
+}
+
+/// Applies processing to all contents of the given envelope.
+///
+/// Depending on the contents of the envelope and Relay's mode, this includes:
+///
+///  - Basic normalization and validation for all item types.
+///  - Clock drift correction if the required `sent_at` header is present.
+///  - Expansion of certain item types (e.g. unreal).
+///  - Store normalization for event payloads in processing mode.
+///  - Rate limiters and inbound filters on events in processing mode.
+#[derive(Debug)]
+pub struct ProcessEnvelope {
+    pub envelope: Envelope,
+    pub envelope_context: EnvelopeContext,
+    pub project_state: Arc<ProjectState>,
+    pub sampling_project_state: Option<Arc<ProjectState>>,
+}
+
+/// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
+///
+/// This parses and validates the metrics:
+///  - For [`Metrics`](ItemType::Metrics), each metric is parsed separately, and invalid metrics are
+///    ignored independently.
+///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
+///    dropped together on parsing failure.
+///  - Other items will be ignored with an error message.
+///
+/// Additionally, processing applies clock drift correction using the system clock of this Relay, if
+/// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
+#[derive(Debug)]
+pub struct ProcessMetrics {
+    /// A list of metric items.
+    pub items: Vec<Item>,
+
+    /// The target project.
+    pub project_key: ProjectKey,
+
+    /// The instant at which the request was received.
+    pub start_time: Instant,
+
+    /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
+    /// correction.
+    pub sent_at: Option<DateTime<Utc>>,
+}
+
+/// Applies HTTP content encoding to an envelope's payload.
+///
+/// This message is a workaround for a single-threaded upstream actor.
+#[derive(Debug)]
+pub struct EncodeEnvelope {
+    request: SendEnvelope,
+}
+
+impl EncodeEnvelope {
+    /// Creates a new `EncodeEnvelope` message from `SendEnvelope` request.
+    pub fn new(request: SendEnvelope) -> Self {
+        Self { request }
+    }
+}
+
+/// CPU-intensive processing tasks for envelopes.
+#[derive(Debug)]
+pub enum EnvelopeProcessor {
+    ProcessEnvelope(Box<ProcessEnvelope>),
+    ProcessMetrics(Box<ProcessMetrics>),
+    EncodeEnvelope(Box<EncodeEnvelope>),
 }
 
 impl EnvelopeProcessor {
     pub fn from_registry() -> Addr<Self> {
         REGISTRY.get().unwrap().processor.clone()
     }
+}
 
-    /// Starts a multi-threaded envelope processor.
-    pub fn start(
-        config: Arc<Config>,
-        _redis: Option<RedisPool>,
-    ) -> Result<Addr<Self>, ServerError> {
-        let thread_count = config.cpu_concurrency();
-        relay_log::info!("starting {} envelope processing workers", thread_count);
+impl relay_system::Interface for EnvelopeProcessor {}
 
+impl FromMessage<ProcessEnvelope> for EnvelopeProcessor {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: ProcessEnvelope, _sender: ()) -> Self {
+        Self::ProcessEnvelope(Box::new(message))
+    }
+}
+
+impl FromMessage<ProcessMetrics> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: ProcessMetrics, _: ()) -> Self {
+        Self::ProcessMetrics(Box::new(message))
+    }
+}
+
+impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: EncodeEnvelope, _: ()) -> Self {
+        Self::EncodeEnvelope(Box::new(message))
+    }
+}
+
+/// Service implementing the [`EnvelopeProcessor`] interface.
+///
+/// This service handles messages in a worker pool with configurable concurrency.
+pub struct EnvelopeProcessorService {
+    config: Arc<Config>,
+    #[cfg(feature = "processing")]
+    rate_limiter: Option<RedisRateLimiter>,
+    #[cfg(feature = "processing")]
+    geoip_lookup: Option<GeoIpLookup>,
+}
+
+impl EnvelopeProcessorService {
+    /// Creates a multi-threaded envelope processor.
+    pub fn foo(config: Arc<Config>, _redis: Option<RedisPool>) -> Result<Self, ServerError> {
         #[cfg(feature = "processing")]
         {
             let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(Arc::new(
-                    GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
-                )),
+                Some(p) => Some(GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?),
                 None => None,
             };
 
             let rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
-            Ok(SyncArbiter::start(
-                thread_count,
-                clone!(config, || {
-                    EnvelopeProcessor::new(config.clone())
-                        .with_rate_limiter(rate_limiter.clone())
-                        .with_geoip_lookup(geoip_lookup.clone())
-                }),
-            ))
+            Ok(Self::new(config)
+                .with_rate_limiter(rate_limiter)
+                .with_geoip_lookup(geoip_lookup))
         }
 
         #[cfg(not(feature = "processing"))]
-        Ok(SyncArbiter::start(
-            thread_count,
-            clone!(config, || EnvelopeProcessor::new(config.clone())),
-        ))
+        Ok(Self::new(config))
     }
 
     #[inline]
@@ -504,7 +601,7 @@ impl EnvelopeProcessor {
 
     #[cfg(feature = "processing")]
     #[inline]
-    fn with_geoip_lookup(mut self, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
+    fn with_geoip_lookup(mut self, geoip_lookup: Option<GeoIpLookup>) -> Self {
         self.geoip_lookup = geoip_lookup;
         self
     }
@@ -1074,8 +1171,8 @@ impl EnvelopeProcessor {
     /// this includes cases where a single attachment file exceeds the maximum file size. This is in
     /// line with the behavior of the envelope endpoint.
     ///
-    /// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it
-    /// processes any other envelopes.
+    /// After this, the `EnvelopeProcessorService` should be able to process the envelope the same
+    /// way it processes any other envelopes.
     #[cfg(feature = "processing")]
     fn expand_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let envelope = &mut state.envelope;
@@ -1587,7 +1684,7 @@ impl EnvelopeProcessor {
             client_sample_rate: envelope.sampling_context().and_then(|ctx| ctx.sample_rate),
         };
 
-        let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_deref());
+        let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());
         metric!(timer(RelayTimers::EventProcessingProcess), {
             process_value(event, &mut store_processor, ProcessingState::root())
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -1988,81 +2085,7 @@ impl EnvelopeProcessor {
         )
     }
 
-    fn encode_envelope_body(
-        body: Vec<u8>,
-        http_encoding: HttpEncoding,
-    ) -> Result<Vec<u8>, std::io::Error> {
-        let envelope_body = match http_encoding {
-            HttpEncoding::Identity => body,
-            HttpEncoding::Deflate => {
-                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                encoder.write_all(body.as_ref())?;
-                encoder.finish()?
-            }
-            HttpEncoding::Gzip => {
-                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                encoder.write_all(body.as_ref())?;
-                encoder.finish()?
-            }
-            HttpEncoding::Br => {
-                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
-                encoder.write_all(body.as_ref())?;
-                encoder.finish()?
-            }
-        };
-        Ok(envelope_body)
-    }
-}
-
-impl Actor for EnvelopeProcessor {
-    type Context = SyncContext<Self>;
-}
-
-impl Default for EnvelopeProcessor {
-    fn default() -> Self {
-        unimplemented!("register with the SystemRegistry instead")
-    }
-}
-
-/// Response of the [`ProcessEnvelope`] message.
-#[cfg_attr(not(feature = "processing"), allow(dead_code))]
-pub struct ProcessEnvelopeResponse {
-    /// The processed envelope.
-    ///
-    /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
-    /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
-    /// to be dropped, this is `None`.
-    pub envelope: Option<(Envelope, EnvelopeContext)>,
-
-    /// All rate limits that have been applied on the envelope.
-    pub rate_limits: RateLimits,
-}
-
-/// Applies processing to all contents of the given envelope.
-///
-/// Depending on the contents of the envelope and Relay's mode, this includes:
-///
-///  - Basic normalization and validation for all item types.
-///  - Clock drift correction if the required `sent_at` header is present.
-///  - Expansion of certain item types (e.g. unreal).
-///  - Store normalization for event payloads in processing mode.
-///  - Rate limiters and inbound filters on events in processing mode.
-#[derive(Debug)]
-pub struct ProcessEnvelope {
-    pub envelope: Envelope,
-    pub envelope_context: EnvelopeContext,
-    pub project_state: Arc<ProjectState>,
-    pub sampling_project_state: Option<Arc<ProjectState>>,
-}
-
-impl Message for ProcessEnvelope {
-    type Result = ();
-}
-
-impl Handler<ProcessEnvelope> for EnvelopeProcessor {
-    type Result = ();
-
-    fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
+    fn handle_process_envelope(&self, message: ProcessEnvelope) {
         let project_key = message.envelope.meta().public_key();
         let wait_time = message.envelope_context.start_time().elapsed();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
@@ -2092,42 +2115,8 @@ impl Handler<ProcessEnvelope> for EnvelopeProcessor {
             }
         }
     }
-}
 
-/// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
-///
-/// This parses and validates the metrics:
-///  - For [`Metrics`](ItemType::Metrics), each metric is parsed separately, and invalid metrics are
-///    ignored independently.
-///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
-///    dropped together on parsing failure.
-///  - Other items will be ignored with an error message.
-///
-/// Additionally, processing applies clock drift correction using the system clock of this Relay, if
-/// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
-pub struct ProcessMetrics {
-    /// A list of metric items.
-    pub items: Vec<Item>,
-
-    /// The target project.
-    pub project_key: ProjectKey,
-
-    /// The instant at which the request was received.
-    pub start_time: Instant,
-
-    /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
-    /// correction.
-    pub sent_at: Option<DateTime<Utc>>,
-}
-
-impl Message for ProcessMetrics {
-    type Result = ();
-}
-
-impl Handler<ProcessMetrics> for EnvelopeProcessor {
-    type Result = ();
-
-    fn handle(&mut self, message: ProcessMetrics, _context: &mut Self::Context) -> Self::Result {
+    fn handle_process_metrics(&self, message: ProcessMetrics) {
         let ProcessMetrics {
             items,
             project_key: public_key,
@@ -2184,31 +2173,33 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
             }
         }
     }
-}
 
-/// Applies HTTP content encoding to an envelope's payload.
-///
-/// This message is a workaround for a single-threaded upstream actor.
-#[derive(Debug)]
-pub struct EncodeEnvelope {
-    request: SendEnvelope,
-}
-
-impl EncodeEnvelope {
-    /// Creates a new `EncodeEnvelope` message from `SendEnvelope` request.
-    pub fn new(request: SendEnvelope) -> Self {
-        Self { request }
+    fn encode_envelope_body(
+        body: Vec<u8>,
+        http_encoding: HttpEncoding,
+    ) -> Result<Vec<u8>, std::io::Error> {
+        let envelope_body = match http_encoding {
+            HttpEncoding::Identity => body,
+            HttpEncoding::Deflate => {
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+            HttpEncoding::Gzip => {
+                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+            HttpEncoding::Br => {
+                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+        };
+        Ok(envelope_body)
     }
-}
 
-impl Message for EncodeEnvelope {
-    type Result = ();
-}
-
-impl Handler<EncodeEnvelope> for EnvelopeProcessor {
-    type Result = ();
-
-    fn handle(&mut self, message: EncodeEnvelope, _context: &mut Self::Context) -> Self::Result {
+    fn handle_encode_envelope(&self, message: EncodeEnvelope) {
         let mut request = message.request;
         match Self::encode_envelope_body(request.envelope_body, request.http_encoding) {
             Err(e) => {
@@ -2223,6 +2214,38 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
                 UpstreamRelay::from_registry().do_send(SendRequest(request));
             }
         }
+    }
+
+    fn handle_message(&self, message: EnvelopeProcessor) {
+        match message {
+            EnvelopeProcessor::ProcessEnvelope(message) => self.handle_process_envelope(*message),
+            EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
+            EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
+        }
+    }
+}
+
+impl Service for EnvelopeProcessorService {
+    type Interface = EnvelopeProcessor;
+
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let thread_count = self.config.cpu_concurrency();
+        relay_log::info!("starting {} envelope processing workers", thread_count);
+
+        tokio::spawn(async move {
+            let service = Arc::new(self);
+            let semaphore = Arc::new(Semaphore::new(thread_count));
+
+            while let (Some(message), Ok(permit)) =
+                tokio::join!(rx.recv(), semaphore.clone().acquire_owned())
+            {
+                let service = service.clone();
+                tokio::task::spawn_blocking(move || {
+                    service.handle_message(message);
+                    drop(permit);
+                });
+            }
+        });
     }
 }
 
@@ -2270,8 +2293,12 @@ mod tests {
         let item = create_breadcrumbs_item(&[(None, "item1")]);
 
         // NOTE: using (Some, None) here:
-        let result =
-            EnvelopeProcessor::event_from_attachments(&Config::default(), None, Some(item), None);
+        let result = EnvelopeProcessorService::event_from_attachments(
+            &Config::default(),
+            None,
+            Some(item),
+            None,
+        );
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -2286,8 +2313,12 @@ mod tests {
         let item = create_breadcrumbs_item(&[(None, "item2")]);
 
         // NOTE: using (None, Some) here:
-        let result =
-            EnvelopeProcessor::event_from_attachments(&Config::default(), None, None, Some(item));
+        let result = EnvelopeProcessorService::event_from_attachments(
+            &Config::default(),
+            None,
+            None,
+            Some(item),
+        );
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -2302,7 +2333,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(None, "crumb1")]);
         let item2 = create_breadcrumbs_item(&[(None, "crumb2"), (None, "crumb3")]);
 
-        let result = EnvelopeProcessor::event_from_attachments(
+        let result = EnvelopeProcessorService::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -2322,7 +2353,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
         let item2 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
 
-        let result = EnvelopeProcessor::event_from_attachments(
+        let result = EnvelopeProcessorService::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -2345,7 +2376,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
         let item2 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
 
-        let result = EnvelopeProcessor::event_from_attachments(
+        let result = EnvelopeProcessorService::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -2366,7 +2397,7 @@ mod tests {
         let item2 = create_breadcrumbs_item(&[]);
         let item3 = create_breadcrumbs_item(&[]);
 
-        let result = EnvelopeProcessor::event_from_attachments(
+        let result = EnvelopeProcessorService::event_from_attachments(
             &Config::default(),
             Some(item1),
             Some(item2),
@@ -2381,7 +2412,7 @@ mod tests {
     #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
     queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
     fn test_user_report_invalid() {
-        let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
+        let processor = EnvelopeProcessorService::new(Arc::new(Default::default()));
         let event_id = protocol::EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -2424,7 +2455,7 @@ mod tests {
     #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
     queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
     fn test_browser_version_extraction_with_pii_like_data() {
-        let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
+        let processor = EnvelopeProcessorService::new(Arc::new(Default::default()));
         let event_id = protocol::EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -2526,7 +2557,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = EnvelopeProcessor::new(Arc::new(config));
+        let processor = EnvelopeProcessorService::new(Arc::new(config));
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -2577,7 +2608,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = EnvelopeProcessor::new(Arc::new(config));
+        let processor = EnvelopeProcessorService::new(Arc::new(config));
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -2634,7 +2665,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = EnvelopeProcessor::new(Arc::new(config));
+        let processor = EnvelopeProcessorService::new(Arc::new(config));
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
