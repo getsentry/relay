@@ -2788,4 +2788,37 @@ mod tests {
             Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
         );
     }
+
+    /// This is a stand-in test to assert panicking behavior for spawn_blocking.
+    ///
+    /// The `EnvelopeProcessorService` relies on tokio to restart the worker threads for blocking
+    /// tasks if there is a panic during processing. Tokio does not explicitly mention this behavior
+    /// in documentation, though the `spawn_blocking` contract suggests that this is intentional.
+    ///
+    /// This test should be moved if the worker pool is extracted into a utility.
+    #[test]
+    fn test_processor_panics() {
+        let future = async {
+            let semaphore = Arc::new(Semaphore::new(1));
+
+            // loop multiple times to prove that the runtime creates new threads
+            for _ in 0..3 {
+                // the previous permit should have been released during panic unwind
+                let permit = semaphore.clone().acquire_owned().await.unwrap();
+
+                let handle = tokio::task::spawn_blocking(move || {
+                    let _permit = permit; // drop(permit) after panic!() would warn as "unreachable"
+                    panic!("ignored");
+                });
+
+                assert!(handle.await.is_err());
+            }
+        };
+
+        tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .build()
+            .unwrap()
+            .block_on(future);
+    }
 }
