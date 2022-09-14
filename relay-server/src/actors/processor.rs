@@ -255,10 +255,11 @@ struct ProcessEnvelopeState {
 }
 
 impl ProcessEnvelopeState {
-    /// Returns whether any item in the envelope creates an event.
+    /// Returns whether any item in the envelope creates an event in any relay.
     ///
     /// This is used to branch into the processing pipeline. If this function returns false, only
-    /// rate limits are executed.
+    /// rate limits are executed. If this function returns true, an event is created either in the
+    /// current relay or in an upstream processing relay.
     fn creates_event(&self) -> bool {
         self.envelope.items().any(Item::creates_event)
     }
@@ -1882,6 +1883,10 @@ impl EnvelopeProcessor {
         self.process_replays(state);
 
         if state.creates_event() {
+            // Some envelopes only create events in processing relays; for example, unreal events.
+            // This makes it possible to get in this code block while not really having an event in
+            // the envelope.
+
             if_processing!({
                 self.expand_unreal(state)?;
             });
