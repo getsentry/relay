@@ -2669,6 +2669,98 @@
 <span id="2661">2661</span>
 <span id="2662">2662</span>
 <span id="2663">2663</span>
+<span id="2664">2664</span>
+<span id="2665">2665</span>
+<span id="2666">2666</span>
+<span id="2667">2667</span>
+<span id="2668">2668</span>
+<span id="2669">2669</span>
+<span id="2670">2670</span>
+<span id="2671">2671</span>
+<span id="2672">2672</span>
+<span id="2673">2673</span>
+<span id="2674">2674</span>
+<span id="2675">2675</span>
+<span id="2676">2676</span>
+<span id="2677">2677</span>
+<span id="2678">2678</span>
+<span id="2679">2679</span>
+<span id="2680">2680</span>
+<span id="2681">2681</span>
+<span id="2682">2682</span>
+<span id="2683">2683</span>
+<span id="2684">2684</span>
+<span id="2685">2685</span>
+<span id="2686">2686</span>
+<span id="2687">2687</span>
+<span id="2688">2688</span>
+<span id="2689">2689</span>
+<span id="2690">2690</span>
+<span id="2691">2691</span>
+<span id="2692">2692</span>
+<span id="2693">2693</span>
+<span id="2694">2694</span>
+<span id="2695">2695</span>
+<span id="2696">2696</span>
+<span id="2697">2697</span>
+<span id="2698">2698</span>
+<span id="2699">2699</span>
+<span id="2700">2700</span>
+<span id="2701">2701</span>
+<span id="2702">2702</span>
+<span id="2703">2703</span>
+<span id="2704">2704</span>
+<span id="2705">2705</span>
+<span id="2706">2706</span>
+<span id="2707">2707</span>
+<span id="2708">2708</span>
+<span id="2709">2709</span>
+<span id="2710">2710</span>
+<span id="2711">2711</span>
+<span id="2712">2712</span>
+<span id="2713">2713</span>
+<span id="2714">2714</span>
+<span id="2715">2715</span>
+<span id="2716">2716</span>
+<span id="2717">2717</span>
+<span id="2718">2718</span>
+<span id="2719">2719</span>
+<span id="2720">2720</span>
+<span id="2721">2721</span>
+<span id="2722">2722</span>
+<span id="2723">2723</span>
+<span id="2724">2724</span>
+<span id="2725">2725</span>
+<span id="2726">2726</span>
+<span id="2727">2727</span>
+<span id="2728">2728</span>
+<span id="2729">2729</span>
+<span id="2730">2730</span>
+<span id="2731">2731</span>
+<span id="2732">2732</span>
+<span id="2733">2733</span>
+<span id="2734">2734</span>
+<span id="2735">2735</span>
+<span id="2736">2736</span>
+<span id="2737">2737</span>
+<span id="2738">2738</span>
+<span id="2739">2739</span>
+<span id="2740">2740</span>
+<span id="2741">2741</span>
+<span id="2742">2742</span>
+<span id="2743">2743</span>
+<span id="2744">2744</span>
+<span id="2745">2745</span>
+<span id="2746">2746</span>
+<span id="2747">2747</span>
+<span id="2748">2748</span>
+<span id="2749">2749</span>
+<span id="2750">2750</span>
+<span id="2751">2751</span>
+<span id="2752">2752</span>
+<span id="2753">2753</span>
+<span id="2754">2754</span>
+<span id="2755">2755</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -2703,7 +2795,7 @@
 <span class="kw">use</span> <span class="ident">relay_metrics</span>::{<span class="ident">Bucket</span>, <span class="ident">Metric</span>};
 <span class="kw">use</span> <span class="ident">relay_quotas</span>::{<span class="ident">DataCategory</span>, <span class="ident">RateLimits</span>, <span class="ident">ReasonCode</span>};
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
-<span class="kw">use</span> <span class="ident">relay_sampling::RuleId</span>;
+<span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">DynamicSamplingContext</span>, <span class="ident">RuleId</span>};
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendEnvelope</span>, <span class="ident">SendEnvelopeError</span>, <span class="ident">SubmitEnvelope</span>};
@@ -2716,7 +2808,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::sessions</span>::{<span class="ident">extract_session_metrics</span>, <span class="ident">SessionMetricsConfig</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::transactions::extract_transaction_metrics</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::service</span>::{<span class="ident">ServerError</span>, <span class="ident">REGISTRY</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayTimers</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayHistograms</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{
     <span class="self">self</span>, <span class="ident">ChunkedFormDataAggregator</span>, <span class="ident">EnvelopeContext</span>, <span class="ident">ErrorBoundary</span>, <span class="ident">FormDataIter</span>, <span class="ident">SamplingResult</span>,
 };
@@ -3013,6 +3105,94 @@
         <span class="kw">_</span> =&gt; <span class="ident">DiscardReason::ProcessProfile</span>,
     };
     <span class="ident">Outcome::Invalid</span>(<span class="ident">discard_reason</span>)
+}
+
+<span class="kw">fn</span> <span class="ident">track_sampling_metrics</span>(
+    <span class="ident">project_state</span>: <span class="kw-2">&amp;</span><span class="ident">ProjectState</span>,
+    <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="ident">DynamicSamplingContext</span>,
+    <span class="ident">event</span>: <span class="kw-2">&amp;</span><span class="ident">Event</span>,
+) {
+    <span class="comment">// We only collect this metric for the root transaction event, so ignore secondary projects.</span>
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">project_state</span>.<span class="ident">is_matching_key</span>(<span class="ident">context</span>.<span class="ident">public_key</span>) {
+        <span class="kw">return</span>;
+    }
+
+    <span class="kw">let</span> <span class="ident">transaction_info</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">event</span>.<span class="ident">transaction_info</span>.<span class="ident">value</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">info</span>) =&gt; <span class="ident">info</span>,
+        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+    };
+
+    <span class="kw">let</span> <span class="ident">changes</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">transaction_info</span>.<span class="ident">changes</span>.<span class="ident">value</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">value</span>) =&gt; <span class="ident">value</span>.<span class="ident">as_slice</span>(),
+        <span class="prelude-val">None</span> =&gt; <span class="kw">return</span>,
+    };
+
+    <span class="kw">let</span> <span class="ident">last_change</span> <span class="op">=</span> <span class="ident">changes</span>.<span class="ident">last</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">a</span><span class="op">|</span> <span class="ident">a</span>.<span class="ident">value</span>());
+    <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">get_transaction_source</span>().<span class="ident">as_str</span>();
+    <span class="kw">let</span> <span class="ident">platform</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">platform</span>.<span class="ident">as_str</span>().<span class="ident">unwrap_or</span>(<span class="string">&quot;other&quot;</span>);
+    <span class="kw">let</span> <span class="ident">sdk_name</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">sdk_name</span>();
+    <span class="kw">let</span> <span class="ident">sdk_version</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">sdk_version</span>();
+
+    <span class="macro">metric!</span>(
+        <span class="ident">histogram</span>(<span class="ident">RelayHistograms::DynamicSamplingChanges</span>) <span class="op">=</span> <span class="ident">changes</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>,
+        <span class="ident">source</span> <span class="op">=</span> <span class="ident">source</span>,
+        <span class="ident">platform</span> <span class="op">=</span> <span class="ident">platform</span>,
+        <span class="ident">sdk_name</span> <span class="op">=</span> <span class="ident">sdk_name</span>,
+        <span class="ident">sdk_version</span> <span class="op">=</span> <span class="ident">sdk_version</span>,
+    );
+
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">total</span>) <span class="op">=</span> <span class="ident">transaction_info</span>.<span class="ident">propagations</span>.<span class="ident">value</span>() {
+        <span class="comment">// If there was no change, there were no propagations that happened with a wrong name.</span>
+        <span class="kw">let</span> <span class="ident">change</span> <span class="op">=</span> <span class="ident">last_change</span>
+            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">propagations</span>.<span class="ident">value</span>())
+            .<span class="ident">map_or</span>(<span class="number">0</span>, <span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">v</span>);
+
+        <span class="macro">metric!</span>(
+            <span class="ident">histogram</span>(<span class="ident">RelayHistograms::DynamicSamplingPropagationCount</span>) <span class="op">=</span> <span class="ident">change</span>,
+            <span class="ident">source</span> <span class="op">=</span> <span class="ident">source</span>,
+            <span class="ident">platform</span> <span class="op">=</span> <span class="ident">platform</span>,
+            <span class="ident">sdk_name</span> <span class="op">=</span> <span class="ident">sdk_name</span>,
+            <span class="ident">sdk_version</span> <span class="op">=</span> <span class="ident">sdk_version</span>,
+        );
+
+        <span class="kw">let</span> <span class="ident">percentage</span> <span class="op">=</span> ((<span class="ident">change</span> <span class="kw">as</span> <span class="ident">f64</span>) <span class="op">/</span> (<span class="ident">total</span> <span class="kw">as</span> <span class="ident">f64</span>)).<span class="ident">min</span>(<span class="number">1.0</span>);
+        <span class="macro">metric!</span>(
+            <span class="ident">histogram</span>(<span class="ident">RelayHistograms::DynamicSamplingPropagationPercentage</span>) <span class="op">=</span> <span class="ident">percentage</span>,
+            <span class="ident">source</span> <span class="op">=</span> <span class="ident">source</span>,
+            <span class="ident">platform</span> <span class="op">=</span> <span class="ident">platform</span>,
+            <span class="ident">sdk_name</span> <span class="op">=</span> <span class="ident">sdk_name</span>,
+            <span class="ident">sdk_version</span> <span class="op">=</span> <span class="ident">sdk_version</span>,
+        );
+    }
+
+    <span class="kw">if</span> <span class="kw">let</span> (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">start</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">change</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">end</span>)) <span class="op">=</span> (
+        <span class="ident">event</span>.<span class="ident">start_timestamp</span>.<span class="ident">value</span>(),
+        <span class="ident">last_change</span>.<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>()),
+        <span class="ident">event</span>.<span class="ident">timestamp</span>.<span class="ident">value</span>(),
+    ) {
+        <span class="kw">let</span> <span class="ident">delay_ms</span> <span class="op">=</span> (<span class="ident">change</span> <span class="op">-</span> <span class="ident">start</span>).<span class="ident">num_milliseconds</span>();
+        <span class="kw">if</span> <span class="ident">delay_ms</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">0</span> {
+            <span class="macro">metric!</span>(
+                <span class="ident">histogram</span>(<span class="ident">RelayHistograms::DynamicSamplingChangeDuration</span>) <span class="op">=</span> <span class="ident">delay_ms</span> <span class="kw">as</span> <span class="ident">u64</span>,
+                <span class="ident">source</span> <span class="op">=</span> <span class="ident">source</span>,
+                <span class="ident">platform</span> <span class="op">=</span> <span class="ident">platform</span>,
+                <span class="ident">sdk_name</span> <span class="op">=</span> <span class="ident">sdk_name</span>,
+                <span class="ident">sdk_version</span> <span class="op">=</span> <span class="ident">sdk_version</span>,
+            );
+        }
+
+        <span class="kw">let</span> <span class="ident">duration_ms</span> <span class="op">=</span> (<span class="ident">end</span> <span class="op">-</span> <span class="ident">start</span>).<span class="ident">num_milliseconds</span>() <span class="kw">as</span> <span class="ident">f64</span>;
+        <span class="kw">if</span> <span class="ident">delay_ms</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="ident">duration_ms</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">0.0</span> {
+            <span class="kw">let</span> <span class="ident">percentage</span> <span class="op">=</span> ((<span class="ident">delay_ms</span> <span class="kw">as</span> <span class="ident">f64</span>) <span class="op">/</span> <span class="ident">duration_ms</span>).<span class="ident">min</span>(<span class="number">1.0</span>);
+            <span class="macro">metric!</span>(
+                <span class="ident">histogram</span>(<span class="ident">RelayHistograms::DynamicSamplingChangePercentage</span>) <span class="op">=</span> <span class="ident">percentage</span>,
+                <span class="ident">source</span> <span class="op">=</span> <span class="ident">source</span>,
+                <span class="ident">platform</span> <span class="op">=</span> <span class="ident">platform</span>,
+                <span class="ident">sdk_name</span> <span class="op">=</span> <span class="ident">sdk_name</span>,
+                <span class="ident">sdk_version</span> <span class="op">=</span> <span class="ident">sdk_version</span>,
+            );
+        }
+    }
 }
 
 <span class="doccomment">/// Synchronous service for processing envelopes.</span>
@@ -4296,6 +4476,10 @@
                 }
             );
             <span class="ident">state</span>.<span class="ident">transaction_metrics_extracted</span> <span class="op">=</span> <span class="bool-val">true</span>;
+
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">context</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">envelope</span>.<span class="ident">sampling_context</span>() {
+                <span class="ident">track_sampling_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>.<span class="ident">project_state</span>, <span class="ident">context</span>, <span class="ident">event</span>);
+            }
         }
         <span class="prelude-val">Ok</span>(())
     }

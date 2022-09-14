@@ -541,6 +541,84 @@
 <span id="533">533</span>
 <span id="534">534</span>
 <span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">relay_statsd</span>::{<span class="ident">CounterMetric</span>, <span class="ident">GaugeMetric</span>, <span class="ident">HistogramMetric</span>, <span class="ident">TimerMetric</span>};
 
 <span class="doccomment">/// Gauge metrics used by Relay</span>
@@ -681,6 +759,77 @@
     <span class="doccomment">/// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by</span>
     <span class="doccomment">/// Relay over HTTP in bytes.</span>
     <span class="ident">UpstreamEnvelopeBodySize</span>,
+
+    <span class="doccomment">/// Counts how often a transaction name was changed before submitting the final transaction.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// A value of `0` indicates that the transaction was created with the final transaction name.</span>
+    <span class="doccomment">/// In this case, the DSC will have the correct transaction name guaranteed. However, to</span>
+    <span class="doccomment">/// determine how many traces had wrong transaction names propagated, check the</span>
+    <span class="doccomment">/// `dynamic_sampling.propagations`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This metric is tagged with:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///  - `source`: The transaction source value in the final event payload.</span>
+    <span class="doccomment">///  - `platform`: The SDK platform value of the event payload.</span>
+    <span class="doccomment">///  - `sdk_name`: The name of the client SDK as reported in the event payload.</span>
+    <span class="doccomment">///  - `sdk_version`: The version of the client SDK as reported in the event payload.</span>
+    <span class="ident">DynamicSamplingChanges</span>,
+
+    <span class="doccomment">/// Counts the number of propagations before the final transaction name has been determined.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// A value of `0` indicates that the entire trace had identical transaction names in the</span>
+    <span class="doccomment">/// Dynamic Sampling Context (DSC). This means that the entire trace is sampled consistently.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that this differs from `dynamic_sampling.changes`, which indicates changes even in the</span>
+    <span class="doccomment">/// absence of propagations.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This metric is tagged with:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///  - `source`: The transaction source value in the final event payload.</span>
+    <span class="doccomment">///  - `platform`: The SDK platform value of the event payload.</span>
+    <span class="doccomment">///  - `sdk_name`: The name of the client SDK as reported in the event payload.</span>
+    <span class="doccomment">///  - `sdk_version`: The version of the client SDK as reported in the event payload.</span>
+    <span class="ident">DynamicSamplingPropagationCount</span>,
+
+    <span class="doccomment">/// The number of propagations before the final transaction name change relative to the total</span>
+    <span class="doccomment">/// number of propagations.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Tracks the same as `dynamic_sampling.propagations`, except that the value of this metric is</span>
+    <span class="doccomment">/// a percentage between `0.0` and `1.0`. A value of `0` means that no propagations occurred,</span>
+    <span class="doccomment">/// and `1` means that all propagations occurred with the wrong transaction name.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This metric is tagged with:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///  - `source`: The transaction source value in the final event payload.</span>
+    <span class="doccomment">///  - `platform`: The SDK platform value of the event payload.</span>
+    <span class="doccomment">///  - `sdk_name`: The name of the client SDK as reported in the event payload.</span>
+    <span class="doccomment">///  - `sdk_version`: The version of the client SDK as reported in the event payload.</span>
+    <span class="ident">DynamicSamplingPropagationPercentage</span>,
+
+    <span class="doccomment">/// Time in milliseconds from the start of transaction until the final name is determined.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the transaction name changes multiple times, this records only the last instance. This</span>
+    <span class="doccomment">/// metric is not logged if there were no changes to the transaction name.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This metric is tagged with:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///  - `source`: The transaction source value in the final event payload.</span>
+    <span class="doccomment">///  - `platform`: The SDK platform value of the event payload.</span>
+    <span class="doccomment">///  - `sdk_name`: The name of the client SDK as reported in the event payload.</span>
+    <span class="doccomment">///  - `sdk_version`: The version of the client SDK as reported in the event payload.</span>
+    <span class="ident">DynamicSamplingChangeDuration</span>,
+
+    <span class="doccomment">/// Timing relative to the transaction duration until the final name is determined.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is a percentage between `0.0` and `1.0`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This metric is tagged with:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///  - `source`: The transaction source value in the final event payload.</span>
+    <span class="doccomment">///  - `platform`: The SDK platform value of the event payload.</span>
+    <span class="doccomment">///  - `sdk_name`: The name of the client SDK as reported in the event payload.</span>
+    <span class="doccomment">///  - `sdk_version`: The version of the client SDK as reported in the event payload.</span>
+    <span class="ident">DynamicSamplingChangePercentage</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">HistogramMetric</span> <span class="kw">for</span> <span class="ident">RelayHistograms</span> {
@@ -709,6 +858,13 @@
             <span class="ident">RelayHistograms::KafkaMessageSize</span> =&gt; <span class="string">&quot;kafka.message_size&quot;</span>,
             <span class="ident">RelayHistograms::UpstreamQueryBodySize</span> =&gt; <span class="string">&quot;upstream.query.body_size&quot;</span>,
             <span class="ident">RelayHistograms::UpstreamEnvelopeBodySize</span> =&gt; <span class="string">&quot;upstream.envelope.body_size&quot;</span>,
+            <span class="ident">RelayHistograms::DynamicSamplingChanges</span> =&gt; <span class="string">&quot;dynamic_sampling.changes&quot;</span>,
+            <span class="ident">RelayHistograms::DynamicSamplingPropagationCount</span> =&gt; <span class="string">&quot;dynamic_sampling.propagations&quot;</span>,
+            <span class="ident">RelayHistograms::DynamicSamplingPropagationPercentage</span> =&gt; {
+                <span class="string">&quot;dynamic_sampling.propagation_pct&quot;</span>
+            }
+            <span class="ident">RelayHistograms::DynamicSamplingChangeDuration</span> =&gt; <span class="string">&quot;dynamic_sampling.change_duration&quot;</span>,
+            <span class="ident">RelayHistograms::DynamicSamplingChangePercentage</span> =&gt; <span class="string">&quot;dynamic_sampling.change_pct&quot;</span>,
         }
     }
 }
