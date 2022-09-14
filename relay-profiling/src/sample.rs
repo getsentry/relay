@@ -24,11 +24,6 @@ struct Frame {
 }
 
 impl Frame {
-    fn valid(&self) -> bool {
-        self.instruction_addr.is_some()
-            || (self.name.is_some() && self.line.is_some() && self.file.is_some())
-    }
-
     fn strip_pointer_authentication_code(&mut self, pac_code: u64) {
         if let Some(address) = self.instruction_addr {
             self.instruction_addr = Some(Addr(address.0 & pac_code));
@@ -250,7 +245,6 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::NotEnoughSamples);
     }
 
-    profile.profile.frames.retain(|frame| frame.valid());
     profile.strip_pointer_authentication_code();
 
     Ok(profile)
