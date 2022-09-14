@@ -279,6 +279,18 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
+    fn test_convert_sensitive_fields_too_large() {
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            sensitive_fields: vec!["fieldy_field"]
+                .repeat(999999)
+                .into_iter()
+                .map(|x| x.to_string())
+                .collect(),
+            ..simple_enabled_config()
+        });
+    }
+
+    #[test]
     fn test_convert_exclude_field() {
         let pii_config = to_pii_config(&DataScrubbingConfig {
             exclude_fields: vec!["foobar".to_owned()],
