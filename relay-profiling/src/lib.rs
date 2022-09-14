@@ -110,7 +110,7 @@ use crate::android::expand_android_profile;
 use crate::cocoa::expand_cocoa_profile;
 use crate::python::parse_python_profile;
 use crate::rust::parse_rust_profile;
-use crate::sample::expand_sample_profile;
+use crate::sample::{expand_sample_profile, Version};
 use crate::typescript::parse_typescript_profile;
 
 pub use crate::error::ProfileError;
@@ -129,7 +129,8 @@ enum Platform {
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
     platform: Platform,
-    version: Option<String>,
+    #[serde(default)]
+    version: Version,
 }
 
 fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError> {
@@ -139,8 +140,8 @@ fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError
 pub fn expand_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
     let profile: MinimalProfile = minimal_profile_from_json(payload)?;
     match profile.version {
-        Some(_) => expand_sample_profile(payload),
-        None => match profile.platform {
+        Version::V1 => expand_sample_profile(payload),
+        Version::Unknown => match profile.platform {
             Platform::Android => expand_android_profile(payload),
             Platform::Cocoa => expand_cocoa_profile(payload),
             _ => {
@@ -162,10 +163,10 @@ mod tests {
 
     #[test]
     fn test_minimal_profile_with_version() {
-        let data = r#"{"version": "v1", "platform": "cocoa"}"#;
+        let data = r#"{"version": "1", "platform": "cocoa"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
-        assert!(profile.unwrap().version.is_some());
+        assert_eq!(profile.unwrap().version, Version::V1);
     }
 
     #[test]
@@ -173,7 +174,7 @@ mod tests {
         let data = r#"{"platform": "cocoa"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
-        assert!(profile.unwrap().version.is_none());
+        assert_eq!(profile.unwrap().version, Version::Unknown);
     }
 
     #[test]

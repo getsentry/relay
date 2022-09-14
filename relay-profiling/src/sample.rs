@@ -121,8 +121,10 @@ struct DeviceMetadata {
     model: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-enum Version {
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+pub enum Version {
+    #[default]
+    Unknown,
     #[serde(rename = "1")]
     V1,
 }
