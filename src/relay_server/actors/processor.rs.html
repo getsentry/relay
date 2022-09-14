@@ -2761,6 +2761,11 @@
 <span id="2753">2753</span>
 <span id="2754">2754</span>
 <span id="2755">2755</span>
+<span id="2756">2756</span>
+<span id="2757">2757</span>
+<span id="2758">2758</span>
+<span id="2759">2759</span>
+<span id="2760">2760</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -3018,10 +3023,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">ProcessEnvelopeState</span> {
-    <span class="doccomment">/// Returns whether any item in the envelope creates an event.</span>
+    <span class="doccomment">/// Returns whether any item in the envelope creates an event in any relay.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This is used to branch into the processing pipeline. If this function returns false, only</span>
-    <span class="doccomment">/// rate limits are executed.</span>
+    <span class="doccomment">/// rate limits are executed. If this function returns true, an event is created either in the</span>
+    <span class="doccomment">/// current relay or in an upstream processing relay.</span>
     <span class="kw">fn</span> <span class="ident">creates_event</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">envelope</span>.<span class="ident">items</span>().<span class="ident">any</span>(<span class="ident">Item::creates_event</span>)
     }
@@ -4645,6 +4651,10 @@
         <span class="self">self</span>.<span class="ident">process_replays</span>(<span class="ident">state</span>);
 
         <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">creates_event</span>() {
+            <span class="comment">// Some envelopes only create events in processing relays; for example, unreal events.</span>
+            <span class="comment">// This makes it possible to get in this code block while not really having an event in</span>
+            <span class="comment">// the envelope.</span>
+
             <span class="macro">if_processing!</span>({
                 <span class="self">self</span>.<span class="ident">expand_unreal</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
             });
