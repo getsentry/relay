@@ -39,7 +39,7 @@ impl TransactionMetadata {
     }
 
     pub fn duration_ns(&self) -> u64 {
-        self.relative_end_ns - self.relative_start_ns
+        self.relative_end_ns.saturating_sub(self.relative_start_ns)
     }
 }
 
