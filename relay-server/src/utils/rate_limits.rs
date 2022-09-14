@@ -233,6 +233,13 @@ impl Default for CategoryLimit {
 pub struct Enforcement {
     /// The event item rate limit.
     event: CategoryLimit,
+    /// The rate limit for processing transactions.
+    ///
+    /// When the event is a transaction the `event` field may contain a rate-limit for the
+    /// [`DataCategory::Transaction`].  However we may also rate-limit transaction
+    /// processing separately which is expressed here.
+    // TODO: Update track_outcomes for to emit outcomes for this.
+    transaction_processing: CategoryLimit,
     /// The combined attachment item rate limit.
     attachments: CategoryLimit,
     /// The combined session item rate limit.
@@ -360,7 +367,7 @@ where
         }
 
         let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
-        envelope.retain_items(|item| self.retain_item(item, &enforcement));
+        envelope.retain_items(|item| self.should_retain_item(item, &enforcement));
         Ok((enforcement, rate_limits))
     }
 
@@ -385,6 +392,57 @@ where
             );
 
             rate_limits.merge(event_limits);
+        }
+
+        // If this event is a transaction and it is rate-limited, then check the
+        // TransactionProcessed quota because if this is still available we should still
+        // process the event to extract metrics.  Since we are not indexing the transaction
+        // however we should remove any attachements from the envelope.  If there is still
+        // either Transaction or TransactionProcessed quota remaining we do not report the
+        // rate limits for either of them since we still want clients to keep sending
+        // transactions.
+        if enforcement.event.is_active()
+            && matches!(enforcement.event.category, DataCategory::Transaction)
+        {
+            // TODO: We don't actually *need* to check this quota yet, it is a little odd to
+            // do this right now even.  In the final solution we need to check this quota
+            // also if Transaction was not rate-limited and make sure we process the
+            // event/transaction in this case but do not extract metrics so would need to
+            // communicate this to the metrics extraction.
+            let item_scoping = scoping.item(DataCategory::TransactionProcessed);
+            let processed_transaction_limits = (self.check)(item_scoping, 1)?;
+            enforcement.transaction_processing = CategoryLimit::new(
+                DataCategory::TransactionProcessed,
+                1,
+                processed_transaction_limits.longest(),
+            );
+            rate_limits.merge(processed_transaction_limits);
+
+            // If we did not rate limit both Transaction and TransactionProcessed then we
+            // report neither.  This ensures that the Check Envelope does not report the rate
+            // limit and in turn the endpoint code does not emit HTTP 429 status codes in
+            // the responses.
+            // TODO(flub): I'm not entirely happy with this code being generically being
+            // here since the EnvelopeLimiter is called from multiple places and not just
+            // from the endpoint.  Maybe this logic should be in the endpoint instead.
+            let mut has_transaction_limit = false;
+            let mut has_transaction_processed_limit = false;
+            for limit in rate_limits.iter() {
+                if limit.categories.contains(&DataCategory::Transaction) {
+                    has_transaction_limit = true;
+                } else if limit
+                    .categories
+                    .contains(&DataCategory::TransactionProcessed)
+                {
+                    has_transaction_processed_limit = true;
+                }
+            }
+            if has_transaction_limit && has_transaction_processed_limit {
+                rate_limits.retain(|l| {
+                    l.categories.contains(&DataCategory::Transaction)
+                        || l.categories.contains(&DataCategory::TransactionProcessed)
+                });
+            }
         }
 
         if !enforcement.event.is_active() && summary.attachment_quantity > 0 {
@@ -440,10 +498,21 @@ where
         Ok((enforcement, rate_limits))
     }
 
-    fn retain_item(&self, item: &mut Item, enforcement: &Enforcement) -> bool {
+    /// Whether an envelope [`Item`] should be retained in the envelope.
+    ///
+    /// Items which were subject to rate limits should not be retained, which this function
+    /// figures out.
+    fn should_retain_item(&self, item: &mut Item, enforcement: &Enforcement) -> bool {
         // Remove event items and all items that depend on this event
         if enforcement.event.is_active() && item.requires_event() {
-            return false;
+            match item.ty() {
+                ItemType::Transaction if !enforcement.transaction_processing.is_active() => {
+                    // Only if both Transaction and TransactionProcessed quota is out should
+                    // the transaction event be removed.
+                    return true;
+                }
+                _ => return false,
+            }
         }
 
         // Remove attachments, except those required for processing

@@ -234,6 +234,7 @@ struct ProcessEnvelopeState {
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
     /// configuration objects in the project config.
+    // Maybe keeping track of whether the metric was added by processing is good here
     extracted_metrics: Vec<Metric>,
 
     /// The state of the project that this envelope belongs to.
@@ -1802,18 +1803,25 @@ impl EnvelopeProcessor {
                 self.create_placeholders(state);
             });
 
+            // don't really need this for indexing-rate-limited transactions, but light enough
             self.finalize_event(state)?;
             self.light_normalize_event(state)?;
             self.filter_event(state)?;
+            // Can I add the metrics as something else and remove them again later?  Or add
+            // a field to the metric saying which transaction they came from so I can remove
+            // them in the ratelimiter.  Though there should only be a single transaction
+            // item in the envelope.
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
 
             if_processing!({
+                // don't run this for indexing-rate-limited transactions
                 self.store_process_event(state)?;
             });
         }
 
         if_processing!({
+            // should see it is already rate-limited and doesn't use redis
             self.enforce_quotas(state)?;
         });
 

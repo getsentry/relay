@@ -816,6 +816,7 @@ impl Project {
         })
     }
 
+    // Check envelope is here
     pub fn check_envelope(
         &mut self,
         mut envelope: Envelope,
@@ -838,6 +839,7 @@ impl Project {
 
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
         let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
+            // fast path envelope limiter
             Ok(self.rate_limits.check_with_quotas(quotas, item_scoping))
         });
 

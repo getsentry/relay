@@ -240,6 +240,14 @@ impl RateLimits {
         self.limits.retain(|limit| !limit.retry_after.expired());
     }
 
+    /// Removes limits for which `f(&rate_limit)` returns `false` from the rate limits.
+    pub fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&RateLimit) -> bool,
+    {
+        self.limits.retain(f)
+    }
+
     /// Checks whether any rate limits apply to the given scoping.
     ///
     /// If no limits match, then the returned `RateLimits` instance evalutes `is_ok`. Otherwise, it

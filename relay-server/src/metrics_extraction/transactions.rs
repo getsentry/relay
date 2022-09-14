@@ -381,6 +381,13 @@ fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
     }
 }
 
+/// Extracts metrics from a transaction event.
+///
+/// There are different kinds of metrics extracted:
+/// - Metrics directly attached to the transaction
+///   - Built-in metrics sent by the SDK, these allow-listed.
+///   - Custom metrics from the user, only a limited number of these are extracted.
+/// -
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
     breakdowns_config: Option<&store::BreakdownsConfig>,
