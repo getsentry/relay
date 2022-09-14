@@ -204,6 +204,7 @@ pub fn expand_sample_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErro
     for transaction in &profile.transactions {
         let mut new_profile = profile.clone();
 
+        new_profile.event_id = EventId::new();
         new_profile.transactions.clear();
         new_profile.transactions.push(transaction.clone());
 
