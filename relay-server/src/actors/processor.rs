@@ -37,7 +37,6 @@ use relay_statsd::metric;
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{InsertMetrics, MergeBuckets, ProjectCache};
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
@@ -911,7 +910,7 @@ impl EnvelopeProcessor {
             return;
         }
 
-        let producer = OutcomeAggregator::from_registry();
+        let producer = TrackOutcome::from_registry();
         for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
             let outcome = match outcome_from_parts(outcome_type, &reason) {
                 Ok(outcome) => outcome,
