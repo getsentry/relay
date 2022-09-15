@@ -184,7 +184,13 @@ impl Producer {
 
         producer
             .send(record)
-            .map_err(|(kafka_error, _message)| StoreError::SendFailed(kafka_error))
+            .map_err(|(kafka_error, _message)| {
+                relay_log::with_scope(
+                        |scope| scope.set_tag("variant", message.variant()),
+                        || relay_log::error!("error sending kafka message: {}", kafka_error),
+                    );
+                StoreError::SendFailed(kafka_error)
+            })
     }
 }
 
