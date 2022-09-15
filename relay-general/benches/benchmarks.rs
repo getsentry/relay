@@ -127,7 +127,6 @@ fn datascrubbing_config() -> DataScrubbingConfigRepr {
         scrub_defaults: true,
         scrub_data: true,
         scrub_ip_addresses: true,
-        ..Default::default()
     }
 }
 

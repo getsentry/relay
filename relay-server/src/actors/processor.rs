@@ -2457,11 +2457,13 @@ mod tests {
         });
 
         let new_envelope = relay_test::with_system(move || {
-            let mut datascrubbing_settings = DataScrubbingConfigRepr::default();
-            // enable all the default scrubbing
-            datascrubbing_settings.scrub_data = true;
-            datascrubbing_settings.scrub_defaults = true;
-            datascrubbing_settings.scrub_ip_addresses = true;
+            let datascrubbing_settings = DataScrubbingConfigRepr {
+                // enable all the default scrubbing
+                scrub_data: true,
+                scrub_defaults: true,
+                scrub_ip_addresses: true,
+                ..Default::default()
+            };
 
             // Make sure to mask any IP-like looking data
             let pii_config = PiiConfig::from_json(
