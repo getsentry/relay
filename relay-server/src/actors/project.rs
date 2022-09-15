@@ -711,7 +711,7 @@ impl Project {
                     ProjectCache::from_registry()
                         .do_send(AddSamplingState::new(sampling_key, process));
                 } else {
-                    EnvelopeProcessor::from_registry().do_send(process);
+                    EnvelopeProcessor::from_registry().send(process);
                 }
             }
         }
@@ -735,7 +735,7 @@ impl Project {
     fn flush_sampling(&self, mut message: ProcessEnvelope) {
         // Intentionally ignore all errors and leave the envelope unsampled.
         message.sampling_project_state = self.valid_state();
-        EnvelopeProcessor::from_registry().do_send(message);
+        EnvelopeProcessor::from_registry().send(message);
     }
 
     /// Enqueues an envelope for adding a dynamic sampling project state.
