@@ -238,7 +238,7 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
 
     profile
         .transactions
-        .retain(|transaction| transaction.valid() && transaction.thread_id > 0);
+        .retain(|transaction| transaction.valid() && transaction.active_thread_id > 0);
 
     if profile.transactions.is_empty() {
         return Err(ProfileError::NoTransactionAssociated);

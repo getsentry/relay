@@ -15,7 +15,7 @@ pub struct TransactionMetadata {
         deserialize_with = "deserialize_number_from_string",
         skip_serializing_if = "is_zero"
     )]
-    pub thread_id: u64,
+    pub active_thread_id: u64,
 
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub relative_start_ns: u64,
@@ -64,7 +64,7 @@ mod tests {
             relative_cpu_start_ms: 0,
             relative_end_ns: 133,
             relative_start_ns: 1,
-            thread_id: 259,
+            active_thread_id: 259,
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
         };
         assert!(metadata.valid());
@@ -79,7 +79,7 @@ mod tests {
             relative_cpu_start_ms: 0,
             relative_end_ns: 133,
             relative_start_ns: 1,
-            thread_id: 259,
+            active_thread_id: 259,
             trace_id: "4705BD13-368A-499A-AA48-439DAFD9CFB0".parse().unwrap(),
         };
         assert!(!metadata.valid());
