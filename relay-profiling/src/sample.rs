@@ -18,7 +18,7 @@ struct Frame {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    line: Option<String>,
+    line: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     file: Option<String>,
 }
@@ -62,7 +62,9 @@ struct Profile {
     samples: Vec<Sample>,
     stacks: Vec<Vec<u32>>,
     frames: Vec<Frame>,
-    thread_metadata: HashMap<String, ThreadMetadata>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    thread_metadata: Option<HashMap<String, ThreadMetadata>>,
 
     // cocoa only
     #[serde(default, skip_serializing_if = "Option::is_none")]
