@@ -3222,6 +3222,7 @@ dependencies = [
  "sentry-types 0.20.1",
  "serde",
  "serde_test",
+ "smallvec 1.8.0",
 ]
 
 [[package]]

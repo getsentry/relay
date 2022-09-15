@@ -22,6 +22,7 @@ relay-log = { path = "../relay-log" }
 schemars = { version = "0.8.1", features = ["uuid", "chrono"], optional = true }
 sentry-types = "0.20.0"
 serde = { version = "1.0.114", features = ["derive"] }
+smallvec = { version = "1.4.0", features = ["serde"] }
 
 [dev-dependencies]
 serde_test = "1.0.125"
