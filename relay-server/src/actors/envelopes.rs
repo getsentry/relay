@@ -1,12 +1,12 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
 
 use actix::prelude::*;
 use actix_web::http::Method;
 use chrono::Utc;
-use futures::compat::Future01CompatExt;
 use futures01::{future, prelude::*, sync::oneshot};
 
 use relay_common::ProjectKey;
@@ -102,28 +102,21 @@ impl UpstreamRequest for SendEnvelope {
     fn respond(
         &mut self,
         result: Result<Response, UpstreamRequestError>,
-    ) -> std::pin::Pin<
-        std::boxed::Box<(dyn futures::Future<Output = std::result::Result<(), ()>> + 'static)>,
-    > {
+    ) -> Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
         let sender = self.response_sender.take();
 
         match result {
-            Ok(response) => {
-                let future = response
-                    .consume()
-                    .map_err(UpstreamRequestError::Http)
-                    .map(|_| ())
-                    .then(move |body_result| {
-                        sender.map(|sender| {
-                            sender
-                                .send(body_result.map_err(SendEnvelopeError::UpstreamRequestFailed))
-                                .ok()
-                        });
-                        Ok(())
-                    });
-
-                Box::pin(future.compat())
-            }
+            Ok(response) => Box::pin(async move {
+                let body_result = match response.consume().await {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(UpstreamRequestError::Http(err)),
+                };
+                sender.map(|sender| {
+                    sender
+                        .send(body_result.map_err(SendEnvelopeError::UpstreamRequestFailed))
+                        .ok()
+                });
+            }),
             Err(error) => {
                 match error {
                     UpstreamRequestError::RateLimited(upstream_limits) => {
@@ -147,7 +140,7 @@ impl UpstreamRequest for SendEnvelope {
                         }
                     }
                 };
-                Box::pin(futures::future::err(()))
+                Box::pin(futures::future::ready(()))
             }
         }
     }

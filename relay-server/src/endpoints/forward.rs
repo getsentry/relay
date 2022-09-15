@@ -14,7 +14,6 @@ use actix_web::http::{HeaderMap, Method};
 use actix_web::{AsyncResponder, Error, HttpMessage, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use failure::Fail;
-use futures::compat::Future01CompatExt;
 use futures01::{prelude::*, sync::oneshot};
 use once_cell::sync::Lazy;
 
@@ -195,7 +194,7 @@ impl UpstreamRequest for ForwardRequest {
     fn respond(
         &mut self,
         result: Result<Response, UpstreamRequestError>,
-    ) -> std::pin::Pin<Box<(dyn futures::Future<Output = Result<(), ()>> + 'static)>> {
+    ) -> std::pin::Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
         let sender = self.sender.take();
 
         match result {
@@ -203,24 +202,21 @@ impl UpstreamRequest for ForwardRequest {
                 let status = StatusCode::from_u16(response.status().as_u16()).unwrap();
                 let headers = response.clone_headers();
 
-                let future = response
-                    .bytes(self.max_response_size)
-                    .and_then(move |body| Ok((status, headers, body)))
-                    .map_err(UpstreamRequestError::Http)
-                    .then(|result| {
-                        if let Some(sender) = sender {
-                            sender.send(result).ok();
-                        }
-                        Ok(())
-                    });
-
-                Box::pin(future.compat())
+                Box::pin(async move {
+                    let result = match response.bytes(self.max_response_size).await {
+                        Ok(body) => Ok((status, headers, body)),
+                        Err(err) => Err(UpstreamRequestError::Http(err)),
+                    };
+                    if let Some(sender) = sender {
+                        sender.send(result).ok();
+                    }
+                })
             }
             Err(e) => {
                 if let Some(sender) = sender {
                     sender.send(Err(e)).ok();
                 }
-                Box::pin(futures::future::err(()))
+                Box::pin(futures::future::ready(()))
             }
         }
     }
