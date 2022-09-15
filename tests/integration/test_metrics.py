@@ -175,6 +175,65 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     }
 
 
+def test_metrics_with_sharded_kafka(
+    get_topic_name,
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    processing_config,
+):
+    options = processing_config(None)
+    default_config = options["processing"]["kafka_config"]
+    config = {
+        "processing": {
+            "secondary_kafka_configs": {"foo": default_config, "baz": default_config},
+            "topics": {
+                "metrics": {
+                    "shards": 3,
+                    "mapping": {
+                        0: {"name": get_topic_name("metrics-1"), "config": "foo",},
+                        2: {"name": get_topic_name("metrics-2"), "config": "baz",},
+                    },
+                }
+            },
+        }
+    }
+    relay = relay_with_processing(options={**TEST_CONFIG, **config})
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["organizationId"] = 5
+    m1 = metrics_consumer(topic="metrics-1")
+    m2 = metrics_consumer(topic="metrics-2")
+
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar@second:17|c"
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    relay.send_metrics(project_id, metrics_payload, timestamp)
+
+    # There must be no messages in the metrics-1, since the shard was not picked up
+    m1.assert_empty()
+
+    metrics2 = metrics_by_name(m2, 2)
+    assert metrics2["c:transactions/foo@none"] == {
+        "org_id": 5,
+        "project_id": project_id,
+        "name": "c:transactions/foo@none",
+        "value": 42.0,
+        "type": "c",
+        "timestamp": timestamp,
+    }
+
+    assert metrics2["c:transactions/bar@second"] == {
+        "org_id": 5,
+        "project_id": project_id,
+        "name": "c:transactions/bar@second",
+        "value": 17.0,
+        "type": "c",
+        "timestamp": timestamp,
+    }
+
+
 def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consumer):
     metrics_consumer = metrics_consumer()
 
