@@ -396,7 +396,6 @@ where
                 queue_envelope(envelope, envelope_context, &buffer_guard)?;
 
                 if !checked.rate_limits.is_limited() {
-                    //
                     return Ok(create_response(event_id));
                 }
             }

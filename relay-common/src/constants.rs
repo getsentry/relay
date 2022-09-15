@@ -93,7 +93,6 @@ impl fmt::Display for EventType {
     }
 }
 
-// Here's the DataCategory
 /// Classifies the type of data that is being ingested.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -116,7 +115,6 @@ pub enum DataCategory {
     /// Session Replays
     Replay = 7,
     /// A transaction that was processed but not stored.
-    // hello TransactionProcessed
     TransactionProcessed = 8,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run

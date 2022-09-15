@@ -387,7 +387,7 @@ fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
 /// - Metrics directly attached to the transaction
 ///   - Built-in metrics sent by the SDK, these allow-listed.
 ///   - Custom metrics from the user, only a limited number of these are extracted.
-/// -
+/// - TODO: more?
 pub fn extract_transaction_metrics(
     config: &TransactionMetricsConfig,
     breakdowns_config: Option<&store::BreakdownsConfig>,
