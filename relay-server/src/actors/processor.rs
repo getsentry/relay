@@ -13,12 +13,11 @@ use failure::Fail;
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
-use serde_json::Value as SerdeValue;
-
 use relay_auth::RelayVersion;
 use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
+use relay_general::pii::PiiConfigError;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -34,6 +33,7 @@ use relay_quotas::{DataCategory, RateLimits, ReasonCode};
 use relay_redis::RedisPool;
 use relay_sampling::RuleId;
 use relay_statsd::metric;
+use serde_json::Value as SerdeValue;
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -113,6 +113,9 @@ pub enum ProcessingError {
 
     #[fail(display = "event dropped by sampling rule {}", _0)]
     Sampled(RuleId),
+
+    #[fail(display = "invalid pii config")]
+    PiiConfigError(PiiConfigError),
 }
 
 impl ProcessingError {
@@ -139,7 +142,7 @@ impl ProcessingError {
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
 
             // Internal errors
-            Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {
+            Self::SerializeFailed(_) | Self::ProcessingFailed(_) | Self::PiiConfigError(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
             #[cfg(feature = "processing")]
@@ -1642,7 +1645,10 @@ impl EnvelopeProcessor {
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
-            let pii_config = config.datascrubbing_settings.pii_config()?;
+            let pii_config = config
+                .datascrubbing_settings
+                .pii_config()
+                .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
             if let Some(config) = pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())

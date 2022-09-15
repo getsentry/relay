@@ -7,6 +7,8 @@ use crate::pii::{
 };
 use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
 
+use crate::pii::config::PiiConfigError;
+
 // XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
 // compatibility with Python.
 static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
@@ -25,7 +27,9 @@ static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
         .unwrap()
 });
 
-pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Result<Option<PiiConfig>, ()> {
+pub fn to_pii_config(
+    datascrubbing_config: &DataScrubbingConfig,
+) -> Result<Option<PiiConfig>, PiiConfigError> {
     let mut custom_rules = BTreeMap::new();
     let mut applied_rules = Vec::new();
     let mut applications = BTreeMap::new();
@@ -69,7 +73,7 @@ pub fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Result<Optio
                 "strip-fields".to_owned(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
-                        key_pattern: Pattern::new(&key_pattern, true).map_err(|_| ())?,
+                        key_pattern: Pattern::new(&key_pattern, true)?,
                     }),
                     redaction: Redaction::Replace("[Filtered]".to_owned().into()),
                 },

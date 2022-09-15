@@ -16,8 +16,8 @@ mod utils;
 pub use self::attachments::{PiiAttachmentsProcessor, ScrubEncodings};
 pub use self::compiledconfig::CompiledPiiConfig;
 pub use self::config::{
-    AliasRule, MultipleRule, Pattern, PatternRule, PiiConfig, RedactPairRule, RuleSpec, RuleType,
-    Vars,
+    AliasRule, MultipleRule, Pattern, PatternRule, PiiConfig, PiiConfigError, RedactPairRule,
+    RuleSpec, RuleType, Vars,
 };
 pub use self::generate_selectors::selector_suggestions_from_value;
 pub use self::legacy::DataScrubbingConfig;

@@ -8,17 +8,25 @@ use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::SelectorSpec;
+use failure::Fail;
+
+#[derive(Clone, Debug, Fail)]
+pub enum PiiConfigError {
+    #[fail(display = "could not parse regex")]
+    RegexError(#[cause] regex::Error),
+}
 
 /// A regex pattern for text replacement.
 #[derive(Clone)]
 pub struct Pattern(Regex);
 
 impl Pattern {
-    pub fn new(s: &str, case_insensitive: bool) -> Result<Self, regex::Error> {
+    pub fn new(s: &str, case_insensitive: bool) -> Result<Self, PiiConfigError> {
         let regex = RegexBuilder::new(s)
             .size_limit(262_144)
             .case_insensitive(case_insensitive)
-            .build()?;
+            .build()
+            .map_err(PiiConfigError::RegexError)?;
 
         Ok(Self(regex))
     }
