@@ -2,13 +2,11 @@
 //! The service uses kafka topics to forward data to Sentry
 
 use std::collections::BTreeMap;
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
-use fnv::FnvHasher;
 use once_cell::sync::OnceCell;
 use rdkafka::{error::KafkaError, producer::BaseRecord, ClientConfig};
 use rmp_serde::encode::Error as RmpError;
@@ -42,6 +40,8 @@ pub enum StoreError {
     InvalidMsgPack(#[cause] RmpError),
     #[fail(display = "failed to serialize json message")]
     InvalidJson(#[cause] serde_json::Error),
+    #[fail(display = "failed to find the shard range")]
+    InvalidKafkaShardRange,
     #[fail(display = "failed to store event because event id was missing")]
     NoEventId,
 }
@@ -143,23 +143,19 @@ pub struct ShardedProducer {
 
 impl ShardedProducer {
     /// Returns topic name and the Kafka producer based on the provided sharding key.
-    pub fn get_producer(&self, sharding_key: impl Hash) -> (&str, &ThreadedProducer) {
-        let mut hasher = FnvHasher::default();
-        Hash::hash(&sharding_key, &mut hasher);
-        let hashed = hasher.finish();
-        let shard = hashed % self.shards;
-
-        // Safety:
-        // We always have at least 1 shard so it's safe to unwrap this value.
+    /// Returns error [`StoreError::InvalidKafkaShardRange`] if the shard range for the provided sharding
+    /// key could not be found.
+    pub fn get_producer(&self, sharding_key: u64) -> Result<(&str, &ThreadedProducer), StoreError> {
+        let shard = sharding_key % self.shards;
         let (topic_name, producer) = self
             .producers
             .iter()
             .take_while(|(k, _)| *k <= &shard)
             .last()
             .map(|(_, v)| v)
-            .expect("At least one shard is defined");
+            .ok_or(StoreError::InvalidKafkaShardRange)?;
 
-        (topic_name, producer)
+        Ok((topic_name, producer))
     }
 }
 
@@ -178,7 +174,7 @@ impl Producer {
                 producer,
             } => (topic_name.as_str(), producer.as_ref()),
 
-            Self::Sharded(sharded) => sharded.get_producer(organization_id),
+            Self::Sharded(sharded) => sharded.get_producer(organization_id)?,
         };
         let record = BaseRecord::to(topic_name).key(&key).payload(&serialized);
 
