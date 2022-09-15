@@ -35,7 +35,6 @@ chrono = { version = "0.4.11", features = ["serde"] }
 clap = "2.33.1"
 failure = "0.1.8"
 flate2 = "1.0.19"
-fnv = "1.0.7"
 fragile = { version = "1.2.1", features = ["slab"] } # used for vendoring sentry-actix
 futures = { version = "0.3", package = "futures", features = ["compat"] }
 futures01 = { version = "0.1.28", package = "futures" }
