@@ -23,9 +23,17 @@ pub struct TransactionMetadata {
     pub relative_end_ns: u64,
 
     // Android might have a CPU clock for the trace
-    #[serde(default, deserialize_with = "deserialize_number_from_string")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_number_from_string",
+        skip_serializing_if = "is_zero"
+    )]
     pub relative_cpu_start_ms: u64,
-    #[serde(default, deserialize_with = "deserialize_number_from_string")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_number_from_string",
+        skip_serializing_if = "is_zero"
+    )]
     pub relative_cpu_end_ms: u64,
 }
 

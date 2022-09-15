@@ -958,6 +958,7 @@ impl EnvelopeProcessor {
             match relay_profiling::expand_profile(&item.payload()[..]) {
                 Ok(payloads) => new_profiles.extend(payloads),
                 Err(err) => {
+                    relay_log::debug!("invalid profile: {:#?}", err);
                     context.track_outcome(
                         outcome_from_profile_error(err),
                         DataCategory::Profile,

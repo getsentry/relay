@@ -316,7 +316,7 @@ mod tests {
                 samples: Vec::new(),
                 stacks: Vec::new(),
                 frames: Vec::new(),
-                thread_metadata: HashMap::new(),
+                thread_metadata: Some(HashMap::new()),
             },
             transactions: Vec::new(),
             release: "1.0 (9999)".to_string(),
