@@ -49,9 +49,7 @@ use tokio::sync::{mpsc, Semaphore, SemaphorePermit};
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::statsd::{RelayHistograms, RelayTimers};
-use crate::utils::{
-    self, ApiErrorResponse, IntoTracked, RelayErrorAction, SleepHandle, TrackedFutureFinished,
-};
+use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -332,7 +330,7 @@ fn handle_response(
     let status = response.status();
 
     if !intercept_status_errors || status.is_success() {
-        return Box::new(future::ok(response).compat()); // TODO(tobias): Not a fan of this but it works?
+        return Box::new(futures::future::ok(response));
     }
 
     let upstream_limits = if status == StatusCode::TOO_MANY_REQUESTS {
@@ -358,19 +356,16 @@ fn handle_response(
     // At this point, we consume the Response. This means we need to consume the response
     // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
     // non-fatal failure as the upstream is not expected to always include a valid JSON response.
-    let future = response
-        .json(max_response_size)
-        .then(move |json_result: Result<_, HttpError>| {
-            if let Some(upstream_limits) = upstream_limits {
-                Err(UpstreamRequestError::RateLimited(upstream_limits))
-            } else {
-                // Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
-                let api_response = json_result.unwrap_or_default();
-                Err(UpstreamRequestError::ResponseError(status, api_response))
-            }
-        });
-
-    Box::new(future.compat()) // TODO(tobias): Not a fan of this but it works?
+    Box::new(async move {
+        let json_result = response.json(max_response_size).await;
+        if let Some(upstream_limits) = upstream_limits {
+            Err(UpstreamRequestError::RateLimited(upstream_limits))
+        } else {
+            // Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
+            let api_response = json_result.unwrap_or_default();
+            Err(UpstreamRequestError::ResponseError(status, api_response))
+        }
+    })
 }
 
 // All the private and public messages that the UpstreamRelay can handle
@@ -730,6 +725,7 @@ impl UpstreamRelayService {
     /// 3. If the request can be retried, schedule a retry.
     /// 4. Otherwise, ensure an authentication request is scheduled.
     fn handle_http_response(
+        // TODO: Might be able to get away with this not needing self which would be nice
         &mut self,
         send_start: Instant,
         mut request: EnqueuedRequest,
@@ -746,7 +742,7 @@ impl UpstreamRelayService {
         } else {
             // we managed a request without a network error, reset the first time we got a network
             // error and resume sending events.
-            self.reset_network_error();
+            self.reset_network_error(); // TODO: check if even still wan this
         }
 
         tokio::spawn(async move {
@@ -798,14 +794,14 @@ impl UpstreamRelayService {
     fn enqueue_query<Q: 'static + UpstreamQuery>(
         &mut self,
         query: Q,
-    ) -> ResponseFuture<Q::Response, UpstreamRequestError> {
+    ) -> Pin<Box<dyn futures::Future<Output = Result<Q::Response, UpstreamRequestError>>>> {
         let credentials = tryf!(self
             .config
             .credentials()
             .ok_or(UpstreamRequestError::NoCredentials));
 
         let (json, signature) = credentials.secret_key.pack(&query);
-        let (tx, rx) = oneshot::channel();
+        let (tx, rx) = oneshot::channel(); // Do we want to go down this rabbit hole?
 
         let request = EnqueuedRequest::new(UpstreamQueryRequest {
             query,
@@ -816,11 +812,11 @@ impl UpstreamRelayService {
         });
 
         self.enqueue(request, EnqueuePosition::Front);
-        let future = rx // TODO(tobias): Don't like that this is an old oneshoot channel
+        let future = rx // The future comes from an old one shoot channel so we should be able to fix it from the ground up
             .map_err(|_| UpstreamRequestError::ChannelClosed)
             .flatten();
 
-        Box::new(future)
+        Box::pin(future.compat()) // TODO(tobias): Don't like it but it works for now
     }
 
     fn handle_message(&mut self, message: UpstreamRelay) {
@@ -1277,20 +1273,13 @@ impl UpstreamRequest for GetHealthCheck {
     fn respond(
         &mut self,
         result: Result<Response, UpstreamRequestError>,
-    ) -> std::pin::Pin<std::boxed::Box<(dyn futures::Future<Output = Result<(), ()>> + 'static)>>
-    {
-        let future: Box<dyn futures::Future<Output = Result<_, _>>> = match result {
-            Ok(response) => Box::new(
-                response
-                    .consume()
-                    .map_err(UpstreamRequestError::Http)
-                    .compat(),
-            ),
-            Err(err) => Box::new(futures::future::err(err)),
-        };
+    ) -> Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
+        Box::pin(async move {
+            let result = match result {
+                Ok(response) => response.consume().await.map_err(UpstreamRequestError::Http),
+                Err(err) => Err(err),
+            };
 
-        // No idea as to why this is still complaining
-        Box::pin(future.then(|result| {
             if matches!(result, Err(err) if err.is_network_error()) {
                 // still network error, schedule another attempt
                 self.0.send(false);
@@ -1298,28 +1287,27 @@ impl UpstreamRequest for GetHealthCheck {
                 // resume normal messages
                 self.0.send(true);
             }
-
-            Ok(())
-        }))
+        })
     }
 }
 
 pub trait ResponseTransformer: 'static {
-    type Result: 'static + IntoFuture;
+    // TODO(tobias): So do we just remove it or go for the nightly option
+    type Result: 'static + IntoFuture; // So the new futures don't have this trait and the Std has it as a nightly: https://doc.rust-lang.org/std/future/trait.IntoFuture.html
 
     fn transform_response(self, _: Response) -> Self::Result;
 }
 
 impl ResponseTransformer for () {
-    type Result = ResponseFuture<(), UpstreamRequestError>;
+    type Result = Pin<Box<dyn futures::Future<Output = Result<(), UpstreamRequestError>>>>; //ResponseFuture<(), UpstreamRequestError>; // Fix this down the road
 
     fn transform_response(self, response: Response) -> Self::Result {
-        Box::new(
-            response
-                .consume()
-                .map(|_| ())
-                .map_err(UpstreamRequestError::Http),
-        )
+        Box::pin(async move {
+            match response.consume().await {
+                Ok(_) => Ok(()),
+                Err(err) => Err(UpstreamRequestError::Http(err)),
+            }
+        })
     }
 }
 
@@ -1375,7 +1363,7 @@ pub trait UpstreamRequest: Send {
     fn respond(
         &mut self,
         result: Result<Response, UpstreamRequestError>,
-    ) -> Pin<Box<dyn futures::Future<Output = Result<(), ()>>>>;
+    ) -> Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>;
 }
 
 // This works because UpstreamRequest doesn't have any associated types
@@ -1508,32 +1496,24 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
     fn respond(
         &mut self,
         result: Result<Response, UpstreamRequestError>,
-    ) -> std::pin::Pin<
-        std::boxed::Box<(dyn futures::Future<Output = std::result::Result<(), ()>> + 'static)>,
-    > {
+    ) -> Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
         let sender = self.sender.take();
-
-        match result {
-            Ok(response) => {
-                let future = response
-                    .json(self.max_response_size)
-                    .map_err(UpstreamRequestError::Http)
-                    .then(|result| {
-                        if let Some(sender) = sender {
-                            sender.send(result).ok();
-                        }
-                        Ok(())
-                    });
-
-                Box::pin(future.compat()) // TODO(tobias): Not a fan of this but I guess if it works it works?
-            }
-            Err(error) => {
-                if let Some(sender) = sender {
-                    sender.send(Err(error)).ok();
+        let limit = self.max_response_size;
+        Box::pin(async move {
+            match result {
+                Ok(response) => {
+                    let result = response.json(limit).await;
+                    if let Some(sender) = sender {
+                        sender.send(result.map_err(UpstreamRequestError::Http)).ok();
+                    }
                 }
-                Box::pin(futures::future::err(()))
+                Err(error) => {
+                    if let Some(sender) = sender {
+                        sender.send(Err(error)).ok();
+                    }
+                }
             }
-        }
+        })
     }
 }
 

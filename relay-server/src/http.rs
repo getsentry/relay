@@ -11,8 +11,7 @@
 use std::io;
 
 use failure::Fail;
-use futures::{FutureExt, TryFutureExt, TryStreamExt};
-use futures01::prelude::*;
+use futures::TryStreamExt;
 use serde::de::DeserializeOwned;
 
 use relay_config::HttpEncoding;
@@ -118,17 +117,12 @@ impl Response {
         self.0.status()
     }
 
-    pub fn json<T: 'static + DeserializeOwned>(
-        self,
-        limit: usize,
-    ) -> Box<dyn Future<Item = T, Error = HttpError>> {
-        let future = self
-            .bytes(limit)
-            .and_then(|bytes| serde_json::from_slice(&bytes).map_err(HttpError::Json));
-        Box::new(future)
+    pub async fn json<T: 'static + DeserializeOwned>(self, limit: usize) -> Result<T, HttpError> {
+        let bytes = self.bytes(limit).await?;
+        serde_json::from_slice(&bytes).map_err(HttpError::Json)
     }
 
-    pub fn consume(mut self) -> Box<dyn Future<Item = Self, Error = HttpError>> {
+    pub async fn consume(mut self) -> Result<Self, HttpError> {
         // Consume the request payload such that the underlying connection returns to a
         // "clean state".
         //
@@ -137,16 +131,12 @@ impl Response {
         // but no testcase has been written for this and we are unsure on how to reproduce
         // outside of prod. I (markus) have not found code in reqwest that would explicitly
         // deal with this.
-        Box::new(
-            // Note: The reqwest codepath is impossible to write with streams due to
-            // borrowing issues. You *have* to use `chunk()`.
-            async move {
-                while self.0.chunk().await?.is_some() {}
-                Ok(self)
-            }
-            .boxed_local()
-            .compat(),
-        )
+
+        // Note: The reqwest codepath is impossible to write with streams due to
+        // borrowing issues. You *have* to use `chunk()`.
+
+        while self.0.chunk().await?.is_some() {}
+        Ok(self)
     }
 
     pub fn get_header(&self, key: impl AsRef<str>) -> Option<&[u8]> {
@@ -170,12 +160,28 @@ impl Response {
             .collect()
     }
 
-    pub fn bytes(self, limit: usize) -> Box<dyn Future<Item = Vec<u8>, Error = HttpError>> {
+    // TODO(tobias): Check if this conversion makes sense or if I missed something
+    // Box<dyn Future<Item = Vec<u8>, Error = HttpError>>
+    pub async fn bytes(self, limit: usize) -> Result<Vec<u8>, HttpError> {
+        let mut stream = self.0.bytes_stream().map_err(HttpError::Reqwest); // Not sure if we still need the map_err
+        let mut body = Vec::with_capacity(8192);
+
+        while let Some(chunk) = stream.try_next().await? {
+            if (body.len() + chunk.len()) > limit {
+                return Err(HttpError::Overflow);
+            } else {
+                body.extend_from_slice(&chunk);
+                return Ok(body); // Not sure if we want to return here?
+            }
+        }
+        Ok(body)
+        /*
         Box::new(
             self.0
                 .bytes_stream()
                 .map_err(HttpError::Reqwest)
                 .try_fold(
+                    // While stream does things while let some magic
                     Vec::with_capacity(8192),
                     move |mut body, chunk| async move {
                         if (body.len() + chunk.len()) > limit {
@@ -189,5 +195,6 @@ impl Response {
                 .boxed_local()
                 .compat(),
         )
+        */
     }
 }
