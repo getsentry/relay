@@ -251,7 +251,7 @@ impl EnvelopeManager {
         if let HttpEncoding::Identity = request.http_encoding {
             UpstreamRelay::from_registry().do_send(SendRequest(request));
         } else {
-            EnvelopeProcessor::from_registry().do_send(EncodeEnvelope::new(request));
+            EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
         }
 
         Box::new(

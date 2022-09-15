@@ -487,6 +487,9 @@ pub enum OutcomeError {
     #[fail(display = "failed to send kafka message")]
     #[cfg(feature = "processing")]
     SendFailed(rdkafka::error::KafkaError),
+    #[fail(display = "failed to get Kafka producer")]
+    #[cfg(feature = "processing")]
+    InvalidKafkaProducer(#[cause] store::StoreError),
     #[fail(display = "json serialization error")]
     #[cfg(feature = "processing")]
     SerializationError(serde_json::Error),
@@ -835,7 +838,9 @@ impl OutcomeProducerService {
             }
 
             Producer::Sharded(sharded) => {
-                let (topic_name, producer) = sharded.get_producer(organization_id);
+                let (topic_name, producer) = sharded
+                    .get_producer(organization_id)
+                    .map_err(OutcomeError::InvalidKafkaProducer)?;
                 let record = BaseRecord::to(topic_name)
                     .payload(&payload)
                     .key(key.as_bytes().as_ref());
