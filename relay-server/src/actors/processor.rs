@@ -17,7 +17,6 @@ use relay_auth::RelayVersion;
 use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
-use relay_general::pii::PiiConfigError;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -113,9 +112,6 @@ pub enum ProcessingError {
 
     #[fail(display = "event dropped by sampling rule {}", _0)]
     Sampled(RuleId),
-
-    #[fail(display = "invalid pii config")]
-    PiiConfigError(PiiConfigError),
 }
 
 impl ProcessingError {
@@ -142,7 +138,7 @@ impl ProcessingError {
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
 
             // Internal errors
-            Self::SerializeFailed(_) | Self::ProcessingFailed(_) | Self::PiiConfigError(_) => {
+            Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
             #[cfg(feature = "processing")]
@@ -1741,10 +1737,7 @@ impl EnvelopeProcessor {
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
-            let pii_config = config
-                .datascrubbing_settings
-                .pii_config()
-                .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+            let pii_config = &config.datascrubbing_settings.pii_config;
             if let Some(config) = pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
@@ -2238,8 +2231,10 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryInto;
+
     use chrono::{DateTime, TimeZone, Utc};
-    use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+    use relay_general::pii::{DataScrubbingConfigRepr, PiiConfig};
 
     use crate::{actors::project::ProjectConfig, extractors::RequestMeta};
 
@@ -2462,7 +2457,7 @@ mod tests {
         });
 
         let new_envelope = relay_test::with_system(move || {
-            let mut datascrubbing_settings = DataScrubbingConfig::default();
+            let mut datascrubbing_settings = DataScrubbingConfigRepr::default();
             // enable all the default scrubbing
             datascrubbing_settings.scrub_data = true;
             datascrubbing_settings.scrub_defaults = true;
@@ -2481,7 +2476,7 @@ mod tests {
             .unwrap();
 
             let config = ProjectConfig {
-                datascrubbing_settings,
+                datascrubbing_settings: datascrubbing_settings.try_into().unwrap(),
                 pii_config: Some(pii_config),
                 ..Default::default()
             };

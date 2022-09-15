@@ -20,7 +20,7 @@ pub use self::config::{
     RuleSpec, RuleType, Vars,
 };
 pub use self::generate_selectors::selector_suggestions_from_value;
-pub use self::legacy::DataScrubbingConfig;
+pub use self::legacy::{DataScrubbingConfig, DataScrubbingConfigRepr};
 pub use self::minidumps::ScrubMinidumpError;
 pub use self::processor::PiiProcessor;
 pub use self::redactions::{Redaction, ReplaceRedaction};

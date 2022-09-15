@@ -3,8 +3,9 @@
 //! All these configuration options are ignored by the new data scrubbers which operate
 //! solely from the [PiiConfig] rules for the project.
 
-use once_cell::sync::OnceCell;
-use serde::{Deserialize, Serialize};
+use std::convert::{TryFrom, TryInto};
+
+use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::{convert, PiiConfig};
 
@@ -19,7 +20,7 @@ fn is_flag_default(flag: &bool) -> bool {
 /// Configuration for Sentry's datascrubbing
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub struct DataScrubbingConfig {
+pub struct DataScrubbingConfigRepr {
     /// List with the fields to be excluded.
     pub exclude_fields: Vec<String>,
     /// Toggles all data scrubbing on or off.
@@ -33,45 +34,70 @@ pub struct DataScrubbingConfig {
     /// Controls whether default fields will be scrubbed.
     #[serde(skip_serializing_if = "is_flag_default")]
     pub scrub_defaults: bool,
+}
 
+#[derive(Clone, Debug, Default)]
+pub struct DataScrubbingConfig {
+    /// The original datascrubbing settings as received from Sentry.
+    repr: DataScrubbingConfigRepr,
     /// PII config derived from datascrubbing settings.
     ///
     /// Cached because the conversion process is expensive.
-    #[serde(skip)]
-    pub(super) pii_config: OnceCell<Result<Option<PiiConfig>, PiiConfigError>>,
+    pub pii_config: Option<PiiConfig>,
 }
 
 impl DataScrubbingConfig {
-    /// Creates a new data scrubbing configuration that does nothing on the event.
-    pub fn new_disabled() -> Self {
-        DataScrubbingConfig {
-            exclude_fields: vec![],
-            scrub_data: false,
-            scrub_ip_addresses: false,
-            sensitive_fields: vec![],
-            scrub_defaults: false,
-            pii_config: OnceCell::with_value(Ok(None)),
-        }
-    }
-
     /// Returns true if datascrubbing is disabled.
     pub fn is_disabled(&self) -> bool {
-        !self.scrub_data && !self.scrub_ip_addresses
+        !self.repr.scrub_data && !self.repr.scrub_ip_addresses
     }
+}
 
-    /// Get the PII config derived from datascrubbing settings.
-    ///
-    /// This can be computationally expensive when called for the first time. The result is cached
-    /// internally and reused on the second call.
-    pub fn pii_config(&self) -> Result<&'_ Option<PiiConfig>, &PiiConfigError> {
-        self.pii_config
-            .get_or_init(|| self.pii_config_uncached())
-            .as_ref()
+impl TryFrom<DataScrubbingConfigRepr> for DataScrubbingConfig {
+    type Error = PiiConfigError;
+
+    fn try_from(repr: DataScrubbingConfigRepr) -> Result<Self, Self::Error> {
+        let pii_config = convert::to_pii_config(&repr)?;
+        Ok(Self { repr, pii_config })
     }
+}
 
-    /// Like [`pii_config`](Self::pii_config) but without internal caching.
-    #[inline]
-    pub fn pii_config_uncached(&self) -> Result<Option<PiiConfig>, PiiConfigError> {
-        convert::to_pii_config(self)
+impl<'de> Deserialize<'de> for DataScrubbingConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let repr = DataScrubbingConfigRepr::deserialize(deserializer)?;
+        repr.try_into().map_err(Error::custom)
+    }
+}
+
+impl Serialize for DataScrubbingConfig {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.repr.serialize(serializer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_json_snapshot;
+
+    use super::DataScrubbingConfig;
+
+    #[test]
+    fn test_datascrubbing_config_roundtrip() {
+        let json = r#"{
+            "excludeFields": ["a","b"],
+            "scrubData": true,
+            "scrubIpAddresses": false,
+            "sensitiveFields": ["c", "d"],
+            "scrubDefaults": true
+        }"#;
+        let config: DataScrubbingConfig = serde_json::from_str(json).unwrap();
+        let reserialized = serde_json::to_string(&config).unwrap();
+        assert_json_snapshot!(reserialized, @r###""{\"excludeFields\":[\"a\",\"b\"],\"scrubData\":true,\"sensitiveFields\":[\"c\",\"d\"],\"scrubDefaults\":true}""###);
     }
 }

@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use once_cell::sync::Lazy;
 
 use crate::pii::{
-    DataScrubbingConfig, Pattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction, RuleSpec,
-    RuleType, Vars,
+    legacy::DataScrubbingConfigRepr, Pattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction,
+    RuleSpec, RuleType, Vars,
 };
 use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
 
@@ -27,7 +27,7 @@ static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
 });
 
 pub fn to_pii_config(
-    datascrubbing_config: &DataScrubbingConfig,
+    datascrubbing_config: &DataScrubbingConfigRepr,
 ) -> Result<Option<PiiConfig>, PiiConfigError> {
     let mut custom_rules = BTreeMap::new();
     let mut applied_rules = Vec::new();
@@ -127,7 +127,7 @@ mod tests {
 
     /// These tests are ported from Sentry's Python testsuite (test_data_scrubber). Each testcase
     /// has an equivalent testcase in Python.
-    use crate::pii::{DataScrubbingConfig, PiiConfig, PiiProcessor};
+    use crate::pii::{legacy::DataScrubbingConfigRepr, PiiConfig, PiiProcessor};
     use crate::processor::{process_value, ProcessingState};
     use crate::protocol::Event;
     use crate::store::{StoreConfig, StoreProcessor};
@@ -136,7 +136,7 @@ mod tests {
 
     use super::to_pii_config as to_pii_config_impl;
 
-    fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
+    fn to_pii_config(datascrubbing_config: &DataScrubbingConfigRepr) -> Option<PiiConfig> {
         let rv = to_pii_config_impl(datascrubbing_config).unwrap();
         if let Some(ref config) = rv {
             let roundtrip: PiiConfig =
@@ -187,8 +187,8 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         to_pii_config(&simple_enabled_config()).unwrap()
     }
 
-    fn simple_enabled_config() -> DataScrubbingConfig {
-        DataScrubbingConfig {
+    fn simple_enabled_config() -> DataScrubbingConfigRepr {
+        DataScrubbingConfigRepr {
             scrub_data: true,
             scrub_ip_addresses: true,
             scrub_defaults: true,
@@ -198,7 +198,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_datascrubbing_default() {
-        insta::assert_json_snapshot!(to_pii_config(&DataScrubbingConfig::default()), @"null");
+        insta::assert_json_snapshot!(to_pii_config(&DataScrubbingConfigRepr::default()), @"null");
     }
 
     #[test]
@@ -223,7 +223,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_empty_sensitive_field() {
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["".to_owned(), " ".to_owned()],
             ..simple_enabled_config()
         });
@@ -248,7 +248,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_sensitive_fields() {
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["fieldy_field".to_owned(), "moar_other_field".to_owned()],
             ..simple_enabled_config()
         });
@@ -283,7 +283,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_sensitive_fields_too_large() {
-        let result = to_pii_config_impl(&DataScrubbingConfig {
+        let result = to_pii_config_impl(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["1"]
                 .repeat(4085) // lowest number that will fail
                 .into_iter()
@@ -296,7 +296,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_exclude_field() {
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             exclude_fields: vec!["foobar".to_owned()],
             ..simple_enabled_config()
         });
@@ -321,7 +321,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_scrub_ip_only() {
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             scrub_data: false,
             scrub_ip_addresses: true,
             scrub_defaults: false,
@@ -452,7 +452,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let scrubbing_config = DataScrubbingConfig {
+        let scrubbing_config = DataScrubbingConfigRepr {
             scrub_data: false,
             scrub_ip_addresses: true,
             scrub_defaults: false,
@@ -609,7 +609,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
         let mut data = Event::from_value(serde_json::json!({ "extra": extra }).into());
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["fieldy_field".to_owned(), "moar_other_field".to_owned()],
             ..simple_enabled_config()
         });
@@ -997,7 +997,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["mystuff".to_owned()],
             ..simple_enabled_config()
         });
@@ -1017,7 +1017,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["myStuff".to_owned()],
             ..simple_enabled_config()
         });
@@ -1037,7 +1037,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             exclude_fields: vec!["foobar".to_owned()],
             ..simple_enabled_config()
         });
@@ -1064,7 +1064,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["".to_owned(), " ".to_owned()],
             exclude_fields: vec!["".to_owned(), " ".to_owned()],
             ..simple_enabled_config()
@@ -1094,7 +1094,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 .into(),
             );
 
-            let pii_config = to_pii_config(&DataScrubbingConfig {
+            let pii_config = to_pii_config(&DataScrubbingConfigRepr {
                 sensitive_fields: vec!["".to_owned()],
                 ..simple_enabled_config()
             });
@@ -1129,7 +1129,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["".to_owned()],
             ..simple_enabled_config()
         });
@@ -1161,7 +1161,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["".to_owned()],
             ..simple_enabled_config()
         });
@@ -1202,7 +1202,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["session_key".to_owned()],
             ..simple_enabled_config()
         });
@@ -1251,7 +1251,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["formatted".to_owned()],
             ..simple_enabled_config()
         });
@@ -1279,7 +1279,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["debug_file".to_owned(), "code_file".to_owned()],
             ..simple_enabled_config()
         });
@@ -1306,7 +1306,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["filename".to_owned(), "abs_path".to_owned()],
             ..simple_enabled_config()
         });
@@ -1329,7 +1329,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             .into(),
         );
 
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec!["special ,./<>?!@#$%^&*())'gärbage'".to_owned()],
             exclude_fields: vec![
                 "do not ,./<>?!@#$%^&*())'ßtrip'".to_owned(),
@@ -1346,7 +1346,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_regression_more_odd_keys() {
-        let pii_config = to_pii_config(&DataScrubbingConfig {
+        let pii_config = to_pii_config(&DataScrubbingConfigRepr {
             sensitive_fields: vec![],
             exclude_fields: vec![
                 "url".to_owned(),

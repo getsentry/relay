@@ -1,8 +1,10 @@
+use std::convert::TryFrom;
 use std::fmt;
 use std::fs;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
+use relay_general::pii::DataScrubbingConfigRepr;
 use relay_general::pii::{DataScrubbingConfig, PiiProcessor};
 use relay_general::processor::{process_value, SelectorSpec};
 use relay_general::protocol::{Event, IpAddr};
@@ -114,18 +116,19 @@ fn bench_store_processor(c: &mut Criterion) {
     group.finish();
 }
 
-fn datascrubbing_config() -> DataScrubbingConfig {
-    let mut config = DataScrubbingConfig::new_disabled();
-    config.exclude_fields = vec!["safe1".to_owned(), "safe2".to_owned(), "safe3".to_owned()];
-    config.sensitive_fields = vec![
-        "sensitive1".to_owned(),
-        "sensitive2".to_owned(),
-        "sensitive3".to_owned(),
-    ];
-    config.scrub_defaults = true;
-    config.scrub_data = true;
-    config.scrub_ip_addresses = true;
-    config
+fn datascrubbing_config() -> DataScrubbingConfigRepr {
+    DataScrubbingConfigRepr {
+        exclude_fields: vec!["safe1".to_owned(), "safe2".to_owned(), "safe3".to_owned()],
+        sensitive_fields: vec![
+            "sensitive1".to_owned(),
+            "sensitive2".to_owned(),
+            "sensitive3".to_owned(),
+        ],
+        scrub_defaults: true,
+        scrub_data: true,
+        scrub_ip_addresses: true,
+        ..Default::default()
+    }
 }
 
 fn bench_pii_stripping(c: &mut Criterion) {
@@ -137,10 +140,15 @@ fn bench_pii_stripping(c: &mut Criterion) {
     group.bench_with_input(
         BenchmarkId::new("convert_config", config_name),
         &datascrubbing_config,
-        |b, datascrubbing_config| b.iter(|| datascrubbing_config.pii_config_uncached()),
+        |b, datascrubbing_config| {
+            b.iter(|| DataScrubbingConfig::try_from(datascrubbing_config.clone()))
+        },
     );
 
-    let pii_config = datascrubbing_config.pii_config_uncached().unwrap().unwrap();
+    let pii_config = DataScrubbingConfig::try_from(datascrubbing_config)
+        .unwrap()
+        .pii_config
+        .unwrap();
 
     group.bench_with_input(
         BenchmarkId::new("compile_pii_config", config_name),
