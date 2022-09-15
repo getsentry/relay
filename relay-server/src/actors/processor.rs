@@ -1013,27 +1013,24 @@ impl EnvelopeProcessorService {
 
     /// Remove profiles if the feature flag is not enabled
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+        let envelope = &mut state.envelope;
+
+        envelope.retain_items(|item| match item.ty() {
+            ItemType::Profile => profiling_enabled,
+            _ => true,
+        });
+
         if !self.config.processing_enabled() {
             return;
         }
 
-        let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-        let envelope = &mut state.envelope;
         let context = &state.envelope_context;
+        let mut new_profiles = Vec::new();
 
-        if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
-            if !profiling_enabled {
-                return;
-            }
-
+        while let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
             match relay_profiling::expand_profile(&item.payload()[..]) {
-                Ok(payloads) => {
-                    for payload in payloads.iter() {
-                        let mut item = Item::new(ItemType::Profile);
-                        item.set_payload(ContentType::Json, &payload[..]);
-                        envelope.add_item(item);
-                    }
-                }
+                Ok(payloads) => new_profiles.extend(payloads),
                 Err(err) => {
                     context.track_outcome(
                         outcome_from_profile_error(err),
@@ -1042,6 +1039,12 @@ impl EnvelopeProcessorService {
                     );
                 }
             }
+        }
+
+        for payload in new_profiles {
+            let mut item = Item::new(ItemType::Profile);
+            item.set_payload(ContentType::Json, &payload[..]);
+            envelope.add_item(item);
         }
     }
 
