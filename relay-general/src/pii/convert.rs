@@ -3,11 +3,10 @@ use std::collections::BTreeMap;
 use once_cell::sync::Lazy;
 
 use crate::pii::{
-    DataScrubbingConfig, Pattern, PiiConfig, RedactPairRule, Redaction, RuleSpec, RuleType, Vars,
+    DataScrubbingConfig, Pattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction, RuleSpec,
+    RuleType, Vars,
 };
 use crate::processor::{SelectorPathItem, SelectorSpec, ValueType};
-
-use crate::pii::config::PiiConfigError;
 
 // XXX: Move to @ip rule for better IP address scrubbing. Right now we just try to keep
 // compatibility with Python.
@@ -73,7 +72,7 @@ pub fn to_pii_config(
                 "strip-fields".to_owned(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
-                        key_pattern: Pattern::new(&key_pattern, true)?,
+                        key_pattern: Pattern::parse(&key_pattern, true)?,
                     }),
                     redaction: Redaction::Replace("[Filtered]".to_owned().into()),
                 },

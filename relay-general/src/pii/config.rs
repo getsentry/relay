@@ -2,13 +2,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::Deref;
 
+use failure::Fail;
 use once_cell::sync::OnceCell;
 use regex::{Regex, RegexBuilder};
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::SelectorSpec;
-use failure::Fail;
+
+const COMPILED_PATTERN_MAX_SIZE: usize = 262_144;
 
 #[derive(Clone, Debug, Fail)]
 pub enum PiiConfigError {
@@ -21,9 +23,9 @@ pub enum PiiConfigError {
 pub struct Pattern(Regex);
 
 impl Pattern {
-    pub fn new(s: &str, case_insensitive: bool) -> Result<Self, PiiConfigError> {
+    pub fn parse(s: &str, case_insensitive: bool) -> Result<Self, PiiConfigError> {
         let regex = RegexBuilder::new(s)
-            .size_limit(262_144)
+            .size_limit(COMPILED_PATTERN_MAX_SIZE)
             .case_insensitive(case_insensitive)
             .build()
             .map_err(PiiConfigError::RegexError)?;
@@ -65,8 +67,7 @@ impl Serialize for Pattern {
 impl<'de> Deserialize<'de> for Pattern {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(deserializer)?;
-        let pattern = Pattern::new(&raw, false).map_err(Error::custom)?;
-        Ok(pattern)
+        Pattern::parse(&raw, false).map_err(Error::custom)
     }
 }
 
