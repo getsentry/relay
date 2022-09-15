@@ -1,5 +1,6 @@
 use crate::core::RelayStr;
 
+use relay_common::DataCategories;
 pub use relay_common::{DataCategory, EventType, SpanStatus};
 
 /// Returns the API name of the given `DataCategory`.
@@ -22,9 +23,12 @@ pub unsafe extern "C" fn relay_data_category_parse(name: *const RelayStr) -> Dat
 pub unsafe extern "C" fn relay_data_category_from_event_type(
     event_type: *const RelayStr,
 ) -> DataCategory {
-    (*event_type)
+    let event_type = (*event_type)
         .as_str()
         .parse::<EventType>()
-        .unwrap_or_default()
-        .into()
+        .unwrap_or_default();
+    let categories = DataCategories::from(event_type);
+
+    // Oh well, just get the first one.
+    categories.get(0).copied().unwrap_or(DataCategory::Unknown)
 }

@@ -877,7 +877,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
-        limiter.assume_event(DataCategory::Transaction);
+        limiter.assume_event(DataCategory::Transaction.into());
         let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
@@ -894,7 +894,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::Error);
         let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
-        limiter.assume_event(DataCategory::Error);
+        limiter.assume_event(DataCategory::Error.into());
         let (_, limits) = limiter.enforce(&mut envelope, &scoping()).unwrap();
 
         assert!(limits.is_limited());
