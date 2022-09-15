@@ -2769,6 +2769,57 @@
 <span id="2761">2761</span>
 <span id="2762">2762</span>
 <span id="2763">2763</span>
+<span id="2764">2764</span>
+<span id="2765">2765</span>
+<span id="2766">2766</span>
+<span id="2767">2767</span>
+<span id="2768">2768</span>
+<span id="2769">2769</span>
+<span id="2770">2770</span>
+<span id="2771">2771</span>
+<span id="2772">2772</span>
+<span id="2773">2773</span>
+<span id="2774">2774</span>
+<span id="2775">2775</span>
+<span id="2776">2776</span>
+<span id="2777">2777</span>
+<span id="2778">2778</span>
+<span id="2779">2779</span>
+<span id="2780">2780</span>
+<span id="2781">2781</span>
+<span id="2782">2782</span>
+<span id="2783">2783</span>
+<span id="2784">2784</span>
+<span id="2785">2785</span>
+<span id="2786">2786</span>
+<span id="2787">2787</span>
+<span id="2788">2788</span>
+<span id="2789">2789</span>
+<span id="2790">2790</span>
+<span id="2791">2791</span>
+<span id="2792">2792</span>
+<span id="2793">2793</span>
+<span id="2794">2794</span>
+<span id="2795">2795</span>
+<span id="2796">2796</span>
+<span id="2797">2797</span>
+<span id="2798">2798</span>
+<span id="2799">2799</span>
+<span id="2800">2800</span>
+<span id="2801">2801</span>
+<span id="2802">2802</span>
+<span id="2803">2803</span>
+<span id="2804">2804</span>
+<span id="2805">2805</span>
+<span id="2806">2806</span>
+<span id="2807">2807</span>
+<span id="2808">2808</span>
+<span id="2809">2809</span>
+<span id="2810">2810</span>
+<span id="2811">2811</span>
+<span id="2812">2812</span>
+<span id="2813">2813</span>
+<span id="2814">2814</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -2777,7 +2828,7 @@
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
 
-<span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">actix::SystemService</span>;
 <span class="kw">use</span> <span class="ident">brotli2::write::BrotliEncoder</span>;
 <span class="kw">use</span> <span class="ident">chrono</span>::{<span class="ident">DateTime</span>, <span class="ident">Duration</span> <span class="kw">as</span> <span class="ident">SignedDuration</span>, <span class="ident">Utc</span>};
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
@@ -2785,9 +2836,10 @@
 <span class="kw">use</span> <span class="ident">flate2::Compression</span>;
 <span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
 <span class="kw">use</span> <span class="ident">serde_json::Value</span> <span class="kw">as</span> <span class="ident">SerdeValue</span>;
+<span class="kw">use</span> <span class="ident">tokio::sync::Semaphore</span>;
 
 <span class="kw">use</span> <span class="ident">relay_auth::RelayVersion</span>;
-<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">clone</span>, <span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
+<span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>};
 <span class="kw">use</span> <span class="ident">relay_filter::FilterStatKey</span>;
 <span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">PiiProcessor</span>};
@@ -2805,6 +2857,7 @@
 <span class="kw">use</span> <span class="ident">relay_redis::RedisPool</span>;
 <span class="kw">use</span> <span class="ident">relay_sampling</span>::{<span class="ident">DynamicSamplingContext</span>, <span class="ident">RuleId</span>};
 <span class="kw">use</span> <span class="ident">relay_statsd::metric</span>;
+<span class="kw">use</span> <span class="ident">relay_system</span>::{<span class="ident">Addr</span>, <span class="ident">FromMessage</span>, <span class="ident">NoResponse</span>, <span class="ident">Service</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">EnvelopeManager</span>, <span class="ident">SendEnvelope</span>, <span class="ident">SendEnvelopeError</span>, <span class="ident">SubmitEnvelope</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">TrackOutcome</span>};
@@ -3204,80 +3257,152 @@
     }
 }
 
-<span class="doccomment">/// Synchronous service for processing envelopes.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EnvelopeProcessor</span> {
-    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">rate_limiter</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisRateLimiter</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="ident">geoip_lookup</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">GeoIpLookup</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+<span class="doccomment">/// Response of the [`ProcessEnvelope`] message.</span>
+<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>), <span class="ident">allow</span>(<span class="ident">dead_code</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProcessEnvelopeResponse</span> {
+    <span class="doccomment">/// The processed envelope.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are</span>
+    <span class="doccomment">/// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs</span>
+    <span class="doccomment">/// to be dropped, this is `None`.</span>
+    <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Envelope</span>, <span class="ident">EnvelopeContext</span>)<span class="op">&gt;</span>,
+
+    <span class="doccomment">/// All rate limits that have been applied on the envelope.</span>
+    <span class="kw">pub</span> <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>,
+}
+
+<span class="doccomment">/// Applies processing to all contents of the given envelope.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Depending on the contents of the envelope and Relay&#39;s mode, this includes:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///  - Basic normalization and validation for all item types.</span>
+<span class="doccomment">///  - Clock drift correction if the required `sent_at` header is present.</span>
+<span class="doccomment">///  - Expansion of certain item types (e.g. unreal).</span>
+<span class="doccomment">///  - Store normalization for event payloads in processing mode.</span>
+<span class="doccomment">///  - Rate limiters and inbound filters on events in processing mode.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProcessEnvelope</span> {
+    <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
+    <span class="kw">pub</span> <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
+    <span class="kw">pub</span> <span class="ident">project_state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">sampling_project_state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+}
+
+<span class="doccomment">/// Parses a list of metrics or metric buckets and pushes them to the project&#39;s aggregator.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This parses and validates the metrics:</span>
+<span class="doccomment">///  - For [`Metrics`](ItemType::Metrics), each metric is parsed separately, and invalid metrics are</span>
+<span class="doccomment">///    ignored independently.</span>
+<span class="doccomment">///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and</span>
+<span class="doccomment">///    dropped together on parsing failure.</span>
+<span class="doccomment">///  - Other items will be ignored with an error message.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Additionally, processing applies clock drift correction using the system clock of this Relay, if</span>
+<span class="doccomment">/// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProcessMetrics</span> {
+    <span class="doccomment">/// A list of metric items.</span>
+    <span class="kw">pub</span> <span class="ident">items</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>,
+
+    <span class="doccomment">/// The target project.</span>
+    <span class="kw">pub</span> <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
+
+    <span class="doccomment">/// The instant at which the request was received.</span>
+    <span class="kw">pub</span> <span class="ident">start_time</span>: <span class="ident">Instant</span>,
+
+    <span class="doccomment">/// The value of the Envelope&#39;s [`sent_at`](Envelope::sent_at) header for clock drift</span>
+    <span class="doccomment">/// correction.</span>
+    <span class="kw">pub</span> <span class="ident">sent_at</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+}
+
+<span class="doccomment">/// Applies HTTP content encoding to an envelope&#39;s payload.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This message is a workaround for a single-threaded upstream actor.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EncodeEnvelope</span> {
+    <span class="ident">request</span>: <span class="ident">SendEnvelope</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">EncodeEnvelope</span> {
+    <span class="doccomment">/// Creates a new `EncodeEnvelope` message from `SendEnvelope` request.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">request</span>: <span class="ident">SendEnvelope</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span> { <span class="ident">request</span> }
+    }
+}
+
+<span class="doccomment">/// CPU-intensive processing tasks for envelopes.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">EnvelopeProcessor</span> {
+    <span class="ident">ProcessEnvelope</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ProcessEnvelope</span><span class="op">&gt;</span>),
+    <span class="ident">ProcessMetrics</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">ProcessMetrics</span><span class="op">&gt;</span>),
+    <span class="ident">EncodeEnvelope</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">EncodeEnvelope</span><span class="op">&gt;</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">EnvelopeProcessor</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">processor</span>.<span class="ident">clone</span>()
     }
+}
 
-    <span class="doccomment">/// Starts a multi-threaded envelope processor.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(
-        <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
-        <span class="ident">_redis</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisPool</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">thread_count</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">cpu_concurrency</span>();
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;starting {} envelope processing workers&quot;</span>, <span class="ident">thread_count</span>);
+<span class="kw">impl</span> <span class="ident">relay_system::Interface</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {}
 
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">ProcessEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">relay_system::NoResponse</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>, <span class="ident">_sender</span>: ()) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::ProcessEnvelope</span>(<span class="ident">Box::new</span>(<span class="ident">message</span>))
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">ProcessMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">ProcessMetrics</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::ProcessMetrics</span>(<span class="ident">Box::new</span>(<span class="ident">message</span>))
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">EncodeEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
+    <span class="kw">type</span> <span class="ident">Response</span> <span class="op">=</span> <span class="ident">NoResponse</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_message</span>(<span class="ident">message</span>: <span class="ident">EncodeEnvelope</span>, <span class="kw">_</span>: ()) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::EncodeEnvelope</span>(<span class="ident">Box::new</span>(<span class="ident">message</span>))
+    }
+}
+
+<span class="doccomment">/// Service implementing the [`EnvelopeProcessor`] interface.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This service handles messages in a worker pool with configurable concurrency.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EnvelopeProcessorService</span> {
+    <span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">rate_limiter</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisRateLimiter</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+    <span class="ident">geoip_lookup</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">GeoIpLookup</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">EnvelopeProcessorService</span> {
+    <span class="doccomment">/// Creates a multi-threaded envelope processor.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>, <span class="ident">_redis</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisPool</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
         {
             <span class="kw">let</span> <span class="ident">geoip_lookup</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">geoip_path</span>() {
-                <span class="prelude-val">Some</span>(<span class="ident">p</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Arc::new</span>(
-                    <span class="ident">GeoIpLookup::open</span>(<span class="ident">p</span>).<span class="ident">context</span>(<span class="ident">ServerErrorKind::GeoIpError</span>)<span class="question-mark">?</span>,
-                )),
+                <span class="prelude-val">Some</span>(<span class="ident">p</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">GeoIpLookup::open</span>(<span class="ident">p</span>).<span class="ident">context</span>(<span class="ident">ServerErrorKind::GeoIpError</span>)<span class="question-mark">?</span>),
                 <span class="prelude-val">None</span> =&gt; <span class="prelude-val">None</span>,
             };
 
             <span class="kw">let</span> <span class="ident">rate_limiter</span> <span class="op">=</span>
                 <span class="ident">_redis</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">pool</span><span class="op">|</span> <span class="ident">RedisRateLimiter::new</span>(<span class="ident">pool</span>).<span class="ident">max_limit</span>(<span class="ident">config</span>.<span class="ident">max_rate_limit</span>()));
 
-            <span class="prelude-val">Ok</span>(<span class="ident">SyncArbiter::start</span>(
-                <span class="ident">thread_count</span>,
-                <span class="macro">clone!</span>(<span class="ident">config</span>, <span class="op">|</span><span class="op">|</span> {
-                    <span class="ident">EnvelopeProcessor::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>())
-                        .<span class="ident">with_rate_limiter</span>(<span class="ident">rate_limiter</span>.<span class="ident">clone</span>())
-                        .<span class="ident">with_geoip_lookup</span>(<span class="ident">geoip_lookup</span>.<span class="ident">clone</span>())
-                }),
-            ))
+            <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
+                <span class="ident">config</span>,
+                <span class="ident">rate_limiter</span>,
+                <span class="ident">geoip_lookup</span>,
+            })
         }
 
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>))]</span>
-        <span class="prelude-val">Ok</span>(<span class="ident">SyncArbiter::start</span>(
-            <span class="ident">thread_count</span>,
-            <span class="macro">clone!</span>(<span class="ident">config</span>, <span class="op">|</span><span class="op">|</span> <span class="ident">EnvelopeProcessor::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>())),
-        ))
-    }
-
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">config</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">rate_limiter</span>: <span class="prelude-val">None</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-            <span class="ident">geoip_lookup</span>: <span class="prelude-val">None</span>,
-        }
-    }
-
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">with_rate_limiter</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rate_limiter</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RedisRateLimiter</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">rate_limiter</span> <span class="op">=</span> <span class="ident">rate_limiter</span>;
-        <span class="self">self</span>
-    }
-
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">with_geoip_lookup</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">geoip_lookup</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">GeoIpLookup</span><span class="op">&gt;</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">geoip_lookup</span> <span class="op">=</span> <span class="ident">geoip_lookup</span>;
-        <span class="self">self</span>
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span> { <span class="ident">config</span> })
     }
 
     <span class="doccomment">/// Returns Ok(true) if attributes were modified.</span>
@@ -3848,8 +3973,8 @@
     <span class="doccomment">/// this includes cases where a single attachment file exceeds the maximum file size. This is in</span>
     <span class="doccomment">/// line with the behavior of the envelope endpoint.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it</span>
-    <span class="doccomment">/// processes any other envelopes.</span>
+    <span class="doccomment">/// After this, [`EnvelopeProcessorService`] should be able to process the envelope the same</span>
+    <span class="doccomment">/// way it processes any other envelopes.</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">expand_unreal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ProcessEnvelopeState</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ProcessingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">envelope</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">state</span>.<span class="ident">envelope</span>;
@@ -4361,7 +4486,7 @@
             <span class="ident">client_sample_rate</span>: <span class="ident">envelope</span>.<span class="ident">sampling_context</span>().<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">ctx</span><span class="op">|</span> <span class="ident">ctx</span>.<span class="ident">sample_rate</span>),
         };
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">store_processor</span> <span class="op">=</span> <span class="ident">StoreProcessor::new</span>(<span class="ident">store_config</span>, <span class="self">self</span>.<span class="ident">geoip_lookup</span>.<span class="ident">as_deref</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">store_processor</span> <span class="op">=</span> <span class="ident">StoreProcessor::new</span>(<span class="ident">store_config</span>, <span class="self">self</span>.<span class="ident">geoip_lookup</span>.<span class="ident">as_ref</span>());
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EventProcessingProcess</span>), {
             <span class="ident">process_value</span>(<span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">store_processor</span>, <span class="ident">ProcessingState::root</span>())
                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ProcessingError::InvalidTransaction</span>)<span class="question-mark">?</span>;
@@ -4762,81 +4887,7 @@
         )
     }
 
-    <span class="kw">fn</span> <span class="ident">encode_envelope_body</span>(
-        <span class="ident">body</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
-        <span class="ident">http_encoding</span>: <span class="ident">HttpEncoding</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">std::io::Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">envelope_body</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">http_encoding</span> {
-            <span class="ident">HttpEncoding::Identity</span> =&gt; <span class="ident">body</span>,
-            <span class="ident">HttpEncoding::Deflate</span> =&gt; {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">ZlibEncoder::new</span>(<span class="ident">Vec::new</span>(), <span class="ident">Compression::default</span>());
-                <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
-                <span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>
-            }
-            <span class="ident">HttpEncoding::Gzip</span> =&gt; {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">GzEncoder::new</span>(<span class="ident">Vec::new</span>(), <span class="ident">Compression::default</span>());
-                <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
-                <span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>
-            }
-            <span class="ident">HttpEncoding::Br</span> =&gt; {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BrotliEncoder::new</span>(<span class="ident">Vec::new</span>(), <span class="number">5</span>);
-                <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
-                <span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>
-            }
-        };
-        <span class="prelude-val">Ok</span>(<span class="ident">envelope_body</span>)
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Actor</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
-    <span class="kw">type</span> <span class="ident">Context</span> <span class="op">=</span> <span class="ident">SyncContext</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
-}
-
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="macro">unimplemented!</span>(<span class="string">&quot;register with the SystemRegistry instead&quot;</span>)
-    }
-}
-
-<span class="doccomment">/// Response of the [`ProcessEnvelope`] message.</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>), <span class="ident">allow</span>(<span class="ident">dead_code</span>))]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProcessEnvelopeResponse</span> {
-    <span class="doccomment">/// The processed envelope.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are</span>
-    <span class="doccomment">/// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs</span>
-    <span class="doccomment">/// to be dropped, this is `None`.</span>
-    <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Envelope</span>, <span class="ident">EnvelopeContext</span>)<span class="op">&gt;</span>,
-
-    <span class="doccomment">/// All rate limits that have been applied on the envelope.</span>
-    <span class="kw">pub</span> <span class="ident">rate_limits</span>: <span class="ident">RateLimits</span>,
-}
-
-<span class="doccomment">/// Applies processing to all contents of the given envelope.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Depending on the contents of the envelope and Relay&#39;s mode, this includes:</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///  - Basic normalization and validation for all item types.</span>
-<span class="doccomment">///  - Clock drift correction if the required `sent_at` header is present.</span>
-<span class="doccomment">///  - Expansion of certain item types (e.g. unreal).</span>
-<span class="doccomment">///  - Store normalization for event payloads in processing mode.</span>
-<span class="doccomment">///  - Rate limiters and inbound filters on events in processing mode.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProcessEnvelope</span> {
-    <span class="kw">pub</span> <span class="ident">envelope</span>: <span class="ident">Envelope</span>,
-    <span class="kw">pub</span> <span class="ident">envelope_context</span>: <span class="ident">EnvelopeContext</span>,
-    <span class="kw">pub</span> <span class="ident">project_state</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">sampling_project_state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">ProjectState</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">ProcessEnvelope</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
-}
-
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">ProcessEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
-
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle_process_envelope</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>) {
         <span class="kw">let</span> <span class="ident">project_key</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">public_key</span>();
         <span class="kw">let</span> <span class="ident">wait_time</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">envelope_context</span>.<span class="ident">start_time</span>().<span class="ident">elapsed</span>();
         <span class="macro">metric!</span>(<span class="ident">timer</span>(<span class="ident">RelayTimers::EnvelopeWaitTime</span>) <span class="op">=</span> <span class="ident">wait_time</span>);
@@ -4866,42 +4917,8 @@
             }
         }
     }
-}
 
-<span class="doccomment">/// Parses a list of metrics or metric buckets and pushes them to the project&#39;s aggregator.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This parses and validates the metrics:</span>
-<span class="doccomment">///  - For [`Metrics`](ItemType::Metrics), each metric is parsed separately, and invalid metrics are</span>
-<span class="doccomment">///    ignored independently.</span>
-<span class="doccomment">///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and</span>
-<span class="doccomment">///    dropped together on parsing failure.</span>
-<span class="doccomment">///  - Other items will be ignored with an error message.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Additionally, processing applies clock drift correction using the system clock of this Relay, if</span>
-<span class="doccomment">/// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProcessMetrics</span> {
-    <span class="doccomment">/// A list of metric items.</span>
-    <span class="kw">pub</span> <span class="ident">items</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>,
-
-    <span class="doccomment">/// The target project.</span>
-    <span class="kw">pub</span> <span class="ident">project_key</span>: <span class="ident">ProjectKey</span>,
-
-    <span class="doccomment">/// The instant at which the request was received.</span>
-    <span class="kw">pub</span> <span class="ident">start_time</span>: <span class="ident">Instant</span>,
-
-    <span class="doccomment">/// The value of the Envelope&#39;s [`sent_at`](Envelope::sent_at) header for clock drift</span>
-    <span class="doccomment">/// correction.</span>
-    <span class="kw">pub</span> <span class="ident">sent_at</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DateTime</span><span class="op">&lt;</span><span class="ident">Utc</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">ProcessMetrics</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
-}
-
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">ProcessMetrics</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
-
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessMetrics</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle_process_metrics</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">ProcessMetrics</span>) {
         <span class="kw">let</span> <span class="ident">ProcessMetrics</span> {
             <span class="ident">items</span>,
             <span class="ident">project_key</span>: <span class="ident">public_key</span>,
@@ -4958,31 +4975,33 @@
             }
         }
     }
-}
 
-<span class="doccomment">/// Applies HTTP content encoding to an envelope&#39;s payload.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// This message is a workaround for a single-threaded upstream actor.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EncodeEnvelope</span> {
-    <span class="ident">request</span>: <span class="ident">SendEnvelope</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">EncodeEnvelope</span> {
-    <span class="doccomment">/// Creates a new `EncodeEnvelope` message from `SendEnvelope` request.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">request</span>: <span class="ident">SendEnvelope</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> { <span class="ident">request</span> }
+    <span class="kw">fn</span> <span class="ident">encode_envelope_body</span>(
+        <span class="ident">body</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+        <span class="ident">http_encoding</span>: <span class="ident">HttpEncoding</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">std::io::Error</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">envelope_body</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">http_encoding</span> {
+            <span class="ident">HttpEncoding::Identity</span> =&gt; <span class="ident">body</span>,
+            <span class="ident">HttpEncoding::Deflate</span> =&gt; {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">ZlibEncoder::new</span>(<span class="ident">Vec::new</span>(), <span class="ident">Compression::default</span>());
+                <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
+                <span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>
+            }
+            <span class="ident">HttpEncoding::Gzip</span> =&gt; {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">GzEncoder::new</span>(<span class="ident">Vec::new</span>(), <span class="ident">Compression::default</span>());
+                <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
+                <span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>
+            }
+            <span class="ident">HttpEncoding::Br</span> =&gt; {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BrotliEncoder::new</span>(<span class="ident">Vec::new</span>(), <span class="number">5</span>);
+                <span class="ident">encoder</span>.<span class="ident">write_all</span>(<span class="ident">body</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
+                <span class="ident">encoder</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>
+            }
+        };
+        <span class="prelude-val">Ok</span>(<span class="ident">envelope_body</span>)
     }
-}
 
-<span class="kw">impl</span> <span class="ident">Message</span> <span class="kw">for</span> <span class="ident">EncodeEnvelope</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
-}
-
-<span class="kw">impl</span> <span class="ident">Handler</span><span class="op">&lt;</span><span class="ident">EncodeEnvelope</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessor</span> {
-    <span class="kw">type</span> <span class="prelude-ty">Result</span> <span class="op">=</span> ();
-
-    <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="ident">EncodeEnvelope</span>, <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="self">Self</span>::Context</span>) -&gt; <span class="ident"><span class="self">Self</span>::Result</span> {
+    <span class="kw">fn</span> <span class="ident">handle_encode_envelope</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">EncodeEnvelope</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">message</span>.<span class="ident">request</span>;
         <span class="kw">match</span> <span class="ident"><span class="self">Self</span>::encode_envelope_body</span>(<span class="ident">request</span>.<span class="ident">envelope_body</span>, <span class="ident">request</span>.<span class="ident">http_encoding</span>) {
             <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
@@ -4997,6 +5016,38 @@
                 <span class="ident">UpstreamRelay::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">SendRequest</span>(<span class="ident">request</span>));
             }
         }
+    }
+
+    <span class="kw">fn</span> <span class="ident">handle_message</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">message</span>: <span class="ident">EnvelopeProcessor</span>) {
+        <span class="kw">match</span> <span class="ident">message</span> {
+            <span class="ident">EnvelopeProcessor::ProcessEnvelope</span>(<span class="ident">message</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_process_envelope</span>(<span class="kw-2">*</span><span class="ident">message</span>),
+            <span class="ident">EnvelopeProcessor::ProcessMetrics</span>(<span class="ident">message</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_process_metrics</span>(<span class="kw-2">*</span><span class="ident">message</span>),
+            <span class="ident">EnvelopeProcessor::EncodeEnvelope</span>(<span class="ident">message</span>) =&gt; <span class="self">self</span>.<span class="ident">handle_encode_envelope</span>(<span class="kw-2">*</span><span class="ident">message</span>),
+        }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Service</span> <span class="kw">for</span> <span class="ident">EnvelopeProcessorService</span> {
+    <span class="kw">type</span> <span class="ident">Interface</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor</span>;
+
+    <span class="kw">fn</span> <span class="ident">spawn_handler</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">rx</span>: <span class="ident">relay_system::Receiver</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Interface</span><span class="op">&gt;</span>) {
+        <span class="kw">let</span> <span class="ident">thread_count</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">config</span>.<span class="ident">cpu_concurrency</span>();
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;starting {} envelope processing workers&quot;</span>, <span class="ident">thread_count</span>);
+
+        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+            <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="self">self</span>);
+            <span class="kw">let</span> <span class="ident">semaphore</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="ident">Semaphore::new</span>(<span class="ident">thread_count</span>));
+
+            <span class="kw">while</span> <span class="kw">let</span> (<span class="prelude-val">Some</span>(<span class="ident">message</span>), <span class="prelude-val">Ok</span>(<span class="ident">permit</span>)) <span class="op">=</span>
+                <span class="macro">tokio::join!</span>(<span class="ident">rx</span>.<span class="ident">recv</span>(), <span class="ident">semaphore</span>.<span class="ident">clone</span>().<span class="ident">acquire_owned</span>())
+            {
+                <span class="kw">let</span> <span class="ident">service</span> <span class="op">=</span> <span class="ident">service</span>.<span class="ident">clone</span>();
+                <span class="ident">tokio::task::spawn_blocking</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
+                    <span class="ident">service</span>.<span class="ident">handle_message</span>(<span class="ident">message</span>);
+                    <span class="ident">drop</span>(<span class="ident">permit</span>);
+                });
+            }
+        });
     }
 }
 
@@ -5044,8 +5095,12 @@
         <span class="kw">let</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">create_breadcrumbs_item</span>(<span class="kw-2">&amp;</span>[(<span class="prelude-val">None</span>, <span class="string">&quot;item1&quot;</span>)]);
 
         <span class="comment">// NOTE: using (Some, None) here:</span>
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span>
-            <span class="ident">EnvelopeProcessor::event_from_attachments</span>(<span class="kw-2">&amp;</span><span class="ident">Config::default</span>(), <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">item</span>), <span class="prelude-val">None</span>);
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">EnvelopeProcessorService::event_from_attachments</span>(
+            <span class="kw-2">&amp;</span><span class="ident">Config::default</span>(),
+            <span class="prelude-val">None</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">item</span>),
+            <span class="prelude-val">None</span>,
+        );
 
         <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">result</span>.<span class="ident">unwrap</span>().<span class="number">0</span>;
         <span class="kw">let</span> <span class="ident">breadcrumbs</span> <span class="op">=</span> <span class="ident">breadcrumbs_from_event</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>);
@@ -5060,8 +5115,12 @@
         <span class="kw">let</span> <span class="ident">item</span> <span class="op">=</span> <span class="ident">create_breadcrumbs_item</span>(<span class="kw-2">&amp;</span>[(<span class="prelude-val">None</span>, <span class="string">&quot;item2&quot;</span>)]);
 
         <span class="comment">// NOTE: using (None, Some) here:</span>
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span>
-            <span class="ident">EnvelopeProcessor::event_from_attachments</span>(<span class="kw-2">&amp;</span><span class="ident">Config::default</span>(), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">item</span>));
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">EnvelopeProcessorService::event_from_attachments</span>(
+            <span class="kw-2">&amp;</span><span class="ident">Config::default</span>(),
+            <span class="prelude-val">None</span>,
+            <span class="prelude-val">None</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">item</span>),
+        );
 
         <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">result</span>.<span class="ident">unwrap</span>().<span class="number">0</span>;
         <span class="kw">let</span> <span class="ident">breadcrumbs</span> <span class="op">=</span> <span class="ident">breadcrumbs_from_event</span>(<span class="kw-2">&amp;</span><span class="ident">event</span>);
@@ -5076,7 +5135,7 @@
         <span class="kw">let</span> <span class="ident">item1</span> <span class="op">=</span> <span class="ident">create_breadcrumbs_item</span>(<span class="kw-2">&amp;</span>[(<span class="prelude-val">None</span>, <span class="string">&quot;crumb1&quot;</span>)]);
         <span class="kw">let</span> <span class="ident">item2</span> <span class="op">=</span> <span class="ident">create_breadcrumbs_item</span>(<span class="kw-2">&amp;</span>[(<span class="prelude-val">None</span>, <span class="string">&quot;crumb2&quot;</span>), (<span class="prelude-val">None</span>, <span class="string">&quot;crumb3&quot;</span>)]);
 
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::event_from_attachments</span>(
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">EnvelopeProcessorService::event_from_attachments</span>(
             <span class="kw-2">&amp;</span><span class="ident">Config::default</span>(),
             <span class="prelude-val">None</span>,
             <span class="prelude-val">Some</span>(<span class="ident">item1</span>),
@@ -5096,7 +5155,7 @@
         <span class="kw">let</span> <span class="ident">item1</span> <span class="op">=</span> <span class="ident">create_breadcrumbs_item</span>(<span class="kw-2">&amp;</span>[(<span class="prelude-val">None</span>, <span class="string">&quot;none&quot;</span>), (<span class="prelude-val">Some</span>(<span class="ident">d1</span>), <span class="string">&quot;d1&quot;</span>)]);
         <span class="kw">let</span> <span class="ident">item2</span> <span class="op">=</span> <span class="ident">create_breadcrumbs_item</span>(<span class="kw-2">&amp;</span>[(<span class="prelude-val">Some</span>(<span class="ident">d2</span>), <span class="string">&quot;d2&quot;</span>)]);
 
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::event_from_attachments</span>(
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">EnvelopeProcessorService::event_from_attachments</span>(
             <span class="kw-2">&amp;</span><span class="ident">Config::default</span>(),
             <span class="prelude-val">None</span>,
             <span class="prelude-val">Some</span>(<span class="ident">item1</span>),
@@ -5119,7 +5178,7 @@
         <span class="kw">let</span> <span class="ident">item1</span> <span class="op">=</span> <span class="ident">create_breadcrumbs_item</span>(<span class="kw-2">&amp;</span>[(<span class="prelude-val">Some</span>(<span class="ident">d2</span>), <span class="string">&quot;d2&quot;</span>)]);
         <span class="kw">let</span> <span class="ident">item2</span> <span class="op">=</span> <span class="ident">create_breadcrumbs_item</span>(<span class="kw-2">&amp;</span>[(<span class="prelude-val">None</span>, <span class="string">&quot;none&quot;</span>), (<span class="prelude-val">Some</span>(<span class="ident">d1</span>), <span class="string">&quot;d1&quot;</span>)]);
 
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::event_from_attachments</span>(
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">EnvelopeProcessorService::event_from_attachments</span>(
             <span class="kw-2">&amp;</span><span class="ident">Config::default</span>(),
             <span class="prelude-val">None</span>,
             <span class="prelude-val">Some</span>(<span class="ident">item1</span>),
@@ -5140,7 +5199,7 @@
         <span class="kw">let</span> <span class="ident">item2</span> <span class="op">=</span> <span class="ident">create_breadcrumbs_item</span>(<span class="kw-2">&amp;</span>[]);
         <span class="kw">let</span> <span class="ident">item3</span> <span class="op">=</span> <span class="ident">create_breadcrumbs_item</span>(<span class="kw-2">&amp;</span>[]);
 
-        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::event_from_attachments</span>(
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">EnvelopeProcessorService::event_from_attachments</span>(
             <span class="kw-2">&amp;</span><span class="ident">Config::default</span>(),
             <span class="prelude-val">Some</span>(<span class="ident">item1</span>),
             <span class="prelude-val">Some</span>(<span class="ident">item2</span>),
@@ -5151,11 +5210,21 @@
         <span class="ident">result</span>.<span class="ident">expect</span>(<span class="string">&quot;event_from_attachments&quot;</span>);
     }
 
+    <span class="kw">fn</span> <span class="ident">create_test_processor</span>(<span class="ident">config</span>: <span class="ident">Config</span>) -&gt; <span class="ident">EnvelopeProcessorService</span> {
+        <span class="ident">EnvelopeProcessorService</span> {
+            <span class="ident">config</span>: <span class="ident">Arc::new</span>(<span class="ident">config</span>),
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">rate_limiter</span>: <span class="prelude-val">None</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
+            <span class="ident">geoip_lookup</span>: <span class="prelude-val">None</span>,
+        }
+    }
+
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">ignore</span> <span class="op">=</span> <span class="string">&quot;The current Register panics if the Addr of an Actor (that is not yet started) is
     queried, hence this test fails. The old Register returned dummy Addr&#39;s hence this did not fail.&quot;</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_user_report_invalid</span>() {
-        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::new</span>(<span class="ident">Arc::new</span>(<span class="ident">Default::default</span>()));
+        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">create_test_processor</span>(<span class="ident">Default::default</span>());
         <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">protocol::EventId::new</span>();
 
         <span class="kw">let</span> <span class="ident">dsn</span> <span class="op">=</span> <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;</span>
@@ -5198,7 +5267,7 @@
     <span class="attribute">#[<span class="ident">ignore</span> <span class="op">=</span> <span class="string">&quot;The current Register panics if the Addr of an Actor (that is not yet started) is
     queried, hence this test fails. The old Register returned dummy Addr&#39;s hence this did not fail.&quot;</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_browser_version_extraction_with_pii_like_data</span>() {
-        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::new</span>(<span class="ident">Arc::new</span>(<span class="ident">Default::default</span>()));
+        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">create_test_processor</span>(<span class="ident">Default::default</span>());
         <span class="kw">let</span> <span class="ident">event_id</span> <span class="op">=</span> <span class="ident">protocol::EventId::new</span>();
 
         <span class="kw">let</span> <span class="ident">dsn</span> <span class="op">=</span> <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;</span>
@@ -5300,7 +5369,7 @@
         }))
         .<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::new</span>(<span class="ident">Arc::new</span>(<span class="ident">config</span>));
+        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">create_test_processor</span>(<span class="ident">config</span>);
 
         <span class="kw">let</span> <span class="ident">dsn</span> <span class="op">=</span> <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;</span>
             .<span class="ident">parse</span>()
@@ -5351,7 +5420,7 @@
         }))
         .<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::new</span>(<span class="ident">Arc::new</span>(<span class="ident">config</span>));
+        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">create_test_processor</span>(<span class="ident">config</span>);
 
         <span class="kw">let</span> <span class="ident">dsn</span> <span class="op">=</span> <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;</span>
             .<span class="ident">parse</span>()
@@ -5408,7 +5477,7 @@
         }))
         .<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">EnvelopeProcessor::new</span>(<span class="ident">Arc::new</span>(<span class="ident">config</span>));
+        <span class="kw">let</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">create_test_processor</span>(<span class="ident">config</span>);
 
         <span class="kw">let</span> <span class="ident">dsn</span> <span class="op">=</span> <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;</span>
             .<span class="ident">parse</span>()
@@ -5530,6 +5599,39 @@
             <span class="ident">outcome_from_parts</span>(<span class="ident">ClientReportField::RateLimited</span>, <span class="string">&quot;foo_reason&quot;</span>).<span class="ident">unwrap</span>(),
             <span class="ident">Outcome::RateLimited</span>(<span class="prelude-val">Some</span>(<span class="ident">ReasonCode::new</span>(<span class="string">&quot;foo_reason&quot;</span>)))
         );
+    }
+
+    <span class="doccomment">/// This is a stand-in test to assert panicking behavior for spawn_blocking.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [`EnvelopeProcessorService`] relies on tokio to restart the worker threads for blocking</span>
+    <span class="doccomment">/// tasks if there is a panic during processing. Tokio does not explicitly mention this behavior</span>
+    <span class="doccomment">/// in documentation, though the `spawn_blocking` contract suggests that this is intentional.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This test should be moved if the worker pool is extracted into a utility.</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_processor_panics</span>() {
+        <span class="kw">let</span> <span class="ident">future</span> <span class="op">=</span> <span class="kw">async</span> {
+            <span class="kw">let</span> <span class="ident">semaphore</span> <span class="op">=</span> <span class="ident">Arc::new</span>(<span class="ident">Semaphore::new</span>(<span class="number">1</span>));
+
+            <span class="comment">// loop multiple times to prove that the runtime creates new threads</span>
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">3</span> {
+                <span class="comment">// the previous permit should have been released during panic unwind</span>
+                <span class="kw">let</span> <span class="ident">permit</span> <span class="op">=</span> <span class="ident">semaphore</span>.<span class="ident">clone</span>().<span class="ident">acquire_owned</span>().<span class="kw">await</span>.<span class="ident">unwrap</span>();
+
+                <span class="kw">let</span> <span class="ident">handle</span> <span class="op">=</span> <span class="ident">tokio::task::spawn_blocking</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
+                    <span class="kw">let</span> <span class="ident">_permit</span> <span class="op">=</span> <span class="ident">permit</span>; <span class="comment">// drop(permit) after panic!() would warn as &quot;unreachable&quot;</span>
+                    <span class="macro">panic!</span>(<span class="string">&quot;ignored&quot;</span>);
+                });
+
+                <span class="macro">assert!</span>(<span class="ident">handle</span>.<span class="kw">await</span>.<span class="ident">is_err</span>());
+            }
+        };
+
+        <span class="ident">tokio::runtime::Builder::new_current_thread</span>()
+            .<span class="ident">max_blocking_threads</span>(<span class="number">1</span>)
+            .<span class="ident">build</span>()
+            .<span class="ident">unwrap</span>()
+            .<span class="ident">block_on</span>(<span class="ident">future</span>);
     }
 }
 </code></pre></div>

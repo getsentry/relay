@@ -823,7 +823,7 @@
 
     <span class="kw">if</span> <span class="op">!</span><span class="ident">metric_items</span>.<span class="ident">is_empty</span>() {
         <span class="macro">relay_log::trace!</span>(<span class="string">&quot;sending metrics into processing queue&quot;</span>);
-        <span class="ident">EnvelopeProcessor::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">ProcessMetrics</span> {
+        <span class="ident">EnvelopeProcessor::from_registry</span>().<span class="ident">send</span>(<span class="ident">ProcessMetrics</span> {
             <span class="ident">items</span>: <span class="ident">metric_items</span>,
             <span class="ident">project_key</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">public_key</span>(),
             <span class="ident">start_time</span>: <span class="ident">envelope</span>.<span class="ident">meta</span>().<span class="ident">start_time</span>(),

@@ -678,7 +678,7 @@
     }
 
     <span class="comment">// If we have UE4 info, ensure an event is there to fill. DO NOT fill if there is no unreal</span>
-    <span class="comment">// information, or otherwise `EnvelopeProcessor::process` breaks.</span>
+    <span class="comment">// information, or otherwise `EnvelopeProcessorService::process` breaks.</span>
     <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">event</span>.<span class="ident">get_or_insert_with</span>(<span class="ident">Event::default</span>);
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">user_info</span>) <span class="op">=</span> <span class="ident">user_header</span> {

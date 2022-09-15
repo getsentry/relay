@@ -1637,7 +1637,7 @@
                     <span class="ident">ProjectCache::from_registry</span>()
                         .<span class="ident">do_send</span>(<span class="ident">AddSamplingState::new</span>(<span class="ident">sampling_key</span>, <span class="ident">process</span>));
                 } <span class="kw">else</span> {
-                    <span class="ident">EnvelopeProcessor::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">process</span>);
+                    <span class="ident">EnvelopeProcessor::from_registry</span>().<span class="ident">send</span>(<span class="ident">process</span>);
                 }
             }
         }
@@ -1661,7 +1661,7 @@
     <span class="kw">fn</span> <span class="ident">flush_sampling</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">message</span>: <span class="ident">ProcessEnvelope</span>) {
         <span class="comment">// Intentionally ignore all errors and leave the envelope unsampled.</span>
         <span class="ident">message</span>.<span class="ident">sampling_project_state</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">valid_state</span>();
-        <span class="ident">EnvelopeProcessor::from_registry</span>().<span class="ident">do_send</span>(<span class="ident">message</span>);
+        <span class="ident">EnvelopeProcessor::from_registry</span>().<span class="ident">send</span>(<span class="ident">message</span>);
     }
 
     <span class="doccomment">/// Enqueues an envelope for adding a dynamic sampling project state.</span>
