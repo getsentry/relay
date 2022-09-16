@@ -129,6 +129,12 @@ pub struct TrackOutcome {
     pub quantity: u32,
 }
 
+impl TrackOutcome {
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().outcome_aggregator.clone()
+    }
+}
+
 impl TrackOutcomeLike for TrackOutcome {
     fn reason(&self) -> Option<Cow<str>> {
         self.outcome.to_reason()
@@ -730,6 +736,12 @@ pub enum OutcomeProducer {
     TrackRawOutcome(TrackRawOutcome),
 }
 
+impl OutcomeProducer {
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().outcome_producer.clone()
+    }
+}
+
 impl Interface for OutcomeProducer {}
 
 impl FromMessage<TrackOutcome> for OutcomeProducer {
@@ -755,10 +767,6 @@ pub struct OutcomeProducerService {
 }
 
 impl OutcomeProducerService {
-    pub fn from_registry() -> Addr<OutcomeProducer> {
-        REGISTRY.get().unwrap().outcome_producer.clone()
-    }
-
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let producer = match config.emit_outcomes() {
             EmitOutcomes::AsOutcomes => {
