@@ -29,9 +29,9 @@ use crate::utils::{EnvelopeContext, FutureExt as _};
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{StoreEnvelope, StoreError, StoreForwarder},
+    crate::actors::store::{Store, StoreEnvelope, StoreError, StoreService},
     futures::{FutureExt, TryFutureExt},
-    relay_system::Addr as ServiceAddr,
+    relay_system::{Addr as ServiceAddr, Service},
     tokio::runtime::Runtime,
 };
 
@@ -152,7 +152,7 @@ pub struct EnvelopeManager {
     config: Arc<Config>,
     captures: BTreeMap<EventId, CapturedEnvelope>,
     #[cfg(feature = "processing")]
-    store_forwarder: Option<ServiceAddr<StoreForwarder>>,
+    store_forwarder: Option<ServiceAddr<Store>>,
     #[cfg(feature = "processing")]
     _runtime: Runtime,
 }
@@ -168,7 +168,7 @@ impl EnvelopeManager {
 
         #[cfg(feature = "processing")]
         let store_forwarder = if config.processing_enabled() {
-            let actor = StoreForwarder::create(config.clone())?;
+            let actor = StoreService::create(config.clone())?;
             Some(actor.start())
         } else {
             None
@@ -251,7 +251,7 @@ impl EnvelopeManager {
         if let HttpEncoding::Identity = request.http_encoding {
             UpstreamRelay::from_registry().do_send(SendRequest(request));
         } else {
-            EnvelopeProcessor::from_registry().do_send(EncodeEnvelope::new(request));
+            EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
         }
 
         Box::new(

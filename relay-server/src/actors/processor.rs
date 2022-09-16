@@ -6,7 +6,7 @@ use std::net;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use actix::prelude::*;
+use actix::SystemService;
 use brotli2::write::BrotliEncoder;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use failure::Fail;
@@ -14,11 +14,13 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
 use serde_json::Value as SerdeValue;
+use tokio::sync::Semaphore;
 
 use relay_auth::RelayVersion;
-use relay_common::{clone, ProjectId, ProjectKey, UnixTimestamp};
+use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
+use relay_general::pii::PiiConfigError;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -32,12 +34,12 @@ use relay_log::LogError;
 use relay_metrics::{Bucket, Metric};
 use relay_quotas::{DataCategory, RateLimits, ReasonCode};
 use relay_redis::RedisPool;
-use relay_sampling::RuleId;
+use relay_sampling::{DynamicSamplingContext, RuleId};
 use relay_statsd::metric;
+use relay_system::{Addr, FromMessage, NoResponse, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{InsertMetrics, MergeBuckets, ProjectCache};
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
@@ -45,7 +47,7 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::metrics_extraction::sessions::{extract_session_metrics, SessionMetricsConfig};
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::service::{ServerError, REGISTRY};
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, EnvelopeContext, ErrorBoundary, FormDataIter, SamplingResult,
 };
@@ -113,6 +115,9 @@ pub enum ProcessingError {
 
     #[fail(display = "event dropped by sampling rule {}", _0)]
     Sampled(RuleId),
+
+    #[fail(display = "invalid pii config")]
+    PiiConfigError(PiiConfigError),
 }
 
 impl ProcessingError {
@@ -144,6 +149,7 @@ impl ProcessingError {
             }
             #[cfg(feature = "processing")]
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
 
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
@@ -255,10 +261,11 @@ struct ProcessEnvelopeState {
 }
 
 impl ProcessEnvelopeState {
-    /// Returns whether any item in the envelope creates an event.
+    /// Returns whether any item in the envelope creates an event in any relay.
     ///
     /// This is used to branch into the processing pipeline. If this function returns false, only
-    /// rate limits are executed.
+    /// rate limits are executed. If this function returns true, an event is created either in the
+    /// current relay or in an upstream processing relay.
     fn creates_event(&self) -> bool {
         self.envelope.items().any(Item::creates_event)
     }
@@ -344,80 +351,240 @@ fn outcome_from_profile_error(err: relay_profiling::ProfileError) -> Outcome {
     Outcome::Invalid(discard_reason)
 }
 
-/// Synchronous service for processing envelopes.
-pub struct EnvelopeProcessor {
-    config: Arc<Config>,
-    #[cfg(feature = "processing")]
-    rate_limiter: Option<RedisRateLimiter>,
-    #[cfg(feature = "processing")]
-    geoip_lookup: Option<Arc<GeoIpLookup>>,
+fn track_sampling_metrics(
+    project_state: &ProjectState,
+    context: &DynamicSamplingContext,
+    event: &Event,
+) {
+    // We only collect this metric for the root transaction event, so ignore secondary projects.
+    if !project_state.is_matching_key(context.public_key) {
+        return;
+    }
+
+    let transaction_info = match event.transaction_info.value() {
+        Some(info) => info,
+        None => return,
+    };
+
+    let changes = match transaction_info.changes.value() {
+        Some(value) => value.as_slice(),
+        None => return,
+    };
+
+    let last_change = changes.last().and_then(|a| a.value());
+    let source = event.get_transaction_source().as_str();
+    let platform = event.platform.as_str().unwrap_or("other");
+    let sdk_name = event.sdk_name();
+    let sdk_version = event.sdk_version();
+
+    metric!(
+        histogram(RelayHistograms::DynamicSamplingChanges) = changes.len() as u64,
+        source = source,
+        platform = platform,
+        sdk_name = sdk_name,
+        sdk_version = sdk_version,
+    );
+
+    if let Some(&total) = transaction_info.propagations.value() {
+        // If there was no change, there were no propagations that happened with a wrong name.
+        let change = last_change
+            .and_then(|c| c.propagations.value())
+            .map_or(0, |v| *v);
+
+        metric!(
+            histogram(RelayHistograms::DynamicSamplingPropagationCount) = change,
+            source = source,
+            platform = platform,
+            sdk_name = sdk_name,
+            sdk_version = sdk_version,
+        );
+
+        let percentage = ((change as f64) / (total as f64)).min(1.0);
+        metric!(
+            histogram(RelayHistograms::DynamicSamplingPropagationPercentage) = percentage,
+            source = source,
+            platform = platform,
+            sdk_name = sdk_name,
+            sdk_version = sdk_version,
+        );
+    }
+
+    if let (Some(&start), Some(&change), Some(&end)) = (
+        event.start_timestamp.value(),
+        last_change.and_then(|c| c.timestamp.value()),
+        event.timestamp.value(),
+    ) {
+        let delay_ms = (change - start).num_milliseconds();
+        if delay_ms >= 0 {
+            metric!(
+                histogram(RelayHistograms::DynamicSamplingChangeDuration) = delay_ms as u64,
+                source = source,
+                platform = platform,
+                sdk_name = sdk_name,
+                sdk_version = sdk_version,
+            );
+        }
+
+        let duration_ms = (end - start).num_milliseconds() as f64;
+        if delay_ms >= 0 && duration_ms >= 0.0 {
+            let percentage = ((delay_ms as f64) / duration_ms).min(1.0);
+            metric!(
+                histogram(RelayHistograms::DynamicSamplingChangePercentage) = percentage,
+                source = source,
+                platform = platform,
+                sdk_name = sdk_name,
+                sdk_version = sdk_version,
+            );
+        }
+    }
+}
+
+/// Response of the [`ProcessEnvelope`] message.
+#[cfg_attr(not(feature = "processing"), allow(dead_code))]
+pub struct ProcessEnvelopeResponse {
+    /// The processed envelope.
+    ///
+    /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
+    /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
+    /// to be dropped, this is `None`.
+    pub envelope: Option<(Envelope, EnvelopeContext)>,
+
+    /// All rate limits that have been applied on the envelope.
+    pub rate_limits: RateLimits,
+}
+
+/// Applies processing to all contents of the given envelope.
+///
+/// Depending on the contents of the envelope and Relay's mode, this includes:
+///
+///  - Basic normalization and validation for all item types.
+///  - Clock drift correction if the required `sent_at` header is present.
+///  - Expansion of certain item types (e.g. unreal).
+///  - Store normalization for event payloads in processing mode.
+///  - Rate limiters and inbound filters on events in processing mode.
+#[derive(Debug)]
+pub struct ProcessEnvelope {
+    pub envelope: Envelope,
+    pub envelope_context: EnvelopeContext,
+    pub project_state: Arc<ProjectState>,
+    pub sampling_project_state: Option<Arc<ProjectState>>,
+}
+
+/// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
+///
+/// This parses and validates the metrics:
+///  - For [`Metrics`](ItemType::Metrics), each metric is parsed separately, and invalid metrics are
+///    ignored independently.
+///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
+///    dropped together on parsing failure.
+///  - Other items will be ignored with an error message.
+///
+/// Additionally, processing applies clock drift correction using the system clock of this Relay, if
+/// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
+#[derive(Debug)]
+pub struct ProcessMetrics {
+    /// A list of metric items.
+    pub items: Vec<Item>,
+
+    /// The target project.
+    pub project_key: ProjectKey,
+
+    /// The instant at which the request was received.
+    pub start_time: Instant,
+
+    /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
+    /// correction.
+    pub sent_at: Option<DateTime<Utc>>,
+}
+
+/// Applies HTTP content encoding to an envelope's payload.
+///
+/// This message is a workaround for a single-threaded upstream actor.
+#[derive(Debug)]
+pub struct EncodeEnvelope {
+    request: SendEnvelope,
+}
+
+impl EncodeEnvelope {
+    /// Creates a new `EncodeEnvelope` message from `SendEnvelope` request.
+    pub fn new(request: SendEnvelope) -> Self {
+        Self { request }
+    }
+}
+
+/// CPU-intensive processing tasks for envelopes.
+#[derive(Debug)]
+pub enum EnvelopeProcessor {
+    ProcessEnvelope(Box<ProcessEnvelope>),
+    ProcessMetrics(Box<ProcessMetrics>),
+    EncodeEnvelope(Box<EncodeEnvelope>),
 }
 
 impl EnvelopeProcessor {
     pub fn from_registry() -> Addr<Self> {
         REGISTRY.get().unwrap().processor.clone()
     }
+}
 
-    /// Starts a multi-threaded envelope processor.
-    pub fn start(
-        config: Arc<Config>,
-        _redis: Option<RedisPool>,
-    ) -> Result<Addr<Self>, ServerError> {
-        let thread_count = config.cpu_concurrency();
-        relay_log::info!("starting {} envelope processing workers", thread_count);
+impl relay_system::Interface for EnvelopeProcessor {}
 
+impl FromMessage<ProcessEnvelope> for EnvelopeProcessor {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: ProcessEnvelope, _sender: ()) -> Self {
+        Self::ProcessEnvelope(Box::new(message))
+    }
+}
+
+impl FromMessage<ProcessMetrics> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: ProcessMetrics, _: ()) -> Self {
+        Self::ProcessMetrics(Box::new(message))
+    }
+}
+
+impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: EncodeEnvelope, _: ()) -> Self {
+        Self::EncodeEnvelope(Box::new(message))
+    }
+}
+
+/// Service implementing the [`EnvelopeProcessor`] interface.
+///
+/// This service handles messages in a worker pool with configurable concurrency.
+pub struct EnvelopeProcessorService {
+    config: Arc<Config>,
+    #[cfg(feature = "processing")]
+    rate_limiter: Option<RedisRateLimiter>,
+    #[cfg(feature = "processing")]
+    geoip_lookup: Option<GeoIpLookup>,
+}
+
+impl EnvelopeProcessorService {
+    /// Creates a multi-threaded envelope processor.
+    pub fn new(config: Arc<Config>, _redis: Option<RedisPool>) -> Result<Self, ServerError> {
         #[cfg(feature = "processing")]
         {
             let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(Arc::new(
-                    GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?,
-                )),
+                Some(p) => Some(GeoIpLookup::open(p).context(ServerErrorKind::GeoIpError)?),
                 None => None,
             };
 
             let rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
-            Ok(SyncArbiter::start(
-                thread_count,
-                clone!(config, || {
-                    EnvelopeProcessor::new(config.clone())
-                        .with_rate_limiter(rate_limiter.clone())
-                        .with_geoip_lookup(geoip_lookup.clone())
-                }),
-            ))
+            Ok(Self {
+                config,
+                rate_limiter,
+                geoip_lookup,
+            })
         }
 
         #[cfg(not(feature = "processing"))]
-        Ok(SyncArbiter::start(
-            thread_count,
-            clone!(config, || EnvelopeProcessor::new(config.clone())),
-        ))
-    }
-
-    #[inline]
-    fn new(config: Arc<Config>) -> Self {
-        Self {
-            config,
-            #[cfg(feature = "processing")]
-            rate_limiter: None,
-            #[cfg(feature = "processing")]
-            geoip_lookup: None,
-        }
-    }
-
-    #[cfg(feature = "processing")]
-    #[inline]
-    fn with_rate_limiter(mut self, rate_limiter: Option<RedisRateLimiter>) -> Self {
-        self.rate_limiter = rate_limiter;
-        self
-    }
-
-    #[cfg(feature = "processing")]
-    #[inline]
-    fn with_geoip_lookup(mut self, geoip_lookup: Option<Arc<GeoIpLookup>>) -> Self {
-        self.geoip_lookup = geoip_lookup;
-        self
+        Ok(Self { config })
     }
 
     /// Returns Ok(true) if attributes were modified.
@@ -822,7 +989,7 @@ impl EnvelopeProcessor {
             return;
         }
 
-        let producer = OutcomeAggregator::from_registry();
+        let producer = TrackOutcome::from_registry();
         for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
             let outcome = match outcome_from_parts(outcome_type, &reason) {
                 Ok(outcome) => outcome,
@@ -836,7 +1003,7 @@ impl EnvelopeProcessor {
                 }
             };
 
-            producer.do_send(TrackOutcome {
+            producer.send(TrackOutcome {
                 timestamp: timestamp.as_datetime(),
                 scoping: state.envelope_context.scoping(),
                 outcome,
@@ -851,41 +1018,44 @@ impl EnvelopeProcessor {
     /// Remove profiles if the feature flag is not enabled
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
         let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
-        let context = &state.envelope_context;
+        let envelope = &mut state.envelope;
 
-        state.envelope.retain_items(|item| {
-            match item.ty() {
-                ItemType::Profile => {
-                    if !profiling_enabled {
-                        return false;
-                    }
-                    if self.config.processing_enabled() {
-                        match relay_profiling::parse_profile(&item.payload()) {
-                            Ok(payload) => {
-                                item.set_payload(ContentType::Json, &payload[..]);
-                                return true;
-                            }
-                            Err(err) => {
-                                context.track_outcome(
-                                    outcome_from_profile_error(err),
-                                    DataCategory::Profile,
-                                    1,
-                                );
-
-                                return false;
-                            }
-                        }
-                    }
-                    true
-                }
-                _ => true, // Keep all other item types
-            }
+        envelope.retain_items(|item| match item.ty() {
+            ItemType::Profile => profiling_enabled,
+            _ => true,
         });
+
+        if !self.config.processing_enabled() {
+            return;
+        }
+
+        let context = &state.envelope_context;
+        let mut new_profiles = Vec::new();
+
+        while let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::Profile) {
+            match relay_profiling::expand_profile(&item.payload()[..]) {
+                Ok(payloads) => new_profiles.extend(payloads),
+                Err(err) => {
+                    context.track_outcome(
+                        outcome_from_profile_error(err),
+                        DataCategory::Profile,
+                        1,
+                    );
+                }
+            }
+        }
+
+        for payload in new_profiles {
+            let mut item = Item::new(ItemType::Profile);
+            item.set_payload(ContentType::Json, &payload[..]);
+            envelope.add_item(item);
+        }
     }
 
     /// Remove replays if the feature flag is not enabled
     fn process_replays(&self, state: &mut ProcessEnvelopeState) {
         let replays_enabled = state.project_state.has_feature(Feature::Replays);
+        let context = &state.envelope_context;
         let envelope = &mut state.envelope;
         let client_addr = envelope.meta().client_addr();
 
@@ -903,7 +1073,11 @@ impl EnvelopeProcessor {
                         true
                     }
                     Err(_) => {
-                        relay_log::debug!("Replay item could not be parsed.");
+                        context.track_outcome(
+                            Outcome::Invalid(DiscardReason::InvalidReplayEvent),
+                            DataCategory::Replay,
+                            1,
+                        );
                         false
                     }
                 }
@@ -981,8 +1155,8 @@ impl EnvelopeProcessor {
     /// this includes cases where a single attachment file exceeds the maximum file size. This is in
     /// line with the behavior of the envelope endpoint.
     ///
-    /// After this, the `EnvelopeProcessor` should be able to process the envelope the same way it
-    /// processes any other envelopes.
+    /// After this, [`EnvelopeProcessorService`] should be able to process the envelope the same
+    /// way it processes any other envelopes.
     #[cfg(feature = "processing")]
     fn expand_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let envelope = &mut state.envelope;
@@ -1494,7 +1668,7 @@ impl EnvelopeProcessor {
             client_sample_rate: envelope.sampling_context().and_then(|ctx| ctx.sample_rate),
         };
 
-        let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_deref());
+        let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());
         metric!(timer(RelayTimers::EventProcessingProcess), {
             process_value(event, &mut store_processor, ProcessingState::root())
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -1621,6 +1795,10 @@ impl EnvelopeProcessor {
                 }
             );
             state.transaction_metrics_extracted = true;
+
+            if let Some(context) = state.envelope.sampling_context() {
+                track_sampling_metrics(&state.project_state, context, event);
+            }
         }
         Ok(())
     }
@@ -1638,7 +1816,11 @@ impl EnvelopeProcessor {
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
-            if let Some(config) = config.datascrubbing_settings.pii_config() {
+            let pii_config = config
+                .datascrubbing_settings
+                .pii_config()
+                .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+            if let Some(config) = pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
@@ -1786,6 +1968,10 @@ impl EnvelopeProcessor {
         self.process_replays(state);
 
         if state.creates_event() {
+            // Some envelopes only create events in processing relays; for example, unreal events.
+            // This makes it possible to get in this code block while not really having an event in
+            // the envelope.
+
             if_processing!({
                 self.expand_unreal(state)?;
             });
@@ -1887,81 +2073,7 @@ impl EnvelopeProcessor {
         )
     }
 
-    fn encode_envelope_body(
-        body: Vec<u8>,
-        http_encoding: HttpEncoding,
-    ) -> Result<Vec<u8>, std::io::Error> {
-        let envelope_body = match http_encoding {
-            HttpEncoding::Identity => body,
-            HttpEncoding::Deflate => {
-                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                encoder.write_all(body.as_ref())?;
-                encoder.finish()?
-            }
-            HttpEncoding::Gzip => {
-                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                encoder.write_all(body.as_ref())?;
-                encoder.finish()?
-            }
-            HttpEncoding::Br => {
-                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
-                encoder.write_all(body.as_ref())?;
-                encoder.finish()?
-            }
-        };
-        Ok(envelope_body)
-    }
-}
-
-impl Actor for EnvelopeProcessor {
-    type Context = SyncContext<Self>;
-}
-
-impl Default for EnvelopeProcessor {
-    fn default() -> Self {
-        unimplemented!("register with the SystemRegistry instead")
-    }
-}
-
-/// Response of the [`ProcessEnvelope`] message.
-#[cfg_attr(not(feature = "processing"), allow(dead_code))]
-pub struct ProcessEnvelopeResponse {
-    /// The processed envelope.
-    ///
-    /// This is `Some` if the envelope passed inbound filtering and rate limiting. Invalid items are
-    /// removed from the envelope. Otherwise, if the envelope is empty or the entire envelope needs
-    /// to be dropped, this is `None`.
-    pub envelope: Option<(Envelope, EnvelopeContext)>,
-
-    /// All rate limits that have been applied on the envelope.
-    pub rate_limits: RateLimits,
-}
-
-/// Applies processing to all contents of the given envelope.
-///
-/// Depending on the contents of the envelope and Relay's mode, this includes:
-///
-///  - Basic normalization and validation for all item types.
-///  - Clock drift correction if the required `sent_at` header is present.
-///  - Expansion of certain item types (e.g. unreal).
-///  - Store normalization for event payloads in processing mode.
-///  - Rate limiters and inbound filters on events in processing mode.
-#[derive(Debug)]
-pub struct ProcessEnvelope {
-    pub envelope: Envelope,
-    pub envelope_context: EnvelopeContext,
-    pub project_state: Arc<ProjectState>,
-    pub sampling_project_state: Option<Arc<ProjectState>>,
-}
-
-impl Message for ProcessEnvelope {
-    type Result = ();
-}
-
-impl Handler<ProcessEnvelope> for EnvelopeProcessor {
-    type Result = ();
-
-    fn handle(&mut self, message: ProcessEnvelope, _context: &mut Self::Context) -> Self::Result {
+    fn handle_process_envelope(&self, message: ProcessEnvelope) {
         let project_key = message.envelope.meta().public_key();
         let wait_time = message.envelope_context.start_time().elapsed();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
@@ -1991,42 +2103,8 @@ impl Handler<ProcessEnvelope> for EnvelopeProcessor {
             }
         }
     }
-}
 
-/// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
-///
-/// This parses and validates the metrics:
-///  - For [`Metrics`](ItemType::Metrics), each metric is parsed separately, and invalid metrics are
-///    ignored independently.
-///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
-///    dropped together on parsing failure.
-///  - Other items will be ignored with an error message.
-///
-/// Additionally, processing applies clock drift correction using the system clock of this Relay, if
-/// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
-pub struct ProcessMetrics {
-    /// A list of metric items.
-    pub items: Vec<Item>,
-
-    /// The target project.
-    pub project_key: ProjectKey,
-
-    /// The instant at which the request was received.
-    pub start_time: Instant,
-
-    /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
-    /// correction.
-    pub sent_at: Option<DateTime<Utc>>,
-}
-
-impl Message for ProcessMetrics {
-    type Result = ();
-}
-
-impl Handler<ProcessMetrics> for EnvelopeProcessor {
-    type Result = ();
-
-    fn handle(&mut self, message: ProcessMetrics, _context: &mut Self::Context) -> Self::Result {
+    fn handle_process_metrics(&self, message: ProcessMetrics) {
         let ProcessMetrics {
             items,
             project_key: public_key,
@@ -2083,31 +2161,33 @@ impl Handler<ProcessMetrics> for EnvelopeProcessor {
             }
         }
     }
-}
 
-/// Applies HTTP content encoding to an envelope's payload.
-///
-/// This message is a workaround for a single-threaded upstream actor.
-#[derive(Debug)]
-pub struct EncodeEnvelope {
-    request: SendEnvelope,
-}
-
-impl EncodeEnvelope {
-    /// Creates a new `EncodeEnvelope` message from `SendEnvelope` request.
-    pub fn new(request: SendEnvelope) -> Self {
-        Self { request }
+    fn encode_envelope_body(
+        body: Vec<u8>,
+        http_encoding: HttpEncoding,
+    ) -> Result<Vec<u8>, std::io::Error> {
+        let envelope_body = match http_encoding {
+            HttpEncoding::Identity => body,
+            HttpEncoding::Deflate => {
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+            HttpEncoding::Gzip => {
+                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+            HttpEncoding::Br => {
+                let mut encoder = BrotliEncoder::new(Vec::new(), 5);
+                encoder.write_all(body.as_ref())?;
+                encoder.finish()?
+            }
+        };
+        Ok(envelope_body)
     }
-}
 
-impl Message for EncodeEnvelope {
-    type Result = ();
-}
-
-impl Handler<EncodeEnvelope> for EnvelopeProcessor {
-    type Result = ();
-
-    fn handle(&mut self, message: EncodeEnvelope, _context: &mut Self::Context) -> Self::Result {
+    fn handle_encode_envelope(&self, message: EncodeEnvelope) {
         let mut request = message.request;
         match Self::encode_envelope_body(request.envelope_body, request.http_encoding) {
             Err(e) => {
@@ -2122,6 +2202,38 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
                 UpstreamRelay::from_registry().do_send(SendRequest(request));
             }
         }
+    }
+
+    fn handle_message(&self, message: EnvelopeProcessor) {
+        match message {
+            EnvelopeProcessor::ProcessEnvelope(message) => self.handle_process_envelope(*message),
+            EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
+            EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
+        }
+    }
+}
+
+impl Service for EnvelopeProcessorService {
+    type Interface = EnvelopeProcessor;
+
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let thread_count = self.config.cpu_concurrency();
+        relay_log::info!("starting {} envelope processing workers", thread_count);
+
+        tokio::spawn(async move {
+            let service = Arc::new(self);
+            let semaphore = Arc::new(Semaphore::new(thread_count));
+
+            while let (Some(message), Ok(permit)) =
+                tokio::join!(rx.recv(), semaphore.clone().acquire_owned())
+            {
+                let service = service.clone();
+                tokio::task::spawn_blocking(move || {
+                    service.handle_message(message);
+                    drop(permit);
+                });
+            }
+        });
     }
 }
 
@@ -2169,8 +2281,12 @@ mod tests {
         let item = create_breadcrumbs_item(&[(None, "item1")]);
 
         // NOTE: using (Some, None) here:
-        let result =
-            EnvelopeProcessor::event_from_attachments(&Config::default(), None, Some(item), None);
+        let result = EnvelopeProcessorService::event_from_attachments(
+            &Config::default(),
+            None,
+            Some(item),
+            None,
+        );
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -2185,8 +2301,12 @@ mod tests {
         let item = create_breadcrumbs_item(&[(None, "item2")]);
 
         // NOTE: using (None, Some) here:
-        let result =
-            EnvelopeProcessor::event_from_attachments(&Config::default(), None, None, Some(item));
+        let result = EnvelopeProcessorService::event_from_attachments(
+            &Config::default(),
+            None,
+            None,
+            Some(item),
+        );
 
         let event = result.unwrap().0;
         let breadcrumbs = breadcrumbs_from_event(&event);
@@ -2201,7 +2321,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(None, "crumb1")]);
         let item2 = create_breadcrumbs_item(&[(None, "crumb2"), (None, "crumb3")]);
 
-        let result = EnvelopeProcessor::event_from_attachments(
+        let result = EnvelopeProcessorService::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -2221,7 +2341,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
         let item2 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
 
-        let result = EnvelopeProcessor::event_from_attachments(
+        let result = EnvelopeProcessorService::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -2244,7 +2364,7 @@ mod tests {
         let item1 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
         let item2 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
 
-        let result = EnvelopeProcessor::event_from_attachments(
+        let result = EnvelopeProcessorService::event_from_attachments(
             &Config::default(),
             None,
             Some(item1),
@@ -2265,7 +2385,7 @@ mod tests {
         let item2 = create_breadcrumbs_item(&[]);
         let item3 = create_breadcrumbs_item(&[]);
 
-        let result = EnvelopeProcessor::event_from_attachments(
+        let result = EnvelopeProcessorService::event_from_attachments(
             &Config::default(),
             Some(item1),
             Some(item2),
@@ -2276,9 +2396,21 @@ mod tests {
         result.expect("event_from_attachments");
     }
 
+    fn create_test_processor(config: Config) -> EnvelopeProcessorService {
+        EnvelopeProcessorService {
+            config: Arc::new(config),
+            #[cfg(feature = "processing")]
+            rate_limiter: None,
+            #[cfg(feature = "processing")]
+            geoip_lookup: None,
+        }
+    }
+
     #[test]
+    #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
+    queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
     fn test_user_report_invalid() {
-        let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
+        let processor = create_test_processor(Default::default());
         let event_id = protocol::EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -2318,8 +2450,10 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
+    queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
     fn test_browser_version_extraction_with_pii_like_data() {
-        let processor = EnvelopeProcessor::new(Arc::new(Default::default()));
+        let processor = create_test_processor(Default::default());
         let event_id = protocol::EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -2408,6 +2542,8 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "The current Register panics if the Addr of an Actor (that is not yet started) is
+    queried, hence this test fails. The old Register returned dummy Addr's hence this did not fail."]
     fn test_client_report_removal() {
         relay_test::setup();
 
@@ -2419,7 +2555,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = EnvelopeProcessor::new(Arc::new(config));
+        let processor = create_test_processor(config);
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -2470,7 +2606,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = EnvelopeProcessor::new(Arc::new(config));
+        let processor = create_test_processor(config);
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -2527,7 +2663,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = EnvelopeProcessor::new(Arc::new(config));
+        let processor = create_test_processor(config);
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -2649,5 +2785,38 @@ mod tests {
             outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
             Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
         );
+    }
+
+    /// This is a stand-in test to assert panicking behavior for spawn_blocking.
+    ///
+    /// [`EnvelopeProcessorService`] relies on tokio to restart the worker threads for blocking
+    /// tasks if there is a panic during processing. Tokio does not explicitly mention this behavior
+    /// in documentation, though the `spawn_blocking` contract suggests that this is intentional.
+    ///
+    /// This test should be moved if the worker pool is extracted into a utility.
+    #[test]
+    fn test_processor_panics() {
+        let future = async {
+            let semaphore = Arc::new(Semaphore::new(1));
+
+            // loop multiple times to prove that the runtime creates new threads
+            for _ in 0..3 {
+                // the previous permit should have been released during panic unwind
+                let permit = semaphore.clone().acquire_owned().await.unwrap();
+
+                let handle = tokio::task::spawn_blocking(move || {
+                    let _permit = permit; // drop(permit) after panic!() would warn as "unreachable"
+                    panic!("ignored");
+                });
+
+                assert!(handle.await.is_err());
+            }
+        };
+
+        tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .build()
+            .unwrap()
+            .block_on(future);
     }
 }

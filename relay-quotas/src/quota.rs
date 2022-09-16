@@ -239,7 +239,7 @@ pub struct Quota {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope_id: Option<String>,
 
-    /// Maxmimum number of matching events allowed. Can be `0` to reject all events, `None` for an
+    /// Maximum number of matching events allowed. Can be `0` to reject all events, `None` for an
     /// unlimited counted quota, or a positive number for enforcement. Requires `window` if the
     /// limit is not `0`.
     #[serde(default)]

@@ -140,7 +140,7 @@ fn bench_pii_stripping(c: &mut Criterion) {
         |b, datascrubbing_config| b.iter(|| datascrubbing_config.pii_config_uncached()),
     );
 
-    let pii_config = datascrubbing_config.pii_config_uncached().unwrap();
+    let pii_config = datascrubbing_config.pii_config_uncached().unwrap().unwrap();
 
     group.bench_with_input(
         BenchmarkId::new("compile_pii_config", config_name),

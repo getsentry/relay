@@ -3140,7 +3140,7 @@ checksum = "49b3de9ec5dc0a3417da371aab17d729997c15010e7fd24ff707773a33bddb64"
 
 [[package]]
 name = "relay"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "clap",
  "console 0.10.3",
@@ -3158,7 +3158,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "base64 0.10.1",
  "chrono",
@@ -3174,7 +3174,7 @@ dependencies = [
 
 [[package]]
 name = "relay-aws-extension"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "actix",
  "failure",
@@ -3207,7 +3207,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "backoff",
  "chrono",
@@ -3226,7 +3226,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "failure",
  "human-size",
@@ -3244,7 +3244,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3252,7 +3252,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "failure",
  "relay-ffi-macros",
@@ -3260,7 +3260,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "quote 1.0.18",
  "syn 1.0.96",
@@ -3268,7 +3268,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "globset",
  "insta",
@@ -3284,7 +3284,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3308,6 +3308,7 @@ dependencies = [
  "regex",
  "relay-common",
  "relay-general-derive",
+ "relay-log",
  "schemars",
  "sentry-release-parser",
  "serde",
@@ -3324,7 +3325,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "proc-macro2 1.0.39",
  "quote 1.0.18",
@@ -3334,7 +3335,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "chrono",
  "console 0.10.3",
@@ -3351,7 +3352,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "actix",
  "criterion",
@@ -3372,7 +3373,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "android_trace_log",
  "base64 0.10.1",
@@ -3386,7 +3387,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "failure",
  "insta",
@@ -3400,7 +3401,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "failure",
  "r2d2",
@@ -3411,7 +3412,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "22.7.0"
+version = "22.9.0"
 dependencies = [
  "insta",
  "rand 0.6.5",
@@ -3427,7 +3428,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "insta",
  "rand 0.6.5",
@@ -3443,7 +3444,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -3504,7 +3505,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "cadence",
  "parking_lot 0.12.1",
@@ -3514,7 +3515,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "actix",
  "failure",
@@ -3528,7 +3529,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "22.8.0"
+version = "22.9.0"
 dependencies = [
  "actix",
  "actix-web",
@@ -4518,6 +4519,7 @@ dependencies = [
  "once_cell",
  "pin-project-lite 0.2.9",
  "socket2 0.4.4",
+ "tokio-macros",
  "winapi 0.3.9",
 ]
 
@@ -4572,6 +4574,17 @@ dependencies = [
  "bytes 0.4.12",
  "futures 0.1.31",
  "log",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9724f9a975fb987ef7a3cd9be0350edcbe130698af5b8f7a631e23d42d052484"
+dependencies = [
+ "proc-macro2 1.0.39",
+ "quote 1.0.18",
+ "syn 1.0.96",
 ]
 
 [[package]]

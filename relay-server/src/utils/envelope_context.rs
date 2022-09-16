@@ -12,7 +12,6 @@ use relay_quotas::Scoping;
 
 use crate::actors::envelopes::{Capture, EnvelopeManager};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -96,8 +95,8 @@ impl EnvelopeContext {
     /// This envelope context should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
     pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
-        let outcome_aggregator = OutcomeAggregator::from_registry();
-        outcome_aggregator.do_send(TrackOutcome {
+        let outcome_aggregator = TrackOutcome::from_registry();
+        outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at,
             scoping: self.scoping,
             outcome,

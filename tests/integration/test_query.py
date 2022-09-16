@@ -20,7 +20,7 @@ def test_local_project_config(mini_sentry, relay):
     relay_config = {
         "cache": {"file_interval": 1, "project_expiry": 0, "project_grace_period": 0}
     }
-    relay = relay(mini_sentry, relay_config, wait_healthcheck=False)
+    relay = relay(mini_sentry, relay_config, wait_health_check=False)
     relay.config_dir.mkdir("projects").join("42.json").write(
         json.dumps(
             {
@@ -39,7 +39,7 @@ def test_local_project_config(mini_sentry, relay):
     # we don't look on the file system
     dsn_key = config["publicKeys"][0]["publicKey"]
 
-    relay.wait_relay_healthcheck()
+    relay.wait_relay_health_check()
     relay.send_event(project_id, dsn_key=dsn_key)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}

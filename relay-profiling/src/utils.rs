@@ -3,6 +3,10 @@ use std::str::FromStr;
 
 use serde::{de, Deserialize};
 
+pub fn is_zero(n: &u64) -> bool {
+    *n == 0
+}
+
 pub fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
     D: de::Deserializer<'de>,

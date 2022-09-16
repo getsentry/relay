@@ -1,32 +1,35 @@
 # Changelog
 
-## Unreleased
+## 22.9.0
 
 **Features**:
 
-- Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
+- Add user-agent parsing to Replays. ([#1420](https://github.com/getsentry/relay/pull/1420))
+- Improve the release name used when reporting data to Sentry to include both the version and exact build. ([#1428](https://github.com/getsentry/relay/pull/1428))
 
 **Bug Fixes**:
 
 - Do not apply rate limits or reject data based on expired project configs. ([#1404](https://github.com/getsentry/relay/pull/1404))
 - Process required stacktraces to fix filtering events originating from browser extensions. ([#1423](https://github.com/getsentry/relay/pull/1423))
 - Fix error message filtering when formatting the message of logentry. ([#1442](https://github.com/getsentry/relay/pull/1442))
+- Loosen type requirements for the `user.id` field in Replays. ([#1443](https://github.com/getsentry/relay/pull/1443))
+- Fix panic in datascrubbing when number of sensitive fields was too large. ([#1474](https://github.com/getsentry/relay/pull/1474))
+
 
 **Internal**:
 
-- Refactor tokio-based Addr from healthcheck to be generic. ([#1405](https://github.com/relay/pull/1405))
-- Defer dropping of projects to a background thread to speed up project cache eviction. ([#1410](https://github.com/getsentry/relay/pull/1410))
-- Update store service to use generic Addr and minor changes to generic Addr. ([#1415](https://github.com/getsentry/relay/pull/1415))
-- Added new Register for the Services that is initialized later than the current. ([#1421](https://github.com/getsentry/relay/pull/1421))
-- Batch metrics buckets into logical partitions before sending them as envelopes. ([#1440](https://github.com/getsentry/relay/pull/1440))
+- Make the Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
+- Add support for sharding Kafka producers across clusters. ([#1454](https://github.com/getsentry/relay/pull/1454))
+- Speed up project cache eviction through a background thread. ([#1410](https://github.com/getsentry/relay/pull/1410))
+- Batch metrics buckets into logical partitions before sending them as Envelopes. ([#1440](https://github.com/getsentry/relay/pull/1440))
 - Filter single samples in cocoa profiles and events with no duration in Android profiles. ([#1445](https://github.com/getsentry/relay/pull/1445))
-- Add looser type requirements for the user.id field. ([#1443](https://github.com/getsentry/relay/pull/1443))
-
-**Features**:
-
-- Make Redis connection pool configurable. ([#1418](https://github.com/getsentry/relay/pull/1418))
-- Add user-agent parsing to replays processor. ([#1420](https://github.com/getsentry/relay/pull/1420))
-- Improve the release name used when reporting data to Sentry to include both the version and exact build. ([#1428](https://github.com/getsentry/relay/pull/1428))
+- Add a "invalid_replay" discard reason for invalid replay events. ([#1455](https://github.com/getsentry/relay/pull/1455))
+- Add rate limiters for replays and replay recordings. ([#1456](https://github.com/getsentry/relay/pull/1456))
+- Use the different configuration for billing outcomes when specified. ([#1461](https://github.com/getsentry/relay/pull/1461))
+- Support profiles tagged for many transactions. ([#1444](https://github.com/getsentry/relay/pull/1444)), ([#1463](https://github.com/getsentry/relay/pull/1463)), ([#1464](https://github.com/getsentry/relay/pull/1464), [#1465](https://github.com/getsentry/relay/pull/1465))
+- Track metrics for changes to the transaction name and DSC propagations. ([#1466](https://github.com/getsentry/relay/pull/1466))
+- Simplify the ingestion path to reduce endpoint response times. ([#1416](https://github.com/getsentry/relay/issues/1416), [#1429](https://github.com/getsentry/relay/issues/1429), [#1431](https://github.com/getsentry/relay/issues/1431))
+- Update the internal service architecture for the store, outcome, and processor services. ([#1405](https://github.com/getsentry/relay/pull/1405), [#1415](https://github.com/getsentry/relay/issues/1415), [#1421](https://github.com/getsentry/relay/issues/1421), [#1441](https://github.com/getsentry/relay/issues/1441), [#1457](https://github.com/getsentry/relay/issues/1457), [#1470](https://github.com/getsentry/relay/pull/1470))
 
 ## 22.8.0
 

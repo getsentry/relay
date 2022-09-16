@@ -1,14 +1,11 @@
 use std::fmt::{self, Write};
 
-use actix::SystemService;
-
 use relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
 };
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
-use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::envelope::{Envelope, Item, ItemType};
 
 /// Name of the rate limits header.
@@ -130,6 +127,9 @@ pub struct EnvelopeSummary {
     /// The number of profiles.
     pub profile_quantity: usize,
 
+    /// The number of replays.
+    pub replay_quantity: usize,
+
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
 }
@@ -162,6 +162,8 @@ impl EnvelopeSummary {
                 ItemType::Attachment => summary.attachment_quantity += item.len().max(1),
                 ItemType::Session => summary.session_quantity += 1,
                 ItemType::Profile => summary.profile_quantity += 1,
+                ItemType::ReplayEvent => summary.replay_quantity += 1,
+                ItemType::ReplayRecording => summary.replay_quantity += 1,
                 _ => (),
             }
         }
@@ -236,6 +238,8 @@ pub struct Enforcement {
     sessions: CategoryLimit,
     /// The combined profile item rate limit.
     profiles: CategoryLimit,
+    /// The combined replay item rate limit.
+    replays: CategoryLimit,
 }
 
 impl Enforcement {
@@ -244,10 +248,10 @@ impl Enforcement {
     /// Relay generally does not emit outcomes for sessions, so those are skipped.
     pub fn track_outcomes(self, envelope: &Envelope, scoping: &Scoping) {
         // Do not report outcomes for sessions.
-        for limit in [self.event, self.attachments, self.profiles] {
+        for limit in [self.event, self.attachments, self.profiles, self.replays] {
             if limit.is_active() {
                 let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
-                OutcomeAggregator::from_registry().do_send(TrackOutcome {
+                TrackOutcome::from_registry().send(TrackOutcome {
                     timestamp,
                     scoping: *scoping,
                     outcome: Outcome::RateLimited(limit.reason_code),
@@ -419,6 +423,17 @@ where
                 profile_limits.longest(),
             );
             rate_limits.merge(profile_limits);
+        }
+
+        if summary.replay_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::Replay);
+            let replay_limits = (self.check)(item_scoping, summary.replay_quantity)?;
+            enforcement.replays = CategoryLimit::new(
+                DataCategory::Replay,
+                summary.replay_quantity,
+                replay_limits.longest(),
+            );
+            rate_limits.merge(replay_limits);
         }
 
         Ok((enforcement, rate_limits))
