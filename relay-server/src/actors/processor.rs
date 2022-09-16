@@ -14,7 +14,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
 use serde_json::Value as SerdeValue;
-use smallvec::smallvec;
+use smallvec::{smallvec, SmallVec};
 
 use relay_auth::RelayVersion;
 use relay_common::{clone, DataCategories, ProjectId, ProjectKey, UnixTimestamp};
@@ -210,6 +210,14 @@ struct ProcessEnvelopeState {
 
     /// Track whether transaction metrics were already extracted.
     transaction_metrics_extracted: bool,
+
+    /// Tracks which [`DataCategory`]s were rate limited.
+    ///
+    /// Some events, like transactions, can be rate limited for several [`DataCategory']s.
+    /// If not all categories were rate limited the item is still passed into the processing
+    /// pipeline but this shows the categories which are rate limited so the processing can
+    /// skip the relevant steps.
+    rate_limited_categories: DataCategories,
 
     /// Partial metrics of the Event during construction.
     ///
@@ -970,6 +978,7 @@ impl EnvelopeProcessor {
             envelope,
             event: Annotated::empty(),
             transaction_metrics_extracted: false,
+            rate_limited_categories: SmallVec::new(),
             metrics: Metrics::default(),
             sample_rates: None,
             rate_limits: RateLimits::new(),
@@ -1283,6 +1292,7 @@ impl EnvelopeProcessor {
             relay_log::trace!("processing json transaction");
             state.sample_rates = item.take_sample_rates();
             state.transaction_metrics_extracted = item.metrics_extracted();
+            state.rate_limited_categories = item.rate_limited_categories(); // TODO: could be done for all events.
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
@@ -1355,6 +1365,12 @@ impl EnvelopeProcessor {
     }
 
     fn finalize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        if state
+            .rate_limited_categories
+            .contains(&DataCategory::Transaction)
+        {
+            return Ok(());
+        }
         let is_transaction = state.event_type() == Some(EventType::Transaction);
         let envelope = &mut state.envelope;
 
@@ -1468,6 +1484,13 @@ impl EnvelopeProcessor {
 
     #[cfg(feature = "processing")]
     fn store_process_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        if state
+            .rate_limited_categories
+            .contains(&DataCategory::Transaction)
+        {
+            return Ok(());
+        }
+
         let ProcessEnvelopeState {
             ref envelope,
             ref mut event,
@@ -1597,7 +1620,11 @@ impl EnvelopeProcessor {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        if state.transaction_metrics_extracted {
+        if state.transaction_metrics_extracted
+            || state
+                .rate_limited_categories
+                .contains(&DataCategory::TransactionProcessed)
+        {
             // Nothing to do here.
             return Ok(());
         }
@@ -1811,7 +1838,6 @@ impl EnvelopeProcessor {
                 self.create_placeholders(state);
             });
 
-            // TODO: don't really need this for indexing-rate-limited transactions, but light enough
             self.finalize_event(state)?;
             self.light_normalize_event(state)?;
             self.filter_event(state)?;
@@ -1819,7 +1845,6 @@ impl EnvelopeProcessor {
             self.sample_envelope(state)?;
 
             if_processing!({
-                // TODO: don't run this for indexing-rate-limited transactions
                 self.store_process_event(state)?;
             });
         }

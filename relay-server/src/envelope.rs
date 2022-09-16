@@ -38,7 +38,7 @@ use std::io::{self, Write};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use failure::Fail;
-use relay_common::UnixTimestamp;
+use relay_common::{DataCategories, UnixTimestamp};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -415,6 +415,16 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// The set of [`DataCategory`] items which were rate limited for this item.
+    ///
+    /// Some items have multiple rate limiting [`DataCategory`] items and if not all are
+    /// rate limited the item is not removed from the envelope for processing.  For such
+    /// items the categories which were limited are available here so the processing can
+    /// handle them appropriately.
+    // TODO: fold the rate_limited field into this.
+    #[serde(default, skip)]
+    rate_limited_categories: DataCategories,
+
     /// A list of cumulative sample rates applied to this event.
     ///
     /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
@@ -460,6 +470,7 @@ impl Item {
                 content_type: None,
                 filename: None,
                 rate_limited: false,
+                rate_limited_categories: SmallVec::new(),
                 sample_rates: None,
                 timestamp: None,
                 other: BTreeMap::new(),
@@ -546,6 +557,14 @@ impl Item {
     /// Sets whether this item should be rate limited.
     pub fn set_rate_limited(&mut self, rate_limited: bool) {
         self.headers.rate_limited = rate_limited;
+    }
+
+    pub fn rate_limited_categories(&self) -> DataCategories {
+        self.headers.rate_limited_categories.clone()
+    }
+
+    pub fn set_rate_limited_categories(&mut self, categories: DataCategories) {
+        self.headers.rate_limited_categories = categories;
     }
 
     /// Removes sample rates from the headers, if any.

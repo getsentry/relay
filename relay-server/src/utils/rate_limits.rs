@@ -382,6 +382,25 @@ where
 
         let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
         envelope.retain_items(|item| self.should_retain_item(item, &enforcement));
+
+        // TODO: This is special-cased for Transaction but we could set this generically.
+        if let Some(item) =
+            envelope.get_item_by_mut(|item| matches!(item.ty(), ItemType::Transaction))
+        {
+            let mut categories = SmallVec::new();
+            for limit in enforcement.event.iter() {
+                if limit.is_active()
+                    && matches!(
+                        limit.category,
+                        DataCategory::Transaction | DataCategory::TransactionProcessed
+                    )
+                {
+                    categories.push(limit.category);
+                }
+            }
+            item.set_rate_limited_categories(categories);
+        }
+
         Ok((enforcement, rate_limits))
     }
 
