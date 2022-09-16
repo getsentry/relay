@@ -2077,7 +2077,7 @@ impl EnvelopeProcessorService {
         match result {
             Ok(response) => {
                 if let Some((envelope, envelope_context)) = response.envelope {
-                    EnvelopeManager::from_registry().do_send(SubmitEnvelope {
+                    EnvelopeManager::from_registry().send(SubmitEnvelope {
                         envelope,
                         envelope_context,
                     })
