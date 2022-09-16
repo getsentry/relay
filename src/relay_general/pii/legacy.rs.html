@@ -87,6 +87,9 @@
 <span id="79">79</span>
 <span id="80">80</span>
 <span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Legacy datascrubbing coniguration</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! All these configuration options are ignored by the new data scrubbers which operate</span>
@@ -165,7 +168,10 @@
     <span class="doccomment">/// Like [`pii_config`](Self::pii_config) but without internal caching.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pii_config_uncached</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span>, <span class="ident">PiiConfigError</span><span class="op">&gt;</span> {
-        <span class="ident">convert::to_pii_config</span>(<span class="self">self</span>)
+        <span class="ident">convert::to_pii_config</span>(<span class="self">self</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
+            <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to convert datascrubbing config&quot;</span>);
+            <span class="ident">e</span>
+        })
     }
 }
 </code></pre></div>
