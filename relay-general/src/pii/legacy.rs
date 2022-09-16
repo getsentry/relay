@@ -76,6 +76,9 @@ impl DataScrubbingConfig {
     /// Like [`pii_config`](Self::pii_config) but without internal caching.
     #[inline]
     pub fn pii_config_uncached(&self) -> Result<Option<PiiConfig>, PiiConfigError> {
-        convert::to_pii_config(self)
+        convert::to_pii_config(self).map_err(|e| {
+            relay_log::error!("Failed to convert datascrubbing config");
+            e
+        })
     }
 }

@@ -3308,6 +3308,7 @@ dependencies = [
  "regex",
  "relay-common",
  "relay-general-derive",
+ "relay-log",
  "schemars",
  "sentry-release-parser",
  "serde",
