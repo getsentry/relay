@@ -100,11 +100,12 @@ mod cocoa;
 mod error;
 mod python;
 mod rust;
+mod transaction_metadata;
 mod typescript;
 mod utils;
 
-use crate::android::parse_android_profile;
-use crate::cocoa::parse_cocoa_profile;
+use crate::android::expand_android_profile;
+use crate::cocoa::expand_cocoa_profile;
 use crate::python::parse_python_profile;
 use crate::rust::parse_rust_profile;
 use crate::typescript::parse_typescript_profile;
@@ -120,14 +121,23 @@ fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError
     serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
 }
 
-pub fn parse_profile(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
+pub fn expand_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileError> {
     let minimal_profile: MinimalProfile = minimal_profile_from_json(payload)?;
-    return match minimal_profile.platform.as_str() {
-        "android" => parse_android_profile(payload),
-        "cocoa" => parse_cocoa_profile(payload),
-        "python" => parse_python_profile(payload),
-        "rust" => parse_rust_profile(payload),
-        "typescript" => parse_typescript_profile(payload),
-        _ => Err(ProfileError::PlatformNotSupported),
-    };
+    let platform = minimal_profile.platform.as_str();
+    match platform {
+        "android" => expand_android_profile(payload),
+        "cocoa" => expand_cocoa_profile(payload),
+        _ => {
+            let payload = match platform {
+                "python" => parse_python_profile(payload),
+                "rust" => parse_rust_profile(payload),
+                "typescript" => parse_typescript_profile(payload),
+                _ => Err(ProfileError::PlatformNotSupported),
+            };
+            match payload {
+                Ok(payload) => Ok(vec![payload]),
+                Err(payload) => Err(payload),
+            }
+        }
+    }
 }

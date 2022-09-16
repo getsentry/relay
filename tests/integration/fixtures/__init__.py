@@ -8,7 +8,7 @@ session = requests.session()
 
 
 class SentryLike(object):
-    _healthcheck_passed = False
+    _health_check_passed = False
 
     default_dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
 
@@ -95,12 +95,12 @@ class SentryLike(object):
                     raise
                 backoff *= 2
 
-    def wait_relay_healthcheck(self):
-        if self._healthcheck_passed:
+    def wait_relay_health_check(self):
+        if self._health_check_passed:
             return
 
         self._wait("/api/relay/healthcheck/ready/")
-        self._healthcheck_passed = True
+        self._health_check_passed = True
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))

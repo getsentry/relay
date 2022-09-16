@@ -10,7 +10,6 @@ use relay_quotas::{
 };
 
 use crate::actors::outcome::{Outcome, TrackOutcome};
-use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::envelope::{Envelope, Item, ItemType};
 
 /// Name of the rate limits header.
@@ -273,7 +272,7 @@ impl Enforcement {
         for limit in all_limits {
             if limit.is_active() {
                 let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
-                let _ = OutcomeAggregator::from_registry().send(TrackOutcome {
+                TrackOutcome::from_registry().send(TrackOutcome {
                     timestamp,
                     scoping: *scoping,
                     outcome: Outcome::RateLimited(limit.reason_code),

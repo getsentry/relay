@@ -504,7 +504,7 @@ impl UpstreamRelay {
         );
 
         ctx.run_later(next_backoff, |slf, ctx| {
-            let request = EnqueuedRequest::new(GetHealthcheck);
+            let request = EnqueuedRequest::new(GetHealthCheck);
             slf.enqueue(request, ctx, EnqueuePosition::Front);
         });
     }
@@ -962,9 +962,9 @@ impl Handler<ScheduleConnectionCheck> for UpstreamRelay {
 }
 
 /// Checks the status of the network connection with the upstream server
-struct GetHealthcheck;
+struct GetHealthCheck;
 
-impl UpstreamRequest for GetHealthcheck {
+impl UpstreamRequest for GetHealthCheck {
     fn method(&self) -> Method {
         Method::GET
     }

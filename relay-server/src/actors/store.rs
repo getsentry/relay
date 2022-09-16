@@ -8,21 +8,18 @@ use std::time::Instant;
 use bytes::Bytes;
 use failure::{Fail, ResultExt};
 use once_cell::sync::OnceCell;
-use rdkafka::error::KafkaError;
-use rdkafka::producer::BaseRecord;
-use rdkafka::ClientConfig;
+use rdkafka::{error::KafkaError, producer::BaseRecord, ClientConfig};
 use rmp_serde::encode::Error as RmpError;
 use serde::{ser::Error, Serialize};
-use tokio::sync::{mpsc, oneshot};
 
 use relay_common::{ProjectId, UnixTimestamp, Uuid};
-use relay_config::{Config, KafkaTopic};
+use relay_config::{Config, KafkaConfig, KafkaParams, KafkaTopic};
 use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
 use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, Service, ServiceMessage};
+use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::{ServerError, ServerErrorKind};
@@ -43,11 +40,153 @@ pub enum StoreError {
     InvalidMsgPack(#[cause] RmpError),
     #[fail(display = "failed to serialize json message")]
     InvalidJson(#[cause] serde_json::Error),
+    #[fail(display = "failed to find the shard range")]
+    InvalidKafkaShardRange,
     #[fail(display = "failed to store event because event id was missing")]
     NoEventId,
 }
 
-type Producer = Arc<ThreadedProducer>;
+/// Temporary map used to deduplicate kafka producers
+type ReusedProducersMap<'a> = BTreeMap<Option<&'a str>, Arc<ThreadedProducer>>;
+
+fn make_distinct_id(s: &str) -> Uuid {
+    static NAMESPACE: OnceCell<Uuid> = OnceCell::new();
+    let namespace =
+        NAMESPACE.get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did"));
+
+    s.parse()
+        .unwrap_or_else(|_| Uuid::new_v5(namespace, s.as_bytes()))
+}
+
+pub fn make_producer<'a>(
+    config: &'a Config,
+    reused_producers: &mut ReusedProducersMap<'a>,
+    kafka_topic: KafkaTopic,
+) -> Result<Producer, ServerError> {
+    let mut client_config = ClientConfig::new();
+    match config
+        .kafka_config(kafka_topic)
+        .context(ServerErrorKind::KafkaError)?
+    {
+        KafkaConfig::Single(KafkaParams {
+            topic_name,
+            config_name,
+            params,
+        }) => {
+            if let Some(producer) = reused_producers.get(&config_name) {
+                return Ok(Producer::Single {
+                    topic_name: topic_name.to_string(),
+                    producer: Arc::clone(producer),
+                });
+            }
+
+            for config_p in params {
+                client_config.set(config_p.name.as_str(), config_p.value.as_str());
+            }
+
+            let producer = Arc::new(
+                client_config
+                    .create_with_context(CaptureErrorContext)
+                    .context(ServerErrorKind::KafkaError)?,
+            );
+
+            reused_producers.insert(config_name, Arc::clone(&producer));
+            Ok(Producer::Single {
+                topic_name: topic_name.to_string(),
+                producer,
+            })
+        }
+        KafkaConfig::Sharded { shards, configs } => {
+            let mut producers = BTreeMap::new();
+            for (shard, kafka_params) in configs {
+                if let Some(producer) = reused_producers.get(&kafka_params.config_name) {
+                    let cached_producer = Arc::clone(producer);
+                    producers.insert(
+                        shard,
+                        (kafka_params.topic_name.to_string(), cached_producer),
+                    );
+                    continue;
+                }
+                for config_p in kafka_params.params {
+                    client_config.set(config_p.name.as_str(), config_p.value.as_str());
+                }
+                let producer = Arc::new(
+                    client_config
+                        .create_with_context(CaptureErrorContext)
+                        .context(ServerErrorKind::KafkaError)?,
+                );
+                reused_producers.insert(kafka_params.config_name, Arc::clone(&producer));
+                producers.insert(shard, (kafka_params.topic_name.to_string(), producer));
+            }
+            Ok(Producer::Sharded(ShardedProducer { shards, producers }))
+        }
+    }
+}
+
+/// This object containes the Kafka producer variants for single and sharded configurations.
+pub enum Producer {
+    Single {
+        topic_name: String,
+        producer: Arc<ThreadedProducer>,
+    },
+    Sharded(ShardedProducer),
+}
+
+/// Sharded producer configuration.
+pub struct ShardedProducer {
+    /// The maximum number of shards for this producer.
+    shards: u64,
+    /// The actual Kafka producer assigned to the range of logical shards, where the `u64` in the map is
+    /// the inclusive beginning of the range.
+    producers: BTreeMap<u64, (String, Arc<ThreadedProducer>)>,
+}
+
+impl ShardedProducer {
+    /// Returns topic name and the Kafka producer based on the provided sharding key.
+    /// Returns error [`StoreError::InvalidKafkaShardRange`] if the shard range for the provided sharding
+    /// key could not be found.
+    pub fn get_producer(&self, sharding_key: u64) -> Result<(&str, &ThreadedProducer), StoreError> {
+        let shard = sharding_key % self.shards;
+        let (topic_name, producer) = self
+            .producers
+            .iter()
+            .take_while(|(k, _)| *k <= &shard)
+            .last()
+            .map(|(_, v)| v)
+            .ok_or(StoreError::InvalidKafkaShardRange)?;
+
+        Ok((topic_name, producer))
+    }
+}
+
+impl Producer {
+    /// Sends the message to Kafka using correct producer for the current topic.
+    fn send(&self, organization_id: u64, message: KafkaMessage) -> Result<(), StoreError> {
+        let serialized = message.serialize()?;
+        metric!(
+            histogram(RelayHistograms::KafkaMessageSize) = serialized.len() as u64,
+            variant = message.variant()
+        );
+        let key = message.key();
+        let (topic_name, producer) = match self {
+            Self::Single {
+                topic_name,
+                producer,
+            } => (topic_name.as_str(), producer.as_ref()),
+
+            Self::Sharded(sharded) => sharded.get_producer(organization_id)?,
+        };
+        let record = BaseRecord::to(topic_name).key(&key).payload(&serialized);
+
+        producer.send(record).map_err(|(kafka_error, _message)| {
+            relay_log::with_scope(
+                |scope| scope.set_tag("variant", message.variant()),
+                || relay_log::error!("error sending kafka message: {}", kafka_error),
+            );
+            StoreError::SendFailed(kafka_error)
+        })
+    }
+}
 
 struct Producers {
     events: Producer,
@@ -62,7 +201,7 @@ struct Producers {
 }
 
 impl Producers {
-    /// Get a producer by KafkaTopic value
+    /// Get a producer by KafkaTopic value.
     pub fn get(&self, kafka_topic: KafkaTopic) -> Option<&Producer> {
         match kafka_topic {
             KafkaTopic::Attachments => Some(&self.attachments),
@@ -119,87 +258,43 @@ impl Producers {
     }
 }
 
-/// Service for publishing events to Sentry through kafka topics.
-pub struct StoreForwarder {
+/// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
+#[derive(Clone, Debug)]
+pub struct StoreEnvelope {
+    pub envelope: Envelope,
+    pub start_time: Instant,
+    pub scoping: Scoping,
+}
+
+/// Service interface for the [`StoreEnvelope`] message.
+#[derive(Debug)]
+pub struct Store(StoreEnvelope, Sender<Result<(), StoreError>>);
+
+impl Interface for Store {}
+
+impl FromMessage<StoreEnvelope> for Store {
+    type Response = AsyncResponse<Result<(), StoreError>>;
+
+    fn from_message(message: StoreEnvelope, sender: Sender<Result<(), StoreError>>) -> Self {
+        Self(message, sender)
+    }
+}
+
+/// Service implementing the [`Store`] interface.
+pub struct StoreService {
     config: Arc<Config>,
     producers: Producers,
 }
 
-impl Service for StoreForwarder {
-    type Messages = StoreMessages;
-}
-
-fn make_distinct_id(s: &str) -> Uuid {
-    static NAMESPACE: OnceCell<Uuid> = OnceCell::new();
-    let namespace =
-        NAMESPACE.get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/#did"));
-
-    s.parse()
-        .unwrap_or_else(|_| Uuid::new_v5(namespace, s.as_bytes()))
-}
-
-/// Temporary map used to deduplicate kafka producers
-type ReusedProducersMap<'a> = BTreeMap<Option<&'a str>, Producer>;
-
-fn make_producer<'a>(
-    config: &'a Config,
-    reused_producers: &mut ReusedProducersMap<'a>,
-    kafka_topic: KafkaTopic,
-) -> Result<Producer, ServerError> {
-    let (config_name, kafka_config) = config
-        .kafka_config(kafka_topic)
-        .context(ServerErrorKind::KafkaError)?;
-
-    if let Some(producer) = reused_producers.get(&config_name) {
-        return Ok(Arc::clone(producer));
-    }
-
-    let mut client_config = ClientConfig::new();
-
-    for config_p in kafka_config {
-        client_config.set(config_p.name.as_str(), config_p.value.as_str());
-    }
-
-    let producer = Arc::new(
-        client_config
-            .create_with_context(CaptureErrorContext)
-            .context(ServerErrorKind::KafkaError)?,
-    );
-
-    reused_producers.insert(config_name, Arc::clone(&producer));
-    Ok(producer)
-}
-
-impl StoreForwarder {
-    pub fn start(self) -> Addr<Self> {
-        relay_log::info!("store forwarder started");
-
-        let (tx, mut rx) = mpsc::unbounded_channel::<StoreMessages>();
-
-        tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                self.handle_message(message);
-            }
-
-            relay_log::info!("store forwarder stopped");
-        });
-
-        Addr { tx }
-    }
-
+impl StoreService {
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let producers = Producers::create(&config)?;
-
         Ok(Self { config, producers })
     }
 
-    fn handle_message(&self, message: StoreMessages) {
-        match message {
-            StoreMessages::StoreEnvelope(msg, responder_tx) => {
-                let response = self.handle_store_envelope(msg);
-                responder_tx.send(response).ok();
-            }
-        }
+    fn handle_message(&self, message: Store) {
+        let Store(message, sender) = message;
+        sender.send(self.handle_store_envelope(message));
     }
 
     fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
@@ -208,7 +303,6 @@ impl StoreForwarder {
             start_time,
             scoping,
         } = message;
-
         let retention = envelope.retention();
         let client = envelope.meta().client();
         let event_id = envelope.event_id();
@@ -235,6 +329,7 @@ impl StoreForwarder {
                     debug_assert!(topic == KafkaTopic::Attachments);
                     let attachment = self.produce_attachment_chunks(
                         event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.organization_id,
                         scoping.project_id,
                         item,
                     )?;
@@ -244,6 +339,7 @@ impl StoreForwarder {
                     debug_assert!(topic == KafkaTopic::Attachments);
                     self.produce_user_report(
                         event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.organization_id,
                         scoping.project_id,
                         start_time,
                         item,
@@ -275,6 +371,7 @@ impl StoreForwarder {
                 ItemType::ReplayRecording => {
                     let replay_recording = self.produce_replay_recording_chunks(
                         event_id.ok_or(StoreError::NoEventId)?,
+                        scoping.organization_id,
                         scoping.project_id,
                         item,
                     )?;
@@ -287,7 +384,11 @@ impl StoreForwarder {
                             replay_recording,
                         });
 
-                    self.produce(KafkaTopic::ReplayRecordings, replay_recording_message)?;
+                    self.produce(
+                        KafkaTopic::ReplayRecordings,
+                        scoping.organization_id,
+                        replay_recording_message,
+                    )?;
                     metric!(
                         counter(RelayCounters::ProcessingMessageProduced) += 1,
                         event_type = "replay_recording"
@@ -295,6 +396,7 @@ impl StoreForwarder {
                 }
                 ItemType::ReplayEvent => self.produce_replay_event(
                     event_id.ok_or(StoreError::NoEventId)?,
+                    scoping.organization_id,
                     scoping.project_id,
                     start_time,
                     retention,
@@ -315,7 +417,7 @@ impl StoreForwarder {
                 attachments,
             });
 
-            self.produce(topic, event_message)?;
+            self.produce(topic, scoping.organization_id, event_message)?;
             metric!(
                 counter(RelayCounters::ProcessingMessageProduced) += 1,
                 event_type = &event_item.ty().to_string()
@@ -329,7 +431,7 @@ impl StoreForwarder {
                     attachment,
                 });
 
-                self.produce(topic, attachment_message)?;
+                self.produce(topic, scoping.organization_id, attachment_message)?;
                 metric!(
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = "attachment"
@@ -340,22 +442,14 @@ impl StoreForwarder {
         Ok(())
     }
 
-    fn produce(&self, topic: KafkaTopic, message: KafkaMessage) -> Result<(), StoreError> {
-        let serialized = message.serialize()?;
-        metric!(
-            histogram(RelayHistograms::KafkaMessageSize) = serialized.len() as u64,
-            variant = message.variant()
-        );
-        let key = message.key();
-
-        let record = BaseRecord::to(self.config.kafka_topic_name(topic))
-            .key(&key)
-            .payload(&serialized);
-
+    fn produce(
+        &self,
+        topic: KafkaTopic,
+        organization_id: u64,
+        message: KafkaMessage,
+    ) -> Result<(), StoreError> {
         if let Some(producer) = self.producers.get(topic) {
-            producer
-                .send(record)
-                .map_err(|(kafka_error, _message)| StoreError::SendFailed(kafka_error))?;
+            producer.send(organization_id, message)?;
         }
 
         Ok(())
@@ -364,6 +458,7 @@ impl StoreForwarder {
     fn produce_attachment_chunks(
         &self,
         event_id: EventId,
+        organization_id: u64,
         project_id: ProjectId,
         item: &Item,
     ) -> Result<ChunkedAttachment, StoreError> {
@@ -386,7 +481,7 @@ impl StoreForwarder {
                 id: id.clone(),
                 chunk_index,
             });
-            self.produce(KafkaTopic::Attachments, attachment_message)?;
+            self.produce(KafkaTopic::Attachments, organization_id, attachment_message)?;
             offset += chunk_size;
             chunk_index += 1;
         }
@@ -413,6 +508,7 @@ impl StoreForwarder {
     fn produce_user_report(
         &self,
         event_id: EventId,
+        organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
         item: &Item,
@@ -424,7 +520,7 @@ impl StoreForwarder {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
         });
 
-        self.produce(KafkaTopic::Attachments, message)
+        self.produce(KafkaTopic::Attachments, organization_id, message)
     }
 
     fn produce_sessions(
@@ -515,25 +611,25 @@ impl StoreForwarder {
             if item.exited > 0 {
                 message.errors = 0;
                 message.quantity = item.exited;
-                self.send_session_message(message.clone())?;
+                self.send_session_message(org_id, message.clone())?;
             }
             if item.errored > 0 {
                 message.errors = 1;
                 message.status = SessionStatus::Errored;
                 message.quantity = item.errored;
-                self.send_session_message(message.clone())?;
+                self.send_session_message(org_id, message.clone())?;
             }
             if item.abnormal > 0 {
                 message.errors = 1;
                 message.status = SessionStatus::Abnormal;
                 message.quantity = item.abnormal;
-                self.send_session_message(message.clone())?;
+                self.send_session_message(org_id, message.clone())?;
             }
             if item.crashed > 0 {
                 message.errors = 1;
                 message.status = SessionStatus::Crashed;
                 message.quantity = item.crashed;
-                self.send_session_message(message)?;
+                self.send_session_message(org_id, message)?;
             }
         }
         Ok(())
@@ -547,33 +643,41 @@ impl StoreForwarder {
         client: Option<&str>,
         session: SessionUpdate,
     ) -> Result<(), StoreError> {
-        self.send_session_message(SessionKafkaMessage {
+        self.send_session_message(
             org_id,
-            project_id,
-            session_id: session.session_id,
-            distinct_id: session
-                .distinct_id
-                .as_deref()
-                .map(make_distinct_id)
-                .unwrap_or_default(),
-            quantity: 1,
-            seq: if session.init { 0 } else { session.sequence },
-            received: protocol::datetime_to_timestamp(session.timestamp),
-            started: protocol::datetime_to_timestamp(session.started),
-            duration: session.duration,
-            status: session.status,
-            errors: session
-                .errors
-                .min(u16::max_value().into())
-                .max((session.status == SessionStatus::Crashed) as _) as _,
-            release: session.attributes.release,
-            environment: session.attributes.environment,
-            sdk: client.map(str::to_owned),
-            retention_days: event_retention,
-        })
+            SessionKafkaMessage {
+                org_id,
+                project_id,
+                session_id: session.session_id,
+                distinct_id: session
+                    .distinct_id
+                    .as_deref()
+                    .map(make_distinct_id)
+                    .unwrap_or_default(),
+                quantity: 1,
+                seq: if session.init { 0 } else { session.sequence },
+                received: protocol::datetime_to_timestamp(session.timestamp),
+                started: protocol::datetime_to_timestamp(session.started),
+                duration: session.duration,
+                status: session.status,
+                errors: session
+                    .errors
+                    .min(u16::max_value().into())
+                    .max((session.status == SessionStatus::Crashed) as _)
+                    as _,
+                release: session.attributes.release,
+                environment: session.attributes.environment,
+                sdk: client.map(str::to_owned),
+                retention_days: event_retention,
+            },
+        )
     }
 
-    fn send_metric_message(&self, message: MetricKafkaMessage) -> Result<(), StoreError> {
+    fn send_metric_message(
+        &self,
+        organization_id: u64,
+        message: MetricKafkaMessage,
+    ) -> Result<(), StoreError> {
         let mri = MetricResourceIdentifier::parse(&message.name);
         let topic = match mri.map(|mri| mri.namespace) {
             Ok(MetricNamespace::Transactions) => KafkaTopic::MetricsTransactions,
@@ -592,7 +696,7 @@ impl StoreForwarder {
         };
 
         relay_log::trace!("Sending metric message to kafka");
-        self.produce(topic, KafkaMessage::Metric(message))?;
+        self.produce(topic, organization_id, KafkaMessage::Metric(message))?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "metric"
@@ -609,22 +713,33 @@ impl StoreForwarder {
         let payload = item.payload();
 
         for bucket in Bucket::parse_all(&payload).unwrap_or_default() {
-            self.send_metric_message(MetricKafkaMessage {
+            self.send_metric_message(
                 org_id,
-                project_id,
-                name: bucket.name,
-                value: bucket.value,
-                timestamp: bucket.timestamp,
-                tags: bucket.tags,
-            })?;
+                MetricKafkaMessage {
+                    org_id,
+                    project_id,
+                    name: bucket.name,
+                    value: bucket.value,
+                    timestamp: bucket.timestamp,
+                    tags: bucket.tags,
+                },
+            )?;
         }
 
         Ok(())
     }
 
-    fn send_session_message(&self, message: SessionKafkaMessage) -> Result<(), StoreError> {
+    fn send_session_message(
+        &self,
+        organization_id: u64,
+        message: SessionKafkaMessage,
+    ) -> Result<(), StoreError> {
         relay_log::trace!("Sending session item to kafka");
-        self.produce(KafkaTopic::Sessions, KafkaMessage::Session(message))?;
+        self.produce(
+            KafkaTopic::Sessions,
+            organization_id,
+            KafkaMessage::Session(message),
+        )?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "session"
@@ -648,7 +763,11 @@ impl StoreForwarder {
             payload: item.payload(),
         };
         relay_log::trace!("Sending profile to Kafka");
-        self.produce(KafkaTopic::Profiles, KafkaMessage::Profile(message))?;
+        self.produce(
+            KafkaTopic::Profiles,
+            organization_id,
+            KafkaMessage::Profile(message),
+        )?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "profile"
@@ -659,6 +778,7 @@ impl StoreForwarder {
     fn produce_replay_event(
         &self,
         replay_id: EventId,
+        organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
         retention_days: u16,
@@ -672,7 +792,11 @@ impl StoreForwarder {
             payload: item.payload(),
         };
         relay_log::trace!("Sending replay event to Kafka");
-        self.produce(KafkaTopic::ReplayEvents, KafkaMessage::ReplayEvent(message))?;
+        self.produce(
+            KafkaTopic::ReplayEvents,
+            organization_id,
+            KafkaMessage::ReplayEvent(message),
+        )?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "replay_event"
@@ -683,6 +807,7 @@ impl StoreForwarder {
     fn produce_replay_recording_chunks(
         &self,
         replay_id: EventId,
+        organization_id: u64,
         project_id: ProjectId,
         item: &Item,
     ) -> Result<ChunkedReplayRecording, StoreError> {
@@ -707,7 +832,11 @@ impl StoreForwarder {
                     id: id.clone(),
                     chunk_index,
                 });
-            self.produce(KafkaTopic::ReplayRecordings, replay_recording_chunk_message)?;
+            self.produce(
+                KafkaTopic::ReplayRecordings,
+                organization_id,
+                replay_recording_chunk_message,
+            )?;
             offset += chunk_size;
             chunk_index += 1;
         }
@@ -720,6 +849,22 @@ impl StoreForwarder {
             chunks: chunk_index,
             size: Some(size),
         })
+    }
+}
+
+impl Service for StoreService {
+    type Interface = Store;
+
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            relay_log::info!("store forwarder started");
+
+            while let Some(message) = rx.recv().await {
+                self.handle_message(message);
+            }
+
+            relay_log::info!("store forwarder stopped");
+        });
     }
 }
 
@@ -757,6 +902,7 @@ struct ChunkedAttachment {
     #[serde(skip_serializing_if = "Option::is_none")]
     rate_limited: Option<bool>,
 }
+
 /// attributes for Replay Recordings
 #[derive(Debug, Serialize)]
 struct ChunkedReplayRecording {
@@ -804,6 +950,7 @@ struct EventKafkaMessage {
     /// Attachments that are potentially relevant for processing.
     attachments: Vec<ChunkedAttachment>,
 }
+
 #[derive(Clone, Debug, Serialize)]
 struct ReplayEventKafkaMessage {
     /// Raw event payload.
@@ -863,6 +1010,7 @@ struct ReplayRecordingChunkKafkaMessage {
     /// the tuple (id, chunk_index) is the unique identifier for a single chunk.
     chunk_index: usize,
 }
+
 #[derive(Debug, Serialize)]
 struct ReplayRecordingKafkaMessage {
     /// The replay id.
@@ -998,29 +1146,6 @@ impl KafkaMessage {
             }
             _ => rmp_serde::to_vec_named(&self).map_err(StoreError::InvalidMsgPack),
         }
-    }
-}
-
-/// Message sent to the [`StoreForwarder`] containing an [`Envelope`].
-#[derive(Clone, Debug)]
-pub struct StoreEnvelope {
-    pub envelope: Envelope,
-    pub start_time: Instant,
-    pub scoping: Scoping,
-}
-
-/// All the message types which can be sent to the [`StoreForwarder`].
-#[derive(Debug)]
-pub enum StoreMessages {
-    StoreEnvelope(StoreEnvelope, oneshot::Sender<Result<(), StoreError>>),
-}
-
-impl ServiceMessage<StoreForwarder> for StoreEnvelope {
-    type Response = Result<(), StoreError>;
-
-    fn into_messages(self) -> (StoreMessages, oneshot::Receiver<Self::Response>) {
-        let (tx, rx) = oneshot::channel();
-        (StoreMessages::StoreEnvelope(self, tx), rx)
     }
 }
 

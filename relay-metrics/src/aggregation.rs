@@ -1167,7 +1167,7 @@ impl Message for FlushBuckets {
     type Result = Result<(), Vec<Bucket>>;
 }
 
-/// Check whether the aggregator has not (yet) exceeded its total limits. Used for healthchecks.
+/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.
 pub struct AcceptsMetrics;
 
 impl Message for AcceptsMetrics {

@@ -14,4 +14,8 @@ pub enum ProfileError {
     NotEnoughSamples,
     #[fail(display = "platform not supported")]
     PlatformNotSupported,
+    #[fail(display = "no transaction associated")]
+    NoTransactionAssociated,
+    #[fail(display = "invalid transaction metadata")]
+    InvalidTransactionMetadata,
 }

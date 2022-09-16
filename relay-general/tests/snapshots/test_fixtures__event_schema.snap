@@ -1,7 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
-assertion_line: 110
-expression: event_json_schema()
+expression: "relay_general::protocol::event_json_schema()"
 ---
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -2983,6 +2982,24 @@ expression: event_json_schema()
         {
           "type": "object",
           "properties": {
+            "changes": {
+              "description": " A list of changes prior to the final transaction name.\n\n This list must be empty if the transaction name is set at the beginning of the transaction\n and never changed. There is no placeholder entry for the initial transaction name.",
+              "default": null,
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/TransactionNameChange"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
             "original": {
               "description": " The unmodified transaction name as obtained by the source.\n\n This value will only be set if the transaction name was modified during event processing.",
               "default": null,
@@ -2991,12 +3008,66 @@ expression: event_json_schema()
                 "null"
               ]
             },
+            "propagations": {
+              "description": " The total number of propagations during the transaction.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "source": {
               "description": " Describes how the name of the transaction was determined.\n\n This will be used by the server to decide whether or not to scrub identifiers from the\n transaction name, or replace the entire name with a placeholder.",
               "default": null,
               "anyOf": [
                 {
                   "$ref": "#/definitions/TransactionSource"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "TransactionNameChange": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "propagations": {
+              "description": " The number of propagations from the start of the transaction to this change.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "source": {
+              "description": " Describes how the previous transaction name was determined.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/TransactionSource"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "timestamp": {
+              "description": " Timestamp when the transaction name was changed.\n\n This adheres to the event timestamp specification.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Timestamp"
                 },
                 {
                   "type": "null"

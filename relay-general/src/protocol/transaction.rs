@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use crate::processor::ProcessValue;
+use crate::protocol::Timestamp;
 use crate::types::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerialization, Value};
 
 /// Describes how the name of the transaction was determined.
@@ -28,6 +29,21 @@ pub enum TransactionSource {
     Other(String),
 }
 
+impl TransactionSource {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Custom => "custom",
+            Self::Url => "url",
+            Self::Route => "route",
+            Self::View => "view",
+            Self::Component => "component",
+            Self::Task => "task",
+            Self::Unknown => "unknown",
+            Self::Other(ref s) => s,
+        }
+    }
+}
+
 impl FromStr for TransactionSource {
     type Err = std::convert::Infallible;
 
@@ -47,16 +63,7 @@ impl FromStr for TransactionSource {
 
 impl fmt::Display for TransactionSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Custom => write!(f, "custom"),
-            Self::Url => write!(f, "url"),
-            Self::Route => write!(f, "route"),
-            Self::View => write!(f, "view"),
-            Self::Component => write!(f, "component"),
-            Self::Task => write!(f, "task"),
-            Self::Unknown => write!(f, "unknown"),
-            Self::Other(s) => write!(f, "{}", s),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -108,6 +115,21 @@ impl IntoValue for TransactionSource {
 
 impl ProcessValue for TransactionSource {}
 
+#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct TransactionNameChange {
+    /// Describes how the previous transaction name was determined.
+    pub source: Annotated<TransactionSource>,
+
+    /// The number of propagations from the start of the transaction to this change.
+    pub propagations: Annotated<u64>,
+
+    /// Timestamp when the transaction name was changed.
+    ///
+    /// This adheres to the event timestamp specification.
+    pub timestamp: Annotated<Timestamp>,
+}
+
 /// Additional information about the name of the transaction.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -123,10 +145,20 @@ pub struct TransactionInfo {
     /// This value will only be set if the transaction name was modified during event processing.
     #[metastructure(max_chars = "culprit", trim_whitespace = "true")]
     pub original: Annotated<String>,
+
+    /// A list of changes prior to the final transaction name.
+    ///
+    /// This list must be empty if the transaction name is set at the beginning of the transaction
+    /// and never changed. There is no placeholder entry for the initial transaction name.
+    pub changes: Annotated<Vec<Annotated<TransactionNameChange>>>,
+
+    /// The total number of propagations during the transaction.
+    pub propagations: Annotated<u64>,
 }
 
 #[cfg(test)]
 mod tests {
+    use chrono::{TimeZone, Utc};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -143,13 +175,27 @@ mod tests {
     #[test]
     fn test_transaction_info_roundtrip() {
         let json = r#"{
-  "source": "url",
-  "original": "/auth/login/john123/"
+  "source": "route",
+  "original": "/auth/login/john123/",
+  "changes": [
+    {
+      "source": "url",
+      "propagations": 1,
+      "timestamp": 946684800.0
+    }
+  ],
+  "propagations": 2
 }"#;
 
         let info = Annotated::new(TransactionInfo {
-            source: Annotated::new(TransactionSource::Url),
+            source: Annotated::new(TransactionSource::Route),
             original: Annotated::new("/auth/login/john123/".to_owned()),
+            changes: Annotated::new(vec![Annotated::new(TransactionNameChange {
+                source: Annotated::new(TransactionSource::Url),
+                propagations: Annotated::new(1),
+                timestamp: Annotated::new(Utc.ymd(2000, 1, 1).and_hms(0, 0, 0).into()),
+            })]),
+            propagations: Annotated::new(2),
         });
 
         assert_eq!(info, Annotated::from_json(json).unwrap());

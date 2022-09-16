@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use actix_web::{server, App};
-use failure::ResultExt;
-use failure::{Backtrace, Context, Fail};
+use failure::{Backtrace, Context, Fail, ResultExt};
 use listenfd::ListenFd;
 use once_cell::race::OnceBox;
 
@@ -12,14 +11,13 @@ use relay_aws_extension::AwsExtension;
 use relay_config::Config;
 use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
-use relay_system::Addr;
-use relay_system::{Configure, Controller};
+use relay_system::{Addr, Configure, Controller, Service};
 
 use crate::actors::envelopes::EnvelopeManager;
-use crate::actors::healthcheck::Healthcheck;
-use crate::actors::outcome::OutcomeProducer;
+use crate::actors::health_check::{HealthCheck, HealthCheckService};
+use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
-use crate::actors::processor::EnvelopeProcessor;
+use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
 use crate::actors::upstream::UpstreamRelay;
@@ -112,16 +110,18 @@ impl From<Context<ServerErrorKind>> for ServerError {
 
 #[derive(Clone)]
 pub struct Registry {
-    pub healthcheck: Addr<Healthcheck>,
+    pub health_check: Addr<HealthCheck>,
     pub outcome_producer: Addr<OutcomeProducer>,
-    pub outcome_aggregator: Addr<OutcomeAggregator>,
-    pub processor: actix::Addr<EnvelopeProcessor>,
+    pub outcome_aggregator: Addr<TrackOutcome>,
+    pub processor: Addr<EnvelopeProcessor>,
 }
 
 impl fmt::Debug for Registry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Registry")
-            .field("healthcheck", &self.healthcheck)
+            .field("health_check", &self.health_check)
+            .field("outcome_producer", &self.outcome_producer)
+            .field("outcome_aggregator", &self.outcome_aggregator)
             .field("processor", &format_args!("Addr<Processor>"))
             .finish()
     }
@@ -147,7 +147,7 @@ impl ServiceState {
 
         let outcome_runtime = utils::tokio_runtime_with_actix();
         let guard = outcome_runtime.enter();
-        let outcome_producer = OutcomeProducer::create(config.clone())?.start();
+        let outcome_producer = OutcomeProducerService::create(config.clone())?.start();
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
         drop(guard);
 
@@ -163,7 +163,7 @@ impl ServiceState {
         let _guard = main_runtime.enter();
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
-        let processor = EnvelopeProcessor::start(config.clone(), redis_pool.clone())?;
+        let processor = EnvelopeProcessorService::new(config.clone(), redis_pool.clone())?.start();
         let envelope_manager = EnvelopeManager::create(config.clone())?;
         registry.set(Arbiter::start(|_| envelope_manager));
 
@@ -171,7 +171,7 @@ impl ServiceState {
         let project_cache = Arbiter::start(|_| project_cache);
         registry.set(project_cache.clone());
 
-        let healthcheck = Healthcheck::new(config.clone()).start();
+        let health_check = HealthCheckService::new(config.clone()).start();
         registry.set(RelayCache::new(config.clone()).start());
 
         let aggregator = Aggregator::new(config.aggregator_config(), project_cache.recipient());
@@ -186,7 +186,7 @@ impl ServiceState {
         REGISTRY
             .set(Box::new(Registry {
                 processor,
-                healthcheck,
+                health_check,
                 outcome_producer,
                 outcome_aggregator,
             }))
