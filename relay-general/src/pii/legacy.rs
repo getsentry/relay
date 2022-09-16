@@ -37,6 +37,10 @@ pub struct DataScrubbingConfig {
     /// PII config derived from datascrubbing settings.
     ///
     /// Cached because the conversion process is expensive.
+    ///
+    /// NOTE: We discarded the idea of making the conversion to PiiConfig part of deserialization,
+    /// because we want the conversion to run on the processing sync arbiter, so that it does not
+    /// slow down or even crash other parts of the system.
     #[serde(skip)]
     pub(super) pii_config: OnceCell<Result<Option<PiiConfig>, PiiConfigError>>,
 }

@@ -142,11 +142,12 @@ impl ProcessingError {
             Self::InvalidUnrealReport(_) => Some(Outcome::Invalid(DiscardReason::ProcessUnreal)),
 
             // Internal errors
-            Self::SerializeFailed(_) | Self::ProcessingFailed(_) | Self::PiiConfigError(_) => {
+            Self::SerializeFailed(_) | Self::ProcessingFailed(_) => {
                 Some(Outcome::Invalid(DiscardReason::Internal))
             }
             #[cfg(feature = "processing")]
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
 
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
