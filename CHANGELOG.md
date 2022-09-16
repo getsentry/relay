@@ -13,6 +13,8 @@
 - Process required stacktraces to fix filtering events originating from browser extensions. ([#1423](https://github.com/getsentry/relay/pull/1423))
 - Fix error message filtering when formatting the message of logentry. ([#1442](https://github.com/getsentry/relay/pull/1442))
 - Loosen type requirements for the `user.id` field in Replays. ([#1443](https://github.com/getsentry/relay/pull/1443))
+- Fix panic in datascrubbing when number of sensitive fields was too large. ([#1474](https://github.com/getsentry/relay/pull/1474))
+
 
 **Internal**:
 

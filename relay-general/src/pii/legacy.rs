@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::pii::{convert, PiiConfig};
 
+use super::config::PiiConfigError;
+
 /// Helper method to check whether a flag is false.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn is_flag_default(flag: &bool) -> bool {
@@ -35,8 +37,12 @@ pub struct DataScrubbingConfig {
     /// PII config derived from datascrubbing settings.
     ///
     /// Cached because the conversion process is expensive.
+    ///
+    /// NOTE: We discarded the idea of making the conversion to PiiConfig part of deserialization,
+    /// because we want the conversion to run on the processing sync arbiter, so that it does not
+    /// slow down or even crash other parts of the system.
     #[serde(skip)]
-    pub(super) pii_config: OnceCell<Option<PiiConfig>>,
+    pub(super) pii_config: OnceCell<Result<Option<PiiConfig>, PiiConfigError>>,
 }
 
 impl DataScrubbingConfig {
@@ -48,7 +54,7 @@ impl DataScrubbingConfig {
             scrub_ip_addresses: false,
             sensitive_fields: vec![],
             scrub_defaults: false,
-            pii_config: OnceCell::with_value(None),
+            pii_config: OnceCell::with_value(Ok(None)),
         }
     }
 
@@ -61,7 +67,7 @@ impl DataScrubbingConfig {
     ///
     /// This can be computationally expensive when called for the first time. The result is cached
     /// internally and reused on the second call.
-    pub fn pii_config(&self) -> Option<&'_ PiiConfig> {
+    pub fn pii_config(&self) -> Result<&'_ Option<PiiConfig>, &PiiConfigError> {
         self.pii_config
             .get_or_init(|| self.pii_config_uncached())
             .as_ref()
@@ -69,7 +75,7 @@ impl DataScrubbingConfig {
 
     /// Like [`pii_config`](Self::pii_config) but without internal caching.
     #[inline]
-    pub fn pii_config_uncached(&self) -> Option<PiiConfig> {
+    pub fn pii_config_uncached(&self) -> Result<Option<PiiConfig>, PiiConfigError> {
         convert::to_pii_config(self)
     }
 }

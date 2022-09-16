@@ -54,7 +54,7 @@ pub fn get_regex_for_rule_type(
     match ty {
         RuleType::RedactPair(ref redact_pair) => smallvec![(
             kv,
-            &redact_pair.key_pattern.0,
+            redact_pair.key_pattern.regex(),
             ReplaceBehavior::replace_value()
         )],
         RuleType::Password => {
@@ -69,7 +69,7 @@ pub fn get_regex_for_rule_type(
                 None => ReplaceBehavior::replace_match(),
             };
 
-            smallvec![(v, &r.pattern.0, replace_behavior)]
+            smallvec![(v, r.pattern.regex(), replace_behavior)]
         }
 
         RuleType::Imei => smallvec![(v, &*IMEI_REGEX, ReplaceBehavior::replace_match())],

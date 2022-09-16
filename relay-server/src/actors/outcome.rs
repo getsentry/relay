@@ -316,6 +316,10 @@ pub enum DiscardReason {
     /// (Relay) A project state returned by the upstream could not be parsed.
     ProjectState,
 
+    /// (Relay) A project state returned by the upstream contained datascrubbing settings
+    /// that could not be converted to PII config.
+    ProjectStatePii,
+
     /// (Relay) An envelope was submitted with two items that need to be unique.
     DuplicateItem,
 
@@ -374,6 +378,7 @@ impl DiscardReason {
             DiscardReason::InvalidEnvelope => "invalid_envelope",
             DiscardReason::InvalidCompression => "invalid_compression",
             DiscardReason::ProjectState => "project_state",
+            DiscardReason::ProjectStatePii => "project_state_pii",
             DiscardReason::DuplicateItem => "duplicate_item",
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",

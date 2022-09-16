@@ -20,6 +20,7 @@ use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
+use relay_general::pii::PiiConfigError;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -114,6 +115,9 @@ pub enum ProcessingError {
 
     #[fail(display = "event dropped by sampling rule {}", _0)]
     Sampled(RuleId),
+
+    #[fail(display = "invalid pii config")]
+    PiiConfigError(PiiConfigError),
 }
 
 impl ProcessingError {
@@ -145,6 +149,7 @@ impl ProcessingError {
             }
             #[cfg(feature = "processing")]
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
 
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
@@ -1811,7 +1816,11 @@ impl EnvelopeProcessorService {
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
-            if let Some(config) = config.datascrubbing_settings.pii_config() {
+            let pii_config = config
+                .datascrubbing_settings
+                .pii_config()
+                .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+            if let Some(config) = pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
