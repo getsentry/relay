@@ -291,7 +291,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     fn test_convert_sensitive_fields_too_large() {
         let result = to_pii_config_impl(&DataScrubbingConfig {
             sensitive_fields: vec!["1"]
-                .repeat(9999999) // lowest number that will fail
+                .repeat(999999) // lowest number that will fail
                 .into_iter()
                 .map(|x| x.to_string())
                 .collect(),
