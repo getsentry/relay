@@ -2632,13 +2632,16 @@ mod tests {
                 .unwrap()
         });
 
-        let (envelope, _) = envelope_response.envelope.unwrap();
+        let (envelope, ctx) = envelope_response.envelope.unwrap();
         let item = envelope.items().next().unwrap();
         assert_eq!(item.ty(), &ItemType::ClientReport);
+
+        ctx.accept(); // do not try to capture or emit outcomes
     }
 
     #[test]
     #[cfg(feature = "processing")]
+    #[ignore = "requires registry for the TestStore"]
     fn test_client_report_removal_in_processing() {
         relay_test::setup();
 
