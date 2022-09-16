@@ -937,6 +937,11 @@
 <span id="929">929</span>
 <span id="930">930</span>
 <span id="931">931</span>
+<span id="932">932</span>
+<span id="933">933</span>
+<span id="934">934</span>
+<span id="935">935</span>
+<span id="936">936</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one</span>
@@ -1255,6 +1260,10 @@
     <span class="doccomment">/// (Relay) A project state returned by the upstream could not be parsed.</span>
     <span class="ident">ProjectState</span>,
 
+    <span class="doccomment">/// (Relay) A project state returned by the upstream contained datascrubbing settings</span>
+    <span class="doccomment">/// that could not be converted to PII config.</span>
+    <span class="ident">ProjectStatePii</span>,
+
     <span class="doccomment">/// (Relay) An envelope was submitted with two items that need to be unique.</span>
     <span class="ident">DuplicateItem</span>,
 
@@ -1313,6 +1322,7 @@
             <span class="ident">DiscardReason::InvalidEnvelope</span> =&gt; <span class="string">&quot;invalid_envelope&quot;</span>,
             <span class="ident">DiscardReason::InvalidCompression</span> =&gt; <span class="string">&quot;invalid_compression&quot;</span>,
             <span class="ident">DiscardReason::ProjectState</span> =&gt; <span class="string">&quot;project_state&quot;</span>,
+            <span class="ident">DiscardReason::ProjectStatePii</span> =&gt; <span class="string">&quot;project_state_pii&quot;</span>,
             <span class="ident">DiscardReason::DuplicateItem</span> =&gt; <span class="string">&quot;duplicate_item&quot;</span>,
             <span class="ident">DiscardReason::NoEventPayload</span> =&gt; <span class="string">&quot;no_event_payload&quot;</span>,
             <span class="ident">DiscardReason::Internal</span> =&gt; <span class="string">&quot;internal&quot;</span>,

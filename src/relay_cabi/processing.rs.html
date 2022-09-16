@@ -287,6 +287,8 @@
 <span id="279">279</span>
 <span id="280">280</span>
 <span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
 </pre><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::cast_ptr_alignment</span>)]</span>
 <span class="attribute">#![<span class="ident">deny</span>(<span class="ident">unused_must_use</span>)]</span>
@@ -432,8 +434,10 @@
 <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> <span class="kw">fn</span> <span class="ident">relay_convert_datascrubbing_config</span>(<span class="ident">config</span>: <span class="kw-2">*const</span> <span class="ident">RelayStr</span>) -&gt; <span class="ident">RelayStr</span> {
     <span class="kw">let</span> <span class="ident">config</span>: <span class="ident">DataScrubbingConfig</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>((<span class="kw-2">*</span><span class="ident">config</span>).<span class="ident">as_str</span>())<span class="question-mark">?</span>;
     <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">pii_config</span>() {
-        <span class="prelude-val">Some</span>(<span class="ident">config</span>) =&gt; <span class="ident">RelayStr::from_string</span>(<span class="ident">config</span>.<span class="ident">to_json</span>()<span class="question-mark">?</span>),
-        <span class="prelude-val">None</span> =&gt; <span class="ident">RelayStr::new</span>(<span class="string">&quot;{}&quot;</span>),
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">config</span>)) =&gt; <span class="ident">RelayStr::from_string</span>(<span class="ident">config</span>.<span class="ident">to_json</span>()<span class="question-mark">?</span>),
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; <span class="ident">RelayStr::new</span>(<span class="string">&quot;{}&quot;</span>),
+        <span class="comment">// NOTE: Callers of this function must be able to handle this error.</span>
+        <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="ident">RelayStr::from_string</span>(<span class="ident">e</span>.<span class="ident">to_string</span>()),
     }
 }
 

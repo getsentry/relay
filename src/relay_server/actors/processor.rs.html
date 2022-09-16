@@ -2819,6 +2819,15 @@
 <span id="2811">2811</span>
 <span id="2812">2812</span>
 <span id="2813">2813</span>
+<span id="2814">2814</span>
+<span id="2815">2815</span>
+<span id="2816">2816</span>
+<span id="2817">2817</span>
+<span id="2818">2818</span>
+<span id="2819">2819</span>
+<span id="2820">2820</span>
+<span id="2821">2821</span>
+<span id="2822">2822</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::cmp::max</span>;
 <span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
@@ -2841,6 +2850,7 @@
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">ProjectId</span>, <span class="ident">ProjectKey</span>, <span class="ident">UnixTimestamp</span>};
 <span class="kw">use</span> <span class="ident">relay_config</span>::{<span class="ident">Config</span>, <span class="ident">HttpEncoding</span>};
 <span class="kw">use</span> <span class="ident">relay_filter::FilterStatKey</span>;
+<span class="kw">use</span> <span class="ident">relay_general::pii::PiiConfigError</span>;
 <span class="kw">use</span> <span class="ident">relay_general::pii</span>::{<span class="ident">PiiAttachmentsProcessor</span>, <span class="ident">PiiProcessor</span>};
 <span class="kw">use</span> <span class="ident">relay_general::processor</span>::{<span class="ident">process_value</span>, <span class="ident">ProcessingState</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
@@ -2935,6 +2945,9 @@
 
     <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;event dropped by sampling rule {}&quot;</span>, <span class="ident">_0</span>)]</span>
     <span class="ident">Sampled</span>(<span class="ident">RuleId</span>),
+
+    <span class="attribute">#[<span class="ident">fail</span>(<span class="ident">display</span> <span class="op">=</span> <span class="string">&quot;invalid pii config&quot;</span>)]</span>
+    <span class="ident">PiiConfigError</span>(<span class="ident">PiiConfigError</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">ProcessingError</span> {
@@ -2966,6 +2979,7 @@
             }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;processing&quot;</span>)]</span>
             <span class="ident"><span class="self">Self</span>::QuotasFailed</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::Internal</span>)),
+            <span class="ident"><span class="self">Self</span>::PiiConfigError</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">Outcome::Invalid</span>(<span class="ident">DiscardReason::ProjectStatePii</span>)),
 
             <span class="comment">// These outcomes are emitted at the source.</span>
             <span class="ident"><span class="self">Self</span>::MissingProjectId</span> =&gt; <span class="prelude-val">None</span>,
@@ -4632,7 +4646,11 @@
                 <span class="ident">process_value</span>(<span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>())
                     .<span class="ident">map_err</span>(<span class="ident">ProcessingError::ProcessingFailed</span>)<span class="question-mark">?</span>;
             }
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">config</span>) <span class="op">=</span> <span class="ident">config</span>.<span class="ident">datascrubbing_settings</span>.<span class="ident">pii_config</span>() {
+            <span class="kw">let</span> <span class="ident">pii_config</span> <span class="op">=</span> <span class="ident">config</span>
+                .<span class="ident">datascrubbing_settings</span>
+                .<span class="ident">pii_config</span>()
+                .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">ProcessingError::PiiConfigError</span>(<span class="ident">e</span>.<span class="ident">clone</span>()))<span class="question-mark">?</span>;
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">config</span>) <span class="op">=</span> <span class="ident">pii_config</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">processor</span> <span class="op">=</span> <span class="ident">PiiProcessor::new</span>(<span class="ident">config</span>.<span class="ident">compiled</span>());
                 <span class="ident">process_value</span>(<span class="ident">event</span>, <span class="kw-2">&amp;mut</span> <span class="ident">processor</span>, <span class="ident">ProcessingState::root</span>())
                     .<span class="ident">map_err</span>(<span class="ident">ProcessingError::ProcessingFailed</span>)<span class="question-mark">?</span>;

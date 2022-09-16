@@ -1361,13 +1361,23 @@
 <span id="1353">1353</span>
 <span id="1354">1354</span>
 <span id="1355">1355</span>
+<span id="1356">1356</span>
+<span id="1357">1357</span>
+<span id="1358">1358</span>
+<span id="1359">1359</span>
+<span id="1360">1360</span>
+<span id="1361">1361</span>
+<span id="1362">1362</span>
+<span id="1363">1363</span>
+<span id="1364">1364</span>
+<span id="1365">1365</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections::BTreeMap</span>;
 
 <span class="kw">use</span> <span class="ident">once_cell::sync::Lazy</span>;
-<span class="kw">use</span> <span class="ident">regex::RegexBuilder</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::pii</span>::{
-    <span class="ident">DataScrubbingConfig</span>, <span class="ident">Pattern</span>, <span class="ident">PiiConfig</span>, <span class="ident">RedactPairRule</span>, <span class="ident">Redaction</span>, <span class="ident">RuleSpec</span>, <span class="ident">RuleType</span>, <span class="ident">Vars</span>,
+    <span class="ident">DataScrubbingConfig</span>, <span class="ident">Pattern</span>, <span class="ident">PiiConfig</span>, <span class="ident">PiiConfigError</span>, <span class="ident">RedactPairRule</span>, <span class="ident">Redaction</span>, <span class="ident">RuleSpec</span>,
+    <span class="ident">RuleType</span>, <span class="ident">Vars</span>,
 };
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::processor</span>::{<span class="ident">SelectorPathItem</span>, <span class="ident">SelectorSpec</span>, <span class="ident">ValueType</span>};
 
@@ -1389,7 +1399,9 @@
         .<span class="ident">unwrap</span>()
 });
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_pii_config</span>(<span class="ident">datascrubbing_config</span>: <span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_pii_config</span>(
+    <span class="ident">datascrubbing_config</span>: <span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span>,
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span>, <span class="ident">PiiConfigError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">custom_rules</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">applied_rules</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">applications</span> <span class="op">=</span> <span class="ident">BTreeMap::new</span>();
@@ -1433,12 +1445,7 @@
                 <span class="string">&quot;strip-fields&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="ident">RuleSpec</span> {
                     <span class="ident">ty</span>: <span class="ident">RuleType::RedactPair</span>(<span class="ident">RedactPairRule</span> {
-                        <span class="ident">key_pattern</span>: <span class="ident">Pattern</span>(
-                            <span class="ident">RegexBuilder::new</span>(<span class="kw-2">&amp;</span><span class="ident">key_pattern</span>)
-                                .<span class="ident">case_insensitive</span>(<span class="bool-val">true</span>)
-                                .<span class="ident">build</span>()
-                                .<span class="ident">unwrap</span>(),
-                        ),
+                        <span class="ident">key_pattern</span>: <span class="ident">Pattern::parse</span>(<span class="kw-2">&amp;</span><span class="ident">key_pattern</span>, <span class="bool-val">true</span>)<span class="question-mark">?</span>,
                     }),
                     <span class="ident">redaction</span>: <span class="ident">Redaction::Replace</span>(<span class="string">&quot;[Filtered]&quot;</span>.<span class="ident">to_owned</span>().<span class="ident">into</span>()),
                 },
@@ -1449,7 +1456,7 @@
     }
 
     <span class="kw">if</span> <span class="ident">applied_rules</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">applications</span>.<span class="ident">is_empty</span>() {
-        <span class="kw">return</span> <span class="prelude-val">None</span>;
+        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
     }
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">conjunctions</span> <span class="op">=</span> <span class="macro">vec!</span>[
@@ -1479,12 +1486,12 @@
         <span class="ident">applications</span>.<span class="ident">insert</span>(<span class="ident">applied_selector</span>, <span class="ident">applied_rules</span>);
     }
 
-    <span class="prelude-val">Some</span>(<span class="ident">PiiConfig</span> {
+    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">PiiConfig</span> {
         <span class="ident">rules</span>: <span class="ident">custom_rules</span>,
         <span class="ident">vars</span>: <span class="ident">Vars::default</span>(),
         <span class="ident">applications</span>,
         ..<span class="ident">Default::default</span>()
-    })
+    }))
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
@@ -1503,7 +1510,7 @@
     <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::to_pii_config</span> <span class="kw">as</span> <span class="ident">to_pii_config_impl</span>;
 
     <span class="kw">fn</span> <span class="ident">to_pii_config</span>(<span class="ident">datascrubbing_config</span>: <span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PiiConfig</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">to_pii_config_impl</span>(<span class="ident">datascrubbing_config</span>);
+        <span class="kw">let</span> <span class="ident">rv</span> <span class="op">=</span> <span class="ident">to_pii_config_impl</span>(<span class="ident">datascrubbing_config</span>).<span class="ident">unwrap</span>();
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">config</span>) <span class="op">=</span> <span class="ident">rv</span> {
             <span class="kw">let</span> <span class="ident">roundtrip</span>: <span class="ident">PiiConfig</span> <span class="op">=</span>
                 <span class="ident">serde_json::from_value</span>(<span class="ident">serde_json::to_value</span>(<span class="ident">config</span>).<span class="ident">unwrap</span>()).<span class="ident">unwrap</span>();
@@ -1645,6 +1652,19 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
           }
         }
         &quot;###</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_convert_sensitive_fields_too_large</span>() {
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">to_pii_config_impl</span>(<span class="kw-2">&amp;</span><span class="ident">DataScrubbingConfig</span> {
+            <span class="ident">sensitive_fields</span>: <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>]
+                .<span class="ident">repeat</span>(<span class="number">4085</span>) <span class="comment">// lowest number that will fail</span>
+                .<span class="ident">into_iter</span>()
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">to_string</span>())
+                .<span class="ident">collect</span>(),
+            ..<span class="ident">simple_enabled_config</span>()
+        });
+        <span class="macro">assert!</span>(<span class="ident">result</span>.<span class="ident">is_err</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
