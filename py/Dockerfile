@@ -6,10 +6,13 @@ ARG TARGET
 # Install tools for cross compiling if the requested target is different from currenly running image and
 # also threat the i686 a little bit special, since we must configure addition things and install different set of libraries
 RUN yum -y update \
-    && yum install -y git gcc make curl libffi-devel \
+    && yum install -y git gcc make curl libffi-devel dnf epel-release ca-certificates \
     && if [ ${TARGET} != "i686" ] && [ "$(uname -m)" != ${TARGET} ]; then \
-    yum install -y dnf epel-release \
-    && yum install -y "binutils-${TARGET}-linux-gnu" "gcc-${TARGET}-linux-gnu" "gcc-c++-${TARGET}-linux-gnu" \
+    yum install -y "binutils-${TARGET}-linux-gnu" "gcc-${TARGET}-linux-gnu" "gcc-c++-${TARGET}-linux-gnu" \
+    && if [ ${TARGET} == "aarch64" ]; then \
+    curl -L -s https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7-aarch64 > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 \
+    && cat /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 >> /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7 ; \
+    fi \
     && dnf --forcearch "${TARGET}" --release 7 install -y gcc glibc glibc-devel --installroot "/usr/${TARGET}-linux-gnu/sys-root/" || true \
     && ln -s "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so.1" "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so"; \
     elif [ ${TARGET} == "i686" ]; then \
