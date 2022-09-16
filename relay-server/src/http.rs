@@ -160,41 +160,18 @@ impl Response {
             .collect()
     }
 
-    // TODO(tobias): Check if this conversion makes sense or if I missed something
-    // Box<dyn Future<Item = Vec<u8>, Error = HttpError>>
     pub async fn bytes(self, limit: usize) -> Result<Vec<u8>, HttpError> {
-        let mut stream = self.0.bytes_stream().map_err(HttpError::Reqwest); // Not sure if we still need the map_err
+        let mut stream = self.0.bytes_stream();
         let mut body = Vec::with_capacity(8192);
 
-        while let Some(chunk) = stream.try_next().await? {
+        while let Some(chunk) = stream.try_next().await.map_err(HttpError::Reqwest)? {
             if (body.len() + chunk.len()) > limit {
                 return Err(HttpError::Overflow);
             } else {
                 body.extend_from_slice(&chunk);
-                return Ok(body); // Not sure if we want to return here?
             }
         }
+
         Ok(body)
-        /*
-        Box::new(
-            self.0
-                .bytes_stream()
-                .map_err(HttpError::Reqwest)
-                .try_fold(
-                    // While stream does things while let some magic
-                    Vec::with_capacity(8192),
-                    move |mut body, chunk| async move {
-                        if (body.len() + chunk.len()) > limit {
-                            Err(HttpError::Overflow)
-                        } else {
-                            body.extend_from_slice(&chunk);
-                            Ok(body)
-                        }
-                    },
-                )
-                .boxed_local()
-                .compat(),
-        )
-        */
     }
 }

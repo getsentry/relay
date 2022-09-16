@@ -29,13 +29,12 @@ use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::http::{header, Method};
 use failure::Fail;
-use futures::compat::Future01CompatExt;
-use futures::FutureExt;
-use futures01::{future, prelude::*, sync::oneshot};
+use futures01::prelude::*;
 use itertools::Itertools;
 use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
+use tokio::sync::oneshot;
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_common::{tryf, RetryBackoff};
@@ -138,6 +137,7 @@ enum AuthState {
 impl AuthState {
     /// Returns true if the state is considered authenticated.
     pub fn is_authenticated(self) -> bool {
+        // This goes into its own thing
         matches!(self, AuthState::Registered | AuthState::Renewing)
     }
 }
@@ -321,16 +321,15 @@ impl EnqueuedRequest {
 ///
 ///  1. `RateLimited` for a `429` status code.
 ///  2. `ResponseError` in all other cases.
-fn handle_response(
+async fn handle_response(
     response: Response,
     intercept_status_errors: bool,
     max_response_size: usize,
-    // TODO(tobias): Check if we want a Pin around this
-) -> Box<dyn futures::Future<Output = Result<Response, UpstreamRequestError>>> {
+) -> Result<Response, UpstreamRequestError> {
     let status = response.status();
 
     if !intercept_status_errors || status.is_success() {
-        return Box::new(futures::future::ok(response));
+        return Ok(response);
     }
 
     let upstream_limits = if status == StatusCode::TOO_MANY_REQUESTS {
@@ -356,16 +355,15 @@ fn handle_response(
     // At this point, we consume the Response. This means we need to consume the response
     // payload stream, regardless of the status code. Parsing the JSON body may fail, which is a
     // non-fatal failure as the upstream is not expected to always include a valid JSON response.
-    Box::new(async move {
-        let json_result = response.json(max_response_size).await;
-        if let Some(upstream_limits) = upstream_limits {
-            Err(UpstreamRequestError::RateLimited(upstream_limits))
-        } else {
-            // Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
-            let api_response = json_result.unwrap_or_default();
-            Err(UpstreamRequestError::ResponseError(status, api_response))
-        }
-    })
+
+    let json_result = response.json(max_response_size).await;
+    if let Some(upstream_limits) = upstream_limits {
+        Err(UpstreamRequestError::RateLimited(upstream_limits))
+    } else {
+        // Coerce the result into an empty `ApiErrorResponse` if parsing JSON did not succeed.
+        let api_response = json_result.unwrap_or_default();
+        Err(UpstreamRequestError::ResponseError(status, api_response))
+    }
 }
 
 // All the private and public messages that the UpstreamRelay can handle
@@ -508,6 +506,7 @@ impl UpstreamRelayService {
 
     /// Predicate, checks if we are in an network outage situation.
     fn is_network_outage(&self) -> bool {
+        // This goes into its own thing
         self.outage_backoff.started()
     }
 
@@ -559,6 +558,8 @@ impl UpstreamRelayService {
             "Network outage, scheduling another check in {:?}",
             next_backoff
         );
+
+        // Used to Pump messages here
     }
 
     /// Records an occurrence of a network error.
@@ -631,37 +632,25 @@ impl UpstreamRelayService {
         let client = self.reqwest_client.clone();
         let max_response_size = self.config.max_api_payload_size();
 
-        let (tx, rx) = oneshot::channel(); // TODO(tobias): Don't like that this is a old oneshoot channel
+        tokio::spawn(async move {
+            let res = client.execute(client_request.0).await;
 
-        self.reqwest_runtime.spawn(async move {
-            let res = client
-                .execute(client_request.0)
-                .await
-                .map_err(UpstreamRequestError::SendFailed);
-            tx.send(res)
+            let send_result = match res {
+                Ok(response) => {
+                    handle_response(
+                        Response(response),
+                        intercept_status_errors,
+                        max_response_size,
+                    )
+                    .await
+                }
+                Err(err) => Err(UpstreamRequestError::SendFailed(err)),
+            };
+            // TODO(tobias): Fix this later
+            self.handle_http_response(send_start, request, send_result);
+
+            // Drop permit
         });
-
-        let future = rx
-            .map_err(|_| UpstreamRequestError::ChannelClosed)
-            .flatten()
-            .map(Response);
-
-        // TODO: Replace this with a Tokio spawn, and get rid of tracked future since there is no
-        // need for them anymore. Also need to drop the permit once done to signal the semaphore
-        // that there is capacity
-
-        future
-            .track(ctx.address().recipient()) // This can go but removing this turns out to Fuck up the entire thing
-            .and_then(move |response| {
-                handle_response(response, intercept_status_errors, max_response_size)
-                // <- This should be fixable
-            })
-            .into_actor(self)
-            .then(move |send_result, slf, ctx| {
-                slf.handle_http_response(send_start, request, send_result); // <- Is is already ok
-                fut::ok(())
-            })
-            .spawn(ctx);
     }
 
     /// Adds a metric for the upstream request.
@@ -791,10 +780,10 @@ impl UpstreamRelayService {
         );
     }
 
-    fn enqueue_query<Q: 'static + UpstreamQuery>(
+    async fn enqueue_query<Q: 'static + UpstreamQuery>(
         &mut self,
         query: Q,
-    ) -> Pin<Box<dyn futures::Future<Output = Result<Q::Response, UpstreamRequestError>>>> {
+    ) -> Result<Q::Response, UpstreamRequestError> {
         let credentials = tryf!(self
             .config
             .credentials()
@@ -812,11 +801,12 @@ impl UpstreamRelayService {
         });
 
         self.enqueue(request, EnqueuePosition::Front);
-        let future = rx // The future comes from an old one shoot channel so we should be able to fix it from the ground up
-            .map_err(|_| UpstreamRequestError::ChannelClosed)
-            .flatten();
 
-        Box::pin(future.compat()) // TODO(tobias): Don't like it but it works for now
+        let result = match rx.await {
+            Ok(resp) => resp,
+            Err(err) => Err(UpstreamRequestError::ChannelClosed),
+        };
+        result
     }
 
     fn handle_message(&mut self, message: UpstreamRelay) {
@@ -843,80 +833,82 @@ impl UpstreamRelayService {
 
     // First need to understand what the fuck is going on
     // TODO(tobias): Make this a new Future
-    fn handle_authenticate(&mut self) -> ResponseActFuture<Self, (), ()> {
-        // detect incorrect authentication requests, if we detect them we have a programming error
-        if let Some(auth_state_error) = self.get_auth_state_error() {
-            relay_log::error!("{}", auth_state_error);
-            return Box::new(fut::err(()));
+    async fn handle_authenticate(&mut self) -> Result<(), ()> {
+        // This goes into its own thing
+        loop {
+            // detect incorrect authentication requests, if we detect them we have a programming error
+            if let Some(auth_state_error) = self.get_auth_state_error() {
+                relay_log::error!("{}", auth_state_error);
+                return Err(());
+            }
+
+            let credentials = match self.config.credentials() {
+                Some(x) => x,
+                None => return Err(()),
+            };
+
+            relay_log::info!(
+                "registering with upstream ({})",
+                self.config.upstream_descriptor()
+            );
+
+            self.auth_state = if self.auth_state.is_authenticated() {
+                AuthState::Renewing
+            } else {
+                AuthState::Registering
+            };
+
+            let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
+            let interval = self.auth_backoff.next_backoff();
+
+            let response = match self.enqueue_query(request).await {
+                Ok(challenge) => {
+                    relay_log::debug!("got register challenge (token = {})", challenge.token());
+                    let challenge_response = challenge.into_response();
+
+                    relay_log::debug!("sending register challenge response");
+                    self.enqueue_query(challenge_response).await
+                }
+                Err(err) => Err(err),
+            };
+
+            match response {
+                Ok(_) => {
+                    relay_log::info!("relay successfully registered with upstream");
+                    self.auth_state = AuthState::Registered;
+                    self.auth_backoff.reset();
+
+                    if let Some(renew_interval) = self.renew_auth_interval() {
+                        // TODO(tobias): Think how to fix this
+                        ctx.notify_later(Authenticate, renew_interval);
+                    }
+                    return Ok(());
+                }
+                Err(err) => {
+                    relay_log::error!("authentication encountered error: {}", LogError(&err));
+
+                    if err.is_permanent_rejection() {
+                        self.auth_state = AuthState::Denied;
+                        return Err(());
+                    }
+
+                    // If the authentication request fails due to any reason other than a network error,
+                    // go back to `Registering` which indicates that this Relay is not authenticated.
+                    // Note that network errors are handled separately by the generic response handler.
+                    if !err.is_network_error() {
+                        self.auth_state = AuthState::Registering;
+                    }
+
+                    // Even on network errors, retry authentication independently.
+                    relay_log::debug!(
+                        "scheduling authentication retry in {} seconds",
+                        interval.as_secs()
+                    );
+
+                    tokio::time::sleep(interval).await;
+                }
+            }
         }
-
-        let credentials = match self.config.credentials() {
-            Some(x) => x,
-            None => return Box::new(fut::err(())),
-        };
-
-        relay_log::info!(
-            "registering with upstream ({})",
-            self.config.upstream_descriptor()
-        );
-
-        self.auth_state = if self.auth_state.is_authenticated() {
-            AuthState::Renewing
-        } else {
-            AuthState::Registering
-        };
-
-        let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
-        let interval = self.auth_backoff.next_backoff();
-
-        // TODO: This somehow needs to be transformed to work without ctx
-        let future = self
-            .enqueue_query(request)
-            .into_actor(self)
-            .and_then(|challenge, slf, ctx| {
-                relay_log::debug!("got register challenge (token = {})", challenge.token());
-                let challenge_response = challenge.into_response();
-
-                relay_log::debug!("sending register challenge response");
-                slf.enqueue_query(challenge_response).into_actor(slf)
-            })
-            .map(|_, slf, ctx| {
-                relay_log::info!("relay successfully registered with upstream");
-                slf.auth_state = AuthState::Registered;
-                slf.auth_backoff.reset();
-
-                if let Some(renew_interval) = slf.renew_auth_interval() {
-                    ctx.notify_later(Authenticate, renew_interval);
-                }
-
-                // Resume sending queued requests if we suspended due to dropped authentication
-                // TODO(tobias): I belief this can go
-                ctx.notify(PumpHttpMessageQueue);
-            })
-            .map_err(move |err, slf, ctx| {
-                relay_log::error!("authentication encountered error: {}", LogError(&err));
-
-                if err.is_permanent_rejection() {
-                    slf.auth_state = AuthState::Denied;
-                    return;
-                }
-
-                // If the authentication request fails due to any reason other than a network error,
-                // go back to `Registering` which indicates that this Relay is not authenticated.
-                // Note that network errors are handled separately by the generic response handler.
-                if !err.is_network_error() {
-                    slf.auth_state = AuthState::Registering;
-                }
-
-                // Even on network errors, retry authentication independently.
-                relay_log::debug!(
-                    "scheduling authentication retry in {} seconds",
-                    interval.as_secs()
-                );
-                ctx.notify_later(Authenticate, interval);
-            });
-
-        Box::new(future)
     }
 
     // TODO: Not sure why this is not happy
@@ -948,11 +940,12 @@ impl Service for UpstreamRelayService {
             let _ = self.handle_authenticate();
         }
 
+        // Our main / inbox
         // Handle the incoming messages should be reasonably fast
         tokio::spawn(async move {
             relay_log::info!("upstream relay started");
             while let Some(message) = rx.recv().await {
-                self.handle_message(message);
+                self.handle_message(message); //
             }
             relay_log::info!("upstream relay stopped");
         });
@@ -971,7 +964,7 @@ impl Service for UpstreamRelayService {
                     );
                     tokio::time::sleep(next_backoff).await;
                     // Construct the channel
-                    let (tx, rx) = tokio::sync::oneshot::channel::<bool>(); // TODO(tobias): Try and make this nicer
+                    let (tx, rx) = oneshot::channel::<bool>(); // TODO(tobias): Try and make this nicer
                     let request = EnqueuedRequest::new(GetHealthCheck(tx)); // TODO(tobias): Try and get the channel out of this
                     self.send_request(request, None);
                     rx.await;
@@ -993,6 +986,8 @@ impl Service for UpstreamRelayService {
         });
     }
 }
+
+// TODO: A lot of code from here on down can be removed later, i.e impl Actor and impl Message
 
 impl Actor for UpstreamRelayService {
     type Context = Context<Self>;
@@ -1239,7 +1234,7 @@ impl Handler<ScheduleConnectionCheck> for UpstreamRelayService {
 }
 
 /// Checks the status of the network connection with the upstream server
-struct GetHealthCheck(tokio::sync::oneshot::Sender<bool>); // Might want to come up with a more elegant solution
+struct GetHealthCheck(oneshot::Sender<bool>); // Might want to come up with a more elegant solution
 
 impl UpstreamRequest for GetHealthCheck {
     fn method(&self) -> Method {
@@ -1292,14 +1287,13 @@ impl UpstreamRequest for GetHealthCheck {
 }
 
 pub trait ResponseTransformer: 'static {
-    // TODO(tobias): So do we just remove it or go for the nightly option
-    type Result: 'static + IntoFuture; // So the new futures don't have this trait and the Std has it as a nightly: https://doc.rust-lang.org/std/future/trait.IntoFuture.html
+    type Result: 'static + futures::Future + Unpin;
 
     fn transform_response(self, _: Response) -> Self::Result;
 }
 
 impl ResponseTransformer for () {
-    type Result = Pin<Box<dyn futures::Future<Output = Result<(), UpstreamRequestError>>>>; //ResponseFuture<(), UpstreamRequestError>; // Fix this down the road
+    type Result = Pin<Box<dyn futures::Future<Output = Result<(), UpstreamRequestError>>>>;
 
     fn transform_response(self, response: Response) -> Self::Result {
         Box::pin(async move {
@@ -1463,7 +1457,7 @@ struct UpstreamQueryRequest<T: UpstreamQuery> {
     body: Vec<u8>,
     signature: String,
     max_response_size: usize,
-    sender: Option<oneshot::Sender<Result<T::Response, UpstreamRequestError>>>,
+    sender: Option<oneshot::Sender<Result<T::Response, UpstreamRequestError>>>, // Updated this to the new channels
 }
 
 impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
