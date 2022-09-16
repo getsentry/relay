@@ -20,7 +20,6 @@ use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
-use crate::actors::store::StoreService;
 use crate::actors::test_store::{TestStore, TestStoreService};
 use crate::actors::upstream::UpstreamRelay;
 use crate::middlewares::{
@@ -149,7 +148,7 @@ impl ServiceState {
 
         let main_runtime = utils::tokio_runtime_with_actix();
         let outcome_runtime = utils::tokio_runtime_with_actix();
-        let mut store_runtime = None;
+        let mut _store_runtime = None;
 
         let upstream_relay = UpstreamRelay::new(config.clone());
         registry.set(Arbiter::start(|_| upstream_relay));
@@ -170,14 +169,16 @@ impl ServiceState {
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
         let processor = EnvelopeProcessorService::new(config.clone(), redis_pool.clone())?.start();
+        #[allow(unused_mut)]
         let mut envelope_manager = EnvelopeManagerService::new(config.clone());
 
         #[cfg(feature = "processing")]
         if config.processing_enabled() {
             let rt = crate::utils::tokio_runtime_with_actix();
             let _guard = rt.enter();
-            envelope_manager.set_store_forwarder(StoreService::create(config.clone())?.start());
-            store_runtime = Some(rt);
+            let store = crate::actors::store::StoreService::create(config.clone())?.start();
+            envelope_manager.set_store_forwarder(store);
+            _store_runtime = Some(rt);
         }
 
         let envelope_manager = envelope_manager.start();
@@ -215,7 +216,7 @@ impl ServiceState {
             config,
             _outcome_runtime: Arc::new(outcome_runtime),
             _main_runtime: Arc::new(main_runtime),
-            _store_runtime: store_runtime.map(Arc::new),
+            _store_runtime: _store_runtime.map(Arc::new),
         })
     }
 
