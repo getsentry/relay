@@ -12,7 +12,6 @@ use relay_statsd::metric;
 use relay_system::{Addr, Controller, Service, Shutdown};
 
 use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
-use crate::service::REGISTRY;
 use crate::statsd::RelayTimers;
 use crate::utils::SleepHandle;
 
@@ -59,10 +58,6 @@ pub struct OutcomeAggregator {
 }
 
 impl OutcomeAggregator {
-    pub fn from_registry() -> Addr<TrackOutcome> {
-        REGISTRY.get().unwrap().outcome_aggregator.clone()
-    }
-
     pub fn new(config: &Config, outcome_producer: Addr<OutcomeProducer>) -> Self {
         let mode = match config.emit_outcomes() {
             EmitOutcomes::AsOutcomes => AggregationMode::Lossless,

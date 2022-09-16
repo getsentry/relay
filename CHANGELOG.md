@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 22.9.0
 
 **Features**:
 
@@ -26,11 +26,10 @@
 - Add a "invalid_replay" discard reason for invalid replay events. ([#1455](https://github.com/getsentry/relay/pull/1455))
 - Add rate limiters for replays and replay recordings. ([#1456](https://github.com/getsentry/relay/pull/1456))
 - Use the different configuration for billing outcomes when specified. ([#1461](https://github.com/getsentry/relay/pull/1461))
-- Support profiles tagged for many transactions. ([#1444](https://github.com/getsentry/relay/pull/1444)), ([#1463](https://github.com/getsentry/relay/pull/1463)), ([#1464](https://github.com/getsentry/relay/pull/1464))
+- Support profiles tagged for many transactions. ([#1444](https://github.com/getsentry/relay/pull/1444)), ([#1463](https://github.com/getsentry/relay/pull/1463)), ([#1464](https://github.com/getsentry/relay/pull/1464), [#1465](https://github.com/getsentry/relay/pull/1465))
 - Track metrics for changes to the transaction name and DSC propagations. ([#1466](https://github.com/getsentry/relay/pull/1466))
 - Simplify the ingestion path to reduce endpoint response times. ([#1416](https://github.com/getsentry/relay/issues/1416), [#1429](https://github.com/getsentry/relay/issues/1429), [#1431](https://github.com/getsentry/relay/issues/1431))
-- Update the internal service architecture for the store and outcome services. ([#1405](https://github.com/getsentry/relay/pull/1405), [#1415](https://github.com/getsentry/relay/issues/1415), [#1421](https://github.com/getsentry/relay/issues/1421), [#1441](https://github.com/getsentry/relay/issues/1441), [#1457](https://github.com/getsentry/relay/issues/1457))
-- Expand all Profile items in an envelope. ([#1465](https://github.com/getsentry/relay/pull/1465))
+- Update the internal service architecture for the store, outcome, and processor services. ([#1405](https://github.com/getsentry/relay/pull/1405), [#1415](https://github.com/getsentry/relay/issues/1415), [#1421](https://github.com/getsentry/relay/issues/1421), [#1441](https://github.com/getsentry/relay/issues/1441), [#1457](https://github.com/getsentry/relay/issues/1457), [#1470](https://github.com/getsentry/relay/pull/1470))
 
 ## 22.8.0
 
