@@ -20,23 +20,7 @@ pub enum PiiConfigError {
 
 /// A regex pattern for text replacement.
 #[derive(Clone)]
-pub struct Pattern(Regex);
-
-impl Pattern {
-    pub fn parse(s: &str, case_insensitive: bool) -> Result<Self, PiiConfigError> {
-        let regex = RegexBuilder::new(s)
-            .size_limit(COMPILED_PATTERN_MAX_SIZE)
-            .case_insensitive(case_insensitive)
-            .build()
-            .map_err(PiiConfigError::RegexError)?;
-
-        Ok(Self(regex))
-    }
-
-    pub fn regex(&self) -> &Regex {
-        &self.0
-    }
-}
+pub struct Pattern(pub Regex);
 
 impl Deref for Pattern {
     type Target = Regex;
@@ -67,7 +51,11 @@ impl Serialize for Pattern {
 impl<'de> Deserialize<'de> for Pattern {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(deserializer)?;
-        Pattern::parse(&raw, false).map_err(Error::custom)
+        let pattern = RegexBuilder::new(&raw)
+            .size_limit(COMPILED_PATTERN_MAX_SIZE)
+            .build()
+            .map_err(Error::custom)?;
+        Ok(Pattern(pattern))
     }
 }
 

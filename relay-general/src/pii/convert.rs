@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use once_cell::sync::Lazy;
+use regex::RegexBuilder;
 
 use crate::pii::{
     DataScrubbingConfig, Pattern, PiiConfig, PiiConfigError, RedactPairRule, Redaction, RuleSpec,
@@ -72,7 +73,12 @@ pub fn to_pii_config(
                 "strip-fields".to_owned(),
                 RuleSpec {
                     ty: RuleType::RedactPair(RedactPairRule {
-                        key_pattern: Pattern::parse(&key_pattern, true)?,
+                        key_pattern: Pattern(
+                            RegexBuilder::new(&key_pattern)
+                                .case_insensitive(true)
+                                .build()
+                                .map_err(PiiConfigError::RegexError)?,
+                        ),
                     }),
                     redaction: Redaction::Replace("[Filtered]".to_owned().into()),
                 },
@@ -285,7 +291,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     fn test_convert_sensitive_fields_too_large() {
         let result = to_pii_config_impl(&DataScrubbingConfig {
             sensitive_fields: vec!["1"]
-                .repeat(4085) // lowest number that will fail
+                .repeat(999999) // lowest number that will fail
                 .into_iter()
                 .map(|x| x.to_string())
                 .collect(),
