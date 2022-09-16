@@ -929,6 +929,14 @@
 <span id="921">921</span>
 <span id="922">922</span>
 <span id="923">923</span>
+<span id="924">924</span>
+<span id="925">925</span>
+<span id="926">926</span>
+<span id="927">927</span>
+<span id="928">928</span>
+<span id="929">929</span>
+<span id="930">930</span>
+<span id="931">931</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains the actor that tracks outcomes.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one</span>
@@ -1058,6 +1066,12 @@
     <span class="kw">pub</span> <span class="ident">category</span>: <span class="ident">DataCategory</span>,
     <span class="doccomment">/// The number of events or total attachment size in bytes.</span>
     <span class="kw">pub</span> <span class="ident">quantity</span>: <span class="ident">u32</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">TrackOutcome</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">outcome_aggregator</span>.<span class="ident">clone</span>()
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">TrackOutcomeLike</span> <span class="kw">for</span> <span class="ident">TrackOutcome</span> {
@@ -1661,6 +1675,12 @@
     <span class="ident">TrackRawOutcome</span>(<span class="ident">TrackRawOutcome</span>),
 }
 
+<span class="kw">impl</span> <span class="ident">OutcomeProducer</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">outcome_producer</span>.<span class="ident">clone</span>()
+    }
+}
+
 <span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {}
 
 <span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">TrackOutcome</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">OutcomeProducer</span> {
@@ -1686,10 +1706,6 @@
 }
 
 <span class="kw">impl</span> <span class="ident">OutcomeProducerService</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">OutcomeProducer</span><span class="op">&gt;</span> {
-        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">outcome_producer</span>.<span class="ident">clone</span>()
-    }
-
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">config</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Config</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ServerError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">producer</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">emit_outcomes</span>() {
             <span class="ident">EmitOutcomes::AsOutcomes</span> =&gt; {

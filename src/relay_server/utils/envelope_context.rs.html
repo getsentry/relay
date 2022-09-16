@@ -198,7 +198,6 @@
 <span id="190">190</span>
 <span id="191">191</span>
 <span id="192">192</span>
-<span id="193">193</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.</span>
 
 <span class="kw">use</span> <span class="ident">std::net</span>;
@@ -213,7 +212,6 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::envelopes</span>::{<span class="ident">Capture</span>, <span class="ident">EnvelopeManager</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome</span>::{<span class="ident">DiscardReason</span>, <span class="ident">Outcome</span>, <span class="ident">TrackOutcome</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::envelope::Envelope</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd</span>::{<span class="ident">RelayCounters</span>, <span class="ident">RelayTimers</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::utils</span>::{<span class="ident">EnvelopeSummary</span>, <span class="ident">SemaphorePermit</span>};
@@ -297,7 +295,7 @@
     <span class="doccomment">/// This envelope context should be updated using [`update`](Self::update) soon after this</span>
     <span class="doccomment">/// operation to ensure that subsequent outcomes are consistent.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">track_outcome</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">outcome</span>: <span class="ident">Outcome</span>, <span class="ident">category</span>: <span class="ident">DataCategory</span>, <span class="ident">quantity</span>: <span class="ident">usize</span>) {
-        <span class="kw">let</span> <span class="ident">outcome_aggregator</span> <span class="op">=</span> <span class="ident">OutcomeAggregator::from_registry</span>();
+        <span class="kw">let</span> <span class="ident">outcome_aggregator</span> <span class="op">=</span> <span class="ident">TrackOutcome::from_registry</span>();
         <span class="ident">outcome_aggregator</span>.<span class="ident">send</span>(<span class="ident">TrackOutcome</span> {
             <span class="ident">timestamp</span>: <span class="self">self</span>.<span class="ident">received_at</span>,
             <span class="ident">scoping</span>: <span class="self">self</span>.<span class="ident">scoping</span>,

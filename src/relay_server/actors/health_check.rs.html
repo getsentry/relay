@@ -142,6 +142,8 @@
 <span id="134">134</span>
 <span id="135">135</span>
 <span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">Ordering</span>};
 <span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 
@@ -171,6 +173,20 @@
 <span class="doccomment">/// Service interface for the [`IsHealthy`] message.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">HealthCheck</span>(<span class="ident">IsHealthy</span>, <span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span>);
 
+<span class="kw">impl</span> <span class="ident">HealthCheck</span> {
+    <span class="doccomment">/// Returns the [`Addr`] of the [`HealthCheck`] service.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Prior to using this, the service must be started using [`HealthCheckService::start`].</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Panics if the service was not started using [`HealthCheckService::start`] prior to this</span>
+    <span class="doccomment">/// being used.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">health_check</span>.<span class="ident">clone</span>()
+    }
+}
+
 <span class="kw">impl</span> <span class="ident">Interface</span> <span class="kw">for</span> <span class="ident">HealthCheck</span> {}
 
 <span class="kw">impl</span> <span class="ident">FromMessage</span><span class="op">&lt;</span><span class="ident">IsHealthy</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">HealthCheck</span> {
@@ -189,18 +205,6 @@
 }
 
 <span class="kw">impl</span> <span class="ident">HealthCheckService</span> {
-    <span class="doccomment">/// Returns the [`Addr`] of the [`HealthCheck`] service.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Prior to using this, the service must be started using [`HealthCheckService::start`].</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// # Panics</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Panics if the service was not started using [`HealthCheckService::start`] prior to this</span>
-    <span class="doccomment">/// being used.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_registry</span>() -&gt; <span class="ident">Addr</span><span class="op">&lt;</span><span class="ident">HealthCheck</span><span class="op">&gt;</span> {
-        <span class="ident">REGISTRY</span>.<span class="ident">get</span>().<span class="ident">unwrap</span>().<span class="ident">health_check</span>.<span class="ident">clone</span>()
-    }
-
     <span class="doccomment">/// Creates a new instance of the HealthCheck service.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The service does not run. To run the service, use [`start`](Self::start).</span>
