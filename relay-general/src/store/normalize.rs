@@ -1,4 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
+use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::Arc;
@@ -33,6 +34,26 @@ mod spans;
 mod stacktrace;
 
 mod user_agent;
+
+/// Uniquely identifies a measurement by its name and unit.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MeasurementKey<'a> {
+    name: Cow<'a>,
+    #[serde(deserialize_with = "MetricUnit::from_str")]
+    unit: MetricUnit,
+}
+
+/// Configuration for measurements normalization.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MeasurementsConfig<'a> {
+    /// A list of measurements that are built-in and are not subject to custom measurement limits.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    known_measurements: BTreeSet<MeasurementKey<'a>>,
+
+    /// The maximum number of measurements allowed per event that are not known measurements.
+    max_custom_measurements: usize,
+}
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
 fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
@@ -221,12 +242,33 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
     }
 }
 
-/// Ensure measurements interface is only present for transaction events
-fn normalize_measurements(event: &mut Event) {
+/// Enforce the limit on custom (user defined) measurements.
+fn normalize_custom_measurements(
+    measurements: &mut Measurements,
+    measurements_config: &MeasurementsConfig,
+) {
+    measurements.retain(|name, measurement| {
+        let unit = match measurement.value().and_then(|m| m.unit.value()) {
+            Some(unit) => unit,
+            None => return false,
+        };
+        let key = MeasurementKey {
+            name,
+            unit: unit.clone(),
+        };
+
+        measurements_config.known_measurements.contains(key)
+    });
+}
+
+/// Ensure measurements interface is only present for transaction events.
+fn normalize_measurements(event: &mut Event, measurements_config: &MeasurementsConfig) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Some(measurements) = event.measurements.value_mut() {
+        normalize_custom_measurements(measurements, measurements_config);
+
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
             (Some(start), Some(end)) => relay_common::chrono_to_positive_millis(end - start),
             _ => 0.0,
@@ -540,6 +582,7 @@ pub struct LightNormalizationConfig<'a> {
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
+    pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
 }
@@ -591,7 +634,7 @@ pub fn light_normalize_event(
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-        normalize_measurements(event); // Measurements are part of the metric extraction
+        normalize_measurements(event, config.measurements_config); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         Ok(())
@@ -1870,7 +1913,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements(&mut event);
+        normalize_measurements(&mut event, Default::default());
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
