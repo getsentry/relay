@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Limit the number of custom measurements per event. ([#1483](https://github.com/getsentry/relay/pull/1483)))
+
 **Internal**:
 
 - Generate a new profile ID when splitting a profile for multiple transactions. ([#1473](https://github.com/getsentry/relay/pull/1473))
