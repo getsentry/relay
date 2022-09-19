@@ -395,22 +395,9 @@ pub fn extract_transaction_metrics(
 
     let before_len = target.len();
 
-    let mut custom_measurement_budget = config.custom_measurements.limit;
+    // # TODO: remove push_metric entirely
     let push_metric = |metric: Metric| {
-        if config.extract_metrics.contains(&metric.name) {
-            // Anything in config.extract_metrics is considered a known / builtin metric,
-            // as opposed to custom measurements.
-            target.push(metric);
-        } else if custom_measurement_budget > 0
-            && metric.name.starts_with("d:transactions/measurements.")
-        {
-            // We allow a fixed amount of custom measurements in addition to
-            // the known / builtin metrics.
-            target.push(metric);
-            custom_measurement_budget -= 1;
-        } else {
-            relay_log::trace!("dropping metric {} because of allow-list", metric.name);
-        }
+        target.push(metric);
     };
 
     extract_transaction_metrics_inner(config, breakdowns_config, event, push_metric);
