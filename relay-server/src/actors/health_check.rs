@@ -71,7 +71,7 @@ impl HealthCheckService {
         let upstream = UpstreamRelayService::from_registry();
 
         if self.config.relay_mode() == RelayMode::Managed {
-            let fut = compat::send(upstream.clone(), IsNetworkOutage);
+            let fut = compat::send(upstream.clone(), IsNetworkOutage); // TODO: This can also be simplified
             tokio::spawn(async move {
                 if let Ok(is_outage) = fut.await {
                     metric!(gauge(RelayGauges::NetworkOutage) = if is_outage { 1 } else { 0 });
@@ -87,7 +87,7 @@ impl HealthCheckService {
                 }
 
                 if self.config.requires_auth()
-                    && !compat::send(upstream, IsAuthenticated)
+                    && !compat::send(upstream, IsAuthenticated) // TODO: Here we can simplify
                         .await
                         .unwrap_or(false)
                 {

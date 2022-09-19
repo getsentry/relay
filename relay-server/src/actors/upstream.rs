@@ -22,7 +22,10 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::pin::Pin;
 use std::str;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::time::Duration;
 use std::time::Instant;
 
 use ::actix::fut;
@@ -34,7 +37,7 @@ use itertools::Itertools;
 use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch, Notify};
 
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_common::{tryf, RetryBackoff};
@@ -410,13 +413,15 @@ pub struct UpstreamRelayService {
     low_prio_retry_sender: mpsc::UnboundedSender<EnqueuedRequest>,
 
     // Not sure about usize or if something else wouldn't be better
-    high_prio_size: usize,
-    low_prio_size: usize,
-    high_prio_retry_size: usize,
-    low_prio_retry_size: usize,
+    high_prio_size: AtomicUsize,
+    low_prio_size: AtomicUsize,
+    high_prio_retry_size: AtomicUsize,
+    low_prio_retry_size: AtomicUsize,
 
     // Semaphore to control the number of inflight requests
     inflight_requests: Semaphore,
+    notify_network_error: Arc<Notify>,
+    notify_reset_network_error: Arc<Notify>,
 }
 
 impl UpstreamRelayService {
@@ -468,11 +473,13 @@ impl UpstreamRelayService {
             high_prio_retry_sender,
             low_prio_retry_receiver,
             low_prio_retry_sender,
-            high_prio_size: 0,
-            low_prio_size: 0,
-            high_prio_retry_size: 0,
-            low_prio_retry_size: 0,
+            high_prio_size: AtomicUsize::new(0),
+            low_prio_size: AtomicUsize::new(0),
+            high_prio_retry_size: AtomicUsize::new(0),
+            low_prio_retry_size: AtomicUsize::new(0),
             inflight_requests: Semaphore::new(config.max_concurrent_requests()),
+            notify_network_error: Arc::new(Notify::new()),
+            notify_reset_network_error: Arc::new(Notify::new()),
         }
     }
 
@@ -575,13 +582,14 @@ impl UpstreamRelayService {
             return;
         }
 
+        // We can ask ourself on a fundamental level if this can even still happen now that we have the notify_one
         if !self.outage_backoff.started() {
-            self.schedule_connection_check(); // TODO(tobias): Need to check how to do this
+            self.schedule_connection_check();
         }
     }
 
     fn send_request(
-        &mut self,
+        &self,
         mut request: EnqueuedRequest,
         permit: Option<SemaphorePermit>, // TODO(tobias): Try and get this to work without this param
     ) {
@@ -625,13 +633,15 @@ impl UpstreamRelayService {
         };
 
         // we are about to send a HTTP message keep track of requests in flight
-        self.num_inflight_requests += 1; // This is replaced by the Semaphore Permit
+        // self.num_inflight_requests += 1; This is replaced by the Semaphore Permit
 
         let intercept_status_errors = request.request.intercept_status_errors();
         let send_start = Instant::now();
         let client = self.reqwest_client.clone();
         let max_response_size = self.config.max_api_payload_size();
 
+        let service = Arc::new(self);
+        // TODO:  This should be resolved once self becomes leaner
         tokio::spawn(async move {
             let res = client.execute(client_request.0).await;
 
@@ -646,10 +656,13 @@ impl UpstreamRelayService {
                 }
                 Err(err) => Err(UpstreamRequestError::SendFailed(err)),
             };
-            // TODO(tobias): Fix this later
-            self.handle_http_response(send_start, request, send_result);
+            service.handle_http_response(send_start, request, send_result);
 
-            // Drop permit
+            // We tried to send the request either it went thru and we have capacity again
+            // or it didn't and we rescheduled but also have capacity again
+            if let Some(permit) = permit {
+                drop(permit);
+            }
         });
     }
 
@@ -714,62 +727,57 @@ impl UpstreamRelayService {
     /// 3. If the request can be retried, schedule a retry.
     /// 4. Otherwise, ensure an authentication request is scheduled.
     fn handle_http_response(
-        // TODO: Might be able to get away with this not needing self which would be nice
-        &mut self,
+        &self,
         send_start: Instant,
         mut request: EnqueuedRequest,
         send_result: Result<Response, UpstreamRequestError>,
     ) {
         UpstreamRelayService::meter_result(send_start, &request, &send_result);
         if matches!(send_result, Err(ref err) if err.is_network_error()) {
-            self.handle_network_error();
+            self.notify_network_error.notify_one();
 
             if request.request.retry() {
                 request.previous_retries += 1;
-                return self.enqueue(request, EnqueuePosition::Back); // Means we skip
+                return self.enqueue(request, EnqueuePosition::Back); // Means we skip the line and try again
             }
         } else {
             // we managed a request without a network error, reset the first time we got a network
             // error and resume sending events.
-            self.reset_network_error(); // TODO: check if even still wan this
+            // self.notify_reset_network_error.notify_one();
         }
 
         tokio::spawn(async move {
-            // TODO: Weird send error that should't be
             request.request.respond(send_result).await;
         });
     }
 
     /// Enqueues a request and ensures that the message queue advances.
-    fn enqueue(&mut self, request: EnqueuedRequest, position: EnqueuePosition) {
+    fn enqueue(&self, request: EnqueuedRequest, position: EnqueuePosition) {
         let name = request.request.priority().name();
         let size = 0;
         match request.request.priority() {
+            // TODO: This comment we probably want to update
             // Immediate is special and bypasses the queue. Directly send the request and return
             // the response channel rather than waiting for `PumpHttpMessageQueue`.
-            RequestPriority::Immediate => return self.send_request(request, None), // Don't think this is currently used anymore
+            RequestPriority::Immediate => return self.send_request(request, None),
             RequestPriority::Low => match position {
                 EnqueuePosition::Front => {
                     self.low_prio_sender.send(request);
-                    self.low_prio_size += 1;
-                    size = self.low_prio_size;
+                    size = self.low_prio_size.fetch_add(1, Ordering::Relaxed) + 1;
                 }
                 EnqueuePosition::Back => {
                     self.low_prio_retry_sender.send(request);
-                    self.low_prio_retry_size += 1;
-                    size = self.low_prio_retry_size;
+                    size = self.low_prio_retry_size.fetch_add(1, Ordering::Relaxed) + 1;
                 }
             },
             RequestPriority::High => match position {
                 EnqueuePosition::Front => {
                     self.high_prio_sender.send(request);
-                    self.high_prio_size += 1;
-                    size = self.high_prio_size;
+                    size = self.high_prio_size.fetch_add(1, Ordering::Relaxed) + 1;
                 }
                 EnqueuePosition::Back => {
                     self.high_prio_retry_sender.send(request);
-                    self.high_prio_retry_size += 1;
-                    size = self.high_prio_retry_size;
+                    size = self.high_prio_retry_size.fetch_add(1, Ordering::Relaxed) + 1;
                 }
             },
         };
@@ -790,7 +798,7 @@ impl UpstreamRelayService {
             .ok_or(UpstreamRequestError::NoCredentials));
 
         let (json, signature) = credentials.secret_key.pack(&query);
-        let (tx, rx) = oneshot::channel(); // Do we want to go down this rabbit hole?
+        let (tx, rx) = oneshot::channel();
 
         let request = EnqueuedRequest::new(UpstreamQueryRequest {
             query,
@@ -800,7 +808,8 @@ impl UpstreamRelayService {
             sender: Some(tx),
         });
 
-        self.enqueue(request, EnqueuePosition::Front);
+        //self.enqueue(request, EnqueuePosition::Front);
+        self.send_request(request, None);
 
         let result = match rx.await {
             Ok(resp) => resp,
@@ -811,18 +820,17 @@ impl UpstreamRelayService {
 
     fn handle_message(&mut self, message: UpstreamRelay) {
         match message {
-            // Special case
             UpstreamRelay::Authenticate(_) => {
-                let _ = self.handle_authenticate(); // WIP
+                let _ = self.handle_authenticate(); // THis deosn't seem to be used anymore so need to ask ourself if we want to keep it in the public Interface
             }
             UpstreamRelay::IsAuthenticated(_, responder) => {
-                responder.send(self.auth_state.is_authenticated()); // Done
+                responder.send(self.auth_state.is_authenticated()); // This is still being being used by the HealthCheck Actor
             }
             UpstreamRelay::IsNetworkOutage(_, responder) => {
-                responder.send(self.is_network_outage()); // Done
+                responder.send(self.is_network_outage()); // Sill being used by the HealthCheck Actor
             }
             UpstreamRelay::ScheduleConnectionCheck(_) => {
-                self.schedule_connection_check(); // Done
+                self.schedule_connection_check(); // Find out where this was ever used, if no longer needed get rid of it
             }
             UpstreamRelay::BSendRequest(msg) => todo!("Fix these"), //self.handle_bsend_request(msg), // Much WIP
             UpstreamRelay::BSendQuery(msg, responder) => {
@@ -831,82 +839,79 @@ impl UpstreamRelayService {
         }
     }
 
-    // First need to understand what the fuck is going on
-    // TODO(tobias): Make this a new Future
-    async fn handle_authenticate(&mut self) -> Result<(), ()> {
-        // This goes into its own thing
-        loop {
-            // detect incorrect authentication requests, if we detect them we have a programming error
-            if let Some(auth_state_error) = self.get_auth_state_error() {
-                relay_log::error!("{}", auth_state_error);
-                return Err(());
+    // This is moved into its own little struct with all the info this needs
+    // We still keep the Result here but incase of it going well we return the interval
+    // when to run it again, that should be much nicer
+    async fn handle_authenticate(&mut self) -> Result<Option<Duration>, Option<Duration>> {
+        // detect incorrect authentication requests, if we detect them we have a programming error
+        if let Some(auth_state_error) = self.get_auth_state_error() {
+            relay_log::error!("{}", auth_state_error);
+            return Err(None);
+        }
+
+        let credentials = match self.config.credentials() {
+            Some(x) => x,
+            None => return Err(None),
+        };
+
+        relay_log::info!(
+            "registering with upstream ({})",
+            self.config.upstream_descriptor()
+        );
+
+        self.auth_state = if self.auth_state.is_authenticated() {
+            AuthState::Renewing
+        } else {
+            AuthState::Registering
+        };
+
+        let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
+        let interval = self.auth_backoff.next_backoff();
+
+        let response = match self.enqueue_query(request).await {
+            Ok(challenge) => {
+                relay_log::debug!("got register challenge (token = {})", challenge.token());
+                let challenge_response = challenge.into_response();
+
+                relay_log::debug!("sending register challenge response");
+                self.enqueue_query(challenge_response).await
             }
+            Err(err) => Err(err),
+        };
 
-            let credentials = match self.config.credentials() {
-                Some(x) => x,
-                None => return Err(()),
-            };
+        match response {
+            Ok(_) => {
+                relay_log::info!("relay successfully registered with upstream");
+                self.auth_state = AuthState::Registered;
+                self.auth_backoff.reset();
 
-            relay_log::info!(
-                "registering with upstream ({})",
-                self.config.upstream_descriptor()
-            );
-
-            self.auth_state = if self.auth_state.is_authenticated() {
-                AuthState::Renewing
-            } else {
-                AuthState::Registering
-            };
-
-            let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
-            let interval = self.auth_backoff.next_backoff();
-
-            let response = match self.enqueue_query(request).await {
-                Ok(challenge) => {
-                    relay_log::debug!("got register challenge (token = {})", challenge.token());
-                    let challenge_response = challenge.into_response();
-
-                    relay_log::debug!("sending register challenge response");
-                    self.enqueue_query(challenge_response).await
+                if let Some(renew_interval) = self.renew_auth_interval() {
+                    return Ok(Some(renew_interval));
                 }
-                Err(err) => Err(err),
-            };
+                return Ok(None);
+            }
+            Err(err) => {
+                relay_log::error!("authentication encountered error: {}", LogError(&err));
 
-            match response {
-                Ok(_) => {
-                    relay_log::info!("relay successfully registered with upstream");
-                    self.auth_state = AuthState::Registered;
-                    self.auth_backoff.reset();
-
-                    if let Some(renew_interval) = self.renew_auth_interval() {
-                        // TODO(tobias): Think how to fix this
-                        ctx.notify_later(Authenticate, renew_interval);
-                    }
-                    return Ok(());
+                if err.is_permanent_rejection() {
+                    self.auth_state = AuthState::Denied;
+                    return Err(None);
                 }
-                Err(err) => {
-                    relay_log::error!("authentication encountered error: {}", LogError(&err));
 
-                    if err.is_permanent_rejection() {
-                        self.auth_state = AuthState::Denied;
-                        return Err(());
-                    }
-
-                    // If the authentication request fails due to any reason other than a network error,
-                    // go back to `Registering` which indicates that this Relay is not authenticated.
-                    // Note that network errors are handled separately by the generic response handler.
-                    if !err.is_network_error() {
-                        self.auth_state = AuthState::Registering;
-                    }
-
-                    // Even on network errors, retry authentication independently.
-                    relay_log::debug!(
-                        "scheduling authentication retry in {} seconds",
-                        interval.as_secs()
-                    );
-
-                    tokio::time::sleep(interval).await;
+                // If the authentication request fails due to any reason other than a network error,
+                // go back to `Registering` which indicates that this Relay is not authenticated.
+                // Note that network errors are handled separately by the generic response handler.
+                if !err.is_network_error() {
+                    self.auth_state = AuthState::Registering;
                 }
+
+                // Even on network errors, retry authentication independently.
+                relay_log::debug!(
+                    "scheduling authentication retry in {} seconds",
+                    interval.as_secs()
+                );
+
+                return Err(Some(interval));
             }
         }
     }
@@ -935,55 +940,166 @@ impl Service for UpstreamRelayService {
         self.auth_backoff.reset();
         self.outage_backoff.reset();
 
-        if self.should_authenticate() {
-            // This is done because we can't send a message to our self
-            let _ = self.handle_authenticate();
-        }
-
-        // Our main / inbox
+        // -- Our inbox --
         // Handle the incoming messages should be reasonably fast
         tokio::spawn(async move {
             relay_log::info!("upstream relay started");
             while let Some(message) = rx.recv().await {
-                self.handle_message(message); //
+                self.handle_message(message); // TODO: The messages we send ourself will be done differently now and not pass thru this anymore
             }
             relay_log::info!("upstream relay stopped");
         });
 
-        // Do the actually work, this can take longer hence it might be interesting to do things concurrently
-        // which comes with the problem of needing to have a self handle, maybe an Arc but that would come with the
-        // The trouble of Mut self, so need to make these operations none mut which should be impossible?
+        // Lets construct the building blocks and start to pass them around just to get the rough framework going
+        // TODO(tobias): Think about how we want to initialize them
+        let (outage_tx, mut outage_rx) = watch::channel(false); // If ready true else false
+        let (auth_tx, mut auth_rx) = watch::channel(false); // If ready true else false
+        let notify = self.notify_network_error.clone();
+        let notify_reset = self.notify_reset_network_error.clone();
+
+        // -- Outage Task --
+        // TODO(tobias): The intricacies of the notify will need to be looked at
+        // TODO(tobias): Need to get rid of the selfs here. So should this be in its own struct ??
+        // Also need to think about if we want to let it run in the beginning once or not ?
         tokio::spawn(async move {
+            // Need to start the loop once we get the outage but than on the other hand need to keep the outage thing going
             loop {
-                // Skip sending requests while not ready.
-                while !self.is_ready() {
+                notify.notified().await;
+                // We know we have an outage issue
+                outage_tx.send(false);
+
+                // While we are still in an outage state keep going
+                // TODO: Not supper happy about this but I guess it is what it is
+                while !*outage_rx.borrow() {
                     let next_backoff = self.outage_backoff.next_backoff();
                     relay_log::warn!(
                         "Network outage, scheduling another check in {:?}",
                         next_backoff
                     );
                     tokio::time::sleep(next_backoff).await;
+
                     // Construct the channel
                     let (tx, rx) = oneshot::channel::<bool>(); // TODO(tobias): Try and make this nicer
                     let request = EnqueuedRequest::new(GetHealthCheck(tx)); // TODO(tobias): Try and get the channel out of this
-                    self.send_request(request, None);
-                    rx.await;
+                    self.send_request(request, None); // <- this is out reliance on the Request client
+
+                    if let Ok(val) = rx.await {
+                        if val {
+                            self.outage_backoff.reset();
+                            outage_tx.send(true);
+                        }
+                    } // TODO: Do something if things go south
                 }
-                if self.inflight_requests.available_permits() > 0 {
-                    // Ideally we should wait for the permit to be available to not have a super hot loop
-                    // But then again waiting for the permit could mean that we are no longer "ready"
-                    // So moving the permit check up before the is Ready check might be better
-                    let permit = self.inflight_requests.acquire().await.unwrap(); // Not super sure about this yet
-                    tokio::select! {
-                        // TODO(tobias): Also need to decrement the counter for the channel lengths here (used for logging)
-                        Some(message) = self.high_prio_retry_receiver.recv() => self.send_request(message, Some(permit)),
-                        Some(message) = self.high_prio_receiver.recv() => self.send_request(message, Some(permit)),
-                        Some(message) = self.low_prio_retry_receiver.recv() => self.send_request(message, Some(permit)),
-                        Some(message) = self.low_prio_receiver.recv() => self.send_request(message, Some(permit)),
+
+                // TODO: The order of this select is very much open for debate
+                /*
+                tokio::select! {
+                _ = notify.notified() => {
+                    // We know we have an outage issue
+                    outage_tx.send(false);
+
+                    // Also need to squeeze in the initial logic of handle_network_error
+                    // TODO: Need to probably backoff once to kick it all of
+                    while !self.is_ready() { // TODO: Listen to the outage notify
+                        let next_backoff = self.outage_backoff.next_backoff();
+                        relay_log::warn!(
+                            "Network outage, scheduling another check in {:?}",
+                            next_backoff
+                        );
+                        tokio::time::sleep(next_backoff).await;
+                        // Construct the channel
+                        let (tx, rx) = oneshot::channel::<bool>(); // TODO(tobias): Try and make this nicer
+                        let request = EnqueuedRequest::new(GetHealthCheck(tx)); // TODO(tobias): Try and get the channel out of this
+                        self.send_request(request, None); // <- this is out reliance on the Request client
+
+                        // If this is true set watch and also reset backoff
+                        rx.await; // <- Use this result
+
                     }
+                    // We know the outage have been resolved
+                    outage_tx.send(true);
+                }
+                // TODO: Get rid off this
+                _ = notify_reset.notified() =>  self.reset_network_error(), // TODO: This needs to move into its own thing
+                };
+                */
+            }
+        });
+
+        // Auth task
+        // Needs its own state && also needs to somehow deal with scheduled authentications
+        tokio::spawn(async move {
+            if self.should_authenticate() {
+                loop {
+                    match self.handle_authenticate().await {
+                        Ok(val) => {
+                            auth_tx.send(true);
+                            match val {
+                                Some(val) => tokio::time::sleep(val).await,
+                                None => break,
+                            }
+                        }
+                        Err(val) => {
+                            auth_tx.send(false);
+                            match val {
+                                Some(val) => tokio::time::sleep(val).await,
+                                None => break,
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Always give back True, I presume? If we don't care about auth we can't go wrong with just always being ok?
+                auth_tx.send(true);
+            }
+        });
+
+        // TODO(tobias): Also need to do magic with Arc around the self to make all this work
+        tokio::spawn(async move {
+            loop {
+                // Might need acquire owned here also not sure about the ok
+                let (_, _, Ok(permit)) = tokio::join!(
+                    watch_ready(auth_rx),
+                    watch_ready(outage_rx),
+                    self.inflight_requests.acquire()
+                );
+                // If the semaphore is closed we are in big trouble, so match on it
+
+                // TODO: Make this nicer
+                tokio::select! {
+                    Some(message) = self.high_prio_retry_receiver.recv() => {
+                        self.high_prio_retry_size.fetch_sub(1, Ordering::Relaxed);
+                        tokio::spawn(async move{self.send_request(message, Some(permit))});
+                    },
+                    Some(message) = self.high_prio_receiver.recv() => {
+                        self.high_prio_size.fetch_sub(1, Ordering::Relaxed);
+                        tokio::spawn(async move{self.send_request(message, Some(permit))});
+                    },
+                    Some(message) = self.low_prio_retry_receiver.recv() => {
+                        self.low_prio_retry_size.fetch_sub(1, Ordering::Relaxed);
+                        tokio::spawn(async move{self.send_request(message, Some(permit))});
+                    },
+                    Some(message) = self.low_prio_receiver.recv() => {
+                        self.low_prio_size.fetch_sub(1, Ordering::Relaxed);
+                        tokio::spawn(async move{self.send_request(message, Some(permit))});
+                    },
                 }
             }
         });
+    }
+}
+
+// This allows us to wait for the result of a watch channel
+async fn watch_ready(mut rx: watch::Receiver<bool>) {
+    if *rx.borrow() {
+        return;
+    }
+
+    loop {
+        rx.changed().await.unwrap(); // TODO: unwrapping here is not super nice
+        if *rx.borrow() {
+            return;
+        }
     }
 }
 
