@@ -892,6 +892,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
+    use serde_json::json;
     use similar_asserts::assert_eq;
 
     use crate::processor::process_value;
@@ -1717,7 +1718,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::new(
             Arc::new(StoreConfig {
-                grouping_config: Some(serde_json::json!({
+                grouping_config: Some(json!({
                     "id": "legacy:1234-12-12".to_string(),
                 })),
                 ..Default::default()
@@ -1948,6 +1949,55 @@ mod tests {
             "stall_total_time": {
               "value": 4000.0,
               "unit": "millisecond",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_filter_custom_measurements() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "my_custom_measurement_1": {"value": 123},
+                "frames_slow": {"value": 1},
+                "my_custom_measurement_3": {"value": 456},
+                "my_custom_measurement_2": {"value": 789}
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let config: MeasurementsConfig = serde_json::from_value(json!({
+            "knownMeasurements": [
+                "frames_slow"
+            ],
+            "maxCustomMeasurements": 2,
+            "stray_key": "zzz"
+        }))
+        .unwrap();
+
+        normalize_measurements(&mut event, Some(&config));
+
+        // Only two custom measurements are retained, in alphabetic order (1 and 2)
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "frames_slow": {
+              "value": 1.0,
+            },
+            "my_custom_measurement_1": {
+              "value": 123.0,
+            },
+            "my_custom_measurement_2": {
+              "value": 789.0,
             },
           },
         }
