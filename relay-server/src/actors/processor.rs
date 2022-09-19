@@ -2124,7 +2124,7 @@ impl Handler<EncodeEnvelope> for EnvelopeProcessor {
             }
             Ok(envelope_body) => {
                 request.envelope_body = envelope_body;
-                UpstreamRelayService::from_registry().do_send(SendRequest(request));
+                UpstreamRelayService::from_registry().send(SendRequest(Box::new(request)));
             }
         }
     }

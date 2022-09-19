@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use actix::fut;
 use actix::prelude::*;
 use actix_web::http::Method;
+use futures::TryFutureExt;
 use futures01::{future, future::Shared, sync::oneshot, Future};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -219,6 +220,7 @@ impl UpstreamProjectSource {
 
                 UpstreamRelayService::from_registry()
                     .send(SendQuery(query))
+                    .compat()
                     .map_err(|_| ProjectError::ScheduleFailed)
                     .map(move |response| (channels_batch, response))
             })

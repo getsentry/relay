@@ -20,7 +20,7 @@ use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::relays::RelayCache;
-use crate::actors::upstream::UpstreamRelayService;
+use crate::actors::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::middlewares::{
     AddCommonHeaders, ErrorHandlers, Metrics, ReadRequestMiddleware, SentryMiddleware,
 };
@@ -114,6 +114,7 @@ pub struct Registry {
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: actix::Addr<EnvelopeProcessor>,
+    pub upstream_relay: Addr<UpstreamRelay>,
 }
 
 impl fmt::Debug for Registry {
@@ -134,6 +135,7 @@ pub struct ServiceState {
     buffer_guard: Arc<BufferGuard>,
     _outcome_runtime: Arc<tokio::runtime::Runtime>,
     _main_runtime: Arc<tokio::runtime::Runtime>,
+    _upstream_runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl ServiceState {
@@ -142,8 +144,11 @@ impl ServiceState {
         let system = System::current();
         let registry = system.registry();
 
-        let upstream_relay = UpstreamRelayService::new(config.clone());
-        registry.set(Arbiter::start(|_| upstream_relay));
+        // This now has its own Runtime, same as the one below
+        let upstream_runtime = utils::tokio_runtime_with_actix();
+        let guard = upstream_runtime.enter();
+        let upstream_relay = UpstreamRelayService::new(config.clone()).start();
+        drop(guard);
 
         let outcome_runtime = utils::tokio_runtime_with_actix();
         let guard = outcome_runtime.enter();
@@ -189,6 +194,7 @@ impl ServiceState {
                 health_check,
                 outcome_producer,
                 outcome_aggregator,
+                upstream_relay,
             }))
             .unwrap();
 
@@ -197,6 +203,7 @@ impl ServiceState {
             config,
             _outcome_runtime: Arc::new(outcome_runtime),
             _main_runtime: Arc::new(main_runtime),
+            _upstream_runtime: Arc::new(upstream_runtime),
         })
     }
 

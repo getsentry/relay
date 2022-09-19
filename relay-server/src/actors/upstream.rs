@@ -28,17 +28,20 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 
-use ::actix::fut;
-use ::actix::prelude::*;
+// use ::actix::fut;
+// use ::actix::prelude::*;
 use actix_web::http::{header, Method};
 use failure::Fail;
-use futures01::prelude::*;
+use futures::TryFutureExt;
+// use futures01::prelude::*;
 use itertools::Itertools;
 use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 use tokio::sync::{oneshot, watch, Notify};
+use tokio_timer::timer::set_default;
 
+use crate::service::REGISTRY;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_common::{tryf, RetryBackoff};
 use relay_config::{Config, RelayMode};
@@ -47,6 +50,7 @@ use relay_quotas::{
     DataCategories, QuotaScope, RateLimit, RateLimitScope, RateLimits, RetryAfter, Scoping,
 };
 use relay_statsd::metric;
+use relay_system::Addr;
 use tokio::sync::{mpsc, Semaphore, SemaphorePermit};
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
@@ -282,6 +286,13 @@ impl EnqueuedRequest {
         }
     }
 
+    fn new_from_box(request: Box<dyn UpstreamRequest>) -> Self {
+        Self {
+            request,
+            previous_retries: 0,
+        }
+    }
+
     fn route_name(&self) -> &'static str {
         if self.request.path().contains("/outcomes/") {
             "outcomes"
@@ -375,8 +386,7 @@ pub enum UpstreamRelay {
     IsAuthenticated(IsAuthenticated, Sender<bool>),
     IsNetworkOutage(IsNetworkOutage, Sender<bool>),
     ScheduleConnectionCheck(ScheduleConnectionCheck),
-    BSendRequest(BSendRequest),         // Rename this eventually
-    BSendQuery(BSendQuery, Sender<()>), // This is something extra special will need to be tackled differently
+    SendRequest(SendRequest),
 }
 
 impl Interface for UpstreamRelay {}
@@ -392,8 +402,8 @@ pub struct UpstreamRelayService {
     first_error: Option<Instant>,
     max_inflight_requests: usize,
     num_inflight_requests: usize,
-    high_prio_requests: VecDeque<EnqueuedRequest>,
-    low_prio_requests: VecDeque<EnqueuedRequest>,
+    // high_prio_requests: VecDeque<EnqueuedRequest>,
+    // low_prio_requests: VecDeque<EnqueuedRequest>,
     config: Arc<Config>,
     reqwest_client: reqwest::Client,
     /// "reqwest runtime" as this tokio runtime is currently only spawned such that reqwest can
@@ -425,6 +435,18 @@ pub struct UpstreamRelayService {
 }
 
 impl UpstreamRelayService {
+    /// Returns the [`Addr`] of the [`UpstreamRelay`] service.
+    ///
+    /// Prior to using this, the service must be started using [`UpstreamRelayService::start`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the service was not started using [`UpstreamRelayService::start`] prior to this
+    /// being used.
+    pub fn from_registry() -> Addr<UpstreamRelay> {
+        REGISTRY.get().unwrap().upstream_relay.clone()
+    }
+
     /// Creates a new `UpstreamRelay` instance.
     pub fn new(config: Arc<Config>) -> Self {
         let reqwest_runtime = tokio::runtime::Builder::new_multi_thread()
@@ -458,8 +480,8 @@ impl UpstreamRelayService {
             outage_backoff: RetryBackoff::new(config.http_max_retry_interval()),
             max_inflight_requests: config.max_concurrent_requests(),
             num_inflight_requests: 0,
-            high_prio_requests: VecDeque::new(),
-            low_prio_requests: VecDeque::new(),
+            // high_prio_requests: VecDeque::new(),
+            // low_prio_requests: VecDeque::new(),
             first_error: None,
             config,
             reqwest_runtime,
@@ -618,13 +640,16 @@ impl UpstreamRelayService {
         }
 
         //try to build a ClientRequest
-        let client_request = match request.request.build(builder) {
+        let client_request = match request.request.build(&self.config, builder) {
             Err(e) => {
                 tokio::spawn(async move {
                     // TODO: Weird send error that shouldn't be
                     request
                         .request
-                        .respond(Err(UpstreamRequestError::Http(e)))
+                        .respond(
+                            self.config.max_api_payload_size(),
+                            Err(UpstreamRequestError::Http(e)),
+                        )
                         .await
                 });
                 return;
@@ -641,7 +666,7 @@ impl UpstreamRelayService {
         let max_response_size = self.config.max_api_payload_size();
 
         let service = Arc::new(self);
-        // TODO:  This should be resolved once self becomes leaner
+
         tokio::spawn(async move {
             let res = client.execute(client_request.0).await;
 
@@ -656,7 +681,7 @@ impl UpstreamRelayService {
                 }
                 Err(err) => Err(UpstreamRequestError::SendFailed(err)),
             };
-            service.handle_http_response(send_start, request, send_result);
+            service.handle_http_response(send_start, request, send_result); // TODO:  This is not send and hence it complains
 
             // We tried to send the request either it went thru and we have capacity again
             // or it didn't and we rescheduled but also have capacity again
@@ -692,7 +717,9 @@ impl UpstreamRelayService {
                     "reqwest_error",
                 )
             }
-
+            Err(UpstreamRequestError::Http(HttpError::NoRequestSigningCredentials)) => {
+                ("-", "no_signing_credentials")
+            }
             Err(UpstreamRequestError::SendFailed(_)) => ("-", "send_failed"),
             Err(UpstreamRequestError::RateLimited(_)) => ("-", "rate_limited"),
             Err(UpstreamRequestError::NoCredentials)
@@ -747,11 +774,14 @@ impl UpstreamRelayService {
         }
 
         tokio::spawn(async move {
-            request.request.respond(send_result).await;
+            request
+                .request
+                .respond(self.config.max_api_payload_size(), send_result)
+                .await;
         });
     }
 
-    /// Enqueues a request and ensures that the message queue advances.
+    /// Enqueues a request.
     fn enqueue(&self, request: EnqueuedRequest, position: EnqueuePosition) {
         let name = request.request.priority().name();
         let size = 0;
@@ -788,34 +818,25 @@ impl UpstreamRelayService {
         );
     }
 
-    async fn enqueue_query<Q: 'static + UpstreamQuery>(
-        &mut self,
-        query: Q,
-    ) -> Result<Q::Response, UpstreamRequestError> {
-        let credentials = tryf!(self
-            .config
-            .credentials()
-            .ok_or(UpstreamRequestError::NoCredentials));
-
-        let (json, signature) = credentials.secret_key.pack(&query);
+    async fn send_query<T: UpstreamQuery + 'static>(
+        &self,
+        query: T,
+    ) -> Result<T::Response, UpstreamRequestError> {
         let (tx, rx) = oneshot::channel();
 
-        let request = EnqueuedRequest::new(UpstreamQueryRequest {
+        let request = UpstreamQueryRequest {
             query,
-            body: json,
-            signature,
-            max_response_size: self.config.max_api_payload_size(),
+            body: None,
+            signature: None,
             sender: Some(tx),
-        });
-
-        //self.enqueue(request, EnqueuePosition::Front);
-        self.send_request(request, None);
-
-        let result = match rx.await {
-            Ok(resp) => resp,
-            Err(err) => Err(UpstreamRequestError::ChannelClosed),
         };
-        result
+        // Send
+        self.send_request(EnqueuedRequest::new(request), None);
+
+        match rx.await {
+            Ok(value) => value,
+            Err(err) => Err(UpstreamRequestError::ChannelClosed),
+        }
     }
 
     fn handle_message(&mut self, message: UpstreamRelay) {
@@ -832,10 +853,10 @@ impl UpstreamRelayService {
             UpstreamRelay::ScheduleConnectionCheck(_) => {
                 self.schedule_connection_check(); // Find out where this was ever used, if no longer needed get rid of it
             }
-            UpstreamRelay::BSendRequest(msg) => todo!("Fix these"), //self.handle_bsend_request(msg), // Much WIP
-            UpstreamRelay::BSendQuery(msg, responder) => {
-                todo!("Fix these") //responder.send(self.handle_bsend_query(msg)); // Much WIP
-            }
+            UpstreamRelay::SendRequest(msg) => self.handle_send_request(msg),
+            // UpstreamRelay::BSendQuery(msg, responder) => {
+            //     todo!("Fix these") //responder.send(self.handle_bsend_query(msg)); // Much WIP
+            // }
         }
     }
 
@@ -868,13 +889,14 @@ impl UpstreamRelayService {
         let request = RegisterRequest::new(&credentials.id, &credentials.public_key);
         let interval = self.auth_backoff.next_backoff();
 
-        let response = match self.enqueue_query(request).await {
+        // self.send_request(request, None);
+        let response = match self.send_query(request).await {
             Ok(challenge) => {
                 relay_log::debug!("got register challenge (token = {})", challenge.token());
                 let challenge_response = challenge.into_response();
 
                 relay_log::debug!("sending register challenge response");
-                self.enqueue_query(challenge_response).await
+                self.send_query(challenge_response).await
             }
             Err(err) => Err(err),
         };
@@ -916,19 +938,18 @@ impl UpstreamRelayService {
         }
     }
 
-    // TODO: Not sure why this is not happy
-    /*
-    fn handle_bsend_request(&mut self, msg: BSendRequest) {
-        // Need to grab the data from this, but not currently working
-        self.enqueue(EnqueuedRequest::new(msg.0), EnqueuePosition::Front);
+    // TODO: It works but at what cost
+    fn handle_send_request(&self, msg: SendRequest) {
+        self.enqueue(EnqueuedRequest::new_from_box(msg.0), EnqueuePosition::Front);
     }
 
     // TODO: For this to work we first need to get the type of this to work
+    /*
     fn handle_bsend_query(
         &mut self,
         message: SendQuery<T>,
     ) -> ResponseFuture<T::Response, UpstreamRequestError> {
-        self.enqueue_query(message.0)
+        self.enqueue_query(message.0) // This wants a just a plain boring object
     }
     */
 }
@@ -969,6 +990,7 @@ impl Service for UpstreamRelayService {
                 outage_tx.send(false);
 
                 // While we are still in an outage state keep going
+                // TODO: Also need to squeeze in the initial logic of handle_network_error
                 // TODO: Not supper happy about this but I guess it is what it is
                 while !*outage_rx.borrow() {
                     let next_backoff = self.outage_backoff.next_backoff();
@@ -1105,6 +1127,7 @@ async fn watch_ready(mut rx: watch::Receiver<bool>) {
 
 // TODO: A lot of code from here on down can be removed later, i.e impl Actor and impl Message
 
+/*
 impl Actor for UpstreamRelayService {
     type Context = Context<Self>;
 
@@ -1133,7 +1156,7 @@ impl Default for UpstreamRelayService {
         unimplemented!("register with the SystemRegistry instead")
     }
 }
-
+*/
 pub struct Authenticate;
 
 impl FromMessage<Authenticate> for UpstreamRelay {
@@ -1143,10 +1166,11 @@ impl FromMessage<Authenticate> for UpstreamRelay {
         Self::Authenticate(message)
     }
 }
-
+/*
 impl Message for Authenticate {
     type Result = Result<(), ()>;
 }
+*/
 
 /// The `Authenticate` message is sent to the UpstreamRelay at Relay startup and coordinates the
 /// authentication of the current Relay with the upstream server.
@@ -1157,6 +1181,8 @@ impl Message for Authenticate {
 ///
 /// **Note:** Relay has retry functionality, outside this actor, that periodically sends Authenticate
 /// messages until successful Authentication with the upstream server was achieved.
+
+/*
 impl Handler<Authenticate> for UpstreamRelayService {
     type Result = ResponseActFuture<Self, (), ()>;
 
@@ -1234,6 +1260,7 @@ impl Handler<Authenticate> for UpstreamRelayService {
         Box::new(future)
     }
 }
+*/
 
 pub struct IsAuthenticated;
 
@@ -1245,14 +1272,17 @@ impl FromMessage<IsAuthenticated> for UpstreamRelay {
     }
 }
 
+/*
 impl Message for IsAuthenticated {
     type Result = bool;
 }
+*/
 
 /// The `IsAuthenticated` message is an internal Relay message that is used to query the current
 /// state of authentication with the upstream sever.
 ///
 /// Currently it is only used by the HealthCheck actor.
+/*
 impl Handler<IsAuthenticated> for UpstreamRelayService {
     type Result = bool;
 
@@ -1260,12 +1290,15 @@ impl Handler<IsAuthenticated> for UpstreamRelayService {
         self.auth_state.is_authenticated()
     }
 }
+*/
 
 pub struct IsNetworkOutage;
 
+/*
 impl Message for IsNetworkOutage {
     type Result = bool;
 }
+*/
 
 impl FromMessage<IsNetworkOutage> for UpstreamRelay {
     type Response = AsyncResponse<bool>;
@@ -1280,6 +1313,7 @@ impl FromMessage<IsNetworkOutage> for UpstreamRelay {
 ///
 /// Currently it is only used by the HealthCheck actor to emit the
 /// `upstream.network_outage` metric.
+/*
 impl Handler<IsNetworkOutage> for UpstreamRelayService {
     type Result = bool;
 
@@ -1287,13 +1321,16 @@ impl Handler<IsNetworkOutage> for UpstreamRelayService {
         self.is_network_outage()
     }
 }
+*/
 
 /// Message send to drive the HttpMessage queue
 pub struct PumpHttpMessageQueue; // TODO: Approach this differently
 
+/*
 impl Message for PumpHttpMessageQueue {
     type Result = ();
 }
+*/
 
 /// The `PumpHttpMessageQueue` is an internal Relay message that is used to drive the
 /// HttpMessageQueue. Requests that need to be sent over http are placed on queues with
@@ -1304,6 +1341,7 @@ impl Message for PumpHttpMessageQueue {
 ///
 /// `PumpHttpMessageQueue` will end up sending messages over HTTP only when there are free
 /// connections available.
+/*
 impl Handler<PumpHttpMessageQueue> for UpstreamRelayService {
     type Result = ();
 
@@ -1326,12 +1364,15 @@ impl Handler<PumpHttpMessageQueue> for UpstreamRelayService {
         }
     }
 }
+*/
 
 pub struct ScheduleConnectionCheck;
 
+/*
 impl Message for ScheduleConnectionCheck {
     type Result = ();
 }
+*/
 
 impl FromMessage<ScheduleConnectionCheck> for UpstreamRelay {
     type Response = NoResponse;
@@ -1341,6 +1382,7 @@ impl FromMessage<ScheduleConnectionCheck> for UpstreamRelay {
     }
 }
 
+/*
 impl Handler<ScheduleConnectionCheck> for UpstreamRelayService {
     type Result = ();
 
@@ -1348,6 +1390,7 @@ impl Handler<ScheduleConnectionCheck> for UpstreamRelayService {
         self.schedule_connection_check();
     }
 }
+*/
 
 /// Checks the status of the network connection with the upstream server
 struct GetHealthCheck(oneshot::Sender<bool>); // Might want to come up with a more elegant solution
@@ -1377,12 +1420,13 @@ impl UpstreamRequest for GetHealthCheck {
         true
     }
 
-    fn build(&mut self, builder: RequestBuilder) -> Result<Request, HttpError> {
+    fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
         builder.finish()
     }
 
     fn respond(
         &mut self,
+        limit: usize,
         result: Result<Response, UpstreamRequestError>,
     ) -> Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
         Box::pin(async move {
@@ -1424,7 +1468,7 @@ impl ResponseTransformer for () {
 impl<F, T> ResponseTransformer for F
 where
     F: 'static + FnOnce(Response) -> T,
-    T: 'static + IntoFuture,
+    T: 'static + futures::Future + Unpin, // TODO not sure about this
 {
     type Result = T;
 
@@ -1466,29 +1510,31 @@ pub trait UpstreamRequest: Send {
     }
 
     /// Called whenever the request will be send over HTTP (possible multiple times)
-    fn build(&mut self, builder: RequestBuilder) -> Result<Request, HttpError>;
+    fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError>;
 
     /// Called when the HTTP request completes, either with success or an error that will not
     /// be retried.
     fn respond(
         &mut self,
+        limit: usize,
         result: Result<Response, UpstreamRequestError>,
     ) -> Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>;
 }
 
 // This works because UpstreamRequest doesn't have any associated types
-pub struct BSendRequest(Box<dyn UpstreamRequest>);
+pub struct SendRequest(pub Box<dyn UpstreamRequest>); //
 
-impl FromMessage<BSendRequest> for UpstreamRelay {
+impl FromMessage<SendRequest> for UpstreamRelay {
     type Response = NoResponse;
 
-    fn from_message(message: BSendRequest, _: ()) -> Self {
-        Self::BSendRequest(message)
+    fn from_message(message: SendRequest, _: ()) -> Self {
+        Self::SendRequest(message)
     }
 }
 
-pub struct SendRequest<T: UpstreamRequest>(pub T);
+// pub struct SendRequest<T: UpstreamRequest>(pub T);
 
+/*
 impl<T> Message for SendRequest<T>
 where
     T: UpstreamRequest,
@@ -1506,6 +1552,7 @@ where
         self.enqueue(EnqueuedRequest::new(msg.0), EnqueuePosition::Front);
     }
 }
+*/
 
 /// This handler handles messages that mark the end of an http request future.
 /// The handler decrements the counter of in-flight HTTP requests (since one was just
@@ -1522,6 +1569,7 @@ where
 /// the mpsc channel or this handler, it would have not dealt with dropped futures.
 /// Weather the added complexity of this design is justified by being able to handle dropped
 /// futures is not clear to me (RaduW) at this moment.
+/*
 impl Handler<TrackedFutureFinished> for UpstreamRelayService {
     type Result = ();
     /// handle notifications received from the tracked future stream
@@ -1531,9 +1579,10 @@ impl Handler<TrackedFutureFinished> for UpstreamRelayService {
         ctx.notify(PumpHttpMessageQueue)
     }
 }
+ */
 
 pub trait UpstreamQuery: Serialize + Send + 'static {
-    type Response: DeserializeOwned + 'static + Send; // TODO(tobias): Find where the response is even used
+    type Response: DeserializeOwned + 'static + Send; // Used in enqueue_query
 
     /// The HTTP method of the request.
     fn method(&self) -> Method;
@@ -1550,30 +1599,49 @@ pub trait UpstreamQuery: Serialize + Send + 'static {
     }
 }
 
-// TODO: Ask about this, how and if we get this to work
-//pub struct BSendQuery(Box<dyn UpstreamQuery<Response = Box<dyn DeserializeOwned>>>);
-pub struct BSendQuery(); // Fix eventually
+pub struct SendQuery<T: UpstreamQuery>(pub T);
 
-impl FromMessage<BSendQuery> for UpstreamRelay {
-    type Response = AsyncResponse<()>;
+impl<T> FromMessage<SendQuery<T>> for UpstreamRelay
+where
+    T: UpstreamQuery,
+{
+    type Response = AsyncResponse<Result<T::Response, UpstreamRequestError>>;
 
-    fn from_message(message: BSendQuery, sender: Sender<()>) -> Self {
-        Self::BSendQuery(message, sender)
+    fn from_message(
+        message: SendQuery<T>,
+        sender: Sender<Result<T::Response, UpstreamRequestError>>,
+    ) -> Self {
+        let (tx, rx) = oneshot::channel();
+
+        let request = UpstreamQueryRequest {
+            query: message.0,
+            body: None,
+            signature: None,
+            // max_response_size: self.config.max_api_payload_size(),
+            sender: Some(tx), // TODO: Figure out which of these we actually want
+        };
+
+        tokio::spawn(async move {
+            if let Ok(result) = rx.await {
+                sender.send(result);
+            }
+        });
+
+        Self::SendRequest(SendRequest(Box::new(request)))
     }
 }
 
-pub struct SendQuery<T: UpstreamQuery>(pub T);
-
+/*
 impl<T: UpstreamQuery> Message for SendQuery<T> {
     type Result = Result<T::Response, UpstreamRequestError>;
 }
+*/
 
 struct UpstreamQueryRequest<T: UpstreamQuery> {
-    query: T,
-    body: Vec<u8>,
-    signature: String,
-    max_response_size: usize,
-    sender: Option<oneshot::Sender<Result<T::Response, UpstreamRequestError>>>, // Updated this to the new channels
+    query: T, // TODO: So that is the root of all evil
+    body: Option<Vec<u8>>,
+    signature: Option<String>,
+    sender: Option<oneshot::Sender<Result<T::Response, UpstreamRequestError>>>, // This was a oneshot sender
 }
 
 impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
@@ -1585,14 +1653,32 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
         self.query.path()
     }
 
-    fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
-        builder.header(
-            "X-Sentry-Relay-Signature",
-            self.signature.as_str().as_bytes(),
-        );
+    fn build(
+        &mut self,
+        config: &Config,
+        mut builder: RequestBuilder,
+    ) -> Result<Request, HttpError> {
+        let (json, signature) = match (self.body, self.signature) {
+            (Some(ref json), Some(ref signature)) => (json, signature),
+            _ => {
+                let credentials = config
+                    .credentials()
+                    .ok_or(HttpError::NoRequestSigningCredentials)?;
+
+                let (json, signature) = credentials.secret_key.pack(&self.query);
+                self.body = Some(json);
+                self.signature = Some(signature);
+                (
+                    self.body.as_ref().unwrap(),
+                    self.signature.as_ref().unwrap(),
+                )
+            }
+        };
+
+        builder.header("X-Sentry-Relay-Signature", signature.as_str().as_bytes());
         builder.header(header::CONTENT_TYPE, b"application/json");
-        metric!(histogram(RelayHistograms::UpstreamQueryBodySize) = self.body.len() as u64);
-        builder.body(&self.body)
+        metric!(histogram(RelayHistograms::UpstreamQueryBodySize) = json.len() as u64);
+        builder.body(json)
     }
 
     fn retry(&self) -> bool {
@@ -1605,10 +1691,10 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
 
     fn respond(
         &mut self,
+        limit: usize,
         result: Result<Response, UpstreamRequestError>,
     ) -> Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
         let sender = self.sender.take();
-        let limit = self.max_response_size;
         Box::pin(async move {
             match result {
                 Ok(response) => {
@@ -1632,6 +1718,7 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
 ///
 /// The handler ensures that Relay is authenticated with the upstream server, adds the message
 /// to one of the message queues.
+/*
 impl<T: UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelayService {
     type Result = ResponseFuture<T::Response, UpstreamRequestError>;
 
@@ -1639,7 +1726,7 @@ impl<T: UpstreamQuery> Handler<SendQuery<T>> for UpstreamRelayService {
         self.enqueue_query(message.0)
     }
 }
-
+*/
 impl UpstreamQuery for RegisterRequest {
     type Response = RegisterChallenge;
 

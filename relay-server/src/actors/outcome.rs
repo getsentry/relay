@@ -33,7 +33,7 @@ use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
 use relay_statsd::metric;
-use relay_system::{compat, Addr, FromMessage, Service};
+use relay_system::{Addr, FromMessage, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelayService};
@@ -528,7 +528,10 @@ impl HttpOutcomeProducer {
         };
 
         tokio::spawn(async move {
-            match compat::send(UpstreamRelayService::from_registry(), SendQuery(request)).await {
+            match UpstreamRelayService::from_registry()
+                .send(SendQuery(request))
+                .await
+            {
                 Ok(_) => relay_log::trace!("outcome batch sent."),
                 Err(error) => {
                     relay_log::error!("outcome batch sending failed with: {}", LogError(&error))

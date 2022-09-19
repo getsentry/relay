@@ -9,6 +9,7 @@ use ::actix::fut;
 use ::actix::prelude::*;
 use actix_web::{http::Method, HttpResponse, ResponseError};
 use failure::Fail;
+use futures::TryFutureExt;
 use futures01::{future, future::Shared, sync::oneshot, Future};
 use serde::{Deserialize, Serialize};
 
@@ -151,8 +152,20 @@ impl RelayCache {
             relay_ids: channels.keys().cloned().collect(),
         };
 
+        // So do we need to use a compat send here
+        // Or do we do our own spawn here? which I guess would need a runtime around it to work?
+        // I guess we would need a request runtime here? on which we can than spawn this request?
+        // But don't want to rewrite all of it
+        // What ever solution we come up with here we also probably want everywhere else
+        /*
+        let t = UpstreamRelayService::from_registry()
+            .send(SendQuery(request))
+            .await;
+        */
+
         UpstreamRelayService::from_registry()
             .send(SendQuery(request))
+            .compat()
             .map_err(|_| KeyError::ScheduleFailed)
             .into_actor(self)
             .and_then(|response, slf, ctx| {

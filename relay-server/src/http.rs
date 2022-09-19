@@ -29,6 +29,8 @@ pub enum HttpError {
     Io(#[cause] io::Error),
     #[fail(display = "failed to parse JSON response")]
     Json(#[cause] serde_json::Error),
+    #[fail(display = "no credentials to create request")]
+    NoRequestSigningCredentials,
 }
 
 impl HttpError {
@@ -41,6 +43,7 @@ impl HttpError {
             Self::Reqwest(error) => error.is_timeout(),
             Self::Json(_) => false,
             HttpError::Overflow => false,
+            Self::NoRequestSigningCredentials => false,
         }
     }
 }

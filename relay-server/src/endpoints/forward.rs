@@ -81,6 +81,9 @@ impl ResponseError for ForwardedUpstreamRequestError {
                 }
                 HttpError::Io(_) => HttpResponse::BadGateway().finish(),
                 HttpError::Json(e) => e.error_response(),
+                HttpError::NoRequestSigningCredentials => {
+                    HttpResponse::InternalServerError().finish()
+                }
             },
             UpstreamRequestError::SendFailed(e) => {
                 if e.is_timeout() {
@@ -173,7 +176,11 @@ impl UpstreamRequest for ForwardRequest {
         false
     }
 
-    fn build(&mut self, mut builder: RequestBuilder) -> Result<crate::http::Request, HttpError> {
+    fn build(
+        &mut self,
+        config: &Config,
+        mut builder: RequestBuilder,
+    ) -> Result<crate::http::Request, HttpError> {
         for (key, value) in &self.headers {
             // Since there is no API in actix-web to access the raw, not-yet-decompressed stream, we
             // must not forward the content-encoding header, as the actix http client will do its own
@@ -193,6 +200,7 @@ impl UpstreamRequest for ForwardRequest {
 
     fn respond(
         &mut self,
+        limit: usize,
         result: Result<Response, UpstreamRequestError>,
     ) -> std::pin::Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
         let sender = self.sender.take();
@@ -259,8 +267,7 @@ pub fn forward_upstream(
                 max_response_size,
                 sender: Some(tx),
             };
-
-            UpstreamRelayService::from_registry().do_send(SendRequest(forward_request));
+            UpstreamRelayService::from_registry().send(SendRequest(Box::new(forward_request)));
 
             rx.map_err(|_| UpstreamRequestError::ChannelClosed)
                 .flatten()

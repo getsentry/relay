@@ -80,7 +80,11 @@ impl UpstreamRequest for SendEnvelope {
         format!("/api/{}/envelope/", self.scoping.project_id).into()
     }
 
-    fn build(&mut self, mut builder: RequestBuilder) -> Result<Request, HttpError> {
+    fn build(
+        &mut self,
+        config: &Config,
+        mut builder: RequestBuilder,
+    ) -> Result<Request, HttpError> {
         let meta = &self.envelope_meta;
         builder
             .content_encoding(self.http_encoding)
@@ -101,6 +105,7 @@ impl UpstreamRequest for SendEnvelope {
 
     fn respond(
         &mut self,
+        limit: usize,
         result: Result<Response, UpstreamRequestError>,
     ) -> Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
         let sender = self.response_sender.take();
@@ -247,7 +252,8 @@ impl EnvelopeManager {
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
-            UpstreamRelayService::from_registry().do_send(SendRequest(request));
+            UpstreamRelayService::from_registry().send(SendRequest(Box::new(request)));
+        // So this needs to be compat send now?
         } else {
             EnvelopeProcessor::from_registry().do_send(EncodeEnvelope::new(request));
         }
