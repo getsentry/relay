@@ -282,7 +282,7 @@ fn queue_envelope(
 
     if !metric_items.is_empty() {
         relay_log::trace!("sending metrics into processing queue");
-        EnvelopeProcessor::from_registry().do_send(ProcessMetrics {
+        EnvelopeProcessor::from_registry().send(ProcessMetrics {
             items: metric_items,
             project_key: envelope.meta().public_key(),
             start_time: envelope.meta().start_time(),

@@ -1,39 +1,35 @@
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Instant;
 
-use actix::prelude::*;
+use actix::{ResponseFuture, SystemService};
 use actix_web::http::Method;
 use chrono::Utc;
-use futures01::{future, prelude::*, sync::oneshot};
+use futures::compat::Future01CompatExt;
+use futures01::{future, sync::oneshot, Future as _};
 
 use relay_common::ProjectKey;
-use relay_config::{Config, HttpEncoding, RelayMode};
-use relay_general::protocol::{ClientReport, EventId};
+use relay_config::{Config, HttpEncoding};
+use relay_general::protocol::ClientReport;
 use relay_log::LogError;
 use relay_metrics::Bucket;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
+use relay_system::{Addr, AsyncResponse, FromMessage, NoResponse, Sender};
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
 use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
+use crate::actors::test_store::{Capture, TestStore};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
-use crate::service::ServerError;
+use crate::service::REGISTRY;
 use crate::statsd::RelayHistograms;
-use crate::utils::{EnvelopeContext, FutureExt as _};
+use crate::utils::EnvelopeContext;
 
 #[cfg(feature = "processing")]
-use {
-    crate::actors::store::{Store, StoreEnvelope, StoreError, StoreService},
-    futures::{FutureExt, TryFutureExt},
-    relay_system::{Addr as ServiceAddr, Service},
-    tokio::runtime::Runtime,
-};
+use crate::actors::store::{Store, StoreEnvelope, StoreError};
 
 /// Error created while handling [`SendEnvelope`].
 #[derive(Debug, failure::Fail)]
@@ -52,9 +48,6 @@ pub enum SendEnvelopeError {
     #[fail(display = "could not send request to upstream")]
     UpstreamRequestFailed(#[cause] UpstreamRequestError),
 }
-
-/// Either a captured envelope or an error that occured during processing.
-pub type CapturedEnvelope = Result<Envelope, String>;
 
 /// An upstream request that submits an envelope via HTTP.
 #[derive(Debug)]
@@ -148,79 +141,135 @@ impl UpstreamRequest for SendEnvelope {
     }
 }
 
-pub struct EnvelopeManager {
-    config: Arc<Config>,
-    captures: BTreeMap<EventId, CapturedEnvelope>,
-    #[cfg(feature = "processing")]
-    store_forwarder: Option<ServiceAddr<Store>>,
-    #[cfg(feature = "processing")]
-    _runtime: Runtime,
+/// Sends an envelope to the upstream or Kafka.
+#[derive(Debug)]
+pub struct SubmitEnvelope {
+    pub envelope: Envelope,
+    pub envelope_context: EnvelopeContext,
+}
+
+/// Sends a client report to the upstream.
+#[derive(Debug)]
+pub struct SendClientReports {
+    /// The client report to be sent.
+    pub client_reports: Vec<ClientReport>,
+    /// Scoping information for the client report.
+    pub scoping: Scoping,
+}
+
+/// Sends a batch of pre-aggregated metrics to the upstream or Kafka.
+///
+/// Responds with `Err` if there was an error sending some or all of the buckets, containing the
+/// failed buckets.
+#[derive(Debug)]
+pub struct SendMetrics {
+    /// The pre-aggregated metric buckets.
+    pub buckets: Vec<Bucket>,
+    /// Scoping information for the metrics.
+    pub scoping: Scoping,
+    /// The key of the logical partition to send the metrics to.
+    pub partition_key: Option<u64>,
+}
+
+/// Dispatch service for generating and submitting Envelopes.
+#[derive(Debug)]
+pub enum EnvelopeManager {
+    SubmitEnvelope(Box<SubmitEnvelope>),
+    SendClientReports(SendClientReports),
+    SendMetrics(SendMetrics, Sender<Result<(), Vec<Bucket>>>),
 }
 
 impl EnvelopeManager {
-    pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
-        // Enter the tokio runtime so we can start spawning tasks from the outside.
-        #[cfg(feature = "processing")]
-        let runtime = crate::utils::tokio_runtime_with_actix();
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().envelope_manager.clone()
+    }
+}
 
-        #[cfg(feature = "processing")]
-        let _guard = runtime.enter();
+impl relay_system::Interface for EnvelopeManager {}
 
-        #[cfg(feature = "processing")]
-        let store_forwarder = if config.processing_enabled() {
-            let actor = StoreService::create(config.clone())?;
-            Some(actor.start())
-        } else {
-            None
-        };
+impl FromMessage<SubmitEnvelope> for EnvelopeManager {
+    type Response = NoResponse;
 
-        Ok(EnvelopeManager {
+    fn from_message(message: SubmitEnvelope, _: ()) -> Self {
+        Self::SubmitEnvelope(Box::new(message))
+    }
+}
+
+impl FromMessage<SendClientReports> for EnvelopeManager {
+    type Response = NoResponse;
+
+    fn from_message(message: SendClientReports, _: ()) -> Self {
+        Self::SendClientReports(message)
+    }
+}
+
+impl FromMessage<SendMetrics> for EnvelopeManager {
+    type Response = AsyncResponse<Result<(), Vec<Bucket>>>;
+
+    fn from_message(message: SendMetrics, sender: Sender<Result<(), Vec<Bucket>>>) -> Self {
+        Self::SendMetrics(message, sender)
+    }
+}
+
+/// Service implementing the [`EnvelopeManager`] interface.
+///
+/// This service will produce envelopes to one the following backends:
+///  1. The [`Store`] via Kafka if configured with `set_store_forwarder`. This is available only if
+///     processing mode is compiled and enabled in configuration.
+///  2. The in-memory [`TestStore`] if capture mode is enabled. This is meant for integration
+///     testing and should not be used in production.
+///  3. The [`UpstreamRelay`] via HTTP by default.
+#[derive(Debug)]
+pub struct EnvelopeManagerService {
+    config: Arc<Config>,
+    #[cfg(feature = "processing")]
+    store_forwarder: Option<Addr<Store>>,
+}
+
+impl EnvelopeManagerService {
+    /// Creates a new instance of the [`EnvelopeManager`] service.
+    pub fn new(config: Arc<Config>) -> Self {
+        Self {
             config,
-            captures: BTreeMap::new(),
             #[cfg(feature = "processing")]
-            store_forwarder,
-            #[cfg(feature = "processing")]
-            _runtime: runtime,
-        })
+            store_forwarder: None,
+        }
+    }
+
+    /// Configures a store forwarder to produce Envelopes to Kafka.
+    #[cfg(feature = "processing")]
+    pub fn set_store_forwarder(&mut self, addr: Addr<Store>) {
+        self.store_forwarder = Some(addr);
     }
 
     /// Sends an envelope to the upstream or Kafka.
-    fn submit_envelope(
-        &mut self,
-        project_key: ProjectKey,
-        partition_key: Option<String>,
+    async fn submit_envelope(
+        &self,
         mut envelope: Envelope,
         scoping: Scoping,
-        #[allow(unused_variables)] start_time: Instant,
-        context: &mut <Self as Actor>::Context,
-    ) -> ResponseFuture<(), SendEnvelopeError> {
+        partition_key: Option<String>,
+    ) -> Result<(), SendEnvelopeError> {
         #[cfg(feature = "processing")]
         {
             if let Some(store_forwarder) = self.store_forwarder.clone() {
                 relay_log::trace!("sending envelope to kafka");
-                let fut = async move {
-                    let addr = store_forwarder.clone();
-                    addr.send(StoreEnvelope {
-                        envelope,
-                        start_time,
-                        scoping,
-                    })
-                    .await
-                };
+                let future = store_forwarder.send(StoreEnvelope {
+                    start_time: envelope.meta().start_time(),
+                    scoping,
+                    envelope,
+                });
 
-                let future = fut
-                    .boxed_local()
-                    .compat()
+                return future
+                    .await
                     .map_err(|_| SendEnvelopeError::ScheduleFailed)
                     .and_then(|result| result.map_err(SendEnvelopeError::StoreFailed));
-                return Box::new(future);
             }
         }
 
         // if we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.config) {
-            context.notify(Capture::accepted(envelope));
-            return Box::new(future::ok(()));
+            TestStore::from_registry().send(Capture::accepted(envelope));
+            return Ok(());
         }
 
         relay_log::trace!("sending envelope to sentry endpoint");
@@ -234,7 +283,7 @@ impl EnvelopeManager {
 
         let envelope_body = match envelope.to_vec() {
             Ok(v) => v,
-            Err(e) => return Box::new(future::err(SendEnvelopeError::EnvelopeBuildFailed(e))),
+            Err(e) => return Err(SendEnvelopeError::EnvelopeBuildFailed(e)),
         };
 
         let (tx, rx) = oneshot::channel();
@@ -244,130 +293,55 @@ impl EnvelopeManager {
             scoping,
             http_encoding: self.config.http_encoding(),
             response_sender: Some(tx),
-            project_key,
+            project_key: scoping.project_key,
             partition_key,
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
             UpstreamRelay::from_registry().do_send(SendRequest(request));
         } else {
-            EnvelopeProcessor::from_registry().do_send(EncodeEnvelope::new(request));
+            EnvelopeProcessor::from_registry().send(EncodeEnvelope::new(request));
         }
 
-        Box::new(
-            rx.map_err(|_| {
-                SendEnvelopeError::UpstreamRequestFailed(UpstreamRequestError::ChannelClosed)
-            })
-            .flatten(),
-        )
-    }
-}
-
-impl Actor for EnvelopeManager {
-    type Context = Context<Self>;
-
-    fn started(&mut self, context: &mut Self::Context) {
-        // Set the mailbox size to the size of the envelope buffer. This is a rough estimate but
-        // should ensure that we're not dropping envelopes unintentionally after we've accepted
-        // them.
-        let mailbox_size = self.config.envelope_buffer_size() as usize;
-        context.set_mailbox_capacity(mailbox_size);
-        relay_log::info!("envelope manager started");
+        match rx.compat().await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(err)) => Err(err),
+            Err(_canceled) => Err(SendEnvelopeError::UpstreamRequestFailed(
+                UpstreamRequestError::ChannelClosed,
+            )),
+        }
     }
 
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        relay_log::info!("envelope manager stopped");
-    }
-}
-
-impl Supervised for EnvelopeManager {}
-
-impl SystemService for EnvelopeManager {}
-
-impl Default for EnvelopeManager {
-    fn default() -> Self {
-        unimplemented!("register with the SystemRegistry instead")
-    }
-}
-
-/// Sends an envelope to the upstream or Kafka.
-pub struct SubmitEnvelope {
-    pub envelope: Envelope,
-    pub envelope_context: EnvelopeContext,
-}
-
-impl Message for SubmitEnvelope {
-    type Result = ();
-}
-
-impl Handler<SubmitEnvelope> for EnvelopeManager {
-    type Result = ();
-
-    fn handle(&mut self, message: SubmitEnvelope, context: &mut Self::Context) -> Self::Result {
+    async fn handle_submit(&self, message: SubmitEnvelope) {
         let SubmitEnvelope {
             envelope,
             mut envelope_context,
         } = message;
 
         let scoping = envelope_context.scoping();
-        let start_time = envelope.meta().start_time();
-        let project_key = envelope.meta().public_key();
-
-        self.submit_envelope(project_key, None, envelope, scoping, start_time, context)
-            .then(move |result| match result {
-                Ok(_) => {
-                    envelope_context.accept();
-                    Ok(())
-                }
-                Err(SendEnvelopeError::UpstreamRequestFailed(e)) if e.is_received() => {
-                    envelope_context.accept();
-                    Ok(())
-                }
-                Err(error) => {
-                    // Errors are only logged for what we consider an internal discard reason. These
-                    // indicate errors in the infrastructure or implementation bugs.
-                    relay_log::with_scope(
-                        |scope| scope.set_tag("project_key", project_key),
-                        || relay_log::error!("error sending envelope: {}", LogError(&error)),
-                    );
-                    envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
-                    Err(())
-                }
-            })
-            .drop_guard("submit_envelope")
-            .into_actor(self)
-            .spawn(context);
+        match self.submit_envelope(envelope, scoping, None).await {
+            Ok(_) => {
+                envelope_context.accept();
+            }
+            Err(SendEnvelopeError::UpstreamRequestFailed(e)) if e.is_received() => {
+                envelope_context.accept();
+            }
+            Err(error) => {
+                // Errors are only logged for what we consider an internal discard reason. These
+                // indicate errors in the infrastructure or implementation bugs.
+                relay_log::with_scope(
+                    |scope| scope.set_tag("project_key", scoping.project_key),
+                    || relay_log::error!("error sending envelope: {}", LogError(&error)),
+                );
+                envelope_context.reject(Outcome::Invalid(DiscardReason::Internal));
+            }
+        }
     }
-}
 
-/// Sends a batch of pre-aggregated metrics to the upstream or Kafka.
-///
-/// Responds with `Err` if there was an error sending some or all of the buckets, containing the
-/// failed buckets.
-#[derive(Debug)]
-pub struct SendMetrics {
-    /// The pre-aggregated metric buckets.
-    pub buckets: Vec<Bucket>,
-    /// Scoping information for the metrics.
-    pub scoping: Scoping,
-    /// The project of the metrics.
-    pub project_key: ProjectKey,
-    /// The key of the logical partition to send the metrics to.
-    pub partition_key: Option<u64>,
-}
-
-impl Message for SendMetrics {
-    type Result = Result<(), Vec<Bucket>>;
-}
-
-impl Handler<SendMetrics> for EnvelopeManager {
-    type Result = ResponseFuture<(), Vec<Bucket>>;
-
-    fn handle(&mut self, message: SendMetrics, context: &mut Self::Context) -> Self::Result {
+    async fn handle_send_metrics(&self, message: SendMetrics) -> Result<(), Vec<Bucket>> {
         let SendMetrics {
             buckets,
             scoping,
-            project_key,
             partition_key,
         } = message;
 
@@ -386,37 +360,13 @@ impl Handler<SendMetrics> for EnvelopeManager {
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
 
-        let future = self
-            .submit_envelope(
-                project_key,
-                partition_key.map(|x| x.to_string()),
-                envelope,
-                scoping,
-                Instant::now(),
-                context,
-            )
-            .map_err(|_| buckets);
-
-        Box::new(future)
+        let partition_key = partition_key.map(|x| x.to_string());
+        self.submit_envelope(envelope, scoping, partition_key)
+            .await
+            .map_err(|_| buckets)
     }
-}
 
-/// Sends a client report to the upstream.
-pub struct SendClientReports {
-    /// The client report to be sent.
-    pub client_reports: Vec<ClientReport>,
-    /// Scoping information for the client report.
-    pub scoping: Scoping,
-}
-
-impl Message for SendClientReports {
-    type Result = Result<(), ()>;
-}
-
-impl Handler<SendClientReports> for EnvelopeManager {
-    type Result = ResponseFuture<(), ()>;
-
-    fn handle(&mut self, message: SendClientReports, ctx: &mut Self::Context) -> Self::Result {
+    async fn handle_send_client_reports(&self, message: SendClientReports) {
         let SendClientReports {
             client_reports,
             scoping,
@@ -439,102 +389,42 @@ impl Handler<SendClientReports> for EnvelopeManager {
             envelope.add_item(item);
         }
 
-        let future = self
-            .submit_envelope(
-                scoping.project_key,
-                None,
-                envelope,
-                scoping,
-                Instant::now(),
-                ctx,
-            )
-            .map_err(|e| {
-                relay_log::trace!("Failed to send envelope for client report: {:?}", e);
-            });
-
-        Box::new(future)
-    }
-}
-
-/// Resolves a [`CapturedEnvelope`] by the given `event_id`.
-pub struct GetCapturedEnvelope {
-    pub event_id: EventId,
-}
-
-impl Message for GetCapturedEnvelope {
-    type Result = Option<CapturedEnvelope>;
-}
-
-impl Handler<GetCapturedEnvelope> for EnvelopeManager {
-    type Result = Option<CapturedEnvelope>;
-
-    fn handle(
-        &mut self,
-        message: GetCapturedEnvelope,
-        _context: &mut Self::Context,
-    ) -> Self::Result {
-        self.captures.get(&message.event_id).cloned()
-    }
-}
-
-/// Inserts an envelope or failure into internal captures.
-///
-/// Can be retrieved using [`GetCapturedEnvelope`]. Use [`Capture::should_capture`] to check whether
-/// the message should even be sent to reduce the overheads.
-pub struct Capture {
-    event_id: Option<EventId>,
-    capture: CapturedEnvelope,
-}
-
-impl Capture {
-    /// Returns `true` if Relay is in capture mode.
-    ///
-    /// The `Capture` message can still be sent and and will be ignored. This function is purely for
-    /// optimization purposes.
-    pub fn should_capture(config: &Config) -> bool {
-        matches!(config.relay_mode(), RelayMode::Capture)
-    }
-
-    /// Captures an accepted envelope.
-    pub fn accepted(envelope: Envelope) -> Self {
-        Self {
-            event_id: envelope.event_id(),
-            capture: Ok(envelope),
+        if let Err(e) = self.submit_envelope(envelope, scoping, None).await {
+            relay_log::trace!("Failed to send envelope for client report: {:?}", e);
         }
     }
 
-    /// Captures the error that lead to envelope rejection.
-    pub fn rejected(event_id: Option<EventId>, outcome: &Outcome) -> Self {
-        Self {
-            event_id,
-            capture: Err(outcome.to_string()),
-        }
-    }
-}
-
-impl Message for Capture {
-    type Result = ();
-}
-
-impl Handler<Capture> for EnvelopeManager {
-    type Result = ();
-
-    fn handle(&mut self, msg: Capture, _ctx: &mut Self::Context) -> Self::Result {
-        if let RelayMode::Capture = self.config.relay_mode() {
-            match (msg.event_id, msg.capture) {
-                (Some(event_id), Ok(envelope)) => {
-                    relay_log::debug!("capturing envelope");
-                    self.captures.insert(event_id, Ok(envelope));
-                }
-                (Some(event_id), Err(message)) => {
-                    relay_log::debug!("capturing failed event {}", event_id);
-                    self.captures.insert(event_id, Err(message));
-                }
-
-                // XXX: does not work with envelopes without event_id
-                (None, Ok(_)) => relay_log::debug!("dropping non event envelope"),
-                (None, Err(_)) => relay_log::debug!("dropping failed envelope without event"),
+    async fn handle_message(&self, message: EnvelopeManager) {
+        match message {
+            EnvelopeManager::SubmitEnvelope(message) => {
+                self.handle_submit(*message).await;
+            }
+            EnvelopeManager::SendClientReports(message) => {
+                self.handle_send_client_reports(message).await;
+            }
+            EnvelopeManager::SendMetrics(message, sender) => {
+                sender.send(self.handle_send_metrics(message).await);
             }
         }
+    }
+}
+
+impl relay_system::Service for EnvelopeManagerService {
+    type Interface = EnvelopeManager;
+
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            relay_log::info!("envelope manager started");
+
+            let service = Arc::new(self);
+            while let Some(message) = rx.recv().await {
+                let service = Arc::clone(&service);
+                tokio::spawn(async move {
+                    service.handle_message(message).await;
+                });
+            }
+
+            relay_log::info!("envelope manager stopped");
+        });
     }
 }

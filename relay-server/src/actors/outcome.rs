@@ -129,6 +129,12 @@ pub struct TrackOutcome {
     pub quantity: u32,
 }
 
+impl TrackOutcome {
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().outcome_aggregator.clone()
+    }
+}
+
 impl TrackOutcomeLike for TrackOutcome {
     fn reason(&self) -> Option<Cow<str>> {
         self.outcome.to_reason()
@@ -310,6 +316,10 @@ pub enum DiscardReason {
     /// (Relay) A project state returned by the upstream could not be parsed.
     ProjectState,
 
+    /// (Relay) A project state returned by the upstream contained datascrubbing settings
+    /// that could not be converted to PII config.
+    ProjectStatePii,
+
     /// (Relay) An envelope was submitted with two items that need to be unique.
     DuplicateItem,
 
@@ -368,6 +378,7 @@ impl DiscardReason {
             DiscardReason::InvalidEnvelope => "invalid_envelope",
             DiscardReason::InvalidCompression => "invalid_compression",
             DiscardReason::ProjectState => "project_state",
+            DiscardReason::ProjectStatePii => "project_state_pii",
             DiscardReason::DuplicateItem => "duplicate_item",
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
@@ -487,6 +498,9 @@ pub enum OutcomeError {
     #[fail(display = "failed to send kafka message")]
     #[cfg(feature = "processing")]
     SendFailed(rdkafka::error::KafkaError),
+    #[fail(display = "failed to get Kafka producer")]
+    #[cfg(feature = "processing")]
+    InvalidKafkaProducer(#[cause] store::StoreError),
     #[fail(display = "json serialization error")]
     #[cfg(feature = "processing")]
     SerializationError(serde_json::Error),
@@ -588,7 +602,7 @@ impl ClientReportOutcomeProducer {
         let unsent_reports = mem::take(&mut self.unsent_reports);
         let envelope_manager = EnvelopeManager::from_registry();
         for (scoping, client_reports) in unsent_reports.into_iter() {
-            envelope_manager.do_send(SendClientReports {
+            envelope_manager.send(SendClientReports {
                 client_reports,
                 scoping,
             });
@@ -727,6 +741,12 @@ pub enum OutcomeProducer {
     TrackRawOutcome(TrackRawOutcome),
 }
 
+impl OutcomeProducer {
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().outcome_producer.clone()
+    }
+}
+
 impl Interface for OutcomeProducer {}
 
 impl FromMessage<TrackOutcome> for OutcomeProducer {
@@ -752,10 +772,6 @@ pub struct OutcomeProducerService {
 }
 
 impl OutcomeProducerService {
-    pub fn from_registry() -> Addr<OutcomeProducer> {
-        REGISTRY.get().unwrap().outcome_producer.clone()
-    }
-
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let producer = match config.emit_outcomes() {
             EmitOutcomes::AsOutcomes => {
@@ -835,7 +851,9 @@ impl OutcomeProducerService {
             }
 
             Producer::Sharded(sharded) => {
-                let (topic_name, producer) = sharded.get_producer(organization_id);
+                let (topic_name, producer) = sharded
+                    .get_producer(organization_id)
+                    .map_err(OutcomeError::InvalidKafkaProducer)?;
                 let record = BaseRecord::to(topic_name)
                     .payload(&payload)
                     .key(key.as_bytes().as_ref());

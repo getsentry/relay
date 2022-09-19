@@ -39,6 +39,7 @@ pub mod project_local;
 pub mod project_upstream;
 pub mod relays;
 pub mod server;
+pub mod test_store;
 pub mod upstream;
 
 #[cfg(feature = "processing")]
