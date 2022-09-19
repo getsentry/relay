@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+**Internal**:
+
 - Generate a new profile ID when splitting a profile for multiple transactions. ([#1473](https://github.com/getsentry/relay/pull/1473))
 
 ## 22.9.0
