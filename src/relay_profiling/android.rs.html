@@ -385,6 +385,7 @@
 <span id="379">379</span>
 <span id="380">380</span>
 <span id="381">381</span>
+<span id="382">382</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::collections</span>::{<span class="ident">HashMap</span>, <span class="ident">HashSet</span>};
 <span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 
@@ -527,6 +528,7 @@
     <span class="kw">for</span> <span class="ident">transaction</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">profile</span>.<span class="ident">transactions</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_profile</span> <span class="op">=</span> <span class="ident">profile</span>.<span class="ident">clone</span>();
 
+        <span class="ident">new_profile</span>.<span class="ident">profile_id</span> <span class="op">=</span> <span class="ident">EventId::new</span>();
         <span class="ident">new_profile</span>.<span class="ident">set_transaction</span>(<span class="ident">transaction</span>);
         <span class="ident">new_profile</span>.<span class="ident">transactions</span>.<span class="ident">clear</span>();
 
