@@ -140,6 +140,7 @@ pub fn expand_android_profile(payload: &[u8]) -> Result<Vec<Vec<u8>>, ProfileErr
     for transaction in &profile.transactions {
         let mut new_profile = profile.clone();
 
+        new_profile.profile_id = EventId::new();
         new_profile.set_transaction(transaction);
         new_profile.transactions.clear();
 
