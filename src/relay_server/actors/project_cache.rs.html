@@ -685,12 +685,15 @@
 <span id="677">677</span>
 <span id="678">678</span>
 <span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::Arc</span>;
 <span class="kw">use</span> <span class="ident">std::time::Instant</span>;
 
 <span class="kw">use</span> <span class="ident">actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">actix_web::ResponseError</span>;
 <span class="kw">use</span> <span class="ident">failure::Fail</span>;
+<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">FutureExt</span>, <span class="ident">TryFutureExt</span>};
 <span class="kw">use</span> <span class="ident">futures01</span>::{<span class="ident">future</span>, <span class="ident">Future</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common::ProjectKey</span>;
@@ -1349,9 +1352,10 @@
             .<span class="ident">send</span>(<span class="ident">SendMetrics</span> {
                 <span class="ident">buckets</span>,
                 <span class="ident">scoping</span>,
-                <span class="ident">project_key</span>,
                 <span class="ident">partition_key</span>,
             })
+            .<span class="ident">boxed</span>()
+            .<span class="ident">compat</span>()
             .<span class="ident">then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">send_result</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">send_result</span> {
                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(())) =&gt; <span class="prelude-val">Ok</span>(()),
                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(<span class="ident">buckets</span>)) =&gt; <span class="prelude-val">Err</span>(<span class="ident">buckets</span>),

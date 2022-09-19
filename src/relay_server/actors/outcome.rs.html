@@ -1546,7 +1546,7 @@
         <span class="kw">let</span> <span class="ident">unsent_reports</span> <span class="op">=</span> <span class="ident">mem::take</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">unsent_reports</span>);
         <span class="kw">let</span> <span class="ident">envelope_manager</span> <span class="op">=</span> <span class="ident">EnvelopeManager::from_registry</span>();
         <span class="kw">for</span> (<span class="ident">scoping</span>, <span class="ident">client_reports</span>) <span class="kw">in</span> <span class="ident">unsent_reports</span>.<span class="ident">into_iter</span>() {
-            <span class="ident">envelope_manager</span>.<span class="ident">do_send</span>(<span class="ident">SendClientReports</span> {
+            <span class="ident">envelope_manager</span>.<span class="ident">send</span>(<span class="ident">SendClientReports</span> {
                 <span class="ident">client_reports</span>,
                 <span class="ident">scoping</span>,
             });
