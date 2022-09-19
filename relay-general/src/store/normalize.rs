@@ -8,8 +8,10 @@ use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
-use relay_common::{DurationUnit, FractionUnit, MetricUnit};
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+
+use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 
 use super::{schema, transactions, BreakdownsConfig};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
@@ -35,21 +37,13 @@ mod stacktrace;
 
 mod user_agent;
 
-/// Uniquely identifies a measurement by its name and unit.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MeasurementKey<'a> {
-    name: Cow<'a>,
-    #[serde(deserialize_with = "MetricUnit::from_str")]
-    unit: MetricUnit,
-}
-
 /// Configuration for measurements normalization.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub struct MeasurementsConfig<'a> {
+pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    known_measurements: BTreeSet<MeasurementKey<'a>>,
+    #[serde(default, skip_serializing_if = "BTreeSet::<String>::is_empty")]
+    known_measurements: BTreeSet<String>,
 
     /// The maximum number of measurements allowed per event that are not known measurements.
     max_custom_measurements: usize,
@@ -243,31 +237,40 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 }
 
 /// Enforce the limit on custom (user defined) measurements.
-fn normalize_custom_measurements(
+///
+/// Note that [`Measurements`] is a BTreeMap, which means its keys are sorted.
+/// This ensures that for two events with the same measurement keys, the same set of custom
+/// measurements is retained.
+///
+fn filter_custom_measurements(
     measurements: &mut Measurements,
     measurements_config: &MeasurementsConfig,
 ) {
-    measurements.retain(|name, measurement| {
-        let unit = match measurement.value().and_then(|m| m.unit.value()) {
-            Some(unit) => unit,
-            None => return false,
-        };
-        let key = MeasurementKey {
-            name,
-            unit: unit.clone(),
-        };
+    let mut custom_measurements_count = 0;
+    measurements.retain(|name, _| {
+        // Check if this is a builtin measurement:
+        if measurements_config.known_measurements.contains(name) {
+            return true;
+        }
+        // For custom measurements, check the budget:
+        if custom_measurements_count < measurements_config.max_custom_measurements {
+            custom_measurements_count += 1;
+            return true;
+        }
 
-        measurements_config.known_measurements.contains(key)
+        false
     });
 }
 
 /// Ensure measurements interface is only present for transaction events.
-fn normalize_measurements(event: &mut Event, measurements_config: &MeasurementsConfig) {
+fn normalize_measurements(event: &mut Event, measurements_config: Option<&MeasurementsConfig>) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Some(measurements) = event.measurements.value_mut() {
-        normalize_custom_measurements(measurements, measurements_config);
+        if let Some(measurements_config) = measurements_config {
+            filter_custom_measurements(measurements, measurements_config);
+        }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
             (Some(start), Some(end)) => relay_common::chrono_to_positive_millis(end - start),
@@ -1913,7 +1916,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements(&mut event, Default::default());
+        normalize_measurements(&mut event, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
