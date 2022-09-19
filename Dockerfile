@@ -9,9 +9,12 @@ FROM $DOCKER_ARCH/centos:7 AS relay-deps
 
 ARG DOCKER_ARCH
 ARG BUILD_ARCH=x86_64
+# Pin the Rust version for now
+ARG RUST_TOOLCHAIN_VERSION=1.63.0
 
 ENV DOCKER_ARCH=${DOCKER_ARCH}
 ENV BUILD_ARCH=${BUILD_ARCH}
+ENV RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION}
 
 ENV BUILD_TARGET=${BUILD_ARCH}-unknown-linux-gnu
 
@@ -29,7 +32,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION}
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 
