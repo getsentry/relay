@@ -928,8 +928,15 @@ def test_limit_custom_measurements(
     config = mini_sentry.project_configs[project_id]["config"]
     timestamp = datetime.now(tz=timezone.utc)
 
+    config["measurements"] = {
+        "knownMeasurements": ["foo"],
+        "maxCustomMeasurements": 1,
+    }
     config["transactionMetrics"] = {
-        "extractMetrics": ["d:transactions/measurements.foo@none",],
+        "extractMetrics": [
+            "d:transactions/duration@millisecond",
+            "d:transactions/measurements.foo@none",
+        ],
         "customMeasurements": {"limit": 1,},
         "version": 1,
     }
@@ -938,20 +945,22 @@ def test_limit_custom_measurements(
     transaction["timestamp"] = timestamp.isoformat()
     transaction["measurements"] = {
         "foo": {"value": 1.2},
-        "baz": {"value": 1.3},
+        "baz": {
+            "value": 1.3
+        },  # baz comes before bar, but custom measurements are picked in alphabetical order
         "bar": {"value": 1.4},
     }
 
     relay.send_transaction(42, transaction)
 
-    # TODO: uncomment this once new config is in place
-    # event, _ = transactions_consumer.get_event()
-    # assert len(event["measurements"]) == 2
+    event, _ = transactions_consumer.get_event()
+    assert len(event["measurements"]) == 2
 
-    # Expect exactly 2 metrics (1 builtin, 1 custom)
-    metrics = metrics_by_name(metrics_consumer, 2)
+    # Expect exactly 2 metrics (transaction.duration, 1 builtin, 1 custom)
+    metrics = metrics_by_name(metrics_consumer, 3)
 
     assert metrics.keys() == {
+        "d:transactions/duration@millisecond",
         "d:transactions/measurements.foo@none",
         "d:transactions/measurements.bar@none",
     }
