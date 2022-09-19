@@ -912,3 +912,46 @@ def test_graceful_shutdown(mini_sentry, relay):
             "type": "c",
         },
     ]
+
+
+def test_limit_custom_measurements(
+    mini_sentry, relay, relay_with_processing, metrics_consumer, transactions_consumer
+):
+    """ Custom measurement config is propagated to outer relay """
+    metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
+
+    relay = relay(relay_with_processing(options=TEST_CONFIG), options=TEST_CONFIG)
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    timestamp = datetime.now(tz=timezone.utc)
+
+    config["transactionMetrics"] = {
+        "extractMetrics": ["d:transactions/measurements.foo@none",],
+        "customMeasurements": {"limit": 1,},
+        "version": 1,
+    }
+
+    transaction = generate_transaction_item()
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["measurements"] = {
+        "foo": {"value": 1.2},
+        "baz": {"value": 1.3},
+        "bar": {"value": 1.4},
+    }
+
+    relay.send_transaction(42, transaction)
+
+    # TODO: uncomment this once new config is in place
+    # event, _ = transactions_consumer.get_event()
+    # assert len(event["measurements"]) == 2
+
+    # Expect exactly 2 metrics (1 builtin, 1 custom)
+    metrics = metrics_by_name(metrics_consumer, 2)
+
+    assert metrics.keys() == {
+        "d:transactions/measurements.foo@none",
+        "d:transactions/measurements.bar@none",
+    }

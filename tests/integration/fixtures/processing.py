@@ -287,6 +287,7 @@ def replay_events_consumer(kafka_consumer):
 class MetricsConsumer(ConsumerBase):
     def get_metric(self, timeout=None):
         message = self.poll(timeout=timeout)
+
         assert message is not None
         assert message.error() is None
 
