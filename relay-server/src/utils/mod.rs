@@ -17,8 +17,6 @@ mod timer;
 mod tracked_future;
 
 #[cfg(feature = "processing")]
-mod kafka;
-#[cfg(feature = "processing")]
 mod native;
 #[cfg(feature = "processing")]
 mod unreal;
@@ -41,8 +39,6 @@ pub use self::sleep_handle::*;
 pub use self::timer::*;
 pub use self::tracked_future::*;
 
-#[cfg(feature = "processing")]
-pub use self::kafka::*;
 #[cfg(feature = "processing")]
 pub use self::native::*;
 #[cfg(feature = "processing")]

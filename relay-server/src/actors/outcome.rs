@@ -18,17 +18,15 @@ use actix_web::http::Method;
 use chrono::{DateTime, SecondsFormat, Utc};
 #[cfg(feature = "processing")]
 use failure::Fail;
-#[cfg(feature = "processing")]
-use rdkafka::producer::BaseRecord;
 use relay_system::{Interface, NoResponse};
 use serde::{Deserialize, Serialize};
 
 use relay_common::{DataCategory, ProjectId, UnixTimestamp};
-#[cfg(feature = "processing")]
-use relay_config::KafkaTopic;
 use relay_config::{Config, EmitOutcomes};
 use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
+#[cfg(feature = "processing")]
+use relay_kafka::{config::KafkaTopic, Producer, ProducerError};
 use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::RuleId;
@@ -36,9 +34,9 @@ use relay_statsd::metric;
 use relay_system::{compat, Addr, FromMessage, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
-#[cfg(feature = "processing")]
-use crate::actors::store::{self, Producer};
 use crate::actors::upstream::{SendQuery, UpstreamQuery, UpstreamRelay};
+#[cfg(feature = "processing")]
+use crate::service::ServerErrorKind;
 use crate::service::REGISTRY;
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
@@ -497,10 +495,7 @@ impl FromMessage<Self> for TrackRawOutcome {
 pub enum OutcomeError {
     #[fail(display = "failed to send kafka message")]
     #[cfg(feature = "processing")]
-    SendFailed(rdkafka::error::KafkaError),
-    #[fail(display = "failed to get Kafka producer")]
-    #[cfg(feature = "processing")]
-    InvalidKafkaProducer(#[cause] store::StoreError),
+    SendFailed(ProducerError),
     #[fail(display = "json serialization error")]
     #[cfg(feature = "processing")]
     SerializationError(serde_json::Error),
@@ -695,12 +690,20 @@ impl KafkaOutcomesProducer {
     pub fn create(config: &Config) -> Result<Self, ServerError> {
         let mut reused_producers = BTreeMap::new();
         let producers = KafkaOutcomesProducer {
-            default: store::make_producer(config, &mut reused_producers, KafkaTopic::Outcomes)?,
-            billing: store::make_producer(
-                config,
+            default: Producer::create(
+                &config
+                    .kafka_config(KafkaTopic::Outcomes)
+                    .map_err(|_| ServerErrorKind::KafkaError)?,
                 &mut reused_producers,
-                KafkaTopic::OutcomesBilling,
-            )?,
+            )
+            .map_err(|_| ServerErrorKind::KafkaError)?,
+            billing: Producer::create(
+                &config
+                    .kafka_config(KafkaTopic::OutcomesBilling)
+                    .map_err(|_| ServerErrorKind::KafkaError)?,
+                &mut reused_producers,
+            )
+            .map_err(|_| ServerErrorKind::KafkaError)?,
         };
 
         Ok(producers)
@@ -843,32 +846,16 @@ impl OutcomeProducerService {
             (KafkaTopic::Outcomes, producer.default())
         };
 
-        let result = match producer {
-            Producer::Single {
-                topic_name,
-                producer,
-            } => {
-                let record = BaseRecord::to(topic_name)
-                    .payload(&payload)
-                    .key(key.as_bytes().as_ref());
-
-                producer.send(record)
-            }
-
-            Producer::Sharded(sharded) => {
-                let (topic_name, producer) = sharded
-                    .get_producer(organization_id)
-                    .map_err(OutcomeError::InvalidKafkaProducer)?;
-                let record = BaseRecord::to(topic_name)
-                    .payload(&payload)
-                    .key(key.as_bytes().as_ref());
-                producer.send(record)
-            }
-        };
+        let result = producer.send(
+            organization_id,
+            key.as_bytes(),
+            "outcome",
+            payload.as_bytes(),
+        );
 
         match result {
             Ok(_) => Ok(()),
-            Err((kafka_error, _message)) => Err(OutcomeError::SendFailed(kafka_error)),
+            Err(kafka_error) => Err(OutcomeError::SendFailed(kafka_error)),
         }
     }
 
