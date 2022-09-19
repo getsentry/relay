@@ -2,12 +2,21 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::Deref;
 
+use failure::Fail;
 use once_cell::sync::OnceCell;
 use regex::{Regex, RegexBuilder};
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::pii::{CompiledPiiConfig, Redaction};
 use crate::processor::SelectorSpec;
+
+const COMPILED_PATTERN_MAX_SIZE: usize = 262_144;
+
+#[derive(Clone, Debug, Fail)]
+pub enum PiiConfigError {
+    #[fail(display = "could not parse regex")]
+    RegexError(#[cause] regex::Error),
+}
 
 /// A regex pattern for text replacement.
 #[derive(Clone)]
@@ -43,7 +52,7 @@ impl<'de> Deserialize<'de> for Pattern {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let raw = String::deserialize(deserializer)?;
         let pattern = RegexBuilder::new(&raw)
-            .size_limit(262_144)
+            .size_limit(COMPILED_PATTERN_MAX_SIZE)
             .build()
             .map_err(Error::custom)?;
         Ok(Pattern(pattern))

@@ -20,6 +20,7 @@ use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_filter::FilterStatKey;
+use relay_general::pii::PiiConfigError;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
@@ -39,7 +40,6 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::project::{Feature, ProjectState};
 use crate::actors::project_cache::{InsertMetrics, MergeBuckets, ProjectCache};
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
@@ -115,6 +115,9 @@ pub enum ProcessingError {
 
     #[fail(display = "event dropped by sampling rule {}", _0)]
     Sampled(RuleId),
+
+    #[fail(display = "invalid pii config")]
+    PiiConfigError(PiiConfigError),
 }
 
 impl ProcessingError {
@@ -146,6 +149,7 @@ impl ProcessingError {
             }
             #[cfg(feature = "processing")]
             Self::QuotasFailed(_) => Some(Outcome::Invalid(DiscardReason::Internal)),
+            Self::PiiConfigError(_) => Some(Outcome::Invalid(DiscardReason::ProjectStatePii)),
 
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
@@ -985,7 +989,7 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let producer = OutcomeAggregator::from_registry();
+        let producer = TrackOutcome::from_registry();
         for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
             let outcome = match outcome_from_parts(outcome_type, &reason) {
                 Ok(outcome) => outcome,
@@ -1813,7 +1817,11 @@ impl EnvelopeProcessorService {
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
             }
-            if let Some(config) = config.datascrubbing_settings.pii_config() {
+            let pii_config = config
+                .datascrubbing_settings
+                .pii_config()
+                .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+            if let Some(config) = pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
                 process_value(event, &mut processor, ProcessingState::root())
                     .map_err(ProcessingError::ProcessingFailed)?;
@@ -2078,7 +2086,7 @@ impl EnvelopeProcessorService {
         match result {
             Ok(response) => {
                 if let Some((envelope, envelope_context)) = response.envelope {
-                    EnvelopeManager::from_registry().do_send(SubmitEnvelope {
+                    EnvelopeManager::from_registry().send(SubmitEnvelope {
                         envelope,
                         envelope_context,
                     })
@@ -2634,13 +2642,16 @@ mod tests {
                 .unwrap()
         });
 
-        let (envelope, _) = envelope_response.envelope.unwrap();
+        let (envelope, ctx) = envelope_response.envelope.unwrap();
         let item = envelope.items().next().unwrap();
         assert_eq!(item.ty(), &ItemType::ClientReport);
+
+        ctx.accept(); // do not try to capture or emit outcomes
     }
 
     #[test]
     #[cfg(feature = "processing")]
+    #[ignore = "requires registry for the TestStore"]
     fn test_client_report_removal_in_processing() {
         relay_test::setup();
 

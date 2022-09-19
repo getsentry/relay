@@ -3,16 +3,14 @@
 use std::net;
 use std::time::Instant;
 
-use actix::SystemService;
 use chrono::{DateTime, Utc};
 
 use relay_common::DataCategory;
 use relay_general::protocol::EventId;
 use relay_quotas::Scoping;
 
-use crate::actors::envelopes::{Capture, EnvelopeManager};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::outcome_aggregator::OutcomeAggregator;
+use crate::actors::test_store::{Capture, TestStore};
 use crate::envelope::Envelope;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -96,7 +94,7 @@ impl EnvelopeContext {
     /// This envelope context should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
     pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
-        let outcome_aggregator = OutcomeAggregator::from_registry();
+        let outcome_aggregator = TrackOutcome::from_registry();
         outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at,
             scoping: self.scoping,
@@ -131,7 +129,7 @@ impl EnvelopeContext {
 
         relay_log::debug!("dropped envelope: {}", outcome);
         // TODO: This could be optimized with Capture::should_capture
-        EnvelopeManager::from_registry().do_send(Capture::rejected(self.event_id, &outcome));
+        TestStore::from_registry().send(Capture::rejected(self.event_id, &outcome));
 
         if let Some(category) = self.summary.event_category {
             self.track_outcome(outcome.clone(), category, 1);

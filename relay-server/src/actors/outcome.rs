@@ -129,6 +129,12 @@ pub struct TrackOutcome {
     pub quantity: u32,
 }
 
+impl TrackOutcome {
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().outcome_aggregator.clone()
+    }
+}
+
 impl TrackOutcomeLike for TrackOutcome {
     fn reason(&self) -> Option<Cow<str>> {
         self.outcome.to_reason()
@@ -310,6 +316,10 @@ pub enum DiscardReason {
     /// (Relay) A project state returned by the upstream could not be parsed.
     ProjectState,
 
+    /// (Relay) A project state returned by the upstream contained datascrubbing settings
+    /// that could not be converted to PII config.
+    ProjectStatePii,
+
     /// (Relay) An envelope was submitted with two items that need to be unique.
     DuplicateItem,
 
@@ -368,6 +378,7 @@ impl DiscardReason {
             DiscardReason::InvalidEnvelope => "invalid_envelope",
             DiscardReason::InvalidCompression => "invalid_compression",
             DiscardReason::ProjectState => "project_state",
+            DiscardReason::ProjectStatePii => "project_state_pii",
             DiscardReason::DuplicateItem => "duplicate_item",
             DiscardReason::NoEventPayload => "no_event_payload",
             DiscardReason::Internal => "internal",
@@ -591,7 +602,7 @@ impl ClientReportOutcomeProducer {
         let unsent_reports = mem::take(&mut self.unsent_reports);
         let envelope_manager = EnvelopeManager::from_registry();
         for (scoping, client_reports) in unsent_reports.into_iter() {
-            envelope_manager.do_send(SendClientReports {
+            envelope_manager.send(SendClientReports {
                 client_reports,
                 scoping,
             });
@@ -730,6 +741,12 @@ pub enum OutcomeProducer {
     TrackRawOutcome(TrackRawOutcome),
 }
 
+impl OutcomeProducer {
+    pub fn from_registry() -> Addr<Self> {
+        REGISTRY.get().unwrap().outcome_producer.clone()
+    }
+}
+
 impl Interface for OutcomeProducer {}
 
 impl FromMessage<TrackOutcome> for OutcomeProducer {
@@ -755,10 +772,6 @@ pub struct OutcomeProducerService {
 }
 
 impl OutcomeProducerService {
-    pub fn from_registry() -> Addr<OutcomeProducer> {
-        REGISTRY.get().unwrap().outcome_producer.clone()
-    }
-
     pub fn create(config: Arc<Config>) -> Result<Self, ServerError> {
         let producer = match config.emit_outcomes() {
             EmitOutcomes::AsOutcomes => {
