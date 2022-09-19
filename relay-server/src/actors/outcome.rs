@@ -602,7 +602,7 @@ impl ClientReportOutcomeProducer {
         let unsent_reports = mem::take(&mut self.unsent_reports);
         let envelope_manager = EnvelopeManager::from_registry();
         for (scoping, client_reports) in unsent_reports.into_iter() {
-            envelope_manager.do_send(SendClientReports {
+            envelope_manager.send(SendClientReports {
                 client_reports,
                 scoping,
             });
