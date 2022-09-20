@@ -1,5 +1,4 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::Arc;
@@ -37,13 +36,21 @@ mod stacktrace;
 
 mod user_agent;
 
+/// Defines a builtin measurement.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct BuiltinMeasurementKey {
+    name: String,
+    unit: MetricUnit,
+}
+
 /// Configuration for measurements normalization.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
-    #[serde(default, skip_serializing_if = "BTreeSet::<String>::is_empty")]
-    builtin_measurements: BTreeSet<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    builtin_measurements: Vec<BuiltinMeasurementKey>,
 
     /// The maximum number of measurements allowed per event that are not known measurements.
     max_custom_measurements: usize,
@@ -246,11 +253,22 @@ fn filter_custom_measurements(
     measurements_config: &MeasurementsConfig,
 ) {
     let mut custom_measurements_count = 0;
-    measurements.retain(|name, _| {
+    measurements.retain(|name, value| {
+        let unit = match value.value().and_then(|m| m.unit.value()) {
+            Some(unit) => unit,
+            None => return false,
+        };
+
         // Check if this is a builtin measurement:
-        if measurements_config.builtin_measurements.contains(name) {
-            return true;
+        for builtin_measurement in &measurements_config.builtin_measurements {
+            if &builtin_measurement.name == name {
+                // If the unit matches a built-in measurement, we allow it.
+                // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
+                // and just drop it instead.
+                return &builtin_measurement.unit == unit;
+            }
         }
+
         // For custom measurements, check the budget:
         if custom_measurements_count < measurements_config.max_custom_measurements {
             custom_measurements_count += 1;
@@ -1963,6 +1981,7 @@ mod tests {
             "start_timestamp": "2021-04-26T08:00:00+0100",
             "measurements": {
                 "my_custom_measurement_1": {"value": 123},
+                "frames_frozen": {"value": 666, "unit": "invalid_unit"},
                 "frames_slow": {"value": 1},
                 "my_custom_measurement_3": {"value": 456},
                 "my_custom_measurement_2": {"value": 789}
@@ -1973,7 +1992,8 @@ mod tests {
 
         let config: MeasurementsConfig = serde_json::from_value(json!({
             "builtinMeasurements": [
-                "frames_slow"
+                {"name": "frames_frozen", "unit": "none"},
+                {"name": "frames_slow", "unit": "none"}
             ],
             "maxCustomMeasurements": 2,
             "stray_key": "zzz"
