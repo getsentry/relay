@@ -310,8 +310,8 @@ impl Service for RelayCacheService {
 
             loop {
                 tokio::select! {
-                    Some(message) = rx.recv() => self.get_or_fetch(message.0, message.1),
                     Some(result) = self.fetch_channel.1.recv() => self.handle_fetch_result(result),
+                    Some(message) = rx.recv() => self.get_or_fetch(message.0, message.1),
                     () = &mut self.delay => self.fetch_relays(),
                     else => break,
                 }
