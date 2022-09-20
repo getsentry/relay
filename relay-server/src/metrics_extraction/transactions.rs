@@ -1163,7 +1163,11 @@ mod tests {
                 "g_custom2": {"value": 42, "unit": "second"},
                 "h_custom3": {"value": 43}
             },
-            "contexts": {"trace": {"trace_id": "foo"}}
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }}
         }
         "#;
 
@@ -1197,6 +1201,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420402),
                 tags: {
                     "platform": "other",
+                    "transaction.status": "unknown",
                 },
             },
             Metric {
@@ -1208,6 +1213,7 @@ mod tests {
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
+                    "transaction.status": "unknown",
                 },
             },
             Metric {
@@ -1218,6 +1224,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420402),
                 tags: {
                     "platform": "other",
+                    "transaction.status": "unknown",
                 },
             },
             Metric {
@@ -1228,6 +1235,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420402),
                 tags: {
                     "platform": "other",
+                    "transaction.status": "unknown",
                 },
             },
         ]
