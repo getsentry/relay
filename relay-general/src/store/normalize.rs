@@ -241,7 +241,6 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 /// Note that [`Measurements`] is a BTreeMap, which means its keys are sorted.
 /// This ensures that for two events with the same measurement keys, the same set of custom
 /// measurements is retained.
-///
 fn filter_custom_measurements(
     measurements: &mut Measurements,
     measurements_config: &MeasurementsConfig,
