@@ -1,17 +1,32 @@
-use actix_web::{actix::*, Error, Json};
-use futures01::prelude::*;
+use std::collections::HashMap;
 
-use crate::actors::relays::{GetRelays, GetRelaysResult, RelayCache};
+use actix_web::{actix::*, Error, Json};
+use futures::{future, FutureExt, TryFutureExt};
+
+use crate::actors::relays::{GetRelay, GetRelays, GetRelaysResult, RelayCache};
 use crate::extractors::SignedJson;
 use crate::service::ServiceApp;
 
 fn get_public_keys(body: SignedJson<GetRelays>) -> ResponseFuture<Json<GetRelaysResult>, Error> {
-    let future = RelayCache::from_registry()
-        .send(body.inner)
-        .map_err(Error::from)
-        .and_then(|x| x.map_err(Error::from).map(Json));
+    let future = async move {
+        let relay_cache = RelayCache::from_registry();
 
-    Box::new(future)
+        let relay_ids = body.inner.relay_ids.into_iter();
+        let futures = relay_ids.map(|relay_id| {
+            let inner = relay_cache.send(GetRelay { relay_id });
+            async move { (relay_id, inner.await) }
+        });
+
+        let mut relays = HashMap::new();
+        for (relay_id, result) in future::join_all(futures).await {
+            let relay_info = result.map_err(|_| Error::from(MailboxError::Closed))?;
+            relays.insert(relay_id, relay_info);
+        }
+
+        Ok(Json(GetRelaysResult { relays }))
+    };
+
+    Box::new(future.boxed().compat())
 }
 
 /// Registers the Relay public keys endpoint.

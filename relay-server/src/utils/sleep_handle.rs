@@ -7,6 +7,7 @@ use std::time::Duration;
 ///
 /// This has two internal states, either it is pending indefinite or it wakes up after a certain
 /// duration of time has elapsed.
+#[derive(Debug)]
 pub struct SleepHandle(Option<Pin<Box<tokio::time::Sleep>>>);
 
 impl SleepHandle {
