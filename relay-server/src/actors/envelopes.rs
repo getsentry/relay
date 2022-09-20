@@ -82,7 +82,7 @@ impl UpstreamRequest for SendEnvelope {
 
     fn build(
         &mut self,
-        config: &Config,
+        _config: &Config,
         mut builder: RequestBuilder,
     ) -> Result<Request, HttpError> {
         let meta = &self.envelope_meta;
@@ -105,7 +105,7 @@ impl UpstreamRequest for SendEnvelope {
 
     fn respond(
         &mut self,
-        limit: usize,
+        limit: usize, // TODO: Probably want to use this
         result: Result<Response, UpstreamRequestError>,
     ) -> Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
         let sender = self.response_sender.take();

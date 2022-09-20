@@ -178,7 +178,7 @@ impl UpstreamRequest for ForwardRequest {
 
     fn build(
         &mut self,
-        config: &Config,
+        _config: &Config,
         mut builder: RequestBuilder,
     ) -> Result<crate::http::Request, HttpError> {
         for (key, value) in &self.headers {
@@ -200,10 +200,11 @@ impl UpstreamRequest for ForwardRequest {
 
     fn respond(
         &mut self,
-        limit: usize,
+        limit: usize, // TODO: Probably want to fix this
         result: Result<Response, UpstreamRequestError>,
     ) -> std::pin::Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
         let sender = self.sender.take();
+        let max_response_size = self.max_response_size;
 
         match result {
             Ok(response) => {
@@ -211,7 +212,7 @@ impl UpstreamRequest for ForwardRequest {
                 let headers = response.clone_headers();
 
                 Box::pin(async move {
-                    let result = match response.bytes(self.max_response_size).await {
+                    let result = match response.bytes(max_response_size).await {
                         Ok(body) => Ok((status, headers, body)),
                         Err(err) => Err(UpstreamRequestError::Http(err)),
                     };

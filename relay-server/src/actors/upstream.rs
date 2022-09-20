@@ -469,10 +469,10 @@ impl UpstreamRelayService {
             .build()
             .unwrap();
 
-        let (high_prio_sender, mut high_prio_receiver) = mpsc::unbounded_channel();
-        let (low_prio_sender, mut low_prio_receiver) = mpsc::unbounded_channel();
-        let (high_prio_retry_sender, mut high_prio_retry_receiver) = mpsc::unbounded_channel();
-        let (low_prio_retry_sender, mut low_prio_retry_receiver) = mpsc::unbounded_channel();
+        let (high_prio_sender, high_prio_receiver) = mpsc::unbounded_channel();
+        let (low_prio_sender, low_prio_receiver) = mpsc::unbounded_channel();
+        let (high_prio_retry_sender, high_prio_retry_receiver) = mpsc::unbounded_channel();
+        let (low_prio_retry_sender, low_prio_retry_receiver) = mpsc::unbounded_channel();
 
         UpstreamRelayService {
             auth_backoff: RetryBackoff::new(config.http_max_retry_interval()),
@@ -482,6 +482,7 @@ impl UpstreamRelayService {
             num_inflight_requests: 0,
             // high_prio_requests: VecDeque::new(),
             // low_prio_requests: VecDeque::new(),
+            inflight_requests: Semaphore::new(config.max_concurrent_requests()),
             first_error: None,
             config,
             reqwest_runtime,
@@ -499,7 +500,6 @@ impl UpstreamRelayService {
             low_prio_size: AtomicUsize::new(0),
             high_prio_retry_size: AtomicUsize::new(0),
             low_prio_retry_size: AtomicUsize::new(0),
-            inflight_requests: Semaphore::new(config.max_concurrent_requests()),
             notify_network_error: Arc::new(Notify::new()),
             notify_reset_network_error: Arc::new(Notify::new()),
         }
@@ -642,14 +642,12 @@ impl UpstreamRelayService {
         //try to build a ClientRequest
         let client_request = match request.request.build(&self.config, builder) {
             Err(e) => {
+                let max_api_payload_size = self.config.max_api_payload_size();
                 tokio::spawn(async move {
                     // TODO: Weird send error that shouldn't be
                     request
                         .request
-                        .respond(
-                            self.config.max_api_payload_size(),
-                            Err(UpstreamRequestError::Http(e)),
-                        )
+                        .respond(max_api_payload_size, Err(UpstreamRequestError::Http(e)))
                         .await
                 });
                 return;
@@ -666,7 +664,7 @@ impl UpstreamRelayService {
         let max_response_size = self.config.max_api_payload_size();
 
         let service = Arc::new(self);
-
+        // TODO: This is actually a bigger issue
         tokio::spawn(async move {
             let res = client.execute(client_request.0).await;
 
@@ -772,11 +770,11 @@ impl UpstreamRelayService {
             // error and resume sending events.
             // self.notify_reset_network_error.notify_one();
         }
-
+        let max_api_payload_size = self.config.max_api_payload_size();
         tokio::spawn(async move {
             request
                 .request
-                .respond(self.config.max_api_payload_size(), send_result)
+                .respond(max_api_payload_size, send_result)
                 .await;
         });
     }
@@ -784,7 +782,7 @@ impl UpstreamRelayService {
     /// Enqueues a request.
     fn enqueue(&self, request: EnqueuedRequest, position: EnqueuePosition) {
         let name = request.request.priority().name();
-        let size = 0;
+        let mut size = 0; // TODO: this is super weird
         match request.request.priority() {
             // TODO: This comment we probably want to update
             // Immediate is special and bypasses the queue. Directly send the request and return
@@ -835,7 +833,7 @@ impl UpstreamRelayService {
 
         match rx.await {
             Ok(value) => value,
-            Err(err) => Err(UpstreamRequestError::ChannelClosed),
+            Err(_) => Err(UpstreamRequestError::ChannelClosed),
         }
     }
 
@@ -957,7 +955,13 @@ impl UpstreamRelayService {
 impl Service for UpstreamRelayService {
     type Interface = UpstreamRelay;
 
-    fn spawn_handler(self, rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, rx: relay_system::Receiver<Self::Interface>) {
+        // Lets construct the building blocks and start to pass them around just to get the rough framework going
+        // TODO(tobias): Think about how we want to initialize them
+        let (outage_tx, outage_rx) = watch::channel(false); // If ready true else false
+        let (auth_tx, auth_rx) = watch::channel(false); // If ready true else false
+        let notify = self.notify_network_error.clone();
+
         self.auth_backoff.reset();
         self.outage_backoff.reset();
 
@@ -971,12 +975,7 @@ impl Service for UpstreamRelayService {
             relay_log::info!("upstream relay stopped");
         });
 
-        // Lets construct the building blocks and start to pass them around just to get the rough framework going
-        // TODO(tobias): Think about how we want to initialize them
-        let (outage_tx, mut outage_rx) = watch::channel(false); // If ready true else false
-        let (auth_tx, mut auth_rx) = watch::channel(false); // If ready true else false
-        let notify = self.notify_network_error.clone();
-        let notify_reset = self.notify_reset_network_error.clone();
+        // TODO: Need to fix these by moving them into their own structs
 
         // -- Outage Task --
         // TODO(tobias): The intricacies of the notify will need to be looked at
@@ -1420,15 +1419,17 @@ impl UpstreamRequest for GetHealthCheck {
         true
     }
 
-    fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
+    fn build(&mut self, _config: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
         builder.finish()
     }
 
     fn respond(
         &mut self,
-        limit: usize,
+        limit: usize, // TODO: Probably want to use this
         result: Result<Response, UpstreamRequestError>,
     ) -> Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
+        let sender = &self.0; // TODO: This might very much be a real issue since it doesn't have copy
+
         Box::pin(async move {
             let result = match result {
                 Ok(response) => response.consume().await.map_err(UpstreamRequestError::Http),
@@ -1437,10 +1438,10 @@ impl UpstreamRequest for GetHealthCheck {
 
             if matches!(result, Err(err) if err.is_network_error()) {
                 // still network error, schedule another attempt
-                self.0.send(false);
+                sender.send(false);
             } else {
                 // resume normal messages
-                self.0.send(true);
+                sender.send(true);
             }
         })
     }
@@ -1658,8 +1659,8 @@ impl<T: UpstreamQuery> UpstreamRequest for UpstreamQueryRequest<T> {
         config: &Config,
         mut builder: RequestBuilder,
     ) -> Result<Request, HttpError> {
-        let (json, signature) = match (self.body, self.signature) {
-            (Some(ref json), Some(ref signature)) => (json, signature),
+        let (json, signature) = match (self.body.as_ref(), self.signature.as_ref()) {
+            (Some(json), Some(signature)) => (json, signature),
             _ => {
                 let credentials = config
                     .credentials()
