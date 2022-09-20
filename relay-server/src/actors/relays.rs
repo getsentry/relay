@@ -151,11 +151,10 @@ type FetchResult = Result<GetRelaysResult, HashMap<RelayId, Vec<Sender<GetRelayR
 
 #[derive(Debug)]
 pub struct RelayCacheService {
-    fetch_tx: mpsc::UnboundedSender<FetchResult>,
-    fetch_rx: mpsc::UnboundedReceiver<FetchResult>,
     static_relays: HashMap<RelayId, RelayInfo>,
     relays: HashMap<RelayId, RelayState>,
     senders: HashMap<RelayId, Vec<Sender<GetRelayResult>>>,
+    fetch_channel: (mpsc::Sender<FetchResult>, mpsc::Receiver<FetchResult>),
     backoff: RetryBackoff,
     delay: SleepHandle,
     config: Arc<Config>,
@@ -163,17 +162,20 @@ pub struct RelayCacheService {
 
 impl RelayCacheService {
     pub fn new(config: Arc<Config>) -> Self {
-        let (fetch_tx, fetch_rx) = mpsc::unbounded_channel();
         Self {
-            fetch_tx,
-            fetch_rx,
             static_relays: config.static_relays().clone(),
             relays: HashMap::new(),
             senders: HashMap::new(),
+            fetch_channel: mpsc::channel(1),
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             delay: SleepHandle::idle(),
             config,
         }
+    }
+
+    fn fetch_tx(&self) -> mpsc::Sender<FetchResult> {
+        let (ref tx, _) = self.fetch_channel;
+        tx.clone()
     }
 
     /// Returns the backoff timeout for a batched upstream query.
@@ -235,7 +237,7 @@ impl RelayCacheService {
             self.backoff.attempt(),
         );
 
-        let fetch_tx = self.fetch_tx.clone();
+        let fetch_tx = self.fetch_tx();
         tokio::spawn(async move {
             let request = GetRelays {
                 relay_ids: channels.keys().cloned().collect(),
@@ -272,7 +274,7 @@ impl RelayCacheService {
                 }
             };
 
-            fetch_tx.send(fetch_result).ok();
+            fetch_tx.send(fetch_result).await.ok();
         });
     }
 
@@ -300,7 +302,7 @@ impl Service for RelayCacheService {
             loop {
                 tokio::select! {
                     Some(message) = rx.recv() => self.get_or_fetch(message.0, message.1),
-                    Some(result) = self.fetch_rx.recv() => self.handle_fetch_result(result),
+                    Some(result) = self.fetch_channel.1.recv() => self.handle_fetch_result(result),
                     () = &mut self.delay => self.fetch_relays(),
                     else => break,
                 }
