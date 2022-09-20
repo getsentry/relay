@@ -186,6 +186,12 @@ impl RelayCacheService {
         self.config.query_batch_interval() + self.backoff.next_backoff()
     }
 
+    /// Schedules a batched upstream query with exponential backoff.
+    fn schedule_fetch(&mut self) {
+        let backoff = self.next_backoff();
+        self.delay.set(backoff);
+    }
+
     fn get_or_fetch(&mut self, message: GetRelay, sender: Sender<GetRelayResult>) {
         let relay_id = message.relay_id;
 
@@ -213,8 +219,7 @@ impl RelayCacheService {
 
         relay_log::debug!("relay {} public key requested", relay_id);
         if !self.backoff.started() {
-            let backoff = self.next_backoff();
-            self.delay.set(backoff);
+            self.schedule_fetch();
         }
 
         self.senders
@@ -288,6 +293,10 @@ impl RelayCacheService {
             Err(channels) => {
                 self.senders.extend(channels);
             }
+        }
+
+        if !self.senders.is_empty() {
+            self.schedule_fetch();
         }
     }
 }
