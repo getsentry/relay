@@ -1,12 +1,10 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use actix::SystemService;
-use actix_web::{http::Method, HttpResponse, ResponseError};
+use actix_web::http::Method;
 use futures::compat::Future01CompatExt;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -19,24 +17,7 @@ use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Sender, Service}
 
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::service::REGISTRY;
-use crate::utils::{ApiErrorResponse, SleepHandle};
-
-#[derive(Debug)]
-pub struct KeyError;
-
-impl fmt::Display for KeyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "failed to fetch relay info from upstream")
-    }
-}
-
-impl Error for KeyError {}
-
-impl ResponseError for KeyError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::BadGateway().json(&ApiErrorResponse::from_fail(self))
-    }
-}
+use crate::utils::SleepHandle;
 
 #[derive(Debug)]
 pub struct GetRelay {
@@ -174,7 +155,7 @@ pub struct RelayCacheService {
     fetch_rx: mpsc::UnboundedReceiver<FetchResult>,
     static_relays: HashMap<RelayId, RelayInfo>,
     relays: HashMap<RelayId, RelayState>,
-    channels: HashMap<RelayId, Vec<Sender<GetRelayResult>>>,
+    senders: HashMap<RelayId, Vec<Sender<GetRelayResult>>>,
     backoff: RetryBackoff,
     delay: SleepHandle,
     config: Arc<Config>,
@@ -188,7 +169,7 @@ impl RelayCacheService {
             fetch_rx,
             static_relays: config.static_relays().clone(),
             relays: HashMap::new(),
-            channels: HashMap::new(),
+            senders: HashMap::new(),
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             delay: SleepHandle::idle(),
             config,
@@ -234,7 +215,7 @@ impl RelayCacheService {
             self.delay.set(backoff);
         }
 
-        self.channels
+        self.senders
             .entry(relay_id)
             .or_insert_with(Vec::new)
             .push(sender);
@@ -247,7 +228,7 @@ impl RelayCacheService {
     fn fetch_relays(&mut self) {
         self.delay.reset();
 
-        let channels = std::mem::take(&mut self.channels);
+        let channels = std::mem::take(&mut self.senders);
         relay_log::debug!(
             "updating public keys for {} relays (attempt {})",
             channels.len(),
@@ -267,7 +248,7 @@ impl RelayCacheService {
 
             let query_result = match send_result {
                 Ok(inner) => inner,
-                // TODO: doc this (load shed)
+                // Drop the senders to propagate the SendError up.
                 Err(_) => return,
             };
 
@@ -277,10 +258,9 @@ impl RelayCacheService {
 
                     for (id, channels) in channels {
                         relay_log::debug!("relay {} public key updated", id);
-                        if let Some(info) = response.relays.get(&id) {
-                            for channel in channels {
-                                channel.send(info.clone());
-                            }
+                        let info = response.relays.get(&id).unwrap_or(&None);
+                        for channel in channels {
+                            channel.send(info.clone());
                         }
                     }
 
@@ -304,7 +284,7 @@ impl RelayCacheService {
                 }
             }
             Err(channels) => {
-                self.channels.extend(channels);
+                self.senders.extend(channels);
             }
         }
     }
