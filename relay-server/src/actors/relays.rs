@@ -192,42 +192,6 @@ impl RelayCacheService {
         self.delay.set(backoff);
     }
 
-    fn get_or_fetch(&mut self, message: GetRelay, sender: Sender<GetRelayResult>) {
-        let relay_id = message.relay_id;
-
-        // First check the statically configured relays
-        if let Some(key) = self.static_relays.get(&relay_id) {
-            sender.send(Some(key.clone()));
-            return;
-        }
-
-        if let Some(key) = self.relays.get(&relay_id) {
-            if key.is_valid_cache(&self.config) {
-                sender.send(key.as_option().cloned());
-                return;
-            }
-        }
-
-        if self.config.credentials().is_none() {
-            relay_log::error!(
-                "No credentials configured. Relay {} cannot send requests to this relay.",
-                relay_id
-            );
-            sender.send(None);
-            return;
-        }
-
-        relay_log::debug!("relay {} public key requested", relay_id);
-        if !self.backoff.started() {
-            self.schedule_fetch();
-        }
-
-        self.senders
-            .entry(relay_id)
-            .or_insert_with(Vec::new)
-            .push(sender);
-    }
-
     /// Executes an upstream request to fetch information on downstream Relays.
     ///
     /// This assumes that currently no request is running. If the upstream request fails or new
@@ -298,6 +262,42 @@ impl RelayCacheService {
         if !self.senders.is_empty() {
             self.schedule_fetch();
         }
+    }
+
+    fn get_or_fetch(&mut self, message: GetRelay, sender: Sender<GetRelayResult>) {
+        let relay_id = message.relay_id;
+
+        // First check the statically configured relays
+        if let Some(key) = self.static_relays.get(&relay_id) {
+            sender.send(Some(key.clone()));
+            return;
+        }
+
+        if let Some(key) = self.relays.get(&relay_id) {
+            if key.is_valid_cache(&self.config) {
+                sender.send(key.as_option().cloned());
+                return;
+            }
+        }
+
+        if self.config.credentials().is_none() {
+            relay_log::error!(
+                "No credentials configured. Relay {} cannot send requests to this relay.",
+                relay_id
+            );
+            sender.send(None);
+            return;
+        }
+
+        relay_log::debug!("relay {} public key requested", relay_id);
+        if !self.backoff.started() {
+            self.schedule_fetch();
+        }
+
+        self.senders
+            .entry(relay_id)
+            .or_insert_with(Vec::new)
+            .push(sender);
     }
 }
 
