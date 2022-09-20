@@ -246,8 +246,10 @@ fn filter_custom_measurements(
     measurements: &mut Measurements,
     measurements_config: &MeasurementsConfig,
 ) {
+    dbg!("FILTERING CUSTOM MEASUREMENTS");
     let mut custom_measurements_count = 0;
     measurements.retain(|name, _| {
+        dbg!((&name, custom_measurements_count));
         // Check if this is a builtin measurement:
         if measurements_config.known_measurements.contains(name) {
             return true;
