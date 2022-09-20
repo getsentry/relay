@@ -397,11 +397,6 @@ fn extract_transaction_metrics_inner(
         return;
     }
 
-    // This check is redundant (also checked in processor.rs), but better safe than sorry.
-    if !config.is_enabled() {
-        return;
-    }
-
     let (start_timestamp, end_timestamp) = match store::validate_timestamps(event) {
         Ok(pair) => pair,
         Err(_) => {
@@ -600,10 +595,14 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 #[cfg(feature = "processing")]
 mod tests {
 
+    use std::iter::FromIterator;
+
     use super::*;
 
     use relay_general::protocol::User;
-    use relay_general::store::BreakdownsConfig;
+    use relay_general::store::{
+        light_normalize_event, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
+    };
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
 
@@ -854,25 +853,41 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 3, "{:?}", metrics);
-
-        assert_eq!(
-            metrics[0].name, "d:transactions/measurements.fcp@millisecond",
-            "{:?}",
-            metrics[0]
-        );
-
-        assert_eq!(
-            metrics[1].name, "d:transactions/measurements.foo@none",
-            "{:?}",
-            metrics[1]
-        );
-
-        assert_eq!(
-            metrics[2].name, "d:transactions/measurements.stall_count@none",
-            "{:?}",
-            metrics[2]
-        );
+        insta::assert_debug_snapshot!(&metrics[..3], @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.fcp@millisecond",
+                value: Distribution(
+                    1.1,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.foo@none",
+                value: Distribution(
+                    8.8,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.stall_count@none",
+                value: Distribution(
+                    3.3,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "platform": "other",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -1054,12 +1069,38 @@ mod tests {
         .unwrap();
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
-        assert_eq!(metrics.len(), 1);
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "satisfaction": "satisfied",
+                },
+            },
+        ]
+        "###);
+        // assert_eq!(metrics.len(), 1);
 
-        for metric in metrics {
-            assert_eq!(metric.tags.len(), 2);
-            assert_eq!(metric.tags["satisfaction"], "satisfied");
-        }
+        // for metric in metrics {
+        //     assert_eq!(metric.tags.len(), 2);
+        //     assert_eq!(metric.tags["satisfaction"], "satisfied");
+        // }
     }
 
     #[test]
@@ -1096,12 +1137,32 @@ mod tests {
         .unwrap();
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
-        assert_eq!(metrics.len(), 1);
 
-        for metric in metrics {
-            assert_eq!(metric.tags.len(), 1);
-            assert!(!metric.tags.contains_key("satisfaction"));
-        }
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]
@@ -1121,58 +1182,77 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::from_json(json).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "extractMetrics": [
-                "d:transactions/measurements.fcp@millisecond"
-            ],
-            "customMeasurements": {
-                "limit": 2
-            }
-        }
-        "#,
-        )
-        .unwrap();
+        let _res = light_normalize_event(
+            &mut event,
+            &LightNormalizationConfig {
+                measurements_config: Some(&MeasurementsConfig {
+                    known_measurements: BTreeSet::from_iter(["fcp".to_owned()]),
+                    max_custom_measurements: 2,
+                }),
+                ..Default::default()
+            },
+        );
+
+        let config = TransactionMetricsConfig::default();
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
         insta::assert_debug_snapshot!(metrics, @r###"
-            [
-                Metric {
-                    name: "d:transactions/measurements.a_custom1@none",
-                    value: Distribution(
-                        41.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                    },
+        [
+            Metric {
+                name: "d:transactions/measurements.a_custom1@none",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
                 },
-                Metric {
-                    name: "d:transactions/measurements.fcp@millisecond",
-                    value: Distribution(
-                        0.123,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "measurement_rating": "good",
-                        "platform": "other",
-                    },
+            },
+            Metric {
+                name: "d:transactions/measurements.fcp@millisecond",
+                value: Distribution(
+                    0.123,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
                 },
-                Metric {
-                    name: "d:transactions/measurements.g_custom2@second",
-                    value: Distribution(
-                        42.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                    },
+            },
+            Metric {
+                name: "d:transactions/measurements.g_custom2@second",
+                value: Distribution(
+                    42.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
                 },
-            ]
+            },
+            Metric {
+                name: "d:transactions/measurements.h_custom3@none",
+                value: Distribution(
+                    43.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                },
+            },
+        ]
         "###);
     }
 
@@ -1316,6 +1396,7 @@ mod tests {
             event.value().unwrap(),
             &mut metrics,
         );
+        metrics.retain(|m| m.name.contains("lcp"));
         assert_eq!(
             metrics,
             &[Metric::new_mri(
@@ -1778,25 +1859,90 @@ mod tests {
         let mut metrics = vec![];
         extract_transaction_metrics(&config, None, &[], event.value().unwrap(), &mut metrics);
 
-        assert_eq!(metrics.len(), 3, "{:?}", metrics);
-
-        assert_eq!(
-            metrics[0].name, "d:transactions/measurements.frames_frozen_rate@ratio",
-            "{:?}",
-            metrics[0]
-        );
-
-        assert_eq!(
-            metrics[1].name, "d:transactions/measurements.frames_slow_rate@ratio",
-            "{:?}",
-            metrics[1]
-        );
-
-        assert_eq!(
-            metrics[2].name, "d:transactions/measurements.stall_percentage@ratio",
-            "{:?}",
-            metrics[2]
-        );
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/measurements.frames_frozen@none",
+                value: Distribution(
+                    2.0,
+                ),
+                timestamp: UnixTimestamp(1619420520),
+                tags: {
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.frames_frozen_rate@ratio",
+                value: Distribution(
+                    0.5,
+                ),
+                timestamp: UnixTimestamp(1619420520),
+                tags: {
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.frames_slow@none",
+                value: Distribution(
+                    1.0,
+                ),
+                timestamp: UnixTimestamp(1619420520),
+                tags: {
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.frames_slow_rate@ratio",
+                value: Distribution(
+                    0.25,
+                ),
+                timestamp: UnixTimestamp(1619420520),
+                tags: {
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.frames_total@none",
+                value: Distribution(
+                    4.0,
+                ),
+                timestamp: UnixTimestamp(1619420520),
+                tags: {
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.stall_percentage@ratio",
+                value: Distribution(
+                    3.3333333333333335e-5,
+                ),
+                timestamp: UnixTimestamp(1619420520),
+                tags: {
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/measurements.stall_total_time@millisecond",
+                value: Distribution(
+                    4.0,
+                ),
+                timestamp: UnixTimestamp(1619420520),
+                tags: {
+                    "platform": "other",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    120000.0,
+                ),
+                timestamp: UnixTimestamp(1619420520),
+                tags: {
+                    "platform": "other",
+                },
+            },
+        ]
+        "###);
     }
 
     #[test]

@@ -43,10 +43,10 @@ mod user_agent;
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
     #[serde(default, skip_serializing_if = "BTreeSet::<String>::is_empty")]
-    known_measurements: BTreeSet<String>,
+    pub known_measurements: BTreeSet<String>,
 
     /// The maximum number of measurements allowed per event that are not known measurements.
-    max_custom_measurements: usize,
+    pub max_custom_measurements: usize,
 }
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
