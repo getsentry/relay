@@ -243,12 +243,15 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
     }
 }
 
-/// Enforce the limit on custom (user defined) measurements.
+/// Remove measurements that do not conform to the given config.
+///
+/// Built-in measurements are accepted if their unit is correct, dropped otherwise.
+/// Custom measurements are accepted up to a limit.
 ///
 /// Note that [`Measurements`] is a BTreeMap, which means its keys are sorted.
 /// This ensures that for two events with the same measurement keys, the same set of custom
 /// measurements is retained.
-fn filter_custom_measurements(
+fn remove_invalid_measurements(
     measurements: &mut Measurements,
     measurements_config: &MeasurementsConfig,
 ) {
@@ -286,7 +289,7 @@ fn normalize_measurements(event: &mut Event, measurements_config: Option<&Measur
         event.measurements = Annotated::empty();
     } else if let Some(measurements) = event.measurements.value_mut() {
         if let Some(measurements_config) = measurements_config {
-            filter_custom_measurements(measurements, measurements_config);
+            remove_invalid_measurements(measurements, measurements_config);
         }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
