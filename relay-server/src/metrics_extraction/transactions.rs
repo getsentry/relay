@@ -43,14 +43,6 @@ struct SatisfactionConfig {
     transaction_thresholds: BTreeMap<String, SatisfactionThreshold>,
 }
 
-/// Configuration for extracting custom measurements from transaction payloads.
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct CustomMeasurementConfig {
-    /// The maximum number of custom measurements to extract. Defaults to zero.
-    limit: usize,
-}
-
 /// Maximum supported version of metrics extraction from transactions.
 ///
 /// The version is an integer scalar, incremented by one on each new version.
@@ -80,10 +72,8 @@ impl Default for AcceptTransactionNames {
 pub struct TransactionMetricsConfig {
     /// The required version to extract transaction metrics.
     version: u16,
-    extract_metrics: BTreeSet<String>,
     extract_custom_tags: BTreeSet<String>,
     satisfaction_thresholds: Option<SatisfactionConfig>,
-    custom_measurements: CustomMeasurementConfig,
     accept_transaction_names: AcceptTransactionNames,
 }
 
@@ -388,19 +378,9 @@ pub fn extract_transaction_metrics(
     event: &Event,
     target: &mut Vec<Metric>,
 ) -> bool {
-    if config.extract_metrics.is_empty() {
-        relay_log::trace!("dropping all transaction metrics because of empty allow-list");
-        return false;
-    }
-
     let before_len = target.len();
 
-    // # TODO: remove push_metric entirely
-    let push_metric = |metric: Metric| {
-        target.push(metric);
-    };
-
-    extract_transaction_metrics_inner(config, breakdowns_config, event, push_metric);
+    extract_transaction_metrics_inner(config, breakdowns_config, event, target);
 
     let added_slice = &mut target[before_len..];
     run_conditional_tagging(event, conditional_tagging_config, added_slice);
@@ -411,7 +391,7 @@ fn extract_transaction_metrics_inner(
     config: &TransactionMetricsConfig,
     breakdowns_config: Option<&store::BreakdownsConfig>,
     event: &Event,
-    mut push_metric: impl FnMut(Metric),
+    metrics: &mut Vec<Metric>, // output parameter
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
         return;
@@ -460,7 +440,7 @@ fn extract_transaction_metrics_inner(
                 }
             }
 
-            push_metric(Metric::new_mri(
+            metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
                 format!("measurements.{}", name),
                 stated_unit.or(default_unit).unwrap_or_default(),
@@ -488,7 +468,7 @@ fn extract_transaction_metrics_inner(
 
                 let unit = measurement.unit.value();
 
-                push_metric(Metric::new_mri(
+                metrics.push(Metric::new_mri(
                     METRIC_NAMESPACE,
                     format!("breakdowns.{}.{}", breakdown, measurement_name),
                     unit.copied().unwrap_or(MetricUnit::None),
@@ -512,7 +492,7 @@ fn extract_transaction_metrics_inner(
     };
 
     // Duration
-    push_metric(Metric::new_mri(
+    metrics.push(Metric::new_mri(
         METRIC_NAMESPACE,
         "duration",
         MetricUnit::Duration(DurationUnit::MilliSecond),
@@ -524,7 +504,7 @@ fn extract_transaction_metrics_inner(
     // User
     if let Some(user) = event.user.value() {
         if let Some(value) = get_eventuser_tag(user) {
-            push_metric(Metric::new_mri(
+            metrics.push(Metric::new_mri(
                 METRIC_NAMESPACE,
                 "user",
                 MetricUnit::None,
