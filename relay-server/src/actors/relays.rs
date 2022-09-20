@@ -228,8 +228,6 @@ impl RelayCacheService {
     /// This assumes that currently no request is running. If the upstream request fails or new
     /// channels are pushed in the meanwhile, this will reschedule automatically.
     fn fetch_relays(&mut self) {
-        self.delay.reset();
-
         let channels = std::mem::take(&mut self.senders);
         relay_log::debug!(
             "updating public keys for {} relays (attempt {})",
@@ -281,6 +279,8 @@ impl RelayCacheService {
     fn handle_fetch_result(&mut self, result: FetchResult) {
         match result {
             Ok(response) => {
+                self.delay.reset();
+
                 for (id, info) in response.relays {
                     self.relays.insert(id, RelayState::from_option(info));
                 }
