@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 
 use actix::SystemService;
 use actix_web::http::Method;
-use futures::compat::Future01CompatExt;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
@@ -13,7 +12,7 @@ use relay_auth::{PublicKey, RelayId};
 use relay_common::RetryBackoff;
 use relay_config::{Config, RelayInfo};
 use relay_log::LogError;
-use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Sender, Service};
+use relay_system::{compat, Addr, AsyncResponse, FromMessage, Interface, Sender, Service};
 
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::service::REGISTRY;
@@ -210,15 +209,11 @@ impl RelayCacheService {
                 relay_ids: channels.keys().cloned().collect(),
             };
 
-            let send_result = UpstreamRelay::from_registry()
-                .send(SendQuery(request))
-                .compat()
-                .await;
-
-            let query_result = match send_result {
+            let upstream = UpstreamRelay::from_registry();
+            let query_result = match compat::send(upstream, SendQuery(request)).await {
                 Ok(inner) => inner,
                 // Drop the senders to propagate the SendError up.
-                Err(_) => return,
+                Err(_send_error) => return,
             };
 
             let fetch_result = match query_result {
