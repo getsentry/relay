@@ -43,7 +43,7 @@ mod user_agent;
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
     #[serde(default, skip_serializing_if = "BTreeSet::<String>::is_empty")]
-    known_measurements: BTreeSet<String>,
+    builtin_measurements: BTreeSet<String>,
 
     /// The maximum number of measurements allowed per event that are not known measurements.
     max_custom_measurements: usize,
@@ -248,7 +248,7 @@ fn filter_custom_measurements(
     let mut custom_measurements_count = 0;
     measurements.retain(|name, _| {
         // Check if this is a builtin measurement:
-        if measurements_config.known_measurements.contains(name) {
+        if measurements_config.builtin_measurements.contains(name) {
             return true;
         }
         // For custom measurements, check the budget:
@@ -1972,7 +1972,7 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
         let config: MeasurementsConfig = serde_json::from_value(json!({
-            "knownMeasurements": [
+            "builtinMeasurements": [
                 "frames_slow"
             ],
             "maxCustomMeasurements": 2,
