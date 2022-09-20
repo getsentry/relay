@@ -257,10 +257,12 @@ fn remove_invalid_measurements(
 ) {
     let mut custom_measurements_count = 0;
     measurements.retain(|name, value| {
-        let unit = match value.value().and_then(|m| m.unit.value()) {
-            Some(unit) => unit,
+        let measurement = match value.value() {
+            Some(m) => m,
             None => return false,
         };
+        // TODO(jjbayer): Should we actually normalize the unit into the event?
+        let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
 
         // Check if this is a builtin measurement:
         for builtin_measurement in &measurements_config.builtin_measurements {
