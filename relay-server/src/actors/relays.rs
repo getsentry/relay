@@ -243,7 +243,7 @@ impl RelayCacheService {
     fn handle_fetch_result(&mut self, result: FetchResult) {
         match result {
             Ok(response) => {
-                self.delay.reset();
+                self.backoff.reset();
 
                 for (id, info) in response.relays {
                     self.relays.insert(id, RelayState::from_option(info));
@@ -285,14 +285,14 @@ impl RelayCacheService {
         }
 
         relay_log::debug!("relay {} public key requested", relay_id);
-        if !self.backoff.started() {
-            self.schedule_fetch();
-        }
-
         self.senders
             .entry(relay_id)
             .or_insert_with(Vec::new)
             .push(sender);
+
+        if !self.backoff.started() {
+            self.schedule_fetch();
+        }
     }
 }
 
@@ -305,6 +305,8 @@ impl Service for RelayCacheService {
 
             loop {
                 tokio::select! {
+                    biased;
+
                     Some(result) = self.fetch_channel.1.recv() => self.handle_fetch_result(result),
                     Some(message) = rx.recv() => self.get_or_fetch(message.0, message.1),
                     () = &mut self.delay => self.fetch_relays(),

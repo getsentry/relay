@@ -36,9 +36,15 @@ impl Future for SleepHandle {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        match &mut self.0 {
+        let poll = match &mut self.0 {
             Some(sleep) => Pin::new(sleep).poll(cx),
             None => Poll::Pending,
+        };
+
+        if poll.is_ready() {
+            self.reset();
         }
+
+        poll
     }
 }
