@@ -8,7 +8,6 @@ use relay_general::protocol::{
     User,
 };
 use relay_general::store;
-use relay_general::store::LightNormalizationConfig;
 use relay_general::types::Annotated;
 use relay_metrics::{DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue};
 use serde::{Deserialize, Serialize};
@@ -589,6 +588,7 @@ mod tests {
 
     use relay_general::protocol::User;
     use relay_general::store::BreakdownsConfig;
+    use relay_general::store::LightNormalizationConfig;
     use relay_general::types::Annotated;
     use relay_metrics::DurationUnit;
 
