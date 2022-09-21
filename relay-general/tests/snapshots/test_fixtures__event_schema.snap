@@ -604,7 +604,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "level": {
-              "description": " Severity level of the breadcrumb. _Optional._\n\n Allowed values are, from highest to lowest: `fatal`, `error`, `warning`, `info`, and\n `debug`. Levels are used in the UI to emphasize and deemphasize the crumb. Defaults to\n `info`.",
+              "description": " Severity level of the breadcrumb. _Optional._\n\n Allowed values are, from highest to lowest: `fatal`, `error`, `warning`, `info`, `debug`, and\n `unknown`. Levels are used in the UI to emphasize and deemphasize the crumb. Defaults to\n `info`.",
               "default": null,
               "anyOf": [
                 {
@@ -1904,7 +1904,8 @@ expression: "relay_general::protocol::event_json_schema()"
         "info",
         "warning",
         "error",
-        "fatal"
+        "fatal",
+        "unknown"
       ]
     },
     "LogEntry": {
