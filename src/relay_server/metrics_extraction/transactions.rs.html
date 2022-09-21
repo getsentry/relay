@@ -1807,6 +1807,8 @@
 <span id="1799">1799</span>
 <span id="1800">1800</span>
 <span id="1801">1801</span>
+<span id="1802">1802</span>
+<span id="1803">1803</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::utils</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
@@ -2165,6 +2167,7 @@
         <span class="string">&quot;fcp&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
         <span class="string">&quot;lcp&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
         <span class="string">&quot;fid&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
+        <span class="string">&quot;inp&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
         <span class="string">&quot;fp&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
         <span class="string">&quot;ttfb&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
         <span class="string">&quot;ttfb.requesttime&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
@@ -2428,6 +2431,7 @@
         <span class="string">&quot;lcp&quot;</span> =&gt; <span class="ident">rate_range</span>(<span class="number">2500.0</span>, <span class="number">4000.0</span>),
         <span class="string">&quot;fcp&quot;</span> =&gt; <span class="ident">rate_range</span>(<span class="number">1000.0</span>, <span class="number">3000.0</span>),
         <span class="string">&quot;fid&quot;</span> =&gt; <span class="ident">rate_range</span>(<span class="number">100.0</span>, <span class="number">300.0</span>),
+        <span class="string">&quot;inp&quot;</span> =&gt; <span class="ident">rate_range</span>(<span class="number">200.0</span>, <span class="number">500.0</span>),
         <span class="string">&quot;cls&quot;</span> =&gt; <span class="ident">rate_range</span>(<span class="number">0.1</span>, <span class="number">0.25</span>),
         <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
     }

@@ -310,6 +310,17 @@
 <span id="302">302</span>
 <span id="303">303</span>
 <span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
 
 <span class="kw">use</span> <span class="ident">relay_common::MetricUnit</span>;
@@ -470,6 +481,7 @@
         &quot;LCP&quot;: {&quot;value&quot;: 420.69, &quot;unit&quot;: &quot;millisecond&quot;},
         &quot;   lcp_final.element-Size123  &quot;: {&quot;value&quot;: 1},
         &quot;fid&quot;: {&quot;value&quot;: 2020},
+        &quot;inp&quot;: {&quot;value&quot;: 100.14},
         &quot;cls&quot;: {&quot;value&quot;: null},
         &quot;fp&quot;: {&quot;value&quot;: &quot;im a first paint&quot;},
         &quot;Total Blocking Time&quot;: {&quot;value&quot;: 3.14159},
@@ -488,6 +500,9 @@
     },
     &quot;fp&quot;: {
       &quot;value&quot;: null
+    },
+    &quot;inp&quot;: {
+      &quot;value&quot;: 100.14
     },
     &quot;lcp&quot;: {
       &quot;value&quot;: 420.69,
@@ -575,6 +590,13 @@
                 <span class="string">&quot;fid&quot;</span>.<span class="ident">to_owned</span>(),
                 <span class="ident">Annotated::new</span>(<span class="ident">Measurement</span> {
                     <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="number">2020f64</span>),
+                    <span class="ident">unit</span>: <span class="ident">Annotated::empty</span>(),
+                }),
+            );
+            <span class="ident">measurements</span>.<span class="ident">insert</span>(
+                <span class="string">&quot;inp&quot;</span>.<span class="ident">to_owned</span>(),
+                <span class="ident">Annotated::new</span>(<span class="ident">Measurement</span> {
+                    <span class="ident">value</span>: <span class="ident">Annotated::new</span>(<span class="number">100.14</span>),
                     <span class="ident">unit</span>: <span class="ident">Annotated::empty</span>(),
                 }),
             );
