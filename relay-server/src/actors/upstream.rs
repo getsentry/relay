@@ -929,7 +929,7 @@ impl UpstreamRelayService {
 impl Service for UpstreamRelayService {
     type Interface = UpstreamRelay;
 
-    fn spawn_handler(mut self, rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         // TODO(tobias): Might want to construct them at a different locationx
         let (outage_tx, outage_rx) = watch::channel(false); // If ready true else false
         let (auth_tx, auth_rx) = watch::channel(false); // If ready true else false
@@ -943,17 +943,13 @@ impl Service for UpstreamRelayService {
         tokio::spawn(async move {
             relay_log::info!("upstream relay started");
             while let Some(message) = rx.recv().await {
-                self.handle_message(message); // TODO: The messages we send ourself will be done differently now and not pass thru this anymore
+                self.handle_message(message);
             }
             relay_log::info!("upstream relay stopped");
         });
 
         // TODO: Need to fix these by moving them into their own structs
-
         // -- Outage Task --
-        // TODO(tobias): The intricacies of the notify will need to be looked at
-        // TODO(tobias): Need to get rid of the selfs here. So should this be in its own struct ??
-        // Also need to think about if we want to let it run in the beginning once or not ?
         tokio::spawn(async move {
             // Need to start the loop once we get the outage but than on the other hand need to keep the outage thing going
             loop {
@@ -998,43 +994,10 @@ impl Service for UpstreamRelayService {
                         }
                     } // TODO: Do something if things go south
                 }
-
-                // TODO: The order of this select is very much open for debate
-                /*
-                tokio::select! {
-                _ = notify.notified() => {
-                    // We know we have an outage issue
-                    outage_tx.send(false);
-
-                    // Also need to squeeze in the initial logic of handle_network_error
-                    // TODO: Need to probably backoff once to kick it all of
-                    while !self.is_ready() { // TODO: Listen to the outage notify
-                        let next_backoff = self.outage_backoff.next_backoff();
-                        relay_log::warn!(
-                            "Network outage, scheduling another check in {:?}",
-                            next_backoff
-                        );
-                        tokio::time::sleep(next_backoff).await;
-                        // Construct the channel
-                        let (tx, rx) = oneshot::channel::<bool>(); // TODO(tobias): Try and make this nicer
-                        let request = EnqueuedRequest::new(GetHealthCheck(tx)); // TODO(tobias): Try and get the channel out of this
-                        self.send_request(request, None); // <- this is out reliance on the Request client
-
-                        // If this is true set watch and also reset backoff
-                        rx.await; // <- Use this result
-
-                    }
-                    // We know the outage have been resolved
-                    outage_tx.send(true);
-                }
-                // TODO: Get rid off this
-                _ = notify_reset.notified() =>  self.reset_network_error(), // TODO: This needs to move into its own thing
-                };
-                */
             }
         });
 
-        // Auth task
+        // -- Auth task --
         // Needs its own state && also needs to somehow deal with scheduled authentications
         tokio::spawn(async move {
             if self.should_authenticate() {
