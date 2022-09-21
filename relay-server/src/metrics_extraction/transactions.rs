@@ -356,6 +356,7 @@ fn get_metric_measurement_unit(metric: &str) -> Option<MetricUnit> {
         "fcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "lcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "fid" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "inp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "fp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "ttfb" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "ttfb.requesttime" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
@@ -619,6 +620,7 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
         "lcp" => rate_range(2500.0, 4000.0),
         "fcp" => rate_range(1000.0, 3000.0),
         "fid" => rate_range(100.0, 300.0),
+        "inp" => rate_range(200.0, 500.0),
         "cls" => rate_range(0.1, 0.25),
         _ => None,
     }

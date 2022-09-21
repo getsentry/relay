@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+** Features **:
+- Add INP web vital as a measurement. ([#1487](https://github.com/getsentry/relay/pull/1487))
+
 **Internal**:
 
 - Generate a new profile ID when splitting a profile for multiple transactions. ([#1473](https://github.com/getsentry/relay/pull/1473))
