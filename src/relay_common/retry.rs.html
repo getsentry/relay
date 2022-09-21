@@ -71,6 +71,7 @@
 <span id="63">63</span>
 <span id="64">64</span>
 <span id="65">65</span>
+<span id="66">66</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
 
 <span class="kw">use</span> <span class="ident">backoff::backoff::Backoff</span>;
@@ -84,6 +85,7 @@
 <span class="kw">const</span> <span class="ident">INITIAL_INTERVAL</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">1000</span>;
 
 <span class="doccomment">/// A retry interval generator that increases timeouts with exponential backoff.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RetryBackoff</span> {
     <span class="ident">backoff</span>: <span class="ident">ExponentialBackoff</span>,
     <span class="ident">attempt</span>: <span class="ident">usize</span>,

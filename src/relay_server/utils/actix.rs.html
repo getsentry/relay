@@ -75,22 +75,6 @@
 <span id="67">67</span>
 <span id="68">68</span>
 <span id="69">69</span>
-<span id="70">70</span>
-<span id="71">71</span>
-<span id="72">72</span>
-<span id="73">73</span>
-<span id="74">74</span>
-<span id="75">75</span>
-<span id="76">76</span>
-<span id="77">77</span>
-<span id="78">78</span>
-<span id="79">79</span>
-<span id="80">80</span>
-<span id="81">81</span>
-<span id="82">82</span>
-<span id="83">83</span>
-<span id="84">84</span>
-<span id="85">85</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">::actix::dev</span>::{<span class="ident">MessageResponse</span>, <span class="ident">ResponseChannel</span>};
 <span class="kw">use</span> <span class="ident">::actix::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">futures01::prelude</span>::<span class="kw-2">*</span>;
@@ -108,28 +92,12 @@
         <span class="ident">Response::Reply</span>(<span class="prelude-val">Ok</span>(<span class="ident">value</span>))
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reply</span>(<span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="ident">Response::Reply</span>(<span class="ident">result</span>)
-    }
-
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">future</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">future</span>: <span class="ident">F</span>) -&gt; <span class="self">Self</span>
     <span class="kw">where</span>
         <span class="ident">F</span>: <span class="ident">IntoFuture</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span><span class="op">&gt;</span>,
         <span class="ident">F::Future</span>: <span class="lifetime">&#39;static</span>,
     {
         <span class="ident">Response::Future</span>(<span class="ident">Box::new</span>(<span class="ident">future</span>.<span class="ident">into_future</span>()))
-    }
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span>, <span class="ident">E</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">map</span><span class="op">&lt;</span><span class="ident">U</span>, <span class="ident">F</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">f</span>: <span class="ident">F</span>) -&gt; <span class="ident">Response</span><span class="op">&lt;</span><span class="ident">U</span>, <span class="ident">E</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="ident">T</span>) -&gt; <span class="ident">U</span>,
-    {
-        <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Response::Reply</span>(<span class="ident">result</span>) =&gt; <span class="ident">Response::reply</span>(<span class="ident">result</span>.<span class="ident">map</span>(<span class="ident">f</span>)),
-            <span class="ident">Response::Future</span>(<span class="ident">future</span>) =&gt; <span class="ident">Response::future</span>(<span class="ident">future</span>.<span class="ident">map</span>(<span class="ident">f</span>)),
-        }
     }
 }
 

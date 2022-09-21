@@ -49,6 +49,15 @@
 <span id="41">41</span>
 <span id="42">42</span>
 <span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::future::Future</span>;
 <span class="kw">use</span> <span class="ident">std::pin::Pin</span>;
 <span class="kw">use</span> <span class="ident">std::task::Poll</span>;
@@ -56,8 +65,11 @@
 
 <span class="doccomment">/// A future wrapper around [`tokio::time::Sleep`].</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// This has two internal states, either it is pending indefinite or it wakes up after a certain</span>
-<span class="doccomment">/// duration of time has elapsed.</span>
+<span class="doccomment">/// When initialized with [`SleepHandle::idle`], this future is pending indefinitely every time it</span>
+<span class="doccomment">/// is polled. To initiate a delay, use [`set`](Self::set). After the delay has passed, the future</span>
+<span class="doccomment">/// resolves with `()` **exactly once** and resets to idle. To reset the future while it is</span>
+<span class="doccomment">/// sleeping, use [`reset`](Self::reset).</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SleepHandle</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">tokio::time::Sleep</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>);
 
 <span class="kw">impl</span> <span class="ident">SleepHandle</span> {
@@ -86,10 +98,16 @@
     <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> ();
 
     <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">mut</span> <span class="self">self</span>: <span class="ident">Pin</span><span class="op">&lt;</span><span class="kw-2">&amp;mut</span> <span class="self">Self</span><span class="op">&gt;</span>, <span class="ident">cx</span>: <span class="kw-2">&amp;mut</span> <span class="ident">std::task::Context</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">Poll</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Output</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">0</span> {
+        <span class="kw">let</span> <span class="ident">poll</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="number">0</span> {
             <span class="prelude-val">Some</span>(<span class="ident">sleep</span>) =&gt; <span class="ident">Pin::new</span>(<span class="ident">sleep</span>).<span class="ident">poll</span>(<span class="ident">cx</span>),
             <span class="prelude-val">None</span> =&gt; <span class="ident">Poll::Pending</span>,
+        };
+
+        <span class="kw">if</span> <span class="ident">poll</span>.<span class="ident">is_ready</span>() {
+            <span class="self">self</span>.<span class="ident">reset</span>();
         }
+
+        <span class="ident">poll</span>
     }
 }
 </code></pre></div>
