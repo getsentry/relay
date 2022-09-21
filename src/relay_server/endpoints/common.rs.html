@@ -862,11 +862,11 @@
 
 <span class="doccomment">/// Handles Sentry events.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// Sentry events may come either directly from a http request ( the store endpoint calls this</span>
+<span class="doccomment">/// Sentry events may come either directly from an HTTP request (the store endpoint calls this</span>
 <span class="doccomment">/// method directly) or are generated inside Relay from requests to other endpoints (e.g. the</span>
-<span class="doccomment">/// security endpoint)</span>
+<span class="doccomment">/// security endpoint).</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// If store_event receives a non empty store_body it will use it as the body of the event otherwise</span>
+<span class="doccomment">/// If store_event receives a non-empty store_body it will use it as the body of the event otherwise</span>
 <span class="doccomment">/// it will try to create a store_body from the request.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">handle_store_like_request</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">R</span>, <span class="ident">I</span><span class="op">&gt;</span>(
     <span class="ident">meta</span>: <span class="ident">RequestMeta</span>,
