@@ -1937,6 +1937,7 @@ mod tests {
           "measurements": {
             "frames_frozen": {
               "value": 2.0,
+              "unit": "none",
             },
             "frames_frozen_rate": {
               "value": 0.5,
@@ -1944,6 +1945,7 @@ mod tests {
             },
             "frames_slow": {
               "value": 1.0,
+              "unit": "none",
             },
             "frames_slow_rate": {
               "value": 0.25,
@@ -1951,6 +1953,7 @@ mod tests {
             },
             "frames_total": {
               "value": 4.0,
+              "unit": "none",
             },
             "stall_percentage": {
               "value": 0.8,
