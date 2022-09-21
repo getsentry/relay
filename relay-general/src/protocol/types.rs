@@ -642,6 +642,8 @@ pub enum Level {
     Error,
     /// Similar to error but indicates a critical event that usually causes a shutdown.
     Fatal,
+    /// Used for Performance Issues that don't correspond to a log level
+    Unknown,
 }
 
 impl Default for Level {
@@ -658,6 +660,7 @@ impl Level {
             30 => Level::Warning,
             40 => Level::Error,
             50 => Level::Fatal,
+            100 => Level::Unknown,
             _ => return None,
         })
     }
@@ -673,6 +676,7 @@ impl FromStr for Level {
             "warning" => Level::Warning,
             "error" => Level::Error,
             "fatal" | "critical" => Level::Fatal,
+            "unknown" => Level::Unknown,
             _ => return Err(ParseLevelError),
         })
     }
@@ -686,6 +690,7 @@ impl fmt::Display for Level {
             Level::Warning => write!(f, "warning"),
             Level::Error => write!(f, "error"),
             Level::Fatal => write!(f, "fatal"),
+            Level::Unknown => write!(f, "unknown"),
         }
     }
 }
