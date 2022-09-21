@@ -5,8 +5,10 @@ use std::time::Duration;
 
 /// A future wrapper around [`tokio::time::Sleep`].
 ///
-/// This has two internal states, either it is pending indefinite or it wakes up after a certain
-/// duration of time has elapsed.
+/// When initialized with [`SleepHandle::idle`], this future is pending indefinitely every time it
+/// is polled. To initiate a delay, use [`set`](Self::set). After the delay has passed, the future
+/// resolves with `()` **exactly once** and resets to idle. To reset the future while it is
+/// sleeping, use [`reset`](Self::reset).
 #[derive(Debug)]
 pub struct SleepHandle(Option<Pin<Box<tokio::time::Sleep>>>);
 
