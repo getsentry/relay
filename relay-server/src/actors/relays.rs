@@ -18,13 +18,24 @@ use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, Upstrea
 use crate::service::REGISTRY;
 use crate::utils::SleepHandle;
 
+/// Resolves [`RelayInfo`] by it's [identifier](RelayId).
+///
+/// This message may fail if the upstream is not reachable repeatedly and Relay information cannot
+/// be resolved.
 #[derive(Debug)]
 pub struct GetRelay {
+    /// The unique identifier of the Relay deployment.
+    ///
+    /// This is part of the Relay credentials file and determined during setup.
     pub relay_id: RelayId,
 }
 
+/// Response of a [`GetRelay`] message.
+///
+/// This is `Some` if the Relay is known by the upstream or `None` the Relay is unknown.
 pub type GetRelayResult = Option<RelayInfo>;
 
+/// Manages authentication information for downstream Relays.
 #[derive(Debug)]
 pub struct RelayCache(GetRelay, Sender<GetRelayResult>);
 
@@ -44,26 +55,37 @@ impl FromMessage<GetRelay> for RelayCache {
     }
 }
 
-/// Defines a compatibility format for deserializing relays info that supports
-/// both the old and the new format for relay info
+/// Compatibility format for deserializing [`GetRelaysResponse`] from the legacy endpoint.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicKeysResultCompatibility {
     /// DEPRECATED. Legacy format only public key info.
     #[serde(default, rename = "public_keys")]
     pub public_keys: HashMap<RelayId, Option<PublicKey>>,
+
     /// A map from Relay's identifier to its information.
+    ///
+    /// Missing entries or explicit `None` both indicate that a Relay with this ID is not known by
+    /// the upstream and should not be authenticated.
     #[serde(default)]
     pub relays: HashMap<RelayId, Option<RelayInfo>>,
 }
 
+/// Response of the [`GetRelays`] upstream query.
+///
+/// Former versions of the endpoint returned a different response containing only public keys,
+/// defined by [`PublicKeysResultCompatibility`]. Relay's own endpoint is allowed to skip this field
+/// and return just the new information.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GetRelaysResult {
-    /// new format public key plus additional parameters
+pub struct GetRelaysResponse {
+    /// A map from Relay's identifier to its information.
+    ///
+    /// Missing entries or explicit `None` both indicate that a Relay with this ID is not known by
+    /// the upstream and should not be authenticated.
     pub relays: HashMap<RelayId, Option<RelayInfo>>,
 }
 
-impl From<PublicKeysResultCompatibility> for GetRelaysResult {
+impl From<PublicKeysResultCompatibility> for GetRelaysResponse {
     fn from(relays_info: PublicKeysResultCompatibility) -> Self {
         let relays = if relays_info.relays.is_empty() && !relays_info.public_keys.is_empty() {
             relays_info
@@ -78,8 +100,10 @@ impl From<PublicKeysResultCompatibility> for GetRelaysResult {
     }
 }
 
+/// Upstream batch query to resolve information for Relays by ID.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetRelays {
+    /// A list of Relay deployment identifiers to fetch.
     pub relay_ids: Vec<RelayId>,
 }
 
@@ -103,6 +127,7 @@ impl UpstreamQuery for GetRelays {
     }
 }
 
+/// Cache entry with metadata.
 #[derive(Debug)]
 enum RelayState {
     Exists {
@@ -115,6 +140,7 @@ enum RelayState {
 }
 
 impl RelayState {
+    /// Returns `true` if this cache entry is still valid.
     fn is_valid_cache(&self, config: &Config) -> bool {
         match *self {
             RelayState::Exists { checked_at, .. } => {
@@ -126,6 +152,9 @@ impl RelayState {
         }
     }
 
+    /// Returns `Some` if there is an existing entry.
+    ///
+    /// This entry may be expired; use `is_valid_cache` to verify this.
     fn as_option(&self) -> Option<&RelayInfo> {
         match *self {
             RelayState::Exists { ref relay, .. } => Some(relay),
@@ -133,6 +162,7 @@ impl RelayState {
         }
     }
 
+    /// Constructs a cache entry from an upstream response.
     fn from_option(option: Option<RelayInfo>) -> Self {
         match option {
             Some(relay) => RelayState::Exists {
@@ -146,8 +176,13 @@ impl RelayState {
     }
 }
 
-type FetchResult = Result<GetRelaysResult, HashMap<RelayId, Vec<Sender<GetRelayResult>>>>;
+/// Result type of the background fetch task.
+///
+///  - `Ok`: The task succeeded and information from the response should be inserted into the cache.
+///  - `Err`: The task failed and the senders should be placed back for the next fetch.
+type FetchResult = Result<GetRelaysResponse, HashMap<RelayId, Vec<Sender<GetRelayResult>>>>;
 
+/// Service implementing the [`RelayCache`] interface.
 #[derive(Debug)]
 pub struct RelayCacheService {
     static_relays: HashMap<RelayId, RelayInfo>,
@@ -160,6 +195,7 @@ pub struct RelayCacheService {
 }
 
 impl RelayCacheService {
+    /// Creates a new [`RelayCache`] service.
     pub fn new(config: Arc<Config>) -> Self {
         Self {
             static_relays: config.static_relays().clone(),
@@ -172,6 +208,7 @@ impl RelayCacheService {
         }
     }
 
+    /// Returns a clone of the sender for the background fetch task.
     fn fetch_tx(&self) -> mpsc::Sender<FetchResult> {
         let (ref tx, _) = self.fetch_channel;
         tx.clone()
@@ -218,7 +255,7 @@ impl RelayCacheService {
 
             let fetch_result = match query_result {
                 Ok(response) => {
-                    let response = GetRelaysResult::from(response);
+                    let response = GetRelaysResponse::from(response);
 
                     for (id, channels) in channels {
                         relay_log::debug!("relay {} public key updated", id);
@@ -240,6 +277,7 @@ impl RelayCacheService {
         });
     }
 
+    /// Handles results from the background fetch task.
     fn handle_fetch_result(&mut self, result: FetchResult) {
         match result {
             Ok(response) => {
@@ -259,6 +297,10 @@ impl RelayCacheService {
         }
     }
 
+    /// Resolves information for a Relay and passes it to the sender.
+    ///
+    /// Sends information immediately if it is available in the cache. Otherwise, this schedules a
+    /// delayed background fetch and queues the sender.
     fn get_or_fetch(&mut self, message: GetRelay, sender: Sender<GetRelayResult>) {
         let relay_id = message.relay_id;
 
@@ -308,8 +350,8 @@ impl Service for RelayCacheService {
                     biased;
 
                     Some(result) = self.fetch_channel.1.recv() => self.handle_fetch_result(result),
-                    Some(message) = rx.recv() => self.get_or_fetch(message.0, message.1),
                     () = &mut self.delay => self.fetch_relays(),
+                    Some(message) = rx.recv() => self.get_or_fetch(message.0, message.1),
                     else => break,
                 }
             }

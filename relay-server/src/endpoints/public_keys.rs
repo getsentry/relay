@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use actix_web::{actix::*, Error, Json};
 use futures::{future, FutureExt, TryFutureExt};
 
-use crate::actors::relays::{GetRelay, GetRelays, GetRelaysResult, RelayCache};
+use crate::actors::relays::{GetRelay, GetRelays, GetRelaysResponse, RelayCache};
 use crate::extractors::SignedJson;
 use crate::service::ServiceApp;
 
-fn get_public_keys(body: SignedJson<GetRelays>) -> ResponseFuture<Json<GetRelaysResult>, Error> {
+fn get_public_keys(body: SignedJson<GetRelays>) -> ResponseFuture<Json<GetRelaysResponse>, Error> {
     let future = async move {
         let relay_cache = RelayCache::from_registry();
 
@@ -23,7 +23,7 @@ fn get_public_keys(body: SignedJson<GetRelays>) -> ResponseFuture<Json<GetRelays
             relays.insert(relay_id, relay_info);
         }
 
-        Ok(Json(GetRelaysResult { relays }))
+        Ok(Json(GetRelaysResponse { relays }))
     };
 
     Box::new(future.boxed().compat())
