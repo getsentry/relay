@@ -5,6 +5,7 @@
 - Add `transaction_info` to event payloads, including the transaction's source and internal original transaction name. ([#1330](https://github.com/getsentry/relay/pull/1330))
 - Add user-agent parsing to replays processor. ([#1420](https://github.com/getsentry/relay/pull/1420))
 - `convert_datascrubbing_config` will now return an error string when conversion fails on big regexes. ([#1474](https://github.com/getsentry/relay/pull/1474))
+- Add `unknown` log level to validator for use by performance issues. ([#1489](https://github.com/getsentry/relay/pull/1489))
 
 ## 0.8.13
 
