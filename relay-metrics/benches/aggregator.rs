@@ -7,7 +7,7 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criteri
 
 use relay_common::{ProjectKey, UnixTimestamp};
 use relay_metrics::{Aggregator, AggregatorConfig};
-use relay_metrics::{Bucket, FlushBuckets, Metric, MetricValue};
+use relay_metrics::{FlushBuckets, Metric, MetricValue};
 
 #[derive(Clone, Default)]
 struct TestReceiver;
@@ -17,11 +17,9 @@ impl Actor for TestReceiver {
 }
 
 impl Handler<FlushBuckets> for TestReceiver {
-    type Result = Result<(), Vec<Bucket>>;
+    type Result = ();
 
-    fn handle(&mut self, _msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {
-        Ok(())
-    }
+    fn handle(&mut self, _msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {}
 }
 
 /// Struct representing a testcase for which insert + flush are timed.

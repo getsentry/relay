@@ -4,12 +4,11 @@ use std::time::Instant;
 use actix::prelude::*;
 use actix_web::ResponseError;
 use failure::Fail;
-use futures::{FutureExt, TryFutureExt};
 use futures01::{future, Future};
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{self, AggregateMetricsError, Bucket, FlushBuckets, Metric};
+use relay_metrics::{self, AggregateMetricsError, Aggregator, Bucket, FlushBuckets, Metric};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -623,7 +622,7 @@ impl Handler<MergeBuckets> for ProjectCache {
 }
 
 impl Handler<FlushBuckets> for ProjectCache {
-    type Result = ResponseFuture<(), Vec<Bucket>>;
+    type Result = ();
 
     fn handle(&mut self, message: FlushBuckets, _context: &mut Self::Context) -> Self::Result {
         let FlushBuckets {
@@ -643,39 +642,38 @@ impl Handler<FlushBuckets> for ProjectCache {
         let project_state = match expiry_state {
             ExpiryState::Updated(state) | ExpiryState::Stale(state) => state,
             ExpiryState::Expired => {
+                relay_log::trace!("project expired: merging back {} buckets", buckets.len());
                 // If the state is outdated, we need to wait for an updated state. Put them back into the
-                // aggregator and wait for the next flush cycle.
-                return Box::new(future::err(buckets));
+                // aggregator.
+                Aggregator::from_registry()
+                    .do_send(relay_metrics::MergeBuckets::new(project_key, buckets));
+                return;
             }
         };
 
         let scoping = match project.scoping() {
             Some(scoping) => scoping,
-            _ => return Box::new(future::err(buckets)),
+            _ => {
+                relay_log::trace!(
+                    "there is no scoping: merging back {} buckets",
+                    buckets.len()
+                );
+                Aggregator::from_registry()
+                    .do_send(relay_metrics::MergeBuckets::new(project_key, buckets));
+                return;
+            }
         };
 
         // Only send if the project state is valid, otherwise drop this bucket.
         if project_state.check_disabled(config.as_ref()).is_err() {
-            return Box::new(future::ok(()));
+            return;
         }
 
-        let future = EnvelopeManager::from_registry()
-            .send(SendMetrics {
-                buckets,
-                scoping,
-                partition_key,
-            })
-            .boxed()
-            .compat()
-            .then(move |send_result| match send_result {
-                Ok(Ok(())) => Ok(()),
-                Ok(Err(buckets)) => Err(buckets),
-                Err(_) => {
-                    relay_log::error!("dropped metric buckets: envelope manager mailbox full");
-                    Ok(())
-                }
-            });
-
-        Box::new(future)
+        EnvelopeManager::from_registry().send(SendMetrics {
+            project_key,
+            buckets,
+            scoping,
+            partition_key,
+        });
     }
 }

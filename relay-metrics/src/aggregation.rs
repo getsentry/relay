@@ -1164,7 +1164,7 @@ pub struct FlushBuckets {
 }
 
 impl Message for FlushBuckets {
-    type Result = Result<(), Vec<Bucket>>;
+    type Result = ();
 }
 
 /// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.
@@ -1378,28 +1378,6 @@ impl<T: Iterator<Item = Bucket>> FusedIterator for CappedBucketIter<T> {}
 ///
 /// Internally, the aggregator maintains a continuous flush cycle every 100ms. It guarantees that
 /// all elapsed buckets belonging to the same [`ProjectKey`] are flushed together.
-///
-/// Receivers must implement a handler for the [`FlushBuckets`] message:
-///
-/// ```
-/// use actix::prelude::*;
-/// use relay_metrics::{Bucket, FlushBuckets};
-///
-/// struct BucketReceiver;
-///
-/// impl Actor for BucketReceiver {
-///     type Context = Context<Self>;
-/// }
-///
-/// impl Handler<FlushBuckets> for BucketReceiver {
-///     type Result = Result<(), Vec<Bucket>>;
-///
-///     fn handle(&mut self, msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {
-///         // Return `Ok` to consume the buckets or `Err` to send them back
-///         Err(msg.buckets)
-///     }
-/// }
-/// ```
 pub struct Aggregator {
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
@@ -1778,11 +1756,12 @@ impl Aggregator {
         );
     }
 
-    /// Sends the [`FlushBuckets`] message to the receiver.
+    /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fasion. It is up
+    /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
+    /// and we require another re-try.
     ///
-    /// If the receiver returns buckets, they are merged back into the cache.
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    fn try_flush(&mut self, mut context: Option<&mut <Self as Actor>::Context>) {
+    fn try_flush(&mut self) {
         let flush_buckets = self.pop_flush_buckets();
 
         if flush_buckets.is_empty() {
@@ -1803,28 +1782,16 @@ impl Aggregator {
             let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
                 self.process_batches(buckets, |batch| {
-                    let fut = self
-                        .receiver
-                        .send(FlushBuckets {
-                            project_key,
-                            partition_key,
-                            buckets: batch,
-                        })
-                        .into_actor(self)
-                        .and_then(move |result, slf, _ctx| {
-                            if let Err(buckets) = result {
-                                relay_log::trace!(
-                                    "returned {} buckets from receiver, merging back",
-                                    buckets.len()
-                                );
-                                slf.merge_all(project_key, buckets).ok();
-                            }
-                            fut::ok(())
-                        })
-                        .drop_err();
-
-                    if let Some(context) = context.as_deref_mut() {
-                        fut.spawn(context);
+                    let batch_size = batch.len();
+                    match self.receiver.do_send(FlushBuckets {
+                        project_key,
+                        partition_key,
+                        buckets: batch,
+                    }) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            relay_log::error!("Failed to flush the buckets: {err}. Dropping current bucket batch of size: {batch_size}");
+                        }
                     }
                 });
             }
@@ -1854,8 +1821,8 @@ impl Actor for Aggregator {
         Controller::subscribe(ctx.address());
 
         // TODO: Consider a better approach than busy polling
-        ctx.run_interval(FLUSH_INTERVAL, |slf, context| {
-            slf.try_flush(Some(context));
+        ctx.run_interval(FLUSH_INTERVAL, |slf, _context| {
+            slf.try_flush();
         });
     }
 
@@ -2012,16 +1979,15 @@ mod tests {
     }
 
     impl Handler<FlushBuckets> for TestReceiver {
-        type Result = Result<(), Vec<Bucket>>;
+        type Result = ();
 
         fn handle(&mut self, msg: FlushBuckets, _ctx: &mut Self::Context) -> Self::Result {
             let buckets = msg.buckets;
             relay_log::debug!("received buckets: {:#?}", buckets);
             if self.reject_all {
-                return Err(buckets);
+                return;
             }
             self.add_buckets(buckets);
-            Ok(())
         }
     }
 
@@ -3063,7 +3029,7 @@ mod tests {
         let captures = relay_statsd::with_capturing_test_client(|| {
             aggregator.insert(project_key, metric1).ok();
             aggregator.insert(project_key, metric2).ok();
-            aggregator.try_flush(None);
+            aggregator.try_flush();
         });
 
         captures

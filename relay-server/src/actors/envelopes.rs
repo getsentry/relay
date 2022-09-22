@@ -11,10 +11,10 @@ use relay_common::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_general::protocol::ClientReport;
 use relay_log::LogError;
-use relay_metrics::Bucket;
+use relay_metrics::{Aggregator, Bucket};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, FromMessage, NoResponse, Sender};
+use relay_system::{Addr, FromMessage, NoResponse};
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
@@ -163,6 +163,8 @@ pub struct SendClientReports {
 /// failed buckets.
 #[derive(Debug)]
 pub struct SendMetrics {
+    /// Project key.
+    pub project_key: ProjectKey,
     /// The pre-aggregated metric buckets.
     pub buckets: Vec<Bucket>,
     /// Scoping information for the metrics.
@@ -176,7 +178,7 @@ pub struct SendMetrics {
 pub enum EnvelopeManager {
     SubmitEnvelope(Box<SubmitEnvelope>),
     SendClientReports(SendClientReports),
-    SendMetrics(SendMetrics, Sender<Result<(), Vec<Bucket>>>),
+    SendMetrics(SendMetrics),
 }
 
 impl EnvelopeManager {
@@ -204,10 +206,10 @@ impl FromMessage<SendClientReports> for EnvelopeManager {
 }
 
 impl FromMessage<SendMetrics> for EnvelopeManager {
-    type Response = AsyncResponse<Result<(), Vec<Bucket>>>;
+    type Response = NoResponse;
 
-    fn from_message(message: SendMetrics, sender: Sender<Result<(), Vec<Bucket>>>) -> Self {
-        Self::SendMetrics(message, sender)
+    fn from_message(message: SendMetrics, _: ()) -> Self {
+        Self::SendMetrics(message)
     }
 }
 
@@ -338,8 +340,9 @@ impl EnvelopeManagerService {
         }
     }
 
-    async fn handle_send_metrics(&self, message: SendMetrics) -> Result<(), Vec<Bucket>> {
+    async fn handle_send_metrics(&self, message: SendMetrics) {
         let SendMetrics {
+            project_key,
             buckets,
             scoping,
             partition_key,
@@ -361,9 +364,15 @@ impl EnvelopeManagerService {
         envelope.add_item(item);
 
         let partition_key = partition_key.map(|x| x.to_string());
-        self.submit_envelope(envelope, scoping, partition_key)
+        match self
+            .submit_envelope(envelope, scoping, partition_key)
             .await
             .map_err(|_| buckets)
+        {
+            Ok(()) => {}
+            Err(buckets) => Aggregator::from_registry()
+                .do_send(relay_metrics::MergeBuckets::new(project_key, buckets)),
+        }
     }
 
     async fn handle_send_client_reports(&self, message: SendClientReports) {
@@ -402,8 +411,8 @@ impl EnvelopeManagerService {
             EnvelopeManager::SendClientReports(message) => {
                 self.handle_send_client_reports(message).await;
             }
-            EnvelopeManager::SendMetrics(message, sender) => {
-                sender.send(self.handle_send_metrics(message).await);
+            EnvelopeManager::SendMetrics(message) => {
+                self.handle_send_metrics(message).await;
             }
         }
     }
