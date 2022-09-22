@@ -1785,35 +1785,10 @@
 <span id="1777">1777</span>
 <span id="1778">1778</span>
 <span id="1779">1779</span>
-<span id="1780">1780</span>
-<span id="1781">1781</span>
-<span id="1782">1782</span>
-<span id="1783">1783</span>
-<span id="1784">1784</span>
-<span id="1785">1785</span>
-<span id="1786">1786</span>
-<span id="1787">1787</span>
-<span id="1788">1788</span>
-<span id="1789">1789</span>
-<span id="1790">1790</span>
-<span id="1791">1791</span>
-<span id="1792">1792</span>
-<span id="1793">1793</span>
-<span id="1794">1794</span>
-<span id="1795">1795</span>
-<span id="1796">1796</span>
-<span id="1797">1797</span>
-<span id="1798">1798</span>
-<span id="1799">1799</span>
-<span id="1800">1800</span>
-<span id="1801">1801</span>
-<span id="1802">1802</span>
-<span id="1803">1803</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::utils</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::metrics_extraction::TaggingRule</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::statsd::RelayCounters</span>;
-<span class="kw">use</span> <span class="ident">relay_common::FractionUnit</span>;
 <span class="kw">use</span> <span class="ident">relay_common</span>::{<span class="ident">SpanStatus</span>, <span class="ident">UnixTimestamp</span>};
 <span class="kw">use</span> <span class="ident">relay_general::protocol</span>::{
     <span class="ident">AsPair</span>, <span class="ident">Context</span>, <span class="ident">ContextInner</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>, <span class="ident">Timestamp</span>, <span class="ident">TraceContext</span>, <span class="ident">TransactionSource</span>,
@@ -2157,42 +2132,6 @@
     <span class="ident">tags</span>
 }
 
-<span class="doccomment">/// Returns the unit of the provided metric.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// For known measurements, this returns `Some(MetricUnit)`, which can also include</span>
-<span class="doccomment">/// `Some(MetricUnit::None)`. For unknown measurement names, this returns `None`.</span>
-<span class="kw">fn</span> <span class="ident">get_metric_measurement_unit</span>(<span class="ident">metric</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MetricUnit</span><span class="op">&gt;</span> {
-    <span class="kw">match</span> <span class="ident">metric</span> {
-        <span class="comment">// Web</span>
-        <span class="string">&quot;fcp&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;lcp&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;fid&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;inp&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;fp&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;ttfb&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;ttfb.requesttime&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;cls&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::None</span>),
-
-        <span class="comment">// Mobile</span>
-        <span class="string">&quot;app_start_cold&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;app_start_warm&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;frames_total&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::None</span>),
-        <span class="string">&quot;frames_slow&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::None</span>),
-        <span class="string">&quot;frames_slow_rate&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Fraction</span>(<span class="ident">FractionUnit::Ratio</span>)),
-        <span class="string">&quot;frames_frozen&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::None</span>),
-        <span class="string">&quot;frames_frozen_rate&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Fraction</span>(<span class="ident">FractionUnit::Ratio</span>)),
-
-        <span class="comment">// React-Native</span>
-        <span class="string">&quot;stall_count&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::None</span>),
-        <span class="string">&quot;stall_total_time&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;stall_longest_time&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Duration</span>(<span class="ident">DurationUnit::MilliSecond</span>)),
-        <span class="string">&quot;stall_percentage&quot;</span> =&gt; <span class="prelude-val">Some</span>(<span class="ident">MetricUnit::Fraction</span>(<span class="ident">FractionUnit::Ratio</span>)),
-
-        <span class="comment">// Default</span>
-        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
-    }
-}
-
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">extract_transaction_metrics</span>(
     <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">TransactionMetricsConfig</span>,
     <span class="ident">breakdowns_config</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">store::BreakdownsConfig</span><span class="op">&gt;</span>,
@@ -2277,18 +2216,10 @@
                 <span class="ident">tags_for_measurement</span>.<span class="ident">insert</span>(<span class="string">&quot;measurement_rating&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">rating</span>);
             }
 
-            <span class="kw">let</span> <span class="ident">stated_unit</span> <span class="op">=</span> <span class="ident">measurement</span>.<span class="ident">unit</span>.<span class="ident">value</span>().<span class="ident">copied</span>();
-            <span class="kw">let</span> <span class="ident">default_unit</span> <span class="op">=</span> <span class="ident">get_metric_measurement_unit</span>(<span class="ident">name</span>);
-            <span class="kw">if</span> <span class="kw">let</span> (<span class="prelude-val">Some</span>(<span class="ident">default</span>), <span class="prelude-val">Some</span>(<span class="ident">stated</span>)) <span class="op">=</span> (<span class="ident">default_unit</span>, <span class="ident">stated_unit</span>) {
-                <span class="kw">if</span> <span class="ident">default</span> <span class="op">!</span><span class="op">=</span> <span class="ident">stated</span> {
-                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;unit mismatch on measurements.{}: {}&quot;</span>, <span class="ident">name</span>, <span class="ident">stated</span>);
-                }
-            }
-
             <span class="ident">push_metric</span>(<span class="ident">Metric::new_mri</span>(
                 <span class="ident">METRIC_NAMESPACE</span>,
                 <span class="macro">format!</span>(<span class="string">&quot;measurements.{}&quot;</span>, <span class="ident">name</span>),
-                <span class="ident">stated_unit</span>.<span class="ident">or</span>(<span class="ident">default_unit</span>).<span class="ident">unwrap_or_default</span>(),
+                <span class="ident">measurement</span>.<span class="ident">unit</span>.<span class="ident">value</span>().<span class="ident">copied</span>().<span class="ident">unwrap_or_default</span>(),
                 <span class="ident">MetricValue::Distribution</span>(<span class="ident">value</span>),
                 <span class="ident">unix_timestamp</span>,
                 <span class="ident">tags_for_measurement</span>,
@@ -2445,6 +2376,7 @@
 
     <span class="kw">use</span> <span class="ident">relay_general::protocol::User</span>;
     <span class="kw">use</span> <span class="ident">relay_general::store::BreakdownsConfig</span>;
+    <span class="kw">use</span> <span class="ident">relay_general::store::LightNormalizationConfig</span>;
     <span class="kw">use</span> <span class="ident">relay_general::types::Annotated</span>;
     <span class="kw">use</span> <span class="ident">relay_metrics::DurationUnit</span>;
 
@@ -2472,7 +2404,7 @@
             },
             &quot;measurements&quot;: {
                 &quot;foo&quot;: {&quot;value&quot;: 420.69},
-                &quot;lcp&quot;: {&quot;value&quot;: 3000.0}
+                &quot;lcp&quot;: {&quot;value&quot;: 3000.0, &quot;unit&quot;: &quot;millisecond&quot;}
             },
             &quot;contexts&quot;: {
                 &quot;trace&quot;: {
@@ -2601,6 +2533,12 @@
                 &quot;fcp&quot;: {&quot;value&quot;: 1.1},
                 &quot;stall_count&quot;: {&quot;value&quot;: 3.3},
                 &quot;foo&quot;: {&quot;value&quot;: 8.8}
+            },
+            &quot;contexts&quot;: {
+                &quot;trace&quot;: {
+                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
+                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;
+                }
             }
         }
         &quot;#</span>;
@@ -2618,7 +2556,11 @@
         )
         .<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+
+        <span class="comment">// Normalize first, to make sure the units are correct:</span>
+        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">store::light_normalize_event</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">LightNormalizationConfig::default</span>());
+        <span class="macro">assert!</span>(<span class="ident">res</span>.<span class="ident">is_ok</span>(), <span class="string">&quot;{:?}&quot;</span>, <span class="ident">res</span>);
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
         <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
@@ -2653,6 +2595,12 @@
             &quot;measurements&quot;: {
                 &quot;fcp&quot;: {&quot;value&quot;: 1.1, &quot;unit&quot;: &quot;second&quot;},
                 &quot;lcp&quot;: {&quot;value&quot;: 2.2, &quot;unit&quot;: &quot;none&quot;}
+            },
+            &quot;contexts&quot;: {
+                &quot;trace&quot;: {
+                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
+                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;
+                }
             }
         }&quot;#</span>;
 
@@ -2666,7 +2614,11 @@
         )
         .<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">event</span> <span class="op">=</span> <span class="ident">Annotated::from_json</span>(<span class="ident">json</span>).<span class="ident">unwrap</span>();
+
+        <span class="comment">// Normalize first, to make sure the units are correct:</span>
+        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">store::light_normalize_event</span>(<span class="kw-2">&amp;mut</span> <span class="ident">event</span>, <span class="kw-2">&amp;</span><span class="ident">LightNormalizationConfig::default</span>());
+        <span class="macro">assert!</span>(<span class="ident">res</span>.<span class="ident">is_ok</span>(), <span class="string">&quot;{:?}&quot;</span>, <span class="ident">res</span>);
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">metrics</span> <span class="op">=</span> <span class="macro">vec!</span>[];
         <span class="ident">extract_transaction_metrics</span>(<span class="kw-2">&amp;</span><span class="ident">config</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>[], <span class="ident">event</span>.<span class="ident">value</span>().<span class="ident">unwrap</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">metrics</span>);
@@ -2883,7 +2835,7 @@
             &quot;timestamp&quot;: &quot;2021-04-26T08:00:02+0100&quot;,
             &quot;measurements&quot;: {
                 &quot;a_custom1&quot;: {&quot;value&quot;: 41},
-                &quot;fcp&quot;: {&quot;value&quot;: 0.123},
+                &quot;fcp&quot;: {&quot;value&quot;: 0.123, &quot;unit&quot;: &quot;millisecond&quot;},
                 &quot;g_custom2&quot;: {&quot;value&quot;: 42, &quot;unit&quot;: &quot;second&quot;},
                 &quot;h_custom3&quot;: {&quot;value&quot;: 43}
             }
@@ -3033,7 +2985,7 @@
             &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
             &quot;timestamp&quot;: &quot;2021-04-26T08:00:02+0100&quot;,
             &quot;measurements&quot;: {
-                &quot;lcp&quot;: {&quot;value&quot;: 41}
+                &quot;lcp&quot;: {&quot;value&quot;: 41, &quot;unit&quot;: &quot;millisecond&quot;}
             }
         }
         &quot;#</span>;
