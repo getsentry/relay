@@ -192,7 +192,7 @@ impl EnvelopeSummary {
 }
 
 /// Rate limiting information for a data category.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct CategoryLimit {
     /// The limited data category.
     category: DataCategory,
@@ -339,6 +339,13 @@ where
     ///   to items in the envelope. This excludes rate limits applied to required attachments, since
     ///   clients are allowed to continue sending them.
     ///
+    /// The `early_limited` parameter is used to pass through the [`DataCategories`] which
+    /// were already rate limited when the envelope limiter was called during the handling
+    /// of the request in the endpoint, before it was queued for processing.  It contains
+    /// the data categories which exceeded quota at this time.  This allows this function to
+    /// not check rate limits again, but also to finally remove the payloads which were rate
+    /// limited earlier as further processing will not need them anymore.
+    ///
     /// # Example
     ///
     /// **Interaction between Events and Attachments**
@@ -375,13 +382,15 @@ where
         mut self,
         envelope: &mut Envelope,
         scoping: &Scoping,
+        early_limited: DataCategories,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut summary = EnvelopeSummary::compute(envelope);
         if let Some(event_category) = self.event_category {
             summary.event_category = Some(event_category);
         }
 
-        let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
+        let (enforcement, rate_limits) = self.execute(&summary, scoping, early_limited)?;
+        // let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
         envelope.retain_items(|item| self.should_retain_item(item, &enforcement));
 
         // TODO: This is special-cased for Transaction but we could set this generically.
@@ -406,37 +415,48 @@ where
         &mut self,
         summary: &EnvelopeSummary,
         scoping: &Scoping,
+        early_enforcement: Enforcement,
     ) -> Result<(Enforcement, RateLimits), E> {
         let mut rate_limits = RateLimits::new();
         let mut enforcement = Enforcement::default();
 
         if let Some(category) = summary.event_category {
-            let event_limits = (self.check)(scoping.item(category), 1)?;
-            let longest = event_limits.longest();
-            enforcement.event = CategoryLimit::new(category, 1, longest);
+            if early_enforcement.event.is_active() {
+                enforcement.event = early_enforcement.event;
+                // No need to set a RateLimit for this, we only need to report new rate
+                // limits as those are the ones that need to be sent to the ProjectCache.
+            } else {
+                let event_limits = (self.check)(scoping.item(category), 1)?;
+                let longest = event_limits.longest();
+                enforcement.event = CategoryLimit::new(category, 1, longest);
 
-            // Record the same reason for attachments, if there are any.
-            enforcement.attachments = CategoryLimit::new(
-                DataCategory::Attachment,
-                summary.attachment_quantity,
-                longest,
-            );
+                // Record the same reason for attachments, if there are any.
+                enforcement.attachments = CategoryLimit::new(
+                    DataCategory::Attachment,
+                    summary.attachment_quantity,
+                    longest,
+                );
 
-            rate_limits.merge(event_limits);
+                rate_limits.merge(event_limits);
+            }
 
             // Handle transactions specially, they have processing quota too.
             if category == DataCategory::Transaction {
-                let item_scoping = scoping.item(DataCategory::TransactionProcessed);
-                let limits = (self.check)(item_scoping, 1)?;
-                enforcement.transaction_processed =
-                    CategoryLimit::new(DataCategory::TransactionProcessed, 1, limits.longest());
-                rate_limits.merge(limits);
+                if early_enforcement.transaction_processed.is_active() {
+                    enforcement.transaction_processed = early_enforcement.transaction_processed
+                } else {
+                    let item_scoping = scoping.item(DataCategory::TransactionProcessed);
+                    let limits = (self.check)(item_scoping, 1)?;
+                    enforcement.transaction_processed =
+                        CategoryLimit::new(DataCategory::TransactionProcessed, 1, limits.longest());
+                    rate_limits.merge(limits);
 
-                // If only one of the rate limits applied we omit both of them.  If there is
-                // a rate limit the endpoint will return 429 but we need the client to keep
-                // sending transactions unless both quotas limits were exceeded.
-                if rate_limits.iter().count() == 1 {
-                    rate_limits = RateLimits::new();
+                    // If only one of the rate limits applied we omit both of them.  If there is
+                    // a rate limit the endpoint will return 429 but we need the client to keep
+                    // sending transactions unless both quotas limits were exceeded.
+                    if rate_limits.iter().count() == 1 {
+                        rate_limits = RateLimits::new();
+                    }
                 }
             }
         }
