@@ -15,7 +15,7 @@ use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_filter::{matches_any_origin, FiltersConfig};
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_general::store::BreakdownsConfig;
+use relay_general::store::{BreakdownsConfig, MeasurementsConfig};
 use relay_general::types::SpanAttribute;
 use relay_metrics::{self, Aggregator, Bucket, Metric};
 use relay_quotas::{Quota, RateLimits, Scoping};
@@ -108,6 +108,9 @@ pub struct ProjectConfig {
     /// Configuration for sampling traces, if not present there will be no sampling.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic_sampling: Option<SamplingConfig>,
+    /// Configuration for measurements.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub measurements: Option<MeasurementsConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
@@ -139,6 +142,7 @@ impl Default for ProjectConfig {
             event_retention: None,
             quotas: Vec::new(),
             dynamic_sampling: None,
+            measurements: None,
             breakdowns_v2: None,
             session_metrics: SessionMetricsConfig::default(),
             transaction_metrics: None,
@@ -171,6 +175,9 @@ pub struct LimitedProjectConfig {
     pub metric_conditional_tagging: Vec<TaggingRule>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub span_attributes: BTreeSet<SpanAttribute>,
+    /// Configuration for measurements.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub measurements: Option<MeasurementsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
