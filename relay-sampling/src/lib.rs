@@ -641,7 +641,7 @@ impl SamplingConfig {
         sampling_context: &DynamicSamplingContext,
         ip_addr: Option<IpAddr>,
     ) -> Option<&'a SamplingRule> {
-        self.rules.iter().find(|&rule| {
+        self.rules.iter().find(|rule| {
             rule.ty == RuleType::Trace && rule.condition.matches(sampling_context, ip_addr)
         })
     }
@@ -663,7 +663,7 @@ impl SamplingConfig {
 
         self.rules
             .iter()
-            .find(|&rule| rule.ty == ty && rule.condition.matches(event, ip_addr))
+            .find(|rule| rule.ty == ty && rule.condition.matches(event, ip_addr))
     }
 }
 
