@@ -221,12 +221,70 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
     }
 }
 
-/// Ensure measurements interface is only present for transaction events
+/// Returns the unit of the provided metric.
+///
+/// For known measurements, this returns `Some(MetricUnit)`, which can also include
+/// `Some(MetricUnit::None)`. For unknown measurement names, this returns `None`.
+fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
+    match measurement_name {
+        // Web
+        "fcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "lcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "fid" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "fp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "inp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "ttfb" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "ttfb.requesttime" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "cls" => Some(MetricUnit::None),
+
+        // Mobile
+        "app_start_cold" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "app_start_warm" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "frames_total" => Some(MetricUnit::None),
+        "frames_slow" => Some(MetricUnit::None),
+        "frames_slow_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
+        "frames_frozen" => Some(MetricUnit::None),
+        "frames_frozen_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
+
+        // React-Native
+        "stall_count" => Some(MetricUnit::None),
+        "stall_total_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "stall_longest_time" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "stall_percentage" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
+
+        // Default
+        _ => None,
+    }
+}
+
+fn normalize_units(measurements: &mut Measurements) {
+    for (name, measurement) in measurements.iter_mut() {
+        let measurement = match measurement.value_mut() {
+            Some(m) => m,
+            None => continue,
+        };
+
+        let stated_unit = measurement.unit.value().copied();
+        let default_unit = get_metric_measurement_unit(name);
+        if let (Some(default_), Some(stated)) = (default_unit, stated_unit) {
+            if default_ != stated {
+                relay_log::error!("unit mismatch on measurements.{}: {}", name, stated);
+            }
+        }
+
+        measurement
+            .unit
+            .set_value(Some(stated_unit.or(default_unit).unwrap_or_default()))
+    }
+}
+
+/// Ensure measurements interface is only present for transaction events.
 fn normalize_measurements(event: &mut Event) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Some(measurements) = event.measurements.value_mut() {
+        normalize_units(measurements);
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
             (Some(start), Some(end)) => relay_common::chrono_to_positive_millis(end - start),
             _ => 0.0,
@@ -1880,6 +1938,7 @@ mod tests {
           "measurements": {
             "frames_frozen": {
               "value": 2.0,
+              "unit": "none",
             },
             "frames_frozen_rate": {
               "value": 0.5,
@@ -1887,6 +1946,7 @@ mod tests {
             },
             "frames_slow": {
               "value": 1.0,
+              "unit": "none",
             },
             "frames_slow_rate": {
               "value": 0.25,
@@ -1894,6 +1954,7 @@ mod tests {
             },
             "frames_total": {
               "value": 4.0,
+              "unit": "none",
             },
             "stall_percentage": {
               "value": 0.8,
@@ -1973,5 +2034,58 @@ mod tests {
             .to_json()
             .unwrap();
         assert_eq!(&second, &third, "idempotency check failed");
+    }
+
+    #[test]
+    fn test_normalize_units() {
+        let mut measurements = Annotated::<Measurements>::from_json(
+            r###"{
+                "fcp": {"value": 1.1},
+                "stall_count": {"value": 3.3},
+                "foo": {"value": 8.8}
+            }"###,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "fcp": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+                "foo": Measurement {
+                    value: 8.8,
+                    unit: ~,
+                },
+                "stall_count": Measurement {
+                    value: 3.3,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+        normalize_units(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "fcp": Measurement {
+                    value: 1.1,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "foo": Measurement {
+                    value: 8.8,
+                    unit: None,
+                },
+                "stall_count": Measurement {
+                    value: 3.3,
+                    unit: None,
+                },
+            },
+        )
+        "###);
     }
 }
