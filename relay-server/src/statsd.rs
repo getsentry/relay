@@ -174,8 +174,8 @@ pub enum RelayHistograms {
     /// number of propagations.
     ///
     /// Tracks the same as `dynamic_sampling.propagations`, except that the value of this metric is
-    /// a percentage between `0.0` and `1.0`. A value of `0` means that no propagations occurred,
-    /// and `1` means that all propagations occurred with the wrong transaction name.
+    /// a percentage between `0.0` and `100.0`. A value of `0` means that no propagations occurred,
+    /// and `100` means that all propagations occurred with the wrong transaction name.
     ///
     /// This metric is tagged with:
     ///
@@ -200,7 +200,7 @@ pub enum RelayHistograms {
 
     /// Timing relative to the transaction duration until the final name is determined.
     ///
-    /// This is a percentage between `0.0` and `1.0`.
+    /// This is a percentage between `0.0` and `100.0`.
     ///
     /// This metric is tagged with:
     ///

@@ -141,12 +141,12 @@ def test_normalize_measurement_interface(
     assert "trace" in event["contexts"]
     assert "measurements" in event, event
     assert event["measurements"] == {
-        "lcp": {"value": 420.69},
-        "lcp_final.element-size123": {"value": 1},
-        "fid": {"value": 2020},
-        "inp": {"value": 100.14},
-        "cls": {"value": None},
-        "fp": {"value": None},
+        "cls": {"unit": "none", "value": None},
+        "fid": {"unit": "millisecond", "value": 2020.0},
+        "inp": {"unit": "millisecond", "value": 100.14},
+        "fp": {"unit": "millisecond", "value": None},
+        "lcp": {"unit": "millisecond", "value": 420.69},
+        "lcp_final.element-size123": {"unit": "none", "value": 1.0},
         "missing_value": None,
     }
 
