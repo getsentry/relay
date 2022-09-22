@@ -371,7 +371,16 @@ fn track_sampling_metrics(
         None => return,
     };
 
-    let last_change = changes.last().and_then(|a| a.value());
+    let last_change = changes
+        .iter()
+        .rev()
+        // skip all broken change records
+        .filter_map(|a| a.value())
+        // skip records without a timestamp
+        .filter(|c| c.timestamp.value().is_some())
+        // take the last that did not occur when the event was sent
+        .find(|c| c.timestamp.value() != event.timestamp.value());
+
     let source = event.get_transaction_source().as_str();
     let platform = event.platform.as_str().unwrap_or("other");
     let sdk_name = event.sdk_name();
@@ -399,7 +408,11 @@ fn track_sampling_metrics(
             sdk_version = sdk_version,
         );
 
-        let percentage = ((change as f64) / (total as f64)).min(1.0);
+        let percentage = match (change, total) {
+            (0, 0) => 0.0, // 0% indicates no premature changes.
+            _ => ((change as f64) / (total as f64)).min(1.0) * 100.0,
+        };
+
         metric!(
             histogram(RelayHistograms::DynamicSamplingPropagationPercentage) = percentage,
             source = source,
@@ -411,7 +424,9 @@ fn track_sampling_metrics(
 
     if let (Some(&start), Some(&change), Some(&end)) = (
         event.start_timestamp.value(),
-        last_change.and_then(|c| c.timestamp.value()),
+        last_change
+            .and_then(|c| c.timestamp.value())
+            .or_else(|| event.start_timestamp.value()), // default to start if there was no change
         event.timestamp.value(),
     ) {
         let delay_ms = (change - start).num_milliseconds();
@@ -427,7 +442,7 @@ fn track_sampling_metrics(
 
         let duration_ms = (end - start).num_milliseconds() as f64;
         if delay_ms >= 0 && duration_ms >= 0.0 {
-            let percentage = ((delay_ms as f64) / duration_ms).min(1.0);
+            let percentage = ((delay_ms as f64) / duration_ms).min(1.0) * 100.0;
             metric!(
                 histogram(RelayHistograms::DynamicSamplingChangePercentage) = percentage,
                 source = source,
