@@ -641,13 +641,9 @@ impl SamplingConfig {
         sampling_context: &DynamicSamplingContext,
         ip_addr: Option<IpAddr>,
     ) -> Option<&'a SamplingRule> {
-        for rule in &self.rules {
-            if rule.ty == RuleType::Trace && rule.condition.matches(sampling_context, ip_addr) {
-                return Some(rule);
-            }
-        }
-
-        None
+        self.rules.iter().find(|&rule| {
+            rule.ty == RuleType::Trace && rule.condition.matches(sampling_context, ip_addr)
+        })
     }
 
     /// Get the first rule of type [`RuleType::Transaction`] or [`RuleType::Error`] whose conditions
@@ -665,13 +661,9 @@ impl SamplingConfig {
             RuleType::Error
         };
 
-        for rule in &self.rules {
-            if rule.ty == ty && rule.condition.matches(event, ip_addr) {
-                return Some(rule);
-            }
-        }
-
-        None
+        self.rules
+            .iter()
+            .find(|&rule| rule.ty == ty && rule.condition.matches(event, ip_addr))
     }
 }
 
