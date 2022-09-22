@@ -266,8 +266,8 @@ fn normalize_units(measurements: &mut Measurements) {
 
         let stated_unit = measurement.unit.value().copied();
         let default_unit = get_metric_measurement_unit(name);
-        if let (Some(default), Some(stated)) = (default_unit, stated_unit) {
-            if default != stated {
+        if let (Some(default_), Some(stated)) = (default_unit, stated_unit) {
+            if default_ != stated {
                 relay_log::error!("unit mismatch on measurements.{}: {}", name, stated);
             }
         }
