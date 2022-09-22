@@ -50,7 +50,7 @@ use tokio::sync::{mpsc, Semaphore, SemaphorePermit};
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
 use crate::statsd::{RelayHistograms, RelayTimers};
-use crate::utils::{self, ApiErrorResponse, IntoTracked, RelayErrorAction, TrackedFutureFinished};
+use crate::utils::{self, ApiErrorResponse, RelayErrorAction};
 
 #[derive(Fail, Debug)]
 pub enum UpstreamRequestError {
@@ -390,26 +390,19 @@ pub struct UpstreamRelayService {
     /// run.
     reqwest_runtime: tokio::runtime::Runtime,
 
-    // Implicit queues
-    high_prio_receiver: mpsc::UnboundedReceiver<EnqueuedRequest>,
+    // Implicit
     high_prio_sender: mpsc::UnboundedSender<EnqueuedRequest>,
-    low_prio_receiver: mpsc::UnboundedReceiver<EnqueuedRequest>,
     low_prio_sender: mpsc::UnboundedSender<EnqueuedRequest>,
-
     // Retry queues, these need to be tackled first
-    high_prio_retry_receiver: mpsc::UnboundedReceiver<EnqueuedRequest>,
     high_prio_retry_sender: mpsc::UnboundedSender<EnqueuedRequest>,
-    low_prio_retry_receiver: mpsc::UnboundedReceiver<EnqueuedRequest>,
     low_prio_retry_sender: mpsc::UnboundedSender<EnqueuedRequest>,
 
     /// Size of our intern channels, for logging purpose.
-    high_prio_size: AtomicUsize,
-    low_prio_size: AtomicUsize,
-    high_prio_retry_size: AtomicUsize,
-    low_prio_retry_size: AtomicUsize,
+    high_prio_size: Arc<AtomicUsize>,
+    low_prio_size: Arc<AtomicUsize>,
+    high_prio_retry_size: Arc<AtomicUsize>,
+    low_prio_retry_size: Arc<AtomicUsize>,
 
-    /// Semaphore to control the number of inflight requests
-    inflight_requests: Semaphore,
     notify_network_error: Arc<Notify>,
 
     outage_rx: watch::Receiver<bool>,
@@ -460,43 +453,58 @@ impl UpstreamRelayService {
         let copy2_config = config.clone();
         let notify = Arc::new(Notify::new());
 
-        UpstreamRelayService {
-            inflight_requests: Semaphore::new(config.max_concurrent_requests()),
-            config,
-            reqwest_runtime,
-            reqwest_client,
-            high_prio_receiver,
-            high_prio_sender,
-            low_prio_receiver,
-            low_prio_sender,
-            high_prio_retry_receiver,
-            high_prio_retry_sender,
-            low_prio_retry_receiver,
-            low_prio_retry_sender,
-            high_prio_size: AtomicUsize::new(0),
-            low_prio_size: AtomicUsize::new(0),
-            high_prio_retry_size: AtomicUsize::new(0),
-            low_prio_retry_size: AtomicUsize::new(0),
-            notify_network_error: notify.clone(),
+        let high_prio_size = Arc::new(AtomicUsize::new(0));
+        let low_prio_size = Arc::new(AtomicUsize::new(0));
+        let high_prio_retry_size = Arc::new(AtomicUsize::new(0));
+        let low_prio_retry_size = Arc::new(AtomicUsize::new(0));
 
-            // TODO: Still need to find a way to pass values into this
-            outage_rx: OutageState {
+        // Start the reqwest client
+        let client = ReqwestClient {
+            high_prio_receiver,
+            low_prio_receiver,
+            high_prio_retry_receiver,
+            low_prio_retry_receiver,
+            high_prio_size: high_prio_size.clone(),
+            low_prio_size: low_prio_size.clone(),
+            high_prio_retry_size: high_prio_retry_size.clone(),
+            low_prio_retry_size: low_prio_retry_size.clone(),
+            auth_rx: OutageState {
                 outage_backoff: RetryBackoff::new(copy_config.http_max_retry_interval()),
                 first_error: None,
                 config: copy_config,
             }
-            .start(notify),
-
-            auth_rx: AuthenticationState {
+            .start(notify.clone()),
+            outage_rx: AuthenticationState {
                 auth_backoff: RetryBackoff::new(copy2_config.http_max_retry_interval()),
                 config: copy2_config,
                 auth_state: AuthState::Unknown,
             }
             .start(),
+            /// Semaphore to control the number of inflight requests
+            inflight_requests: Semaphore::new(config.max_concurrent_requests()),
+            config: config.clone(),
+            reqwest_client: reqwest_client.clone(),
+        };
+
+        UpstreamRelayService {
+            config,
+            reqwest_runtime,
+            reqwest_client,
+            high_prio_sender,
+            low_prio_sender,
+            high_prio_retry_sender,
+            low_prio_retry_sender,
+            high_prio_size,
+            low_prio_size,
+            high_prio_retry_size,
+            low_prio_retry_size,
+            notify_network_error: notify,
+            outage_rx: client.outage_rx,
+            auth_rx: client.auth_rx,
         }
     }
 
-    // TODO: Make this its own struct so that it can be called from all the states and this service
+    // TODO: Think about if we want to have this here or only in its own struct
     fn send_request(&self, mut request: EnqueuedRequest, permit: Option<SemaphorePermit>) {
         let uri = self
             .config
@@ -530,15 +538,12 @@ impl UpstreamRelayService {
                     request
                         .request
                         .respond(max_api_payload_size, Err(UpstreamRequestError::Http(e)))
-                        .await
+                        .await;
                 });
                 return;
             }
             Ok(client_request) => client_request,
         };
-
-        // we are about to send a HTTP message keep track of requests in flight
-        // self.num_inflight_requests += 1; This is replaced by the Semaphore Permit
 
         let intercept_status_errors = request.request.intercept_status_errors();
         let send_start = Instant::now();
@@ -546,8 +551,6 @@ impl UpstreamRelayService {
         let max_response_size = self.config.max_api_payload_size();
 
         // TODO: This is actually a bigger issue
-        let service = Arc::new(self);
-
         tokio::spawn(async move {
             let res = client.execute(client_request.0).await;
 
@@ -562,7 +565,7 @@ impl UpstreamRelayService {
                 }
                 Err(err) => Err(UpstreamRequestError::SendFailed(err)),
             };
-            service.handle_http_response(send_start, request, send_result); // TODO:  This is not send and hence it complains
+            self.handle_http_response(send_start, request, send_result); // TODO:  This is not send and hence it complains
 
             // We tried to send the request either it went thru and we have capacity again
             // or it didn't and we rescheduled but also have capacity again
@@ -654,6 +657,7 @@ impl UpstreamRelayService {
             // self.notify_reset_network_error.notify_one();
         }
         let max_api_payload_size = self.config.max_api_payload_size();
+        // TODO: This is super weird
         tokio::spawn(async move {
             request
                 .request
@@ -720,7 +724,7 @@ impl UpstreamRelayService {
         }
     }
 
-    fn handle_message(&mut self, message: UpstreamRelay) {
+    fn handle_message(&self, message: UpstreamRelay) {
         match message {
             UpstreamRelay::IsAuthenticated(_, responder) => {
                 responder.send(*self.auth_rx.borrow());
@@ -745,45 +749,13 @@ impl Service for UpstreamRelayService {
         let service = Arc::new(self);
 
         // Handle the incoming messages should be reasonably fast
+        // Out inbox
         tokio::spawn(async move {
             relay_log::info!("upstream relay started");
             while let Some(message) = rx.recv().await {
-                self.handle_message(message);
+                service.handle_message(message);
             }
             relay_log::info!("upstream relay stopped");
-        });
-
-        // Loop that makes sure to pump out the messages
-        tokio::spawn(async move {
-            loop {
-                // Might need acquire owned here also not sure about the ok
-                let (_, _, Ok(permit)) = tokio::join!(
-                    watch_ready(service.auth_rx),
-                    watch_ready(service.outage_rx),
-                    service.inflight_requests.acquire()
-                );
-                // If the semaphore is closed we are in big trouble, so match on it
-
-                // TODO: Make this nicer
-                tokio::select! {
-                    Some(message) = service.high_prio_retry_receiver.recv() => {
-                        service.high_prio_retry_size.fetch_sub(1, Ordering::Relaxed);
-                        tokio::spawn(async move{service.send_request(message, Some(permit))});
-                    },
-                    Some(message) = service.high_prio_receiver.recv() => {
-                        service.high_prio_size.fetch_sub(1, Ordering::Relaxed);
-                        tokio::spawn(async move{service.send_request(message, Some(permit))});
-                    },
-                    Some(message) = service.low_prio_retry_receiver.recv() => {
-                        service.low_prio_retry_size.fetch_sub(1, Ordering::Relaxed);
-                        tokio::spawn(async move{service.send_request(message, Some(permit))});
-                    },
-                    Some(message) = service.low_prio_receiver.recv() => {
-                        service.low_prio_size.fetch_sub(1, Ordering::Relaxed);
-                        tokio::spawn(async move{service.send_request(message, Some(permit))});
-                    },
-                }
-            }
         });
     }
 }
@@ -799,6 +771,171 @@ async fn watch_ready(mut rx: watch::Receiver<bool>) {
         if *rx.borrow() {
             return;
         }
+    }
+}
+
+struct ReqwestClient {
+    high_prio_receiver: mpsc::UnboundedReceiver<EnqueuedRequest>,
+    low_prio_receiver: mpsc::UnboundedReceiver<EnqueuedRequest>,
+    high_prio_retry_receiver: mpsc::UnboundedReceiver<EnqueuedRequest>,
+    low_prio_retry_receiver: mpsc::UnboundedReceiver<EnqueuedRequest>,
+
+    high_prio_size: Arc<AtomicUsize>,
+    low_prio_size: Arc<AtomicUsize>,
+    high_prio_retry_size: Arc<AtomicUsize>,
+    low_prio_retry_size: Arc<AtomicUsize>,
+
+    auth_rx: watch::Receiver<bool>,
+    outage_rx: watch::Receiver<bool>,
+    inflight_requests: Semaphore,
+
+    config: Arc<Config>,
+    reqwest_client: reqwest::Client,
+}
+
+// TODO: Not sure this actually solves our problems or just kicks the can down the road.
+impl ReqwestClient {
+    fn start(mut self) {
+        tokio::spawn(async move {
+            loop {
+                // Might need acquire owned here also not sure about the ok
+                // Try to match here and see if that works better?
+                let permit = match tokio::join!(
+                    watch_ready(self.auth_rx),
+                    watch_ready(self.outage_rx),
+                    self.inflight_requests.acquire() // TODO: New issue
+                ) {
+                    (_, _, Ok(permit)) => permit,
+                    _ => break, // If the semaphore is closed we are in big trouble, so match on it
+                };
+
+                // TODO: Make this nicer
+                // TODO: Now we have the issues with the queue size being split over multiple structs which is super not ideal
+                tokio::select! {
+                    Some(message) = self.high_prio_retry_receiver.recv() => {
+                        self.high_prio_retry_size.fetch_sub(1, Ordering::Relaxed);
+                        tokio::spawn(async move{self.send_request(message, Some(permit))});
+                    },
+                    Some(message) = self.high_prio_receiver.recv() => {
+                        self.high_prio_size.fetch_sub(1, Ordering::Relaxed);
+                        tokio::spawn(async move{self.send_request(message, Some(permit))});
+                    },
+                    Some(message) = self.low_prio_retry_receiver.recv() => {
+                        self.low_prio_retry_size.fetch_sub(1, Ordering::Relaxed);
+                        tokio::spawn(async move{self.send_request(message, Some(permit))});
+                    },
+                    Some(message) = self.low_prio_receiver.recv() => {
+                        self.low_prio_size.fetch_sub(1, Ordering::Relaxed);
+                        tokio::spawn(async move{self.send_request(message, Some(permit))});
+                    },
+                }
+            }
+        });
+    }
+
+    fn send_request(&self, mut request: EnqueuedRequest, permit: Option<SemaphorePermit>) {
+        let uri = self
+            .config
+            .upstream_descriptor()
+            .get_url(request.request.path().as_ref());
+
+        let host_header = self
+            .config
+            .http_host_header()
+            .unwrap_or_else(|| self.config.upstream_descriptor().host());
+
+        let method =
+            reqwest::Method::from_bytes(request.request.method().as_ref().as_bytes()).unwrap();
+
+        let builder = self.reqwest_client.request(method, uri); // TODO: Need to check that this is copy
+        let mut builder = RequestBuilder::reqwest(builder);
+
+        builder.header("Host", host_header.as_bytes());
+
+        if request.request.set_relay_id() {
+            if let Some(credentials) = self.config.credentials() {
+                builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
+            }
+        }
+
+        //try to build a ClientRequest
+        let client_request = match request.request.build(&self.config, builder) {
+            Err(e) => {
+                let max_api_payload_size = self.config.max_api_payload_size();
+                tokio::spawn(async move {
+                    request
+                        .request
+                        .respond(max_api_payload_size, Err(UpstreamRequestError::Http(e)))
+                        .await;
+                });
+                return;
+            }
+            Ok(client_request) => client_request,
+        };
+
+        let intercept_status_errors = request.request.intercept_status_errors();
+        let send_start = Instant::now();
+        let client = self.reqwest_client.clone();
+        let max_response_size = self.config.max_api_payload_size();
+
+        // TODO: This is actually a bigger issue
+        tokio::spawn(async move {
+            let res = client.execute(client_request.0).await;
+
+            let send_result = match res {
+                Ok(response) => {
+                    handle_response(
+                        Response(response),
+                        intercept_status_errors,
+                        max_response_size,
+                    )
+                    .await
+                }
+                Err(err) => Err(UpstreamRequestError::SendFailed(err)),
+            };
+            self.handle_http_response(send_start, request, send_result); // TODO:  This is not send and hence it complains
+
+            // We tried to send the request either it went thru and we have capacity again
+            // or it didn't and we rescheduled but also have capacity again
+            if let Some(permit) = permit {
+                drop(permit);
+            }
+        });
+    }
+
+    /// Checks the result of an upstream request and takes appropriate action.
+    ///
+    /// 1. If the request was sent, notify the response sender.
+    /// 2. If the error is non-recoverable, notify the response sender.
+    /// 3. If the request can be retried, schedule a retry.
+    /// 4. Otherwise, ensure an authentication request is scheduled.
+    fn handle_http_response(
+        &self,
+        send_start: Instant,
+        mut request: EnqueuedRequest,
+        send_result: Result<Response, UpstreamRequestError>,
+    ) {
+        UpstreamRelayService::meter_result(send_start, &request, &send_result);
+        if matches!(send_result, Err(ref err) if err.is_network_error()) {
+            // self.notify_network_error.notify_one(); // TODO: This is not too bad
+
+            if request.request.retry() {
+                request.previous_retries += 1;
+                return self.enqueue(request, EnqueuePosition::Back); // TODO: And this is where it gets supper weird since it links back to the queues in the Upstream service
+            }
+        } else {
+            // we managed a request without a network error, reset the first time we got a network
+            // error and resume sending events.
+            // self.notify_reset_network_error.notify_one();
+        }
+        let max_api_payload_size = self.config.max_api_payload_size();
+        // TODO: This is super weird
+        tokio::spawn(async move {
+            request
+                .request
+                .respond(max_api_payload_size, send_result)
+                .await;
+        });
     }
 }
 
@@ -1137,8 +1274,8 @@ impl UpstreamRequest for GetHealthCheck {
         limit: usize, // TODO: Probably want to use this
         result: Result<Response, UpstreamRequestError>,
     ) -> Pin<Box<(dyn futures::Future<Output = ()> + Send + 'static)>> {
-        let sender = self.0; // TODO: This might very much be a real issue since it doesn't have copy
-                             // Can we do mem take?
+        let (tx, _) = oneshot::channel();
+        let sender = std::mem::replace(&mut self.0, tx); // This will not bite us in the ass
 
         Box::pin(async move {
             let result = match result {
@@ -1148,10 +1285,10 @@ impl UpstreamRequest for GetHealthCheck {
 
             if matches!(result, Err(err) if err.is_network_error()) {
                 // still network error, schedule another attempt
-                sender.send(false);
+                sender.send(false).ok();
             } else {
                 // resume normal messages
-                sender.send(true);
+                sender.send(true).ok();
             }
         })
     }
