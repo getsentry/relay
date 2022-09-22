@@ -232,6 +232,7 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
         "lcp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "fid" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "fp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "inp" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "ttfb" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "ttfb.requesttime" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
         "cls" => Some(MetricUnit::None),

@@ -123,6 +123,7 @@ def test_normalize_measurement_interface(
                 "LCP": {"value": 420.69},
                 "   lcp_final.element-Size123  ": {"value": 1},
                 "fid": {"value": 2020},
+                "inp": {"value": 100.14},
                 "cls": {"value": None},
                 "fp": {"value": "im a first paint"},
                 "Total Blocking Time": {"value": 3.14159},
@@ -142,6 +143,7 @@ def test_normalize_measurement_interface(
     assert event["measurements"] == {
         "cls": {"unit": "none", "value": None},
         "fid": {"unit": "millisecond", "value": 2020.0},
+        "inp": {"unit": "millisecond", "value": 100.14},
         "fp": {"unit": "millisecond", "value": None},
         "lcp": {"unit": "millisecond", "value": 420.69},
         "lcp_final.element-size123": {"unit": "none", "value": 1.0},
@@ -182,6 +184,7 @@ def test_strip_measurement_interface(
             "measurements": {
                 "LCP": {"value": 420.69},
                 "fid": {"value": 2020},
+                "inp": {"value": 100.14},
                 "cls": {"value": None},
             },
         }
