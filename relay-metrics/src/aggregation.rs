@@ -1785,15 +1785,14 @@ impl Aggregator {
             for (partition_key, buckets) in partitioned_buckets {
                 self.process_batches(buckets, |batch| {
                     let batch_size = batch.len();
-                    match self.receiver.do_send(FlushBuckets {
+                    if let Err(err) = self.receiver.do_send(FlushBuckets {
                         project_key,
                         partition_key,
                         buckets: batch,
                     }) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            relay_log::error!("Failed to flush the buckets: {err}. Dropping current bucket batch of size: {batch_size}");
-                        }
+                            relay_log::error!(
+                                "Failed to flush the buckets: {err}. Dropping current {batch_size} buckets."
+                            );
                     }
                 });
             }
