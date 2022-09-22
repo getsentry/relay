@@ -1770,6 +1770,7 @@ impl Aggregator {
 
         relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
 
+        let mut buckets_failed = vec![];
         let mut total_bucket_count = 0u64;
         for (project_key, project_buckets) in flush_buckets.into_iter() {
             let bucket_count = project_buckets.len() as u64;
@@ -1782,22 +1783,35 @@ impl Aggregator {
             let partitioned_buckets = self.partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
                 self.process_batches(buckets, |batch| {
-                    let batch_size = batch.len();
-                    match self.receiver.do_send(FlushBuckets {
+                    if let Err(err) = self.receiver.do_send(FlushBuckets {
                         project_key,
                         partition_key,
                         buckets: batch,
                     }) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            relay_log::error!("Failed to flush the buckets: {err}. Dropping current bucket batch of size: {batch_size}");
-                        }
+                        let FlushBuckets {
+                            project_key,
+                            buckets,
+                            ..
+                        } = err.into_inner();
+
+                        // remove the number of buckets which were not flushed due to the `SendError`
+                        total_bucket_count -= buckets.len() as u64;
+                        buckets_failed.push((project_key, buckets));
                     }
                 });
             }
         }
-
         relay_statsd::metric!(histogram(MetricHistograms::BucketsFlushed) = total_bucket_count);
+
+        relay_log::trace!(
+            "Merging back {} bucket batches which failed to flush.",
+            buckets_failed.len()
+        );
+        for (project_key, buckets) in buckets_failed {
+            if let Err(err) = self.merge_all(project_key, buckets) {
+                relay_log::error!("Failed to merge back not-flushed buckets: {}", err);
+            }
+        }
     }
 }
 
