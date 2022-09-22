@@ -7,8 +7,10 @@ use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
-use relay_common::{DurationUnit, FractionUnit, MetricUnit};
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+
+use relay_common::{DurationUnit, FractionUnit, MetricUnit};
 
 use super::{schema, transactions, BreakdownsConfig};
 use crate::processor::{MaxChars, ProcessValue, ProcessingState, Processor};
@@ -33,6 +35,26 @@ mod spans;
 mod stacktrace;
 
 mod user_agent;
+
+/// Defines a builtin measurement.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct BuiltinMeasurementKey {
+    name: String,
+    unit: MetricUnit,
+}
+
+/// Configuration for measurements normalization.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MeasurementsConfig {
+    /// A list of measurements that are built-in and are not subject to custom measurement limits.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    builtin_measurements: Vec<BuiltinMeasurementKey>,
+
+    /// The maximum number of measurements allowed per event that are not known measurements.
+    max_custom_measurements: usize,
+}
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
 fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
@@ -221,6 +243,47 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
     }
 }
 
+/// Remove measurements that do not conform to the given config.
+///
+/// Built-in measurements are accepted if their unit is correct, dropped otherwise.
+/// Custom measurements are accepted up to a limit.
+///
+/// Note that [`Measurements`] is a BTreeMap, which means its keys are sorted.
+/// This ensures that for two events with the same measurement keys, the same set of custom
+/// measurements is retained.
+fn remove_invalid_measurements(
+    measurements: &mut Measurements,
+    measurements_config: &MeasurementsConfig,
+) {
+    let mut custom_measurements_count = 0;
+    measurements.retain(|name, value| {
+        let measurement = match value.value() {
+            Some(m) => m,
+            None => return false,
+        };
+        // TODO(jjbayer): Should we actually normalize the unit into the event?
+        let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
+
+        // Check if this is a builtin measurement:
+        for builtin_measurement in &measurements_config.builtin_measurements {
+            if &builtin_measurement.name == name {
+                // If the unit matches a built-in measurement, we allow it.
+                // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
+                // and just drop it instead.
+                return &builtin_measurement.unit == unit;
+            }
+        }
+
+        // For custom measurements, check the budget:
+        if custom_measurements_count < measurements_config.max_custom_measurements {
+            custom_measurements_count += 1;
+            return true;
+        }
+
+        false
+    });
+}
+
 /// Returns the unit of the provided metric.
 ///
 /// For known measurements, this returns `Some(MetricUnit)`, which can also include
@@ -279,12 +342,16 @@ fn normalize_units(measurements: &mut Measurements) {
 }
 
 /// Ensure measurements interface is only present for transaction events.
-fn normalize_measurements(event: &mut Event) {
+fn normalize_measurements(event: &mut Event, measurements_config: Option<&MeasurementsConfig>) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Some(measurements) = event.measurements.value_mut() {
         normalize_units(measurements);
+        if let Some(measurements_config) = measurements_config {
+            remove_invalid_measurements(measurements, measurements_config);
+        }
+
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
             (Some(start), Some(end)) => relay_common::chrono_to_positive_millis(end - start),
             _ => 0.0,
@@ -598,6 +665,7 @@ pub struct LightNormalizationConfig<'a> {
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
+    pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
 }
@@ -649,7 +717,7 @@ pub fn light_normalize_event(
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-        normalize_measurements(event); // Measurements are part of the metric extraction
+        normalize_measurements(event, config.measurements_config); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         Ok(())
@@ -904,6 +972,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
+    use serde_json::json;
     use similar_asserts::assert_eq;
 
     use crate::processor::process_value;
@@ -1729,7 +1798,7 @@ mod tests {
 
         let mut processor = NormalizeProcessor::new(
             Arc::new(StoreConfig {
-                grouping_config: Some(serde_json::json!({
+                grouping_config: Some(json!({
                     "id": "legacy:1234-12-12".to_string(),
                 })),
                 ..Default::default()
@@ -1928,7 +1997,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements(&mut event);
+        normalize_measurements(&mut event, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -1963,6 +2032,60 @@ mod tests {
             "stall_total_time": {
               "value": 4000.0,
               "unit": "millisecond",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_filter_custom_measurements() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "my_custom_measurement_1": {"value": 123},
+                "frames_frozen": {"value": 666, "unit": "invalid_unit"},
+                "frames_slow": {"value": 1},
+                "my_custom_measurement_3": {"value": 456},
+                "my_custom_measurement_2": {"value": 789}
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let config: MeasurementsConfig = serde_json::from_value(json!({
+            "builtinMeasurements": [
+                {"name": "frames_frozen", "unit": "none"},
+                {"name": "frames_slow", "unit": "none"}
+            ],
+            "maxCustomMeasurements": 2,
+            "stray_key": "zzz"
+        }))
+        .unwrap();
+
+        normalize_measurements(&mut event, Some(&config));
+
+        // Only two custom measurements are retained, in alphabetic order (1 and 2)
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "frames_slow": {
+              "value": 1.0,
+              "unit": "none",
+            },
+            "my_custom_measurement_1": {
+              "value": 123.0,
+              "unit": "none",
+            },
+            "my_custom_measurement_2": {
+              "value": 789.0,
+              "unit": "none",
             },
           },
         }

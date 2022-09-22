@@ -582,7 +582,6 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 }
 
 #[cfg(test)]
-#[cfg(feature = "processing")]
 mod tests {
 
     use super::*;

@@ -1955,6 +1955,7 @@ impl EnvelopeProcessorService {
             received_at: Some(state.envelope_context.received_at()),
             max_secs_in_past: Some(self.config.max_secs_in_past()),
             max_secs_in_future: Some(self.config.max_secs_in_future()),
+            measurements_config: state.project_state.config.measurements.as_ref(),
             breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
             normalize_user_agent: Some(true),
         };
